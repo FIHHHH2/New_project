@@ -7,9 +7,11 @@
 local BASE_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/"
 
 local function cleanSource(str: string): string
-	-- Strip UTF-8 BOM if present
-	local cleaned = string.gsub(str, "^\239\187\191", "")
-	return cleaned
+	local b1, b2, b3 = string.byte(str, 1, 3)
+	if b1 == 239 and b2 == 187 and b3 == 191 then
+		return string.sub(str, 4)
+	end
+	return str
 end
 
 local function fetchSource(path: string): string

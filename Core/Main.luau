@@ -13,16 +13,16 @@ localPlayer.CharacterAdded:Connect(function(char)
 	humanoid = char:WaitForChild("Humanoid") :: Humanoid
 end)
 
-local window = CoreUI.new("Fih Ui")
+local window = CoreUI.new("Project Fih Menu")
 
 -- tabs
-local menuTab = window:CreateTab("Menu")
+local mainTab = window:CreateTab("Main")
 local playerTab = window:CreateTab("Player")
 local visualsTab = window:CreateTab("Visuals")
-local keybindsTab = window:CreateTab("Keybinds")
+local combatTab = window:CreateTab("Combat")
 
--- sections & controls
-local selfConfigs = window:AddSection(menuTab, "Self Configs...")
+-- sections & controls on Main tab
+local selfConfigs = window:AddSection(mainTab, "Self Configs")
 
 window:AddToggle(selfConfigs, "walkspeed_boost", "WalkSpeed Boost", false, Enum.KeyCode.V, function(enabled)
 	if humanoid then
@@ -36,20 +36,20 @@ window:AddToggle(selfConfigs, "jumppower_boost", "JumpPower Boost", false, Enum.
 	end
 end)
 
-window:AddSlider(selfConfigs, "Custom Speed", 16, 150, 16, function(value)
+window:AddSlider(selfConfigs, "WalkSpeed Value", 16, 150, 16, function(value)
 	if humanoid then
 		humanoid.WalkSpeed = value
 	end
 end)
 
-local modulesSection = window:AddSection(menuTab, "Modules")
+local modulesSection = window:AddSection(mainTab, "Modules")
 
 window:AddToggle(modulesSection, "run_and_hide", "Run & Hide", false, Enum.KeyCode.H, function(enabled)
-	print("[Module] Run & Hide state:", enabled)
+	print("[Module] Run & Hide:", enabled)
 end)
 
 local visualConfigs = window:AddSection(visualsTab, "Rendering")
 
 window:AddToggle(visualConfigs, "esp_players", "Highlight Players", false, Enum.KeyCode.J, function(enabled)
-	print("[Visuals] Highlight state:", enabled)
+	print("[Visuals] Highlight:", enabled)
 end)

@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 local UserInputService = game:GetService("UserInputService")
 
 local FeatureManager = {}

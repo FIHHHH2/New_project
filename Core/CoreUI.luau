@@ -1,12 +1,11 @@
-﻿--!strict
+--!strict
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 
-local Root = script.Parent.Parent
-local UI = require(Root.UI.UI)
-local Animations = require(Root.UI.Animations)
-local FeatureManager = require(script.Parent.FeatureManager)
+local UI = require("UI/UI.luau")
+local Animations = require("UI/Animations.luau")
+local FeatureManager = require("Core/FeatureManager.luau")
 
 local CoreUI = {}
 CoreUI.__index = CoreUI
@@ -199,7 +198,6 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	knobCorner.CornerRadius = UDim.new(1, 0)
 	knobCorner.Parent = knob
 	
-	-- inline keybind binder button
 	local keybindBtn = Instance.new("TextButton")
 	keybindBtn.Name = "Keybinder"
 	keybindBtn.Size = UDim2.new(0, 56, 0, 22)

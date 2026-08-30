@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[=[
     ✦ Universal Remote Loader for Modular Roblox UI ✦
     Fetches and resolves all modular sub-packages dynamically over HTTP.
@@ -6,21 +6,44 @@
 
 local BASE_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/"
 
+local function cleanSource(str: string): string
+	-- Strip UTF-8 BOM if present (EF BB BF -> 239 187 191)
+	if string.byte(str, 1) == 239 and string.byte(str, 2) == 187 and string.byte(str, 3) == 191 then
+		return string.sub(str, 4)
+	end
+	return str
+end
+
 local function fetchSource(path: string): string
-	local url = BASE_URL .. path .. "?cache=" .. tostring(os.time())
+	local url = BASE_URL .. path
 	local success, content = pcall(function()
 		return game:HttpGet(url)
 	end)
 	if not success or not content or content == "" then
 		error(string.format("[Loader] Failed to fetch module at %s: %s", url, tostring(content)))
 	end
-	return content
+	return cleanSource(content)
 end
 
--- Virtual module cache to emulate standard Luau require behavior
+-- Virtual module cache emulating standard Luau require behavior
 local moduleCache: {[string]: any} = {}
 
 local function requireRemote(path: string): any
+	-- Normalize path
+	if not string.find(path, "%.luau$") and not string.find(path, "%.lua$") then
+		if path == "UI/Animations" or path == "Animations" then
+			path = "UI/Animations.luau"
+		elseif path == "UI/UI" or path == "UI" then
+			path = "UI/UI.luau"
+		elseif path == "Core/FeatureManager" or path == "FeatureManager" then
+			path = "Core/FeatureManager.luau"
+		elseif path == "Core/CoreUI" or path == "CoreUI" then
+			path = "Core/CoreUI.luau"
+		elseif path == "Core/Main" or path == "Main" then
+			path = "Core/Main.luau"
+		end
+	end
+
 	if moduleCache[path] then
 		return moduleCache[path]
 	end
@@ -33,12 +56,12 @@ local function requireRemote(path: string): any
 	
 	-- Inject custom environment with virtual require
 	local env = getfenv(func)
-	local customEnv = setmetatable({
+	local customEnv
+	customEnv = setmetatable({
 		require = function(target: any)
 			if typeof(target) == "string" then
 				return requireRemote(target)
 			end
-			-- Handle script-relative requires
 			if typeof(target) == "Instance" then
 				local name = target.Name
 				if name == "Animations" then

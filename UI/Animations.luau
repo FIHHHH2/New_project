@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 local TweenService = game:GetService("TweenService")
 
 local Animations = {}

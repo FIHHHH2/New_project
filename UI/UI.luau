@@ -1,9 +1,9 @@
-﻿--!strict
+--!strict
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 
-local Animations = require(script.Parent.Animations)
+local Animations = require("UI/Animations.luau")
 
 local UI = {}
 UI.__index = UI

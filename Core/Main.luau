@@ -1,6 +1,8 @@
 ﻿--!strict
 local Players = game:GetService("Players")
+
 local CoreUI = require(script.Parent.CoreUI)
+local FeatureManager = require(script.Parent.FeatureManager)
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()

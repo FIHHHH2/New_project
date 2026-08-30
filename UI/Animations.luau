@@ -1,8 +1,8 @@
 ﻿--!strict
 local TweenService = game:GetService("TweenService")
 
-local AnimationEngine = {}
-AnimationEngine.__index = AnimationEngine
+local Animations = {}
+Animations.__index = Animations
 
 export type AnimationConfig = {
 	duration: number?,
@@ -10,7 +10,7 @@ export type AnimationConfig = {
 	easingDirection: Enum.EasingDirection?
 }
 
-function AnimationEngine.tween(instance: Instance, properties: {[string]: any}, config: AnimationConfig?): Tween
+function Animations.tween(instance: Instance, properties: {[string]: any}, config: AnimationConfig?): Tween
 	local dur = if config and config.duration then config.duration else 0.25
 	local style = if config and config.easingStyle then config.easingStyle else Enum.EasingStyle.Quad
 	local dir = if config and config.easingDirection then config.easingDirection else Enum.EasingDirection.Out
@@ -21,25 +21,25 @@ function AnimationEngine.tween(instance: Instance, properties: {[string]: any}, 
 	return tween
 end
 
-function AnimationEngine.bindHover(button: GuiButton, hoverProps: {[string]: any}, defaultProps: {[string]: any}, config: AnimationConfig?)
+function Animations.bindHover(button: GuiButton, hoverProps: {[string]: any}, defaultProps: {[string]: any}, config: AnimationConfig?)
 	button.MouseEnter:Connect(function()
-		AnimationEngine.tween(button, hoverProps, config)
+		Animations.tween(button, hoverProps, config)
 	end)
 	button.MouseLeave:Connect(function()
-		AnimationEngine.tween(button, defaultProps, config)
+		Animations.tween(button, defaultProps, config)
 	end)
 end
 
-function AnimationEngine.fadeToggle(indicator: GuiObject, state: boolean, activeColor: Color3, inactiveColor: Color3, config: AnimationConfig?)
+function Animations.fadeToggle(indicator: GuiObject, state: boolean, activeColor: Color3, inactiveColor: Color3, config: AnimationConfig?)
 	local targetColor = if state then activeColor else inactiveColor
 	local targetTransparency = if state then 0 else 0.4
-	AnimationEngine.tween(indicator, {
+	Animations.tween(indicator, {
 		BackgroundColor3 = targetColor,
 		BackgroundTransparency = targetTransparency
 	}, config)
 end
 
-function AnimationEngine.pulse(instance: GuiObject, scaleTarget: number, duration: number?)
+function Animations.pulse(instance: GuiObject, scaleTarget: number, duration: number?)
 	local dur = duration or 0.12
 	local originalSize = instance.Size
 	local expandTween = TweenService:Create(instance, TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -53,4 +53,4 @@ function AnimationEngine.pulse(instance: GuiObject, scaleTarget: number, duratio
 	end)
 end
 
-return AnimationEngine
+return Animations

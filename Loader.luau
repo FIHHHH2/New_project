@@ -7,15 +7,13 @@
 local BASE_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/"
 
 local function cleanSource(str: string): string
-	-- Strip UTF-8 BOM if present (EF BB BF -> 239 187 191)
-	if string.byte(str, 1) == 239 and string.byte(str, 2) == 187 and string.byte(str, 3) == 191 then
-		return string.sub(str, 4)
-	end
-	return str
+	-- Strip UTF-8 BOM if present
+	local cleaned = string.gsub(str, "^\239\187\191", "")
+	return cleaned
 end
 
 local function fetchSource(path: string): string
-	local url = BASE_URL .. path
+	local url = BASE_URL .. path .. "?t=" .. tostring(os.time())
 	local success, content = pcall(function()
 		return game:HttpGet(url)
 	end)

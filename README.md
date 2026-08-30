@@ -1,4 +1,4 @@
-﻿# Modular Roblox UI Framework
+# Modular Roblox UI Framework
 
 A clean, modular, translucent UI suite for Roblox Lua/Luau.
 

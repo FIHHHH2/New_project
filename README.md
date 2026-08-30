@@ -2,9 +2,18 @@
 
 A clean, modular, translucent UI suite for Roblox Lua/Luau.
 
+## Quick Start (Executor Loader)
+
+Load the full suite directly from GitHub with one line:
+
+```lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/FIHHHH2/New_project/main/Loader.luau"))()
+```
+
 ## Directory Structure
 
 ```
+├── Loader.luau               # Universal HTTP loader & virtual require resolver
 ├── Modules/
 │   └── README.md             # Game modules and specialized logic
 ├── UI/

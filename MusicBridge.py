@@ -85,15 +85,19 @@ def update_audio_spectrum():
     elif current_media["isPlaying"]:
         peak = 0.40 + 0.30 * math.sin(time.time() * 6)
 
+    # If system is outputting audible sound, flag media as active
+    if peak > 0.002:
+        current_media["isPlaying"] = True
+
     # Ultra-Sensitive Automatic Gain Control
     if peak > max_recent_peak:
         max_recent_peak = max(0.001, peak)
     else:
         max_recent_peak = max(0.001, max_recent_peak * 0.990)
 
-    # Non-linear gain boost: power 0.4 makes quiet sounds and vocals clearly visible
+    # Non-linear gain boost: power 0.38 makes whisper-quiet tracks and vocals pop
     ratio = min(1.0, peak / max(0.001, max_recent_peak))
-    boosted_peak = math.pow(ratio, 0.40) * 1.35 if ratio > 0 else 0.0
+    boosted_peak = math.pow(ratio, 0.38) * 1.40 if ratio > 0 else 0.0
     boosted_peak = max(0.0, min(1.0, boosted_peak))
 
     # Fast attack, smooth decay
@@ -107,8 +111,8 @@ def update_audio_spectrum():
     phase += 0.22
     new_spectrum = []
     for i in range(16):
-        # Bass frequencies (0-4) bounce with extra force
-        bass_mult = 1.45 if i < 5 else (1.2 if i < 10 else 0.95)
+        # Bass frequencies (0-4) bounce with extra punch
+        bass_mult = 1.50 if i < 5 else (1.20 if i < 10 else 0.95)
         osc = math.sin(phase * (1.3 + i * 0.22) + i * 0.55) * 0.40 + 0.60
         noise = (random.random() - 0.5) * 0.12
         val = max(0.10, min(1.0, (smoothed_peak * bass_mult * osc + noise)))
@@ -397,6 +401,12 @@ async def fetch_windows_media():
             return
 
         session = manager.get_current_session()
+        # Fallback: scan all active sessions if current session is None
+        if not session:
+            sessions = manager.get_sessions()
+            if sessions and len(sessions) > 0:
+                session = sessions[0]
+
         if session:
             playback = session.get_playback_info()
             timeline = session.get_timeline_properties()
@@ -454,13 +464,6 @@ async def fetch_windows_media():
 
                 current_lyric = get_current_lyric_line(t, a, pos, dur)
                 current_media["lyrics"] = current_lyric
-        else:
-            current_media["title"] = "No Song Playing"
-            current_media["artist"] = "Idle"
-            current_media["lyrics"] = "Waiting for audio session..."
-            current_media["isPlaying"] = False
-            current_media["hasCover"] = False
-            current_cover_bytes = b""
     except Exception:
         pass
 
@@ -471,6 +474,10 @@ async def send_media_control(cmd: str):
         if not manager:
             return
         session = manager.get_current_session()
+        if not session:
+            sessions = manager.get_sessions()
+            if sessions and len(sessions) > 0:
+                session = sessions[0]
         if session:
             if cmd == "toggle":
                 await session.try_toggle_play_pause_async()

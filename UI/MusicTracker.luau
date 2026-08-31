@@ -1,9 +1,10 @@
 --!strict
 --[=[
-    ✦ Squared Retro Music Tracker Widget with Real Audio EQ & Full Cover ✦
+    ✦ Squared Retro Music Tracker Widget with Real Audio EQ & Proportioned Controls ✦
     Features:
     - Full-bleed album artwork box (no black borders or padding gaps)
     - Expanded multi-line lyrics container with ample reading space
+    - Proportioned, compact square playback controls in correct order: [ « ] [ ❚❚ / ▶ ] [ » ]
     - Ultra-sensitive 16-band audio visualizer dancing to live media loudness & AGC
     - Full IgnoreGuiInset dragging and minimize controls
 ]=]
@@ -316,7 +317,7 @@ function MusicTracker.new()
 		table.insert(visualizerBars, bar)
 	end
 
-	-- Control Buttons
+	-- Control Buttons (Compact Square Buttons in Correct Order: Prev, Play/Pause, Next)
 	local ctrlFrame = Instance.new("Frame")
 	ctrlFrame.Name = "Controls"
 	ctrlFrame.Size = UDim2.new(0, 88, 1, 0)
@@ -329,12 +330,13 @@ function MusicTracker.new()
 	ctrlLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 	ctrlLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	ctrlLayout.Padding = UDim.new(0, 3)
+	ctrlLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	ctrlLayout.Parent = ctrlFrame
 
 	local function makeCtrlBtn(name: string, symbol: string, order: number): TextButton
 		local btn = Instance.new("TextButton")
 		btn.Name = name
-		btn.Size = UDim2.new(0, 26, 1, 0)
+		btn.Size = UDim2.new(0, 26, 0, 24)
 		btn.BackgroundColor3 = UI.Theme.ContainerDark
 		btn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 		btn.BorderSizePixel = 0
@@ -366,9 +368,9 @@ function MusicTracker.new()
 		return btn
 	end
 
-	local prevBtn = makeCtrlBtn("PrevBtn", "<<", 1)
-	local playBtn = makeCtrlBtn("PlayBtn", "||", 2)
-	local skipBtn = makeCtrlBtn("SkipBtn", ">>", 3)
+	local prevBtn = makeCtrlBtn("PrevBtn", "«", 1)
+	local playBtn = makeCtrlBtn("PlayBtn", "❚❚", 2)
+	local skipBtn = makeCtrlBtn("SkipBtn", "»", 3)
 
 	-- ── Real-Time Audio Visualizer & Cover Update Logic ───────────────
 	local isPlaying = false
@@ -377,7 +379,7 @@ function MusicTracker.new()
 	local lastSongTitle = ""
 	local lastCoverVersion = -1
 	local previousCoverFile: string? = nil
-	local currentSpectrum = { 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15 }
+	local currentSpectrum = { 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2 }
 	local currentAudioPeak = 0.0
 
 	local function loadRealCoverBinary(v: number?)
@@ -449,7 +451,7 @@ function MusicTracker.new()
 		songTitleLabel.Text = string.format("%s — %s", t.title, t.artist)
 		lyricsLabel.Text = "♫ " .. t.lyrics
 		isPlaying = true
-		playBtn.Text = "||"
+		playBtn.Text = "❚❚"
 		updateCover(t.cover, false, nil)
 	end
 
@@ -457,7 +459,8 @@ function MusicTracker.new()
 
 	-- Highly sensitive visualizer animation loop
 	local visualizerConn = RunService.RenderStepped:Connect(function()
-		if not widget.Visible or not isPlaying then
+		local isAudible = isPlaying or (currentAudioPeak > 0.005)
+		if not widget.Visible or not isAudible then
 			for _, bar in ipairs(visualizerBars) do
 				bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, 3), 0.2)
 			end
@@ -465,19 +468,19 @@ function MusicTracker.new()
 		end
 
 		local t = os.clock()
-		local peakMult = math.clamp(currentAudioPeak * 1.6, 0.45, 1.4)
+		local peakMult = math.clamp(currentAudioPeak * 1.8 + 0.35, 0.45, 1.5)
 		for i, bar in ipairs(visualizerBars) do
-			local specVal = currentSpectrum[i] or 0.20
-			local wave = math.abs(math.sin(t * 12 + i * 0.72)) * 0.40 + 0.60
-			local h = math.clamp(math.floor(specVal * 36 * peakMult * wave + 3), 3, 40)
-			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), 0.40)
+			local specVal = currentSpectrum[i] or 0.25
+			local wave = math.abs(math.sin(t * 13 + i * 0.75)) * 0.40 + 0.60
+			local h = math.clamp(math.floor(specVal * 34 * peakMult * wave + 3), 3, 38)
+			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), 0.45)
 		end
 	end)
 
 	-- ── Playback Controls Logic ──────────────────────────────────────
 	playBtn.MouseButton1Click:Connect(function()
 		isPlaying = not isPlaying
-		playBtn.Text = if isPlaying then "||" else ">"
+		playBtn.Text = if isPlaying then "❚❚" else "▶"
 		pcall(function()
 			game:HttpGet(BRIDGE_URL .. "/toggle")
 		end)
@@ -526,7 +529,7 @@ function MusicTracker.new()
 								end
 							end
 
-							local isIdle = (data.title == "No Song Playing" or not data.isPlaying)
+							local isIdle = (data.title == "No Song Playing" and not data.isPlaying and currentAudioPeak <= 0.005)
 							local coverVersion = data.coverVersion or 0
 							if data.title ~= lastSongTitle or coverVersion ~= lastCoverVersion then
 								lastSongTitle = data.title
@@ -535,22 +538,22 @@ function MusicTracker.new()
 									songTitleLabel.Text = "No Song Playing"
 									lyricsLabel.Text = "♫ Waiting for audio session..."
 									isPlaying = false
-									playBtn.Text = ">"
+									playBtn.Text = "▶"
 									updateCover(nil, true, coverVersion)
 								else
 									songTitleLabel.Text = string.format("%s — %s", data.title, data.artist or "Unknown")
 									if data.lyrics then lyricsLabel.Text = "♫ " .. data.lyrics end
-									isPlaying = (data.isPlaying == true)
-									playBtn.Text = if isPlaying then "||" else ">"
+									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
+									playBtn.Text = if isPlaying then "❚❚" else "▶"
 									updateCover(data.cover, false, coverVersion)
 								end
 							else
 								if isIdle then
 									isPlaying = false
-									playBtn.Text = ">"
+									playBtn.Text = "▶"
 								else
-									isPlaying = (data.isPlaying == true)
-									playBtn.Text = if isPlaying then "||" else ">"
+									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
+									playBtn.Text = if isPlaying then "❚❚" else "▶"
 									if data.lyrics then lyricsLabel.Text = "♫ " .. data.lyrics end
 								end
 							end

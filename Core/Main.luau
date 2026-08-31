@@ -277,7 +277,15 @@ window:AddToggle(aimSection, "silent_aim", "Silent Aim", false, nil, function(en
 	Combat.SilentAim = enabled
 end)
 
-window:AddToggle(aimSection, "aim_tracking", "Aim Tracking", false, nil, function(enabled)
+window:AddToggle(aimSection, "wall_bang", "Wall Bang (Shoot Thru Walls)", false, nil, function(enabled)
+	Combat.Wallbang = enabled
+end)
+
+window:AddToggle(aimSection, "target_head", "Target Head (Off = Torso)", true, nil, function(enabled)
+	Combat.TargetPart = if enabled then "Head" else "Torso"
+end)
+
+window:AddToggle(aimSection, "aim_tracking", "Aim Tracking (Hold RMB)", false, nil, function(enabled)
 	Combat.AimTracking = enabled
 end)
 
@@ -295,6 +303,10 @@ end)
 
 window:AddSlider(aimSection, "FOV Radius", 30, 360, 120, function(value)
 	Combat.FovRadius = value
+end)
+
+window:AddSlider(aimSection, "Hit Chance %", 10, 100, 100, function(value)
+	Combat.HitChance = value
 end)
 
 window:AddSlider(aimSection, "Aim Smoothing", 5, 100, 25, function(value)

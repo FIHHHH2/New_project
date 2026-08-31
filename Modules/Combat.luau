@@ -1,7 +1,9 @@
 --!strict
 --[=[
     ✦ Combat Engine ✦
-    High-performance Aim Tracking (Right-Click Hold), Screen-Centered FOV Circle, Trigger Bot, and Hitbox Expander.
+    High-performance Silent Aim (with Wallbang & Metamethod Redirection),
+    Aim Tracking (Right-Click Hold), Screen-Centered FOV Circle, Trigger Bot,
+    and Hitbox Expander.
 ]=]
 
 local Players = game:GetService("Players")
@@ -18,6 +20,9 @@ end)
 
 local Combat = {
 	SilentAim = false,
+	Wallbang = false,
+	HitChance = 100,
+	TargetPart = "Head",
 	AimTracking = false,
 	TrackTeammates = false,
 	TriggerBot = false,
@@ -27,7 +32,6 @@ local Combat = {
 	Smoothing = 0.25,
 	ExpandHitboxes = false,
 	HitboxSize = 12,
-	TargetPart = "Head",
 	FovColor = Color3.fromRGB(55, 175, 245)
 }
 
@@ -58,11 +62,23 @@ local function getScreenCenter(): Vector2
 	return Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 end
 
-local function getClosestTarget(): (Player?, BasePart?)
+local function isPartVisible(origin: Vector3, targetPart: BasePart, ignoreList: {Instance}?): boolean
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = ignoreList or { LocalPlayer.Character, targetPart.Parent }
+	params.IgnoreWater = true
+
+	local direction = targetPart.Position - origin
+	local result = Workspace:Raycast(origin, direction, params)
+	return result == nil or result.Instance:IsDescendantOf(targetPart.Parent)
+end
+
+function Combat.getClosestTarget(ignoreWalls: boolean?): (Player?, BasePart?)
 	local screenCenter = getScreenCenter()
 	local closestPlayer: Player? = nil
 	local closestPart: BasePart? = nil
 	local shortestDist = Combat.FovRadius
+	local checkWall = (ignoreWalls ~= true and not Combat.Wallbang)
 	
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player == LocalPlayer then continue end
@@ -74,7 +90,14 @@ local function getClosestTarget(): (Player?, BasePart?)
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
 		if not humanoid or humanoid.Health <= 0 then continue end
 		
-		local targetPart = (character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")) :: BasePart?
+		local targetPart = if Combat.TargetPart == "Head" then
+			character:FindFirstChild("Head") :: BasePart?
+		else
+			(character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")) :: BasePart?
+
+		if not targetPart then
+			targetPart = (character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")) :: BasePart?
+		end
 		if not targetPart then continue end
 		
 		local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
@@ -82,14 +105,89 @@ local function getClosestTarget(): (Player?, BasePart?)
 		
 		local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
 		if dist < shortestDist then
-			shortestDist = dist
-			closestPlayer = player
-			closestPart = targetPart
+			local visible = true
+			if checkWall then
+				visible = isPartVisible(Camera.CFrame.Position, targetPart, {LocalPlayer.Character, character})
+			end
+
+			if visible then
+				shortestDist = dist
+				closestPlayer = player
+				closestPart = targetPart
+			end
 		end
 	end
 	
 	return closestPlayer, closestPart
 end
+
+-- ── Metamethod Hooks for Silent Aim & Wallbang ─────────────────────
+pcall(function()
+	local hook = hookmetamethod or (getgenv and getgenv().hookmetamethod)
+	local getnamecall = getnamecallmethod or (getgenv and getgenv().getnamecallmethod)
+	local checkcall = checkcaller or (getgenv and getgenv().checkcaller)
+
+	if type(hook) == "function" and type(getnamecall) == "function" then
+		-- __namecall hook for Workspace:Raycast / FindPartOnRay
+		local oldNamecall: any
+		oldNamecall = hook(game, "__namecall", function(self, ...)
+			local method = getnamecall()
+			local args = {...}
+
+			if Combat.SilentAim and not (checkcall and checkcall()) then
+				if math.random(1, 100) <= Combat.HitChance then
+					local _, targetPart = Combat.getClosestTarget(Combat.Wallbang)
+					if targetPart then
+						if method == "Raycast" and self == Workspace then
+							local origin = args[1]
+							if typeof(origin) == "Vector3" then
+								args[2] = (targetPart.Position - origin).Unit * 1000
+								if Combat.Wallbang and typeof(args[3]) == "RaycastParams" then
+									local params: RaycastParams = args[3]
+									params.FilterType = Enum.RaycastFilterType.Include
+									params.FilterDescendantsInstances = { targetPart.Parent }
+								end
+								return oldNamecall(self, table.unpack(args))
+							end
+						elseif (method == "FindPartOnRay" or method == "findPartOnRay" or method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist") and self == Workspace then
+							local ray = args[1]
+							if typeof(ray) == "Ray" then
+								local newDirection = (targetPart.Position - ray.Origin).Unit * 1000
+								args[1] = Ray.new(ray.Origin, newDirection)
+								return oldNamecall(self, table.unpack(args))
+							end
+						end
+					end
+				end
+			end
+
+			return oldNamecall(self, ...)
+		end)
+
+		-- __index hook for Mouse.Hit and Mouse.Target
+		local oldIndex: any
+		oldIndex = hook(game, "__index", function(self, key)
+			if Combat.SilentAim and not (checkcall and checkcall()) then
+				if typeof(self) == "Instance" and self:IsA("Mouse") then
+					if key == "Hit" or key == "Target" then
+						if math.random(1, 100) <= Combat.HitChance then
+							local _, targetPart = Combat.getClosestTarget(Combat.Wallbang)
+							if targetPart then
+								if key == "Hit" then
+									return targetPart.CFrame
+								elseif key == "Target" then
+									return targetPart
+								end
+							end
+						end
+					end
+				end
+			end
+
+			return oldIndex(self, key)
+		end)
+	end
+end)
 
 -- Trigger Bot Check (Raycast under cursor or screen center)
 local function checkTriggerBot()
@@ -116,12 +214,9 @@ local function checkTriggerBot()
 					local hum = hitChar:FindFirstChildOfClass("Humanoid")
 					if hum and hum.Health > 0 then
 						lastTriggerTime = now
-						-- Activate equipped tool or click
 						local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
 						if tool and typeof(tool.Activate) == "function" then
 							tool:Activate()
-						elseif mouse1click then
-							mouse1click()
 						end
 					end
 				end
@@ -148,7 +243,7 @@ RunService.RenderStepped:Connect(function()
 	
 	-- Aim Tracking Loop: Only tracks when holding Right Mouse Button (MouseButton2)
 	if Combat.AimTracking and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-		local _, targetPart = getClosestTarget()
+		local _, targetPart = Combat.getClosestTarget(Combat.Wallbang)
 		if targetPart then
 			local currentCF = Camera.CFrame
 			local targetCF = CFrame.lookAt(currentCF.Position, targetPart.Position)

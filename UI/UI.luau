@@ -158,12 +158,13 @@ function UI.createWindow(titleText: string)
 	-- left sidebar
 	local sidebar = Instance.new("ScrollingFrame")
 	sidebar.Name = "Sidebar"
-	sidebar.Size = UDim2.new(0, 130, 1, 0)
+	sidebar.Size = UDim2.new(0, 130, 1, -8)
 	sidebar.Position = UDim2.new(0, 4, 0, 4)
 	sidebar.BackgroundTransparency = 1
 	sidebar.ScrollBarThickness = 2
 	sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
 	sidebar.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	sidebar.ClipsDescendants = true
 	sidebar.Parent = bodyFrame
 
 	local sideList = Instance.new("UIListLayout")
@@ -186,6 +187,7 @@ function UI.createWindow(titleText: string)
 	rightMain.Size = UDim2.new(1, -146, 1, -4)
 	rightMain.Position = UDim2.new(0, 142, 0, 4)
 	rightMain.BackgroundTransparency = 1
+	rightMain.ClipsDescendants = true
 	rightMain.Parent = bodyFrame
 
 	-- subheader bar
@@ -257,12 +259,13 @@ function UI.createWindow(titleText: string)
 	settingsStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	settingsStroke.Parent = settingsBtn
 
-	-- pages container
+	-- pages container with strict boundary clamping
 	local contentContainer = Instance.new("Frame")
 	contentContainer.Name = "ContentContainer"
-	contentContainer.Size = UDim2.new(1, 0, 1, -32)
-	contentContainer.Position = UDim2.new(0, 0, 0, 32)
+	contentContainer.Size = UDim2.new(1, 0, 1, -30)
+	contentContainer.Position = UDim2.new(0, 0, 0, 30)
 	contentContainer.BackgroundTransparency = 1
+	contentContainer.ClipsDescendants = true
 	contentContainer.Parent = rightMain
 
 	-- bottom hatched footer bar (////////////////////////////////)
@@ -341,9 +344,10 @@ end
 function UI.createBannerCard(parent: GuiObject): Frame
 	local banner = Instance.new("Frame")
 	banner.Name = "PlayerGameBanner"
-	banner.Size = UDim2.new(1, -6, 0, 84)
+	banner.Size = UDim2.new(1, 0, 0, 84)
 	banner.BackgroundColor3 = UI.Theme.Container
 	banner.BorderSizePixel = 0
+	banner.ClipsDescendants = true
 	banner.Parent = parent
 
 	local bannerStroke = Instance.new("UIStroke")
@@ -359,6 +363,7 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	mugshotBox.Position = UDim2.new(0, 4, 0, 4)
 	mugshotBox.BackgroundColor3 = UI.Theme.Background
 	mugshotBox.BorderSizePixel = 0
+	mugshotBox.ClipsDescendants = true
 	mugshotBox.Parent = banner
 
 	local mugshotStroke = Instance.new("UIStroke")
@@ -380,6 +385,7 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	rightSide.Size = UDim2.new(1, -90, 1, -8)
 	rightSide.Position = UDim2.new(0, 84, 0, 4)
 	rightSide.BackgroundTransparency = 1
+	rightSide.ClipsDescendants = true
 	rightSide.Parent = banner
 
 	-- top row: [ Player Name : Game Name ]
@@ -388,6 +394,7 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	titleRow.Size = UDim2.new(1, 0, 0, 22)
 	titleRow.BackgroundColor3 = UI.Theme.Background
 	titleRow.BorderSizePixel = 0
+	titleRow.ClipsDescendants = true
 	titleRow.Parent = rightSide
 
 	local titleRowStroke = Instance.new("UIStroke")
@@ -421,6 +428,7 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	middleBlock.Size = UDim2.new(1, 0, 1, -26)
 	middleBlock.Position = UDim2.new(0, 0, 0, 26)
 	middleBlock.BackgroundTransparency = 1
+	middleBlock.ClipsDescendants = true
 	middleBlock.Parent = rightSide
 
 	-- game icon (right side of middle block)
@@ -430,6 +438,7 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	gameIconBox.Position = UDim2.new(1, -50, 0, 0)
 	gameIconBox.BackgroundColor3 = UI.Theme.Background
 	gameIconBox.BorderSizePixel = 0
+	gameIconBox.ClipsDescendants = true
 	gameIconBox.Parent = middleBlock
 
 	local gameIconStroke = Instance.new("UIStroke")
@@ -450,6 +459,7 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	infoList.Name = "InfoList"
 	infoList.Size = UDim2.new(1, -56, 1, 0)
 	infoList.BackgroundTransparency = 1
+	infoList.ClipsDescendants = true
 	infoList.Parent = middleBlock
 
 	-- info row 1 [ etc ]

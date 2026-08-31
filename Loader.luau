@@ -121,6 +121,8 @@ local UI = requireRemote("UI/UI.luau")
 local FeatureManager = requireRemote("Core/FeatureManager.luau")
 local CoreUI = requireRemote("Core/CoreUI.luau")
 local Visuals = requireRemote("Modules/Visuals.luau")
+local Combat = requireRemote("Modules/Combat.luau")
+local Movement = requireRemote("Modules/Movement.luau")
 
 -- Bootstrap Main Runtime
 local mainSource = fetchSource("Core/Main.luau")
@@ -147,6 +149,10 @@ local customMainEnv = setmetatable({
 				return Animations
 			elseif name == "Visuals" then
 				return Visuals
+			elseif name == "Combat" then
+				return Combat
+			elseif name == "Movement" then
+				return Movement
 			end
 		end
 		return require(target)

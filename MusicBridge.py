@@ -91,32 +91,32 @@ def update_audio_spectrum():
 
     # Ultra-Sensitive Automatic Gain Control
     if peak > max_recent_peak:
-        max_recent_peak = max(0.001, peak)
+        max_recent_peak = max(0.0005, peak)
     else:
-        max_recent_peak = max(0.001, max_recent_peak * 0.990)
+        max_recent_peak = max(0.0005, max_recent_peak * 0.988)
 
-    # Non-linear gain boost: power 0.38 makes whisper-quiet tracks and vocals pop
-    ratio = min(1.0, peak / max(0.001, max_recent_peak))
-    boosted_peak = math.pow(ratio, 0.38) * 1.40 if ratio > 0 else 0.0
+    # Aggressive non-linear gain boost: power 0.28 makes all audio drive visualizer high
+    ratio = min(1.0, peak / max(0.0005, max_recent_peak))
+    boosted_peak = math.pow(ratio, 0.28) * 1.85 if ratio > 0 else 0.0
     boosted_peak = max(0.0, min(1.0, boosted_peak))
 
     # Fast attack, smooth decay
     if boosted_peak > smoothed_peak:
-        smoothed_peak = smoothed_peak * 0.20 + boosted_peak * 0.80
+        smoothed_peak = smoothed_peak * 0.15 + boosted_peak * 0.85
     else:
-        smoothed_peak = smoothed_peak * 0.70 + boosted_peak * 0.30
+        smoothed_peak = smoothed_peak * 0.65 + boosted_peak * 0.35
 
     current_media["audioPeak"] = round(smoothed_peak, 3)
 
-    phase += 0.22
+    phase += 0.25
     new_spectrum = []
     for i in range(16):
-        # Bass frequencies (0-4) bounce with extra punch
-        bass_mult = 1.50 if i < 5 else (1.20 if i < 10 else 0.95)
+        # Bass frequencies (0-4) jump high, mids and highs ripple vividly
+        bass_mult = 1.65 if i < 5 else (1.35 if i < 10 else 1.10)
         osc = math.sin(phase * (1.3 + i * 0.22) + i * 0.55) * 0.40 + 0.60
         noise = (random.random() - 0.5) * 0.12
-        val = max(0.10, min(1.0, (smoothed_peak * bass_mult * osc + noise)))
-        band_energy[i] = band_energy[i] * 0.30 + val * 0.70
+        val = max(0.20, min(1.0, (smoothed_peak * bass_mult * osc + noise) * 1.30))
+        band_energy[i] = band_energy[i] * 0.25 + val * 0.75
         new_spectrum.append(round(band_energy[i], 3))
 
     current_media["spectrum"] = new_spectrum

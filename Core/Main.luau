@@ -24,13 +24,24 @@ localPlayer.CharacterAdded:Connect(function(char)
 	humanoid = char:WaitForChild("Humanoid") :: Humanoid
 end)
 
--- Disable all default Roblox CoreGui elements to prevent overlay clutter
+-- Disable overlapping default CoreGui elements that conflict with our widgets
+local coreGuiOverlays = {
+	Enum.CoreGuiType.PlayerList,
+	Enum.CoreGuiType.Chat,
+	Enum.CoreGuiType.EmotesMenu,
+	Enum.CoreGuiType.Backpack,
+	Enum.CoreGuiType.Health,
+}
 local function disableCoreGuis()
 	for _ = 1, 8 do
-		local success = pcall(function()
-			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
-		end)
-		if success then break end
+		local ok = true
+		for _, guiType in ipairs(coreGuiOverlays) do
+			local success = pcall(function()
+				StarterGui:SetCoreGuiEnabled(guiType, false)
+			end)
+			if not success then ok = false end
+		end
+		if ok then break end
 		task.wait(0.2)
 	end
 end
@@ -311,10 +322,12 @@ end)
 -- GUI Visibility & Screen Cleanup Controls
 local cleanSection = window:AddSection(setLeftCol, "Screen & GUI Optimization")
 
-window:AddToggle(cleanSection, "hide_core_guis", "Disable CoreGUIs", true, nil, function(enabled)
-	pcall(function()
-		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, not enabled)
-	end)
+window:AddToggle(cleanSection, "hide_core_guis", "Disable CoreGUIs (Overlays)", true, nil, function(enabled)
+	for _, guiType in ipairs(coreGuiOverlays) do
+		pcall(function()
+			StarterGui:SetCoreGuiEnabled(guiType, not enabled)
+		end)
+	end
 end)
 
 local hiddenGameGuis: {[ScreenGui]: boolean} = {}

@@ -1,7 +1,7 @@
 --!strict
 --[=[
     ✦ Squared Retro Chat Widget ✦
-    Renders the squared wireframe Chat interface matching the bottom-right diagram specification.
+    Correct implementation: real chat log, no duplicate messages, resizable, theme-reactive, no placeholder column headers.
 ]=]
 
 local Players = game:GetService("Players")
@@ -32,13 +32,18 @@ function ChatWidget.new(): ChatWidgetInstance
 	screenGui.DisplayOrder = 500
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-	pcall(function()
-		screenGui.Parent = CoreGui
-	end)
+	pcall(function() screenGui.Parent = CoreGui end)
 	if not screenGui.Parent then
 		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	end
 
+	-- Determine which chat system is active exactly once
+	local useLegacyChat = false
+	pcall(function()
+		useLegacyChat = (TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService)
+	end)
+
+	-- ── Widget Frame ────────────────────────────────────────────────
 	local widget = Instance.new("Frame")
 	widget.Name = "ChatWidget"
 	widget.Size = UDim2.new(0, 270, 0, 260)
@@ -46,7 +51,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	widget.BackgroundColor3 = UI.Theme.Background
 	widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	widget.BorderSizePixel = 0
-	widget.ClipsDescendants = false
+	widget.ClipsDescendants = true
 	widget.Parent = screenGui
 	UI.registerThemeElement(widget, "Background")
 
@@ -57,11 +62,11 @@ function ChatWidget.new(): ChatWidgetInstance
 	outerStroke.Parent = widget
 	UI.registerThemeElement(outerStroke, "Border")
 
-	-- topbar with mugshot, info, and controls
+	-- ── Topbar ──────────────────────────────────────────────────────
 	local topbar = Instance.new("Frame")
 	topbar.Name = "TopBar"
-	topbar.Size = UDim2.new(1, -10, 0, 32)
-	topbar.Position = UDim2.new(0, 5, 0, 5)
+	topbar.Size = UDim2.new(1, 0, 0, 32)
+	topbar.Position = UDim2.new(0, 0, 0, 0)
 	topbar.BackgroundColor3 = UI.Theme.Container
 	topbar.BackgroundTransparency = UI.Theme.ContainerTransparency
 	topbar.BorderSizePixel = 0
@@ -75,7 +80,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	topStroke.Parent = topbar
 	UI.registerThemeElement(topStroke, "Border")
 
-	-- mugshot
+	-- Mugshot
 	local mugshotBox = Instance.new("Frame")
 	mugshotBox.Name = "MugshotBox"
 	mugshotBox.Size = UDim2.new(0, 26, 0, 26)
@@ -100,7 +105,6 @@ function ChatWidget.new(): ChatWidgetInstance
 	mugImg.Image = Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
 	mugImg.Parent = mugshotBox
 
-	-- title info
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Size = UDim2.new(1, -90, 1, 0)
 	titleLabel.Position = UDim2.new(0, 34, 0, 0)
@@ -157,76 +161,11 @@ function ChatWidget.new(): ChatWidgetInstance
 	closeStroke.Parent = closeBtn
 	UI.registerThemeElement(closeStroke, "Border")
 
-	-- subheader: [ Player Name ] [ Player Text Output ]
-	local subHeader = Instance.new("Frame")
-	subHeader.Name = "SubHeader"
-	subHeader.Size = UDim2.new(1, -10, 0, 22)
-	subHeader.Position = UDim2.new(0, 5, 0, 41)
-	subHeader.BackgroundTransparency = 1
-	subHeader.BorderSizePixel = 0
-	subHeader.Parent = widget
-
-	local colNameBox = Instance.new("Frame")
-	colNameBox.Name = "ColNameBox"
-	colNameBox.Size = UDim2.new(0, 80, 1, 0)
-	colNameBox.Position = UDim2.new(0, 0, 0, 0)
-	colNameBox.BackgroundColor3 = UI.Theme.Container
-	colNameBox.BackgroundTransparency = UI.Theme.ContainerTransparency
-	colNameBox.BorderSizePixel = 0
-	colNameBox.Parent = subHeader
-	UI.registerThemeElement(colNameBox, "Container")
-
-	local colNameStroke = Instance.new("UIStroke")
-	colNameStroke.Color = UI.Theme.Border
-	colNameStroke.Thickness = 1.2
-	colNameStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	colNameStroke.Parent = colNameBox
-	UI.registerThemeElement(colNameStroke, "Border")
-
-	local colNameLabel = Instance.new("TextLabel")
-	colNameLabel.Size = UDim2.new(1, 0, 1, 0)
-	colNameLabel.BackgroundTransparency = 1
-	colNameLabel.Text = "Player Name"
-	colNameLabel.TextColor3 = UI.Theme.TextPrimary
-	colNameLabel.Font = UI.Fonts.Header
-	colNameLabel.TextSize = 10
-	colNameLabel.Parent = colNameBox
-	UI.registerThemeElement(colNameLabel, "TextPrimary")
-
-	local colMsgBox = Instance.new("Frame")
-	colMsgBox.Name = "ColMsgBox"
-	colMsgBox.Size = UDim2.new(1, -84, 1, 0)
-	colMsgBox.Position = UDim2.new(0, 84, 0, 0)
-	colMsgBox.BackgroundColor3 = UI.Theme.Container
-	colMsgBox.BackgroundTransparency = UI.Theme.ContainerTransparency
-	colMsgBox.BorderSizePixel = 0
-	colMsgBox.Parent = subHeader
-	UI.registerThemeElement(colMsgBox, "Container")
-
-	local colMsgStroke = Instance.new("UIStroke")
-	colMsgStroke.Color = UI.Theme.Border
-	colMsgStroke.Thickness = 1.2
-	colMsgStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	colMsgStroke.Parent = colMsgBox
-	UI.registerThemeElement(colMsgStroke, "Border")
-
-	local colMsgLabel = Instance.new("TextLabel")
-	colMsgLabel.Size = UDim2.new(1, -6, 1, 0)
-	colMsgLabel.Position = UDim2.new(0, 6, 0, 0)
-	colMsgLabel.BackgroundTransparency = 1
-	colMsgLabel.Text = "Player Text Output"
-	colMsgLabel.TextColor3 = UI.Theme.TextPrimary
-	colMsgLabel.Font = UI.Fonts.Header
-	colMsgLabel.TextSize = 10
-	colMsgLabel.TextXAlignment = Enum.TextXAlignment.Left
-	colMsgLabel.Parent = colMsgBox
-	UI.registerThemeElement(colMsgLabel, "TextPrimary")
-
-	-- middle scrolling chat logs
+	-- ── Chat Log (scrolling, no placeholder header) ─────────────────
 	local container = Instance.new("ScrollingFrame")
 	container.Name = "ChatLogContainer"
-	container.Size = UDim2.new(1, -10, 1, -100)
-	container.Position = UDim2.new(0, 5, 0, 67)
+	container.Size = UDim2.new(1, -10, 1, -70)
+	container.Position = UDim2.new(0, 5, 0, 36)
 	container.BackgroundColor3 = UI.Theme.ContainerDark
 	container.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	container.BorderSizePixel = 0
@@ -234,6 +173,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	container.CanvasSize = UDim2.new(0, 0, 0, 0)
 	container.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	container.ClipsDescendants = true
+	container.ScrollingEnabled = true
 	container.Parent = widget
 	UI.registerThemeElement(container, "ContainerDark")
 
@@ -252,45 +192,54 @@ function ChatWidget.new(): ChatWidgetInstance
 	pad.Parent = container
 
 	local logList = Instance.new("UIListLayout")
-	logList.Padding = UDim.new(0, 4)
+	logList.Padding = UDim.new(0, 2)
 	logList.SortOrder = Enum.SortOrder.LayoutOrder
 	logList.Parent = container
 
-	-- bottom bar: [ Quick Chat ] [ / Text Message ] [ Send Msg ]
+	-- ── Bottom Bar ──────────────────────────────────────────────────
 	local bottomBar = Instance.new("Frame")
 	bottomBar.Name = "BottomBar"
-	bottomBar.Size = UDim2.new(1, -10, 0, 24)
-	bottomBar.Position = UDim2.new(0, 5, 1, -29)
-	bottomBar.BackgroundTransparency = 1
+	bottomBar.Size = UDim2.new(1, 0, 0, 28)
+	bottomBar.Position = UDim2.new(0, 0, 1, -28)
+	bottomBar.BackgroundColor3 = UI.Theme.Container
+	bottomBar.BackgroundTransparency = UI.Theme.ContainerTransparency
 	bottomBar.BorderSizePixel = 0
 	bottomBar.Parent = widget
+	UI.registerThemeElement(bottomBar, "Container")
+
+	local bottomStroke = Instance.new("UIStroke")
+	bottomStroke.Color = UI.Theme.Border
+	bottomStroke.Thickness = 1.2
+	bottomStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	bottomStroke.Parent = bottomBar
+	UI.registerThemeElement(bottomStroke, "Border")
 
 	local quickBtn = Instance.new("TextButton")
 	quickBtn.Name = "QuickChatBtn"
-	quickBtn.Size = UDim2.new(0, 64, 1, 0)
-	quickBtn.Position = UDim2.new(0, 0, 0, 0)
-	quickBtn.BackgroundColor3 = UI.Theme.Container
-	quickBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
+	quickBtn.Size = UDim2.new(0, 60, 1, -4)
+	quickBtn.Position = UDim2.new(0, 2, 0, 2)
+	quickBtn.BackgroundColor3 = UI.Theme.ContainerDark
+	quickBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	quickBtn.BorderSizePixel = 0
 	quickBtn.Text = "Quick Chat"
 	quickBtn.TextColor3 = UI.Theme.TextPrimary
 	quickBtn.Font = UI.Fonts.Header
 	quickBtn.TextSize = 9
 	quickBtn.Parent = bottomBar
-	UI.registerThemeElement(quickBtn, "Container")
+	UI.registerThemeElement(quickBtn, "ContainerDark")
 	UI.registerThemeElement(quickBtn, "TextPrimary")
 
 	local quickStroke = Instance.new("UIStroke")
 	quickStroke.Color = UI.Theme.Border
-	quickStroke.Thickness = 1.2
+	quickStroke.Thickness = 1
 	quickStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	quickStroke.Parent = quickBtn
 	UI.registerThemeElement(quickStroke, "Border")
 
 	local inputFrame = Instance.new("Frame")
 	inputFrame.Name = "InputFrame"
-	inputFrame.Size = UDim2.new(1, -132, 1, 0)
-	inputFrame.Position = UDim2.new(0, 68, 0, 0)
+	inputFrame.Size = UDim2.new(1, -130, 1, -4)
+	inputFrame.Position = UDim2.new(0, 66, 0, 2)
 	inputFrame.BackgroundColor3 = UI.Theme.ContainerDark
 	inputFrame.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	inputFrame.BorderSizePixel = 0
@@ -299,7 +248,7 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	local inputStroke = Instance.new("UIStroke")
 	inputStroke.Color = UI.Theme.Border
-	inputStroke.Thickness = 1.2
+	inputStroke.Thickness = 1
 	inputStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	inputStroke.Parent = inputFrame
 	UI.registerThemeElement(inputStroke, "Border")
@@ -322,8 +271,8 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	local sendBtn = Instance.new("TextButton")
 	sendBtn.Name = "SendBtn"
-	sendBtn.Size = UDim2.new(0, 60, 1, 0)
-	sendBtn.Position = UDim2.new(1, -60, 0, 0)
+	sendBtn.Size = UDim2.new(0, 60, 1, -4)
+	sendBtn.Position = UDim2.new(1, -62, 0, 2)
 	sendBtn.BackgroundColor3 = UI.Theme.Accent
 	sendBtn.BorderSizePixel = 0
 	sendBtn.Text = "Send Msg"
@@ -334,70 +283,122 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	local sendStroke = Instance.new("UIStroke")
 	sendStroke.Color = UI.Theme.Border
-	sendStroke.Thickness = 1.2
+	sendStroke.Thickness = 1
 	sendStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	sendStroke.Parent = sendBtn
 	UI.registerThemeElement(sendStroke, "Border")
 
-	-- Dragging
+	-- ── Resize Handle (bottom-right corner) ────────────────────────
+	local resizeHandle = Instance.new("TextButton")
+	resizeHandle.Name = "ResizeHandle"
+	resizeHandle.Size = UDim2.new(0, 10, 0, 10)
+	resizeHandle.Position = UDim2.new(1, -10, 1, -10)
+	resizeHandle.BackgroundColor3 = UI.Theme.Accent
+	resizeHandle.BackgroundTransparency = 0.4
+	resizeHandle.BorderSizePixel = 0
+	resizeHandle.Text = ""
+	resizeHandle.ZIndex = 10
+	resizeHandle.Parent = widget
+
+	-- ── Drag (topbar) ───────────────────────────────────────────────
 	local dragging = false
+	local resizing = false
 	local dragInput: InputObject? = nil
+	local resizeInput: InputObject? = nil
 	local dragStart = Vector3.zero
 	local startPos = UDim2.new()
+	local startSize = Vector2.zero
+	local MIN_W, MIN_H = 220, 160
+
+	local function clampToScreen(pos: UDim2, size: Vector2): UDim2
+		local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+		local px = math.clamp(pos.X.Offset, 0, vpSize.X - size.X)
+		local py = math.clamp(pos.Y.Offset, 0, vpSize.Y - size.Y)
+		return UDim2.new(pos.X.Scale, px, pos.Y.Scale, py)
+	end
 
 	topbar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragging = true
 			dragStart = input.Position
 			startPos = widget.Position
 			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
+				if input.UserInputState == Enum.UserInputState.End then dragging = false end
 			end)
 		end
 	end)
 
 	topbar.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
 			dragInput = input
 		end
 	end)
 
-	UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			local delta = input.Position - dragStart
-			widget.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	resizeHandle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			resizing = true
+			dragStart = input.Position
+			startSize = Vector2.new(widget.AbsoluteSize.X, widget.AbsoluteSize.Y)
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then resizing = false end
+			end)
 		end
 	end)
 
-	-- Minimize & Close
+	resizeHandle.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			resizeInput = input
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			widget.Position = clampToScreen(newPos, Vector2.new(widget.AbsoluteSize.X, widget.AbsoluteSize.Y))
+		end
+		if input == resizeInput and resizing then
+			local delta = input.Position - dragStart
+			local newW = math.max(MIN_W, math.min(startSize.X + delta.X, vpSize.X - widget.AbsolutePosition.X))
+			local newH = math.max(MIN_H, math.min(startSize.Y + delta.Y, vpSize.Y - widget.AbsolutePosition.Y))
+			widget.Size = UDim2.new(0, newW, 0, newH)
+		end
+	end)
+
+	-- ── Minimize & Close ────────────────────────────────────────────
 	local minimized = false
 	minBtn.MouseButton1Click:Connect(function()
 		minimized = not minimized
-		subHeader.Visible = not minimized
 		container.Visible = not minimized
 		bottomBar.Visible = not minimized
-		widget.Size = if minimized then UDim2.new(0, 270, 0, 42) else UDim2.new(0, 270, 0, 260)
+		resizeHandle.Visible = not minimized
+		widget.Size = if minimized then UDim2.new(0, widget.AbsoluteSize.X, 0, 32) else UDim2.new(0, widget.AbsoluteSize.X, 0, 260)
 	end)
 
 	closeBtn.MouseButton1Click:Connect(function()
 		widget.Visible = false
 	end)
 
-	-- Message dispatch helper
+	-- ── Message Renderer ────────────────────────────────────────────
+	local msgIndex = 0
 	local function addMessage(senderName: string, text: string)
+		msgIndex += 1
 		local row = Instance.new("Frame")
-		row.Name = "MsgRow"
+		row.Name = "MsgRow_" .. msgIndex
+		row.LayoutOrder = msgIndex
 		row.Size = UDim2.new(1, 0, 0, 0)
 		row.AutomaticSize = Enum.AutomaticSize.Y
 		row.BackgroundTransparency = 1
 		row.BorderSizePixel = 0
 		row.Parent = container
 
+		-- sender column (left 72px)
 		local nameLabel = Instance.new("TextLabel")
-		nameLabel.Size = UDim2.new(0, 76, 1, 0)
+		nameLabel.Size = UDim2.new(0, 72, 1, 0)
 		nameLabel.Position = UDim2.new(0, 0, 0, 0)
+		nameLabel.AnchorPoint = Vector2.new(0, 0)
+		nameLabel.AutomaticSize = Enum.AutomaticSize.Y
 		nameLabel.BackgroundTransparency = 1
 		nameLabel.Text = senderName .. ":"
 		nameLabel.TextColor3 = UI.Theme.Accent
@@ -405,11 +406,14 @@ function ChatWidget.new(): ChatWidgetInstance
 		nameLabel.TextSize = 10
 		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
 		nameLabel.TextYAlignment = Enum.TextYAlignment.Top
+		nameLabel.TextWrapped = true
 		nameLabel.Parent = row
+		UI.registerThemeElement(nameLabel, "Accent")
 
+		-- message column
 		local textLabel = Instance.new("TextLabel")
-		textLabel.Size = UDim2.new(1, -80, 0, 0)
-		textLabel.Position = UDim2.new(0, 80, 0, 0)
+		textLabel.Size = UDim2.new(1, -76, 0, 0)
+		textLabel.Position = UDim2.new(0, 76, 0, 0)
 		textLabel.AutomaticSize = Enum.AutomaticSize.Y
 		textLabel.BackgroundTransparency = 1
 		textLabel.Text = text
@@ -422,27 +426,47 @@ function ChatWidget.new(): ChatWidgetInstance
 		textLabel.Parent = row
 		UI.registerThemeElement(textLabel, "TextPrimary")
 
-		container.CanvasPosition = Vector2.new(0, 99999)
+		-- Scroll to bottom
+		task.defer(function()
+			container.CanvasPosition = Vector2.new(0, math.huge)
+		end)
 	end
 
+	-- ── Send Message (single code path, no duplication) ────────────
+	local isSending = false
+
 	local function sendMessage(msg: string)
-		if msg == "" then return end
+		msg = msg:gsub("^%s+", ""):gsub("%s+$", "")
+		if msg == "" or isSending then return end
+		isSending = true
 		textBox.Text = ""
 
-		-- Modern TextChatService
-		pcall(function()
-			local general = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
-			if general then
-				general:SendAsync(msg)
-			end
-		end)
+		local success = false
 
-		-- Legacy Chat
-		pcall(function()
-			local sayMsg = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
-			if sayMsg and sayMsg:IsA("RemoteEvent") then
-				sayMsg:FireServer(msg, "All")
-			end
+		if not useLegacyChat then
+			-- Modern TextChatService path
+			pcall(function()
+				local channel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+				if channel then
+					channel:SendAsync(msg)
+					success = true
+				end
+			end)
+		end
+
+		if not success then
+			-- Legacy fallback
+			pcall(function()
+				local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+				local sayReq = chatEvents and chatEvents:FindFirstChild("SayMessageRequest")
+				if sayReq and sayReq:IsA("RemoteEvent") then
+					sayReq:FireServer(msg, "All")
+				end
+			end)
+		end
+
+		task.defer(function()
+			isSending = false
 		end)
 	end
 
@@ -456,40 +480,41 @@ function ChatWidget.new(): ChatWidgetInstance
 		end
 	end)
 
-	-- Quick chat macros
 	local quickPhrases = { "gg", "Hello everyone!", "Need assistance!", "Look out!", "Nice one!" }
 	local qIndex = 1
 	quickBtn.MouseButton1Click:Connect(function()
-		local phrase = quickPhrases[qIndex]
+		sendMessage(quickPhrases[qIndex])
 		qIndex = (qIndex % #quickPhrases) + 1
-		sendMessage(phrase)
 	end)
 
-	-- Listen for incoming chat messages
-	pcall(function()
-		TextChatService.OnIncomingMessage = function(message)
-			if message.TextSource then
-				local player = Players:GetPlayerByUserId(message.TextSource.UserId)
+	-- ── Listen for Incoming Messages (one listener, correct system) ─
+	if not useLegacyChat then
+		-- Modern TextChatService: OnIncomingMessage fires for ALL messages including own
+		pcall(function()
+			TextChatService.OnIncomingMessage = function(message)
+				local source = message.TextSource
+				if not source then return end
+				local player = Players:GetPlayerByUserId(source.UserId)
 				local name = if player then player.DisplayName else "System"
 				addMessage(name, message.Text)
 			end
-		end
-	end)
+		end)
+	else
+		-- Legacy chat: OnMessageDoneFiltering is the correct final message event
+		pcall(function()
+			local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+			local onMsg = chatEvents and chatEvents:FindFirstChild("OnMessageDoneFiltering")
+			if onMsg and onMsg:IsA("RemoteEvent") then
+				onMsg.OnClientEvent:Connect(function(data)
+					if data and data.FromSpeaker and data.Message then
+						addMessage(tostring(data.FromSpeaker), tostring(data.Message))
+					end
+				end)
+			end
+		end)
+	end
 
-	-- Hook Legacy Chat Events
-	pcall(function()
-		local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-		local onMsg = chatEvents and chatEvents:FindFirstChild("OnMessageDoneFiltering")
-		if onMsg and onMsg:IsA("RemoteEvent") then
-			onMsg.OnClientEvent:Connect(function(data)
-				if data and data.FromSpeaker and data.Message then
-					addMessage(tostring(data.FromSpeaker), tostring(data.Message))
-				end
-			end)
-		end
-	end)
-
-	addMessage("System", "Chat suite initialized.")
+	addMessage("System", "Chat connected.")
 
 	return {
 		Frame = widget,

@@ -72,8 +72,8 @@ function CoreUI:CreateTab(name: string)
 	tabContent.Parent = self.ContentContainer
 
 	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft = UDim.new(0, 2)
-	pad.PaddingRight = UDim.new(0, 6)
+	pad.PaddingLeft = UDim.new(0, 4)
+	pad.PaddingRight = UDim.new(0, 8)
 	pad.PaddingTop = UDim.new(0, 2)
 	pad.PaddingBottom = UDim.new(0, 12)
 	pad.Parent = tabContent
@@ -131,12 +131,11 @@ end
 function CoreUI:CreateColumns(tabObj): (Frame, Frame)
 	local columnsContainer = Instance.new("Frame")
 	columnsContainer.Name = "ColumnsContainer"
-	columnsContainer.Size = UDim2.new(1, -6, 0, 0)
-	columnsContainer.Position = UDim2.new(0, 3, 0, 0)
+	columnsContainer.Size = UDim2.new(1, 0, 0, 0)
 	columnsContainer.AutomaticSize = Enum.AutomaticSize.Y
 	columnsContainer.BackgroundTransparency = 1
 	columnsContainer.BorderSizePixel = 0
-	columnsContainer.ClipsDescendants = true
+	columnsContainer.ClipsDescendants = false
 	columnsContainer.Parent = tabObj.Page
 
 	local leftCol = Instance.new("Frame")
@@ -146,7 +145,7 @@ function CoreUI:CreateColumns(tabObj): (Frame, Frame)
 	leftCol.AutomaticSize = Enum.AutomaticSize.Y
 	leftCol.BackgroundTransparency = 1
 	leftCol.BorderSizePixel = 0
-	leftCol.ClipsDescendants = true
+	leftCol.ClipsDescendants = false
 	leftCol.Parent = columnsContainer
 
 	local leftLayout = Instance.new("UIListLayout")
@@ -161,7 +160,7 @@ function CoreUI:CreateColumns(tabObj): (Frame, Frame)
 	rightCol.AutomaticSize = Enum.AutomaticSize.Y
 	rightCol.BackgroundTransparency = 1
 	rightCol.BorderSizePixel = 0
-	rightCol.ClipsDescendants = true
+	rightCol.ClipsDescendants = false
 	rightCol.Parent = columnsContainer
 
 	local rightLayout = Instance.new("UIListLayout")
@@ -179,7 +178,7 @@ function CoreUI:AddSection(parent: GuiObject, title: string): Frame
 	section.AutomaticSize = Enum.AutomaticSize.Y
 	section.BackgroundTransparency = 1
 	section.BorderSizePixel = 0
-	section.ClipsDescendants = true
+	section.ClipsDescendants = false
 	section.Parent = parent
 
 	local layout = Instance.new("UIListLayout")
@@ -187,11 +186,11 @@ function CoreUI:AddSection(parent: GuiObject, title: string): Frame
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = section
 
-	-- standalone boxed header [ Option Types ]
+	-- standalone boxed header [ Category Name ]
 	local headerBox = Instance.new("Frame")
 	headerBox.Name = "HeaderBox"
-	headerBox.Size = UDim2.new(1, -2, 0, 24)
-	headerBox.Position = UDim2.new(0, 1, 0, 0)
+	headerBox.Size = UDim2.new(1, -4, 0, 24)
+	headerBox.Position = UDim2.new(0, 2, 0, 0)
 	headerBox.BackgroundColor3 = UI.Theme.Container
 	headerBox.BorderSizePixel = 0
 	headerBox.Parent = section
@@ -220,17 +219,18 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	
 	local row = Instance.new("Frame")
 	row.Name = featureId .. "Row"
-	row.Size = UDim2.new(1, 0, 0, 26)
+	row.Size = UDim2.new(1, -4, 0, 24)
+	row.Position = UDim2.new(0, 2, 0, 0)
 	row.BackgroundTransparency = 1
 	row.BorderSizePixel = 0
-	row.ClipsDescendants = true
+	row.ClipsDescendants = false
 	row.Parent = section
 
 	-- Segment 1: [ X ]
 	local checkBtn = Instance.new("TextButton")
 	checkBtn.Name = "CheckBtn"
 	checkBtn.Size = UDim2.new(0, 24, 0, 24)
-	checkBtn.Position = UDim2.new(0, 1, 0, 1)
+	checkBtn.Position = UDim2.new(0, 0, 0, 0)
 	checkBtn.BackgroundColor3 = if feature.state then UI.Theme.Accent else UI.Theme.Container
 	checkBtn.BorderSizePixel = 0
 	checkBtn.Text = if feature.state then "X" else ""
@@ -248,8 +248,8 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	-- Segment 2: [ Option Name ]
 	local titleBox = Instance.new("TextButton")
 	titleBox.Name = "TitleBox"
-	titleBox.Size = UDim2.new(1, -92, 0, 24)
-	titleBox.Position = UDim2.new(0, 28, 0, 1)
+	titleBox.Size = UDim2.new(1, -90, 0, 24)
+	titleBox.Position = UDim2.new(0, 28, 0, 0)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BorderSizePixel = 0
 	titleBox.Text = ""
@@ -275,8 +275,8 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	-- Segment 3: [ Bind ]
 	local keybindBtn = Instance.new("TextButton")
 	keybindBtn.Name = "KeybindBtn"
-	keybindBtn.Size = UDim2.new(0, 60, 0, 24)
-	keybindBtn.Position = UDim2.new(1, -61, 0, 1)
+	keybindBtn.Size = UDim2.new(0, 58, 0, 24)
+	keybindBtn.Position = UDim2.new(1, -58, 0, 0)
 	keybindBtn.BackgroundColor3 = UI.Theme.Container
 	keybindBtn.BorderSizePixel = 0
 	keybindBtn.Text = if feature.keybind then string.format("[%s]", feature.keybind.Name) else "[None]"
@@ -323,17 +323,18 @@ end
 function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number, default: number, callback: (number) -> ())
 	local row = Instance.new("Frame")
 	row.Name = name .. "SliderRow"
-	row.Size = UDim2.new(1, 0, 0, 48)
+	row.Size = UDim2.new(1, -4, 0, 46)
+	row.Position = UDim2.new(0, 2, 0, 0)
 	row.BackgroundTransparency = 1
 	row.BorderSizePixel = 0
-	row.ClipsDescendants = true
+	row.ClipsDescendants = false
 	row.Parent = section
 
 	-- header line: [ Option Name ] + [ Val ]
 	local titleBox = Instance.new("Frame")
 	titleBox.Name = "TitleBox"
-	titleBox.Size = UDim2.new(1, -54, 0, 22)
-	titleBox.Position = UDim2.new(0, 1, 0, 0)
+	titleBox.Size = UDim2.new(1, -52, 0, 22)
+	titleBox.Position = UDim2.new(0, 0, 0, 0)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BorderSizePixel = 0
 	titleBox.Parent = row
@@ -357,8 +358,8 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 
 	local valBox = Instance.new("Frame")
 	valBox.Name = "ValBox"
-	valBox.Size = UDim2.new(0, 50, 0, 22)
-	valBox.Position = UDim2.new(1, -50, 0, 0)
+	valBox.Size = UDim2.new(0, 48, 0, 22)
+	valBox.Position = UDim2.new(1, -48, 0, 0)
 	valBox.BackgroundColor3 = UI.Theme.Container
 	valBox.BorderSizePixel = 0
 	valBox.Parent = row
@@ -381,8 +382,8 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	-- track
 	local bar = Instance.new("Frame")
 	bar.Name = "SliderTrack"
-	bar.Size = UDim2.new(1, -2, 0, 16)
-	bar.Position = UDim2.new(0, 1, 0, 26)
+	bar.Size = UDim2.new(1, 0, 0, 16)
+	bar.Position = UDim2.new(0, 0, 0, 26)
 	bar.BackgroundColor3 = UI.Theme.ContainerDark
 	bar.BorderSizePixel = 0
 	bar.Parent = row

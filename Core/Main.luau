@@ -25,38 +25,38 @@ window:AddBanner(mainTab)
 -- dual-column layout below banner
 local leftCol, rightCol = window:CreateColumns(mainTab)
 
--- left column: Option Types (Self Configs)
-local leftSection = window:AddSection(leftCol, "Option Types")
+-- left column: category "Self Configs"
+local selfSection = window:AddSection(leftCol, "Self Configs")
 
-window:AddToggle(leftSection, "walkspeed_boost", "WalkSpeed Boost", false, Enum.KeyCode.V, function(enabled)
+window:AddToggle(selfSection, "walkspeed_boost", "WalkSpeed Boost", false, Enum.KeyCode.V, function(enabled)
 	if humanoid then
 		humanoid.WalkSpeed = if enabled then 32 else 16
 	end
 end)
 
-window:AddToggle(leftSection, "jumppower_boost", "JumpPower Boost", false, Enum.KeyCode.B, function(enabled)
+window:AddToggle(selfSection, "jumppower_boost", "JumpPower Boost", false, Enum.KeyCode.B, function(enabled)
 	if humanoid then
 		humanoid.JumpPower = if enabled then 100 else 50
 	end
 end)
 
-window:AddSlider(leftSection, "Custom Speed", 16, 150, 16, function(value)
+window:AddSlider(selfSection, "Custom Speed", 16, 150, 16, function(value)
 	if humanoid then
 		humanoid.WalkSpeed = value
 	end
 end)
 
--- right column: Option Types (Modules)
-local rightSection = window:AddSection(rightCol, "Option Types")
+-- right column: category "Modules"
+local moduleSection = window:AddSection(rightCol, "Modules")
 
-window:AddToggle(rightSection, "run_and_hide", "Run & Hide", false, Enum.KeyCode.H, function(enabled)
+window:AddToggle(moduleSection, "run_and_hide", "Run & Hide", false, Enum.KeyCode.H, function(enabled)
 	print("[Module] Run & Hide:", enabled)
 end)
 
-window:AddToggle(rightSection, "esp_players", "Highlight Players", false, Enum.KeyCode.J, function(enabled)
+window:AddToggle(moduleSection, "esp_players", "Highlight Players", false, Enum.KeyCode.J, function(enabled)
 	print("[Visuals] Highlight:", enabled)
 end)
 
-window:AddToggle(rightSection, "infinite_jump", "Infinite Jump", false, Enum.KeyCode.Space, function(enabled)
+window:AddToggle(moduleSection, "infinite_jump", "Infinite Jump", false, Enum.KeyCode.Space, function(enabled)
 	print("[Combat] Infinite Jump:", enabled)
 end)

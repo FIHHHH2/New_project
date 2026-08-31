@@ -2,6 +2,7 @@
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local SoundService = game:GetService("SoundService")
+local StarterGui = game:GetService("StarterGui")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
@@ -21,6 +22,21 @@ local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 localPlayer.CharacterAdded:Connect(function(char)
 	character = char
 	humanoid = char:WaitForChild("Humanoid") :: Humanoid
+end)
+
+-- Disable all default Roblox CoreGui elements to prevent overlay clutter
+local function disableCoreGuis()
+	for _ = 1, 8 do
+		local success = pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+		end)
+		if success then break end
+		task.wait(0.2)
+	end
+end
+task.spawn(disableCoreGuis)
+localPlayer.CharacterAdded:Connect(function()
+	task.spawn(disableCoreGuis)
 end)
 
 local window = CoreUI.new("Project Fih Menu")
@@ -290,6 +306,32 @@ end)
 
 window:AddButton(themeSection, "Translucent Light (Glass)", function()
 	window:SetTheme("TranslucentLight")
+end)
+
+-- GUI Visibility & Screen Cleanup Controls
+local cleanSection = window:AddSection(setLeftCol, "Screen & GUI Optimization")
+
+window:AddToggle(cleanSection, "hide_core_guis", "Disable CoreGUIs", true, nil, function(enabled)
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, not enabled)
+	end)
+end)
+
+local hiddenGameGuis: {[ScreenGui]: boolean} = {}
+window:AddToggle(cleanSection, "hide_game_guis", "Hide Default Game GUIs", false, nil, function(enabled)
+	local pgui = localPlayer:FindFirstChild("PlayerGui")
+	if pgui then
+		for _, child in ipairs(pgui:GetChildren()) do
+			if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") then
+				if enabled then
+					hiddenGameGuis[child] = child.Enabled
+					child.Enabled = false
+				else
+					child.Enabled = if hiddenGameGuis[child] ~= nil then hiddenGameGuis[child] else true
+				end
+			end
+		end
+	end
 end)
 
 -- Performance Settings

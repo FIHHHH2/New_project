@@ -551,7 +551,29 @@ function UI.createWindow(titleText: string)
 		end
 	end)
 
-	closeButton.MouseButton1Click:Connect(function()
+	local isOpen = true
+	local isTransitioning = false
+
+	local function openWindow()
+		if isOpen or isTransitioning then return end
+		isTransitioning = true
+		mainFrame.Visible = true
+		mainFrame.Size = UDim2.new(0, 720 * 0.9, 0, 0)
+		mainFrame.BackgroundTransparency = 1
+		local openTween = TweenService:Create(mainFrame, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = if minimized then UDim2.new(0, 720, 0, 44) else UDim2.new(0, 720, 0, 480),
+			BackgroundTransparency = UI.Theme.BackgroundTransparency
+		})
+		openTween:Play()
+		openTween.Completed:Connect(function()
+			isOpen = true
+			isTransitioning = false
+		end)
+	end
+
+	local function closeWindow()
+		if not isOpen or isTransitioning then return end
+		isTransitioning = true
 		local closeTween = TweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 			Size = UDim2.new(0, 720 * 0.9, 0, 0),
 			BackgroundTransparency = 1
@@ -561,7 +583,24 @@ function UI.createWindow(titleText: string)
 			mainFrame.Visible = false
 			mainFrame.Size = UDim2.new(0, 720, 0, 480)
 			mainFrame.BackgroundTransparency = UI.Theme.BackgroundTransparency
+			isOpen = false
+			isTransitioning = false
 		end)
+	end
+
+	closeButton.MouseButton1Click:Connect(function()
+		closeWindow()
+	end)
+
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then return end
+		if input.KeyCode == Enum.KeyCode.RightBracket then
+			if isOpen then
+				closeWindow()
+			else
+				openWindow()
+			end
+		end
 	end)
 
 	return mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale

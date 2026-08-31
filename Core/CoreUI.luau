@@ -203,8 +203,11 @@ function CoreUI:SelectTab(tabObj)
 
 	for _, tab in ipairs(self.Tabs) do
 		if tab == tabObj then
-			tab.Page.Position = UDim2.new(0, 0, 0, 0)
+			tab.Page.Position = UDim2.new(0, 10, 0, 0)
 			tab.Page.Visible = true
+			TweenService:Create(tab.Page, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0, 0, 0, 0)
+			}):Play()
 
 			if tab.Button and tab.Stroke then
 				TweenService:Create(tab.Button, TweenInfo.new(0.15), {
@@ -218,6 +221,7 @@ function CoreUI:SelectTab(tabObj)
 			end
 		else
 			tab.Page.Visible = false
+			tab.Page.Position = UDim2.new(0, 0, 0, 0)
 			if tab.Button and tab.Stroke then
 				TweenService:Create(tab.Button, TweenInfo.new(0.15), {
 					BackgroundColor3 = UI.Theme.Container,

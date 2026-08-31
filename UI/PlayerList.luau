@@ -264,16 +264,17 @@ function PlayerList.new(): PlayerListWidget
 		end)
 	end)
 
-	-- ── Incremental Animated Player Rows ─────────────────────────────
-	local function createPlayerRow(player: Player)
+	-- ── Incremental Domino-Animated Player Rows (Right to Left) ──────
+	local function createPlayerRow(player: Player, delaySec: number?)
 		local rowId = "PLR_" .. tostring(player.UserId)
 		if container:FindFirstChild(rowId) then return end
 
 		local row = Instance.new("Frame")
 		row.Name = rowId
-		row.Size = UDim2.new(1, 0, 0, 0) -- Start collapsed for animation
+		row.Size = UDim2.new(1, 0, 0, ROW_H)
+		row.Position = UDim2.new(1, 40, 0, 0) -- starts offset to right
 		row.BackgroundColor3 = UI.Theme.Container
-		row.BackgroundTransparency = UI.Theme.ContainerTransparency
+		row.BackgroundTransparency = 1
 		row.BorderSizePixel = 0
 		row.ClipsDescendants = true
 		row.Parent = container
@@ -338,10 +339,19 @@ function PlayerList.new(): PlayerListWidget
 		subLabel.Parent = row
 		UI.registerThemeElement(subLabel, "TextSecondary")
 
-		-- Animate slide-down
-		TweenService:Create(row, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = UDim2.new(1, 0, 0, ROW_H)
-		}):Play()
+		-- Slide-in from right to left (Domino effect)
+		local function playSlide()
+			row.BackgroundTransparency = UI.Theme.ContainerTransparency
+			TweenService:Create(row, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0, 0, 0, 0)
+			}):Play()
+		end
+
+		if delaySec and delaySec > 0 then
+			task.delay(delaySec, playSlide)
+		else
+			playSlide()
+		end
 
 		titleLabel.Text = string.format("Players (%d)", #Players:GetPlayers())
 		updateWidgetHeight()
@@ -351,8 +361,9 @@ function PlayerList.new(): PlayerListWidget
 		local rowId = "PLR_" .. tostring(player.UserId)
 		local row = container:FindFirstChild(rowId)
 		if row and row:IsA("Frame") then
-			local tween = TweenService:Create(row, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				Size = UDim2.new(1, 0, 0, 0)
+			local tween = TweenService:Create(row, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Position = UDim2.new(1, 40, 0, 0),
+				BackgroundTransparency = 1
 			})
 			tween:Play()
 			tween.Completed:Connect(function()
@@ -364,13 +375,17 @@ function PlayerList.new(): PlayerListWidget
 	end
 
 	-- Connect Player Added / Removed
-	Players.PlayerAdded:Connect(createPlayerRow)
+	Players.PlayerAdded:Connect(function(p)
+		createPlayerRow(p, 0)
+	end)
 	Players.PlayerRemoving:Connect(deletePlayerRow)
 
-	-- Populate existing players
-	for _, p in ipairs(Players:GetPlayers()) do
-		createPlayerRow(p)
-	end
+	-- Populate existing players with domino wave
+	task.spawn(function()
+		for i, p in ipairs(Players:GetPlayers()) do
+			createPlayerRow(p, (i - 1) * 0.04)
+		end
+	end)
 
 	return {
 		Frame = widget,

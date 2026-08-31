@@ -20,9 +20,9 @@ local RunNHide = {
 	FastRegen = false,
 	SpeedBoost = false,
 	SpeedMultiplier = 1.0,
-	MoveInRagdoll = true,
+	MoveInRagdoll = false,
 	RagdollSpeed = 32,
-	RagdollJumpBoost = true,
+	RagdollJumpBoost = false,
 	AutoStandup = false,
 
 	-- Boundary & Barrier Breaker

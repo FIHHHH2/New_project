@@ -41,6 +41,8 @@ function CoreUI.new(titleText: string)
 	self.PreviousTab = nil
 	self.SettingsTab = nil
 	self.ConfigsTab = nil
+	self.ActiveToggles = {}
+	self.SliderFills = {}
 	
 	-- Wire toggle click handlers for Settings and Configs
 	if self.SettingsBtn then
@@ -72,9 +74,17 @@ end
 
 function CoreUI:SetTheme(themeName: string)
 	UI.setTheme(themeName)
-	-- Reapply active tab accent visual
+	-- Reapply active tab and toggle accent visuals
 	if self.ActiveTab then
 		self:SelectTab(self.ActiveTab)
+	end
+	for _, fn in ipairs(self.ActiveToggles) do
+		fn()
+	end
+	for _, fill in ipairs(self.SliderFills) do
+		if fill and fill.Parent then
+			fill.BackgroundColor3 = UI.Theme.Accent
+		end
 	end
 end
 
@@ -104,7 +114,7 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 		tabGrad.Rotation = 90
 		tabGrad.Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(210, 210, 220))
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 220))
 		})
 		tabGrad.Enabled = false
 		tabGrad.Parent = tabButton
@@ -351,9 +361,6 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	checkBtn.Font = UI.Fonts.Header
 	checkBtn.TextSize = 12
 	checkBtn.Parent = row
-	if not feature.state then
-		UI.registerThemeElement(checkBtn, "Container")
-	end
 
 	local checkStroke = Instance.new("UIStroke")
 	checkStroke.Color = UI.Theme.Border
@@ -421,6 +428,10 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 		checkBtn.BackgroundTransparency = if state then 0 else UI.Theme.ContainerTransparency
 		checkBtn.Text = if state then "X" else ""
 	end
+
+	table.insert(self.ActiveToggles, function()
+		updateToggleVisual(feature.state)
+	end)
 
 	local function toggleAction()
 		local nextState = not feature.state
@@ -537,12 +548,13 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	fill.BackgroundColor3 = UI.Theme.Accent
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
+	table.insert(self.SliderFills, fill)
 
 	local fillGrad = Instance.new("UIGradient")
 	fillGrad.Rotation = 90
 	fillGrad.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(210, 210, 210))
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 220))
 	})
 	fillGrad.Parent = fill
 
@@ -554,6 +566,7 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 		local val = math.floor(rawVal + 0.5)
 		fill.Size = UDim2.new(ratio, 0, 1, 0)
 		valLabel.Text = tostring(val)
+		valLabel.TextColor3 = UI.Theme.Accent
 		callback(val)
 	end
 
@@ -609,8 +622,10 @@ function CoreUI:AddButton(section: Frame, name: string, callback: () -> ())
 
 	btn.MouseButton1Click:Connect(function()
 		btn.BackgroundColor3 = UI.Theme.Accent
+		btn.TextColor3 = UI.Theme.AccentText
 		task.delay(0.15, function()
 			btn.BackgroundColor3 = UI.Theme.Container
+			btn.TextColor3 = UI.Theme.TextPrimary
 		end)
 		callback()
 	end)

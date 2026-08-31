@@ -22,10 +22,10 @@ local Visuals = {
 	Skeleton = false,
 	Chams = false,
 	ChamsTransparency = 0.5,
-	BoxColor = Color3.fromRGB(240, 60, 60),
+	BoxColor = Color3.fromRGB(55, 175, 245),
 	TracerColor = Color3.fromRGB(255, 255, 255),
 	SkeletonColor = Color3.fromRGB(255, 200, 50),
-	ChamsColor = Color3.fromRGB(240, 60, 60)
+	ChamsColor = Color3.fromRGB(55, 175, 245)
 }
 
 -- Registry of created visual elements per player

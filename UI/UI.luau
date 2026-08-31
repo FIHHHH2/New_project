@@ -12,10 +12,10 @@ UI.Themes = {
 		Name = "Dark",
 		Background = Color3.fromRGB(13, 13, 15),
 		BackgroundTransparency = 0.02,
-		Border = Color3.fromRGB(235, 235, 240),
-		BorderDim = Color3.fromRGB(75, 75, 85),
-		Accent = Color3.fromRGB(240, 55, 55),
-		AccentDark = Color3.fromRGB(180, 35, 35),
+		Border = Color3.fromRGB(250, 250, 255), -- Crisp white outlines for dark mode
+		BorderDim = Color3.fromRGB(85, 85, 95),
+		Accent = Color3.fromRGB(55, 175, 245), -- Light blue-ish selection accent
+		AccentDark = Color3.fromRGB(30, 120, 200),
 		AccentText = Color3.fromRGB(255, 255, 255),
 		TextPrimary = Color3.fromRGB(245, 245, 245),
 		TextSecondary = Color3.fromRGB(160, 160, 170),
@@ -28,26 +28,26 @@ UI.Themes = {
 		Name = "Light",
 		Background = Color3.fromRGB(242, 243, 246),
 		BackgroundTransparency = 0.02,
-		Border = Color3.fromRGB(35, 35, 42),
-		BorderDim = Color3.fromRGB(160, 160, 170),
-		Accent = Color3.fromRGB(225, 45, 45),
-		AccentDark = Color3.fromRGB(170, 30, 30),
+		Border = Color3.fromRGB(12, 12, 16), -- True black outlines for light mode
+		BorderDim = Color3.fromRGB(130, 130, 140),
+		Accent = Color3.fromRGB(45, 155, 235), -- Light blue accent
+		AccentDark = Color3.fromRGB(25, 110, 185),
 		AccentText = Color3.fromRGB(255, 255, 255),
-		TextPrimary = Color3.fromRGB(20, 20, 25),
-		TextSecondary = Color3.fromRGB(85, 85, 95),
+		TextPrimary = Color3.fromRGB(15, 15, 20),
+		TextSecondary = Color3.fromRGB(75, 75, 85),
 		Container = Color3.fromRGB(255, 255, 255),
 		ContainerTransparency = 0,
-		ContainerDark = Color3.fromRGB(230, 232, 238),
+		ContainerDark = Color3.fromRGB(228, 230, 236),
 		ContainerDarkTransparency = 0
 	},
 	TranslucentDark = {
 		Name = "Translucent Dark",
 		Background = Color3.fromRGB(12, 12, 16),
 		BackgroundTransparency = 0.40,
-		Border = Color3.fromRGB(240, 240, 245),
+		Border = Color3.fromRGB(250, 250, 255), -- White outlines
 		BorderDim = Color3.fromRGB(90, 90, 110),
-		Accent = Color3.fromRGB(240, 55, 55),
-		AccentDark = Color3.fromRGB(180, 35, 35),
+		Accent = Color3.fromRGB(55, 175, 245), -- Light blue accent
+		AccentDark = Color3.fromRGB(30, 120, 200),
 		AccentText = Color3.fromRGB(255, 255, 255),
 		TextPrimary = Color3.fromRGB(255, 255, 255),
 		TextSecondary = Color3.fromRGB(180, 180, 195),
@@ -60,13 +60,13 @@ UI.Themes = {
 		Name = "Translucent Light",
 		Background = Color3.fromRGB(240, 242, 248),
 		BackgroundTransparency = 0.40,
-		Border = Color3.fromRGB(35, 35, 45),
-		BorderDim = Color3.fromRGB(140, 140, 155),
-		Accent = Color3.fromRGB(225, 45, 45),
-		AccentDark = Color3.fromRGB(170, 30, 30),
+		Border = Color3.fromRGB(12, 12, 16), -- Black outlines
+		BorderDim = Color3.fromRGB(120, 120, 135),
+		Accent = Color3.fromRGB(45, 155, 235), -- Light blue accent
+		AccentDark = Color3.fromRGB(25, 110, 185),
 		AccentText = Color3.fromRGB(255, 255, 255),
-		TextPrimary = Color3.fromRGB(15, 15, 20),
-		TextSecondary = Color3.fromRGB(75, 75, 90),
+		TextPrimary = Color3.fromRGB(12, 12, 16),
+		TextSecondary = Color3.fromRGB(70, 70, 80),
 		Container = Color3.fromRGB(255, 255, 255),
 		ContainerTransparency = 0.35,
 		ContainerDark = Color3.fromRGB(225, 228, 236),
@@ -83,10 +83,9 @@ UI.Fonts = {
 	Mono = Enum.Font.Code
 }
 
--- Theme registration table for smooth animated transitions
 type ThemedElement = {
 	Instance: Instance,
-	PropType: string -- "Background", "Container", "ContainerDark", "Border", "BorderDim", "TextPrimary", "TextSecondary", "Accent"
+	PropType: string
 }
 
 UI.RegisteredElements = {} :: {ThemedElement}
@@ -147,7 +146,6 @@ function UI.createWindow(titleText: string)
 	mainFrame.ClipsDescendants = false
 	UI.registerThemeElement(mainFrame, "Background")
 
-	-- Subtle glass ambient gradient on main window
 	local bgGradient = Instance.new("UIGradient")
 	bgGradient.Rotation = 90
 	bgGradient.Color = ColorSequence.new({
@@ -171,7 +169,6 @@ function UI.createWindow(titleText: string)
 	uiScale.Scale = 1.0
 	uiScale.Parent = mainFrame
 
-	-- topbar container
 	local topbar = Instance.new("Frame")
 	topbar.Name = "TopBar"
 	topbar.Size = UDim2.new(1, -16, 0, 28)
@@ -180,7 +177,6 @@ function UI.createWindow(titleText: string)
 	topbar.BorderSizePixel = 0
 	topbar.Parent = mainFrame
 
-	-- title box [Project Fih Menu >>>>>]
 	local titleBox = Instance.new("Frame")
 	titleBox.Name = "TitleBox"
 	titleBox.Size = UDim2.new(0, 220, 1, 0)
@@ -218,7 +214,6 @@ function UI.createWindow(titleText: string)
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
-	-- center decorative bar [>>>>>>>>>>>>>>>>>>>>>>>>>>>>]
 	local decoBar = Instance.new("Frame")
 	decoBar.Name = "DecoBar"
 	decoBar.Size = UDim2.new(1, -298, 1, 0)
@@ -247,7 +242,6 @@ function UI.createWindow(titleText: string)
 	decoLabel.Parent = decoBar
 	UI.registerThemeElement(decoLabel, "BorderDimText")
 
-	-- window control buttons: [-] and [X]
 	local minButton = Instance.new("TextButton")
 	minButton.Name = "MinButton"
 	minButton.Size = UDim2.new(0, 30, 1, 0)
@@ -292,7 +286,6 @@ function UI.createWindow(titleText: string)
 	closeStroke.Parent = closeButton
 	UI.registerThemeElement(closeStroke, "Border")
 
-	-- horizontal divider under topbar
 	local topDivider = Instance.new("Frame")
 	topDivider.Name = "TopDivider"
 	topDivider.Size = UDim2.new(1, 0, 0, 2)
@@ -302,7 +295,6 @@ function UI.createWindow(titleText: string)
 	topDivider.Parent = mainFrame
 	UI.registerThemeElement(topDivider, "Border")
 
-	-- body frame
 	local bodyFrame = Instance.new("Frame")
 	bodyFrame.Name = "BodyFrame"
 	bodyFrame.Size = UDim2.new(1, 0, 1, -62)
@@ -311,7 +303,6 @@ function UI.createWindow(titleText: string)
 	bodyFrame.BorderSizePixel = 0
 	bodyFrame.Parent = mainFrame
 
-	-- left sidebar
 	local sidebar = Instance.new("ScrollingFrame")
 	sidebar.Name = "Sidebar"
 	sidebar.Size = UDim2.new(0, 126, 1, -12)
@@ -336,7 +327,6 @@ function UI.createWindow(titleText: string)
 	sideList.SortOrder = Enum.SortOrder.LayoutOrder
 	sideList.Parent = sidebar
 
-	-- vertical divider
 	local vertDivider = Instance.new("Frame")
 	vertDivider.Name = "VertDivider"
 	vertDivider.Size = UDim2.new(0, 2, 1, 0)
@@ -346,7 +336,6 @@ function UI.createWindow(titleText: string)
 	vertDivider.Parent = bodyFrame
 	UI.registerThemeElement(vertDivider, "Border")
 
-	-- right main container
 	local rightMain = Instance.new("Frame")
 	rightMain.Name = "RightMain"
 	rightMain.Size = UDim2.new(1, -154, 1, -12)
@@ -356,7 +345,6 @@ function UI.createWindow(titleText: string)
 	rightMain.ClipsDescendants = true
 	rightMain.Parent = bodyFrame
 
-	-- subheader bar
 	local subHeader = Instance.new("Frame")
 	subHeader.Name = "SubHeader"
 	subHeader.Size = UDim2.new(1, 0, 0, 26)
@@ -365,7 +353,6 @@ function UI.createWindow(titleText: string)
 	subHeader.BorderSizePixel = 0
 	subHeader.Parent = rightMain
 
-	-- active tab tag box [ Main ]
 	local activeTagBox = Instance.new("Frame")
 	activeTagBox.Name = "ActiveTagBox"
 	activeTagBox.Size = UDim2.new(0, 110, 0, 24)
@@ -394,7 +381,6 @@ function UI.createWindow(titleText: string)
 	activeTagLabel.Parent = activeTagBox
 	UI.registerThemeElement(activeTagLabel, "TextPrimary")
 
-	-- subheader right utility buttons: [Settings] and [configs]
 	local configsBtn = Instance.new("TextButton")
 	configsBtn.Name = "ConfigsBtn"
 	configsBtn.Size = UDim2.new(0, 72, 0, 24)
@@ -441,7 +427,6 @@ function UI.createWindow(titleText: string)
 	settingsStroke.Parent = settingsBtn
 	UI.registerThemeElement(settingsStroke, "Border")
 
-	-- pages container with strict boundary clamping
 	local contentContainer = Instance.new("Frame")
 	contentContainer.Name = "ContentContainer"
 	contentContainer.Size = UDim2.new(1, 0, 1, -32)
@@ -451,7 +436,6 @@ function UI.createWindow(titleText: string)
 	contentContainer.ClipsDescendants = true
 	contentContainer.Parent = rightMain
 
-	-- bottom hatched footer bar (////////////////////////////////)
 	local footerBar = Instance.new("Frame")
 	footerBar.Name = "FooterBar"
 	footerBar.Size = UDim2.new(1, 0, 0, 14)
@@ -480,7 +464,6 @@ function UI.createWindow(titleText: string)
 	footerHatch.Parent = footerBar
 	UI.registerThemeElement(footerHatch, "BorderDimText")
 
-	-- window dragging
 	local dragging = false
 	local dragInput: InputObject? = nil
 	local dragStart = Vector3.zero
@@ -512,7 +495,6 @@ function UI.createWindow(titleText: string)
 		end
 	end)
 
-	-- minimize toggle
 	local minimized = false
 	minButton.MouseButton1Click:Connect(function()
 		minimized = not minimized
@@ -559,7 +541,6 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	bannerStroke.Parent = banner
 	UI.registerThemeElement(bannerStroke, "Border")
 
-	-- left player mugshot box
 	local mugshotBox = Instance.new("Frame")
 	mugshotBox.Name = "MugshotBox"
 	mugshotBox.Size = UDim2.new(0, 78, 1, -8)
@@ -585,7 +566,6 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	avatarImg.Image = Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
 	avatarImg.Parent = mugshotBox
 
-	-- right section
 	local rightSide = Instance.new("Frame")
 	rightSide.Name = "RightSide"
 	rightSide.Size = UDim2.new(1, -92, 1, -8)
@@ -595,7 +575,6 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	rightSide.ClipsDescendants = true
 	rightSide.Parent = banner
 
-	-- top row: [ Player Name : Game Name ]
 	local titleRow = Instance.new("Frame")
 	titleRow.Name = "TitleRow"
 	titleRow.Size = UDim2.new(1, 0, 0, 22)
@@ -634,7 +613,6 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	titleRowLabel.Parent = titleRow
 	UI.registerThemeElement(titleRowLabel, "TextPrimary")
 
-	-- middle info block + game icon
 	local middleBlock = Instance.new("Frame")
 	middleBlock.Name = "MiddleBlock"
 	middleBlock.Size = UDim2.new(1, 0, 1, -26)
@@ -644,7 +622,6 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	middleBlock.ClipsDescendants = true
 	middleBlock.Parent = rightSide
 
-	-- game icon (right side of middle block)
 	local gameIconBox = Instance.new("Frame")
 	gameIconBox.Name = "GameIconBox"
 	gameIconBox.Size = UDim2.new(0, 52, 1, 0)
@@ -670,7 +647,6 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	gameIconImg.Image = string.format("rbxthumb://type=GameIcon&id=%d&w=150&h=150", game.PlaceId)
 	gameIconImg.Parent = gameIconBox
 
-	-- info rows
 	local infoList = Instance.new("Frame")
 	infoList.Name = "InfoList"
 	infoList.Size = UDim2.new(1, -58, 1, 0)
@@ -680,7 +656,6 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	infoList.ClipsDescendants = true
 	infoList.Parent = middleBlock
 
-	-- info row 1 [ etc ]
 	local infoRow1 = Instance.new("Frame")
 	infoRow1.Name = "InfoRow1"
 	infoRow1.Size = UDim2.new(1, 0, 0, 22)
@@ -711,7 +686,6 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	row1Label.Parent = infoRow1
 	UI.registerThemeElement(row1Label, "TextSecondary")
 
-	-- info row 2 [ etc ]
 	local infoRow2 = Instance.new("Frame")
 	infoRow2.Name = "InfoRow2"
 	infoRow2.Size = UDim2.new(1, 0, 0, 22)

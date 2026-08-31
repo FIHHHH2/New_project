@@ -8,30 +8,38 @@ local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 
--- Cleanup any previously running suite instance before reloading
 if _G.__ModularSuite_Cleanup then
 	pcall(_G.__ModularSuite_Cleanup)
 	_G.__ModularSuite_Cleanup = nil
 end
 
--- Destroy any existing duplicate ScreenGuis in CoreGui and PlayerGui
-for _, c in ipairs(CoreGui:GetChildren()) do
-	if c.Name == "ModularEngineGui" or c.Name == "ModularNotificationsGui" then
-		c:Destroy()
+local guiNames = {
+	"ModularEngineGui",
+	"ModularNotificationsGui",
+	"ModularPlayerListGui",
+	"ModularChatGui"
+}
+
+for _, name in ipairs(guiNames) do
+	for _, c in ipairs(CoreGui:GetChildren()) do
+		if c.Name == name then
+			c:Destroy()
+		end
 	end
 end
 
 local lp = Players.LocalPlayer
 local pgui = lp and lp:FindFirstChild("PlayerGui")
 if pgui then
-	for _, c in ipairs(pgui:GetChildren()) do
-		if c.Name == "ModularEngineGui" or c.Name == "ModularNotificationsGui" then
-			c:Destroy()
+	for _, name in ipairs(guiNames) do
+		for _, c in ipairs(pgui:GetChildren()) do
+			if c.Name == name then
+				c:Destroy()
+			end
 		end
 	end
 end
 
--- Dynamically resolve latest commit SHA to bypass any CDN edge cache delays
 local REPO_OWNER = "FIHHHH2"
 local REPO_NAME = "New_project"
 local branchOrSha = "main"
@@ -65,11 +73,9 @@ local function fetchSource(path: string): string
 	return cleanSource(content)
 end
 
--- Virtual module cache emulating standard Luau require behavior
 local moduleCache: {[string]: any} = {}
 
 local function requireRemote(path: string): any
-	-- Normalize path
 	if not string.find(path, "%.luau$") and not string.find(path, "%.lua$") then
 		if path == "UI/Animations" or path == "Animations" then
 			path = "UI/Animations.luau"
@@ -77,6 +83,10 @@ local function requireRemote(path: string): any
 			path = "UI/UI.luau"
 		elseif path == "UI/Notification" or path == "Notification" then
 			path = "UI/Notification.luau"
+		elseif path == "UI/PlayerList" or path == "PlayerList" then
+			path = "UI/PlayerList.luau"
+		elseif path == "UI/ChatWidget" or path == "ChatWidget" then
+			path = "UI/ChatWidget.luau"
 		elseif path == "Core/FeatureManager" or path == "FeatureManager" then
 			path = "Core/FeatureManager.luau"
 		elseif path == "Core/CoreUI" or path == "CoreUI" then
@@ -104,7 +114,6 @@ local function requireRemote(path: string): any
 		error(string.format("[Loader] Compile error in %s: %s", path, tostring(compileErr)))
 	end
 	
-	-- Inject custom environment with virtual require
 	local env = getfenv(func)
 	local customEnv
 	customEnv = setmetatable({
@@ -120,6 +129,10 @@ local function requireRemote(path: string): any
 					return requireRemote("UI/UI.luau")
 				elseif name == "Notification" then
 					return requireRemote("UI/Notification.luau")
+				elseif name == "PlayerList" then
+					return requireRemote("UI/PlayerList.luau")
+				elseif name == "ChatWidget" then
+					return requireRemote("UI/ChatWidget.luau")
 				elseif name == "FeatureManager" then
 					return requireRemote("Core/FeatureManager.luau")
 				elseif name == "CoreUI" then
@@ -148,10 +161,11 @@ end
 
 print("[Loader] Initializing Modular Roblox UI suite...")
 
--- Preload dependencies in order
 local Animations = requireRemote("UI/Animations.luau")
 local UI = requireRemote("UI/UI.luau")
 local Notification = requireRemote("UI/Notification.luau")
+local PlayerList = requireRemote("UI/PlayerList.luau")
+local ChatWidget = requireRemote("UI/ChatWidget.luau")
 local FeatureManager = requireRemote("Core/FeatureManager.luau")
 local CoreUI = requireRemote("Core/CoreUI.luau")
 local Visuals = requireRemote("Modules/Visuals.luau")
@@ -159,27 +173,27 @@ local Combat = requireRemote("Modules/Combat.luau")
 local Movement = requireRemote("Modules/Movement.luau")
 local DisasterSurvival = requireRemote("Modules/DisasterSurvival.luau")
 
--- Register suite cleanup function
 _G.__ModularSuite_Cleanup = function()
 	pcall(function()
 		DisasterSurvival.cleanup()
 		Combat.resetHitboxes()
-		for _, c in ipairs(CoreGui:GetChildren()) do
-			if c.Name == "ModularEngineGui" or c.Name == "ModularNotificationsGui" then
-				c:Destroy()
-			end
-		end
-		if pgui then
-			for _, c in ipairs(pgui:GetChildren()) do
-				if c.Name == "ModularEngineGui" or c.Name == "ModularNotificationsGui" then
+		for _, name in ipairs(guiNames) do
+			for _, c in ipairs(CoreGui:GetChildren()) do
+				if c.Name == name then
 					c:Destroy()
+				end
+			end
+			if pgui then
+				for _, c in ipairs(pgui:GetChildren()) do
+					if c.Name == name then
+						c:Destroy()
+					end
 				end
 			end
 		end
 	end)
 end
 
--- Bootstrap Main Runtime
 local mainSource = fetchSource("Core/Main.luau")
 local mainFunc, mainCompileErr = loadstring(mainSource, "Core/Main.luau")
 if not mainFunc then
@@ -202,6 +216,10 @@ local customMainEnv = setmetatable({
 				return UI
 			elseif name == "Notification" then
 				return Notification
+			elseif name == "PlayerList" then
+				return PlayerList
+			elseif name == "ChatWidget" then
+				return ChatWidget
 			elseif name == "Animations" then
 				return Animations
 			elseif name == "Visuals" then

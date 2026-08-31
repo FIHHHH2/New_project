@@ -8,6 +8,8 @@ local Workspace = game:GetService("Workspace")
 
 local CoreUI = require("Core/CoreUI.luau")
 local FeatureManager = require("Core/FeatureManager.luau")
+local PlayerList = require("UI/PlayerList.luau")
+local ChatWidget = require("UI/ChatWidget.luau")
 local Visuals = require("Modules/Visuals.luau")
 local Combat = require("Modules/Combat.luau")
 local DisasterSurvival = require("Modules/DisasterSurvival.luau")
@@ -22,6 +24,8 @@ localPlayer.CharacterAdded:Connect(function(char)
 end)
 
 local window = CoreUI.new("Project Fih Menu")
+local playerListWidget = PlayerList.new()
+local chatWidgetInstance = ChatWidget.new()
 
 -- Active sidebar navigation tabs
 local mainTab = window:CreateTab("Main")
@@ -91,7 +95,6 @@ window:AddToggle(moveSection, "noclip_toggle", "Noclip", false, nil, function(en
 			noclipConn:Disconnect()
 			noclipConn = nil
 		end
-		-- Cleanly restore limb collision upon disabling noclip
 		if localPlayer.Character then
 			local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
 			if hum then

@@ -97,16 +97,45 @@ if pguiRef then
 	end)
 end
 
--- Disable overlapping default CoreGui elements that conflict with our widgets
+-- Disable overlapping default CoreGui elements and native Roblox TopBarApp
 local coreGuiOverlays = {
+	Enum.CoreGuiType.All,
 	Enum.CoreGuiType.PlayerList,
 	Enum.CoreGuiType.Chat,
 	Enum.CoreGuiType.EmotesMenu,
 	Enum.CoreGuiType.Backpack,
 	Enum.CoreGuiType.Health,
 }
+
+local function disableRobloxTopBarApp(disable: boolean)
+	pcall(function()
+		StarterGui:SetCore("TopbarEnabled", not disable)
+	end)
+	pcall(function()
+		local CoreGui = game:GetService("CoreGui")
+		local topBarApp = CoreGui:FindFirstChild("TopBarApp")
+		if topBarApp then
+			for _, child in ipairs(topBarApp:GetChildren()) do
+				if child:IsA("ScreenGui") then
+					child.Enabled = not disable
+				elseif child:IsA("GuiObject") then
+					child.Visible = not disable
+				end
+			end
+		end
+		local robloxGui = CoreGui:FindFirstChild("RobloxGui")
+		if robloxGui then
+			local tb = robloxGui:FindFirstChild("TopBar") or robloxGui:FindFirstChild("TopBarContainer") or robloxGui:FindFirstChild("TopBarApp")
+			if tb and tb:IsA("GuiObject") then
+				tb.Visible = not disable
+			end
+		end
+	end)
+end
+
 local function disableCoreGuis()
 	purgeMobileGuis()
+	disableRobloxTopBarApp(true)
 	for _ = 1, 8 do
 		local ok = true
 		for _, guiType in ipairs(coreGuiOverlays) do
@@ -122,6 +151,14 @@ end
 task.spawn(disableCoreGuis)
 localPlayer.CharacterAdded:Connect(function()
 	task.spawn(disableCoreGuis)
+end)
+
+-- Continuous enforcer so Roblox topbar never pops back up
+task.spawn(function()
+	while true do
+		task.wait(3)
+		disableRobloxTopBarApp(true)
+	end
 end)
 
 local window = CoreUI.new("Project Fih Menu")
@@ -643,7 +680,8 @@ end)
 -- GUI Visibility & Screen Cleanup Controls
 local cleanSection = window:AddSection(setLeftCol, "Screen & GUI Optimization")
 
-window:AddToggle(cleanSection, "hide_core_guis", "Disable CoreGUIs (Overlays)", true, nil, function(enabled)
+window:AddToggle(cleanSection, "hide_default_guis", "Hide Game Default GUIs (Topbar & Core)", true, nil, function(enabled)
+	disableRobloxTopBarApp(enabled)
 	for _, guiType in ipairs(coreGuiOverlays) do
 		pcall(function()
 			StarterGui:SetCoreGuiEnabled(guiType, not enabled)

@@ -7,6 +7,13 @@ local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+local GuiService = game:GetService("GuiService")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VoiceChatService = game:GetService("VoiceChatService")
+local TextChatService = game:GetService("TextChatService")
 
 local UI = require("UI/UI.luau")
 local CoreUI = require("Core/CoreUI.luau")
@@ -18,6 +25,7 @@ local Visuals = require("Modules/Visuals.luau")
 local Combat = require("Modules/Combat.luau")
 local DisasterSurvival = require("Modules/DisasterSurvival.luau")
 local RunNHide = require("Modules/RunNHide.luau")
+local PlayerUtilities = require("Modules/PlayerUtilities.luau")
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character
@@ -129,37 +137,100 @@ local configsTab = window:CreateTab("Configs", true)
 window.SettingsTab = settingsTab
 window.ConfigsTab = configsTab
 
+---- ============================================================
+-- 1. MAIN TAB CONTENT (HORIZONTAL MINI SUB-TABS)
+--    [ Movement & Flight ] [ Physics & Modifiers ] [ Player Utilities ]
 -- ============================================================
--- MAIN TAB CONTENT (PLAYER & MOVEMENT)
--- ============================================================
-local leftCol, rightCol = window:CreateColumns(mainTab)
+local mainSubTabs = window:CreateSubTabs(mainTab, { "Movement & Flight", "Physics & Modifiers", "Player Utilities" })
+local moveFlightSubTab = mainSubTabs["Movement & Flight"]
+local physicsSubTab = mainSubTabs["Physics & Modifiers"]
+local playerUtilsSubTab = mainSubTabs["Player Utilities"]
 
--- LEFT COLUMN: Self Modifiers
-local selfSection = window:AddSection(leftCol, "Self Modifiers")
+-- ── MAIN SUB-TAB 1: MOVEMENT & FLIGHT ────────────────────────
+local mfLeftCol, mfRightCol = window:CreateColumns(moveFlightSubTab)
 
-window:AddToggle(selfSection, "walkspeed_boost", "WalkSpeed Boost", false, nil, function(enabled)
-	if humanoid then
-		humanoid.WalkSpeed = if enabled then 32 else 16
+-- Left Column: Flight & Locomotion
+local flightSection = window:AddSection(mfLeftCol, "Flight & Locomotion")
+
+local flyConn: RBXScriptConnection? = nil
+local flySpeed = 50
+local function updateFlightState(enabled: boolean)
+	if enabled then
+		local char = localPlayer.Character
+		if not char then return end
+		local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		if not (hrp and hum) then return end
+
+		local bg = hrp:FindFirstChild("FlyGyro") :: BodyGyro? or Instance.new("BodyGyro")
+		bg.Name = "FlyGyro"
+		bg.P = 9e4
+		bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+		bg.CFrame = hrp.CFrame
+		bg.Parent = hrp
+
+		local bv = hrp:FindFirstChild("FlyVelocity") :: BodyVelocity? or Instance.new("BodyVelocity")
+		bv.Name = "FlyVelocity"
+		bv.Velocity = Vector3.zero
+		bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+		bv.Parent = hrp
+
+		hum.PlatformStand = true
+
+		if flyConn then flyConn:Disconnect() end
+		flyConn = RunService.RenderStepped:Connect(function()
+			local cam = Workspace.CurrentCamera
+			local curChar = localPlayer.Character
+			local curHrp = curChar and curChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local curHum = curChar and curChar:FindFirstChildOfClass("Humanoid")
+			if not (curChar and curHrp and curHum and cam and curHum.Health > 0) then return end
+
+			bg.CFrame = cam.CFrame
+			local look = cam.CFrame.LookVector
+			local right = cam.CFrame.RightVector
+			local moveVec = Vector3.zero
+
+			if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVec += look end
+			if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVec -= look end
+			if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVec -= right end
+			if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVec += right end
+			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveVec += Vector3.new(0, 1, 0) end
+			if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveVec -= Vector3.new(0, 1, 0) end
+
+			if moveVec.Magnitude > 0 then
+				bv.Velocity = moveVec.Unit * flySpeed
+			else
+				bv.Velocity = Vector3.zero
+			end
+		end)
+	else
+		if flyConn then
+			flyConn:Disconnect()
+			flyConn = nil
+		end
+		local char = localPlayer.Character
+		if char then
+			local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hrp then
+				local bg = hrp:FindFirstChild("FlyGyro")
+				if bg then bg:Destroy() end
+				local bv = hrp:FindFirstChild("FlyVelocity")
+				if bv then bv:Destroy() end
+			end
+			if hum then
+				hum.PlatformStand = false
+			end
+		end
 	end
-end)
+end
 
-window:AddToggle(selfSection, "jumppower_boost", "JumpPower Boost", false, nil, function(enabled)
-	if humanoid then
-		humanoid.JumpPower = if enabled then 100 else 50
-	end
+window:AddToggle(flightSection, "fly_toggle", "Flight / Fly Mode", false, nil, function(enabled)
+	updateFlightState(enabled)
 end)
-
-window:AddSlider(selfSection, "Custom Speed", 16, 150, 16, function(value)
-	if humanoid then
-		humanoid.WalkSpeed = value
-	end
-end)
-
--- RIGHT COLUMN: Movement (Fixed Noclip with clean state restoration)
-local moveSection = window:AddSection(rightCol, "Movement")
 
 local noclipConn: RBXScriptConnection? = nil
-window:AddToggle(moveSection, "noclip_toggle", "Noclip", false, nil, function(enabled)
+window:AddToggle(flightSection, "noclip_toggle", "Noclip (Collision Bypass)", false, nil, function(enabled)
 	if enabled then
 		noclipConn = RunService.Stepped:Connect(function()
 			if localPlayer.Character then
@@ -190,7 +261,7 @@ window:AddToggle(moveSection, "noclip_toggle", "Noclip", false, nil, function(en
 end)
 
 local infJumpConn: RBXScriptConnection? = nil
-window:AddToggle(moveSection, "inf_jump", "Infinite Jump", false, nil, function(enabled)
+window:AddToggle(flightSection, "inf_jump", "Infinite Jump", false, nil, function(enabled)
 	if enabled then
 		infJumpConn = UserInputService.JumpRequest:Connect(function()
 			if localPlayer.Character then
@@ -206,8 +277,45 @@ window:AddToggle(moveSection, "inf_jump", "Infinite Jump", false, nil, function(
 	end
 end)
 
+window:AddSlider(flightSection, "Fly Speed", 10, 200, 50, function(value)
+	flySpeed = value
+end)
+
+-- Right Column: Speed & Jump Modifiers
+local speedSection = window:AddSection(mfRightCol, "Speed & Jump Modifiers")
+
+window:AddToggle(speedSection, "walkspeed_boost", "WalkSpeed Boost (32 WS)", false, nil, function(enabled)
+	if humanoid then
+		humanoid.WalkSpeed = if enabled then 32 else 16
+	end
+end)
+
+window:AddToggle(speedSection, "jumppower_boost", "JumpPower Boost (100 JP)", false, nil, function(enabled)
+	if humanoid then
+		humanoid.JumpPower = if enabled then 100 else 50
+	end
+end)
+
+window:AddSlider(speedSection, "Custom Speed", 16, 250, 16, function(value)
+	if humanoid then
+		humanoid.WalkSpeed = value
+	end
+end)
+
+window:AddSlider(speedSection, "Custom JumpPower", 50, 300, 50, function(value)
+	if humanoid then
+		humanoid.JumpPower = value
+	end
+end)
+
+-- ── MAIN SUB-TAB 2: PHYSICS & MODIFIERS ──────────────────────
+local physLeftCol, physRightCol = window:CreateColumns(physicsSubTab)
+
+-- Left Column: Character Physics
+local charPhysSection = window:AddSection(physLeftCol, "Character Physics")
+
 local walkFlingConn: RBXScriptConnection? = nil
-window:AddToggle(moveSection, "walk_fling", "Walk Fling (Touch To Fling)", false, nil, function(enabled)
+window:AddToggle(charPhysSection, "walk_fling", "Walk Fling (Touch To Fling)", false, nil, function(enabled)
 	if enabled then
 		walkFlingConn = RunService.Heartbeat:Connect(function()
 			local char = localPlayer.Character
@@ -238,7 +346,7 @@ end)
 local ragdollWalkConn: RBXScriptConnection? = nil
 local ragdollJumpConn: RBXScriptConnection? = nil
 local lastRagdollJumpTime = 0
-window:AddToggle(moveSection, "ragdoll_walk_jump", "Ragdoll Walk & Space Jump", false, nil, function(enabled)
+window:AddToggle(charPhysSection, "ragdoll_walk_jump", "Ragdoll Walk & Space Jump", false, nil, function(enabled)
 	if enabled then
 		ragdollWalkConn = RunService.Heartbeat:Connect(function()
 			local char = localPlayer.Character
@@ -340,11 +448,7 @@ window:AddToggle(moveSection, "ragdoll_walk_jump", "Ragdoll Walk & Space Jump", 
 	end
 end)
 
-window:AddSlider(moveSection, "Custom Gravity", 0, 196, 196, function(value)
-	Workspace.Gravity = value
-end)
-
-window:AddSlider(moveSection, "Hip Height Offset", 0, 20, 0, function(value)
+window:AddSlider(charPhysSection, "Hip Height Offset", 0, 20, 0, function(value)
 	if localPlayer.Character then
 		local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
 		if hum then
@@ -353,18 +457,85 @@ window:AddSlider(moveSection, "Hip Height Offset", 0, 20, 0, function(value)
 	end
 end)
 
+-- Right Column: Environment Physics
+local envPhysSection = window:AddSection(physRightCol, "Environment Physics")
+
+window:AddSlider(envPhysSection, "Custom Gravity", 0, 196, 196, function(value)
+	Workspace.Gravity = value
+end)
+
+window:AddButton(envPhysSection, "Reset World Gravity", function()
+	Workspace.Gravity = 196.2
+	FeatureManager.setSliderValue("Custom Gravity", 196)
+	window:Notify("Physics", "World gravity restored to default (196.2)", 2)
+end)
+
+window:AddButton(envPhysSection, "Reset Character Height", function()
+	if localPlayer.Character then
+		local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
+		if hum then
+			hum.HipHeight = 0
+		end
+	end
+	FeatureManager.setSliderValue("Hip Height Offset", 0)
+	window:Notify("Physics", "Character hip height restored to default", 2)
+end)
+
+-- ── MAIN SUB-TAB 3: PLAYER UTILITIES ─────────────────────────
+local utilLeftCol, utilRightCol = window:CreateColumns(playerUtilsSubTab)
+
+-- Left Column: Server & Session Utilities
+local serverSection = window:AddSection(utilLeftCol, "Server & Session Utilities")
+
+window:AddButton(serverSection, "Server Hop", function()
+	PlayerUtilities.ServerHop()
+end)
+
+window:AddButton(serverSection, "Rejoin Current Server", function()
+	PlayerUtilities.RejoinServer()
+end)
+
+window:AddButton(serverSection, "Copy Place ID", function()
+	PlayerUtilities.CopyPlaceId()
+end)
+
+window:AddButton(serverSection, "Copy Game ID", function()
+	PlayerUtilities.CopyGameId()
+end)
+
+window:AddButton(serverSection, "Copy Job / Server ID", function()
+	PlayerUtilities.CopyJobId()
+end)
+
+-- Right Column: Automation & Tools
+local toolSection = window:AddSection(utilRightCol, "Automation & Tools")
+
+window:AddToggle(toolSection, "anti_afk", "Anti-AFK Timeout Preventer", false, nil, function(enabled)
+	PlayerUtilities.SetAntiAFK(enabled)
+end)
+
+window:AddToggle(toolSection, "click_teleport", "Ctrl+Click Teleport Active", false, nil, function(enabled)
+	PlayerUtilities.SetClickTeleportEnabled(enabled)
+end)
+
+window:AddButton(toolSection, "Give Click Teleport Tool", function()
+	PlayerUtilities.GiveClickTeleportTool()
+end)
+
 -- ============================================================
--- COMBAT TAB CONTENT (MINI SUB-TABS: AIM ASSISTANCE & HITBOXES)
+-- 2. COMBAT TAB CONTENT (HORIZONTAL MINI SUB-TABS)
+--    [ Aim Assistance ] [ Camera Tracking ] [ Hitbox Modifiers ]
 -- ============================================================
-local combatSubTabs = window:CreateSubTabs(combatTab, { "Aim Assistance", "Hitbox Modifiers" })
+local combatSubTabs = window:CreateSubTabs(combatTab, { "Aim Assistance", "Camera Tracking", "Hitbox Modifiers" })
 local aimSubTab = combatSubTabs["Aim Assistance"]
+local trackSubTab = combatSubTabs["Camera Tracking"]
 local hitSubTab = combatSubTabs["Hitbox Modifiers"]
 
--- ── SUB-TAB 1: AIM ASSISTANCE ────────────────────────────────
+-- ── COMBAT SUB-TAB 1: AIM ASSISTANCE ─────────────────────────
 local aimLeftCol, aimRightCol = window:CreateColumns(aimSubTab)
 
--- Left Column: Targeting & Automation
-local targetingSection = window:AddSection(aimLeftCol, "Targeting & Automation")
+-- Left Column: Targeting & Silent Aim
+local targetingSection = window:AddSection(aimLeftCol, "Targeting & Silent Aim")
 
 window:AddToggle(targetingSection, "silent_aim", "Silent Aim", false, nil, function(enabled)
 	Combat.SilentAim = enabled
@@ -382,55 +553,92 @@ window:AddToggle(targetingSection, "track_teammates", "Track Teammates", false, 
 	Combat.TrackTeammates = enabled
 end)
 
-window:AddToggle(targetingSection, "trigger_bot", "Trigger Bot", false, nil, function(enabled)
+-- Right Column: Automation & Modifiers
+local firingSection = window:AddSection(aimRightCol, "Automation & Modifiers")
+
+window:AddToggle(firingSection, "trigger_bot", "Trigger Bot", false, nil, function(enabled)
 	Combat.TriggerBot = enabled
 end)
 
--- Right Column: Camera Tracking & FOV Dynamics
-local trackingSection = window:AddSection(aimRightCol, "Tracking & FOV Dynamics")
-
-window:AddToggle(trackingSection, "aim_tracking", "Aim Tracking (Camera Lock)", false, nil, function(enabled)
-	Combat.AimTracking = enabled
+window:AddSlider(firingSection, "TriggerBot Delay (ms)", 0, 500, 50, function(value)
+	Combat.TriggerBotDelay = value / 1000
 end)
 
-window:AddToggle(trackingSection, "aim_always", "Always Lock (Ignore RMB Hold)", false, nil, function(enabled)
-	Combat.AimMode = if enabled then "Always" else "Hold RMB"
+window:AddSlider(firingSection, "Wallbang Thickness", 0, 25, 5, function(value)
+	Combat.WallbangThickness = value
 end)
 
-window:AddToggle(trackingSection, "fov_circle", "FOV Circle", false, nil, function(enabled)
-	Combat.FovCircle = enabled
-end)
-
-window:AddSlider(trackingSection, "FOV Radius", 30, 360, 120, function(value)
-	Combat.FovRadius = value
-end)
-
-window:AddSlider(trackingSection, "Hit Chance %", 10, 100, 100, function(value)
+window:AddSlider(firingSection, "Hit Chance %", 10, 100, 100, function(value)
 	Combat.HitChance = value
 end)
 
-window:AddSlider(trackingSection, "Aim Smoothing", 5, 100, 25, function(value)
+window:AddSlider(firingSection, "Aim Smoothing", 5, 100, 25, function(value)
 	Combat.Smoothing = value / 100
 end)
 
--- ── SUB-TAB 2: HITBOX MODIFIERS ──────────────────────────────
+-- ── COMBAT SUB-TAB 2: CAMERA TRACKING ────────────────────────
+local trackLeftCol, trackRightCol = window:CreateColumns(trackSubTab)
+
+-- Left Column: Camera Lock Modes
+local lockModesSection = window:AddSection(trackLeftCol, "Camera Lock Modes")
+
+window:AddToggle(lockModesSection, "aim_tracking", "Aim Tracking (Camera Lock)", false, nil, function(enabled)
+	Combat.AimTracking = enabled
+end)
+
+window:AddToggle(lockModesSection, "aim_always", "Always Lock (Ignore RMB Hold)", false, nil, function(enabled)
+	Combat.AimMode = if enabled then "Always" else "Hold RMB"
+end)
+
+-- Right Column: FOV Dynamics & Colors
+local fovSection = window:AddSection(trackRightCol, "FOV Dynamics & Colors")
+
+window:AddToggle(fovSection, "fov_circle", "FOV Circle (Visualizer)", false, nil, function(enabled)
+	Combat.FovCircle = enabled
+end)
+
+window:AddSlider(fovSection, "FOV Radius", 30, 450, 120, function(value)
+	Combat.FovRadius = value
+end)
+
+window:AddButton(fovSection, "Cyan FOV Circle", function()
+	Combat.setFovColor(Color3.fromRGB(55, 175, 245))
+	window:Notify("Combat", "Cyan FOV circle color applied", 2)
+end)
+
+window:AddButton(fovSection, "Crimson Red FOV", function()
+	Combat.setFovColor(Color3.fromRGB(245, 60, 60))
+	window:Notify("Combat", "Red FOV circle color applied", 2)
+end)
+
+window:AddButton(fovSection, "White FOV Circle", function()
+	Combat.setFovColor(Color3.fromRGB(255, 255, 255))
+	window:Notify("Combat", "White FOV circle color applied", 2)
+end)
+
+window:AddButton(fovSection, "Lime Green FOV", function()
+	Combat.setFovColor(Color3.fromRGB(50, 220, 80))
+	window:Notify("Combat", "Green FOV circle color applied", 2)
+end)
+
+-- ── COMBAT SUB-TAB 3: HITBOX MODIFIERS ───────────────────────
 local hitLeftCol, hitRightCol = window:CreateColumns(hitSubTab)
 
 -- Left Column: Hitbox Expansion
-local hitSection = window:AddSection(hitLeftCol, "Hitbox Expansion")
+local hitExpSection = window:AddSection(hitLeftCol, "Hitbox Expansion")
 
-window:AddToggle(hitSection, "expand_hitboxes", "Expand Hitbox's", false, nil, function(enabled)
+window:AddToggle(hitExpSection, "expand_hitboxes", "Expand Hitboxes", false, nil, function(enabled)
 	Combat.ExpandHitboxes = enabled
 	if not enabled then
 		Combat.resetHitboxes()
 	end
 end)
 
-window:AddSlider(hitSection, "Hitbox Size", 2, 30, 12, function(value)
+window:AddSlider(hitExpSection, "Hitbox Size", 2, 30, 12, function(value)
 	Combat.HitboxSize = value
 end)
 
--- Right Column: Hitbox Operations & Utilities
+-- Right Column: Hitbox Operations
 local hitOpsSection = window:AddSection(hitRightCol, "Hitbox Operations")
 
 window:AddButton(hitOpsSection, "Reset All Hitboxes", function()
@@ -439,13 +647,19 @@ window:AddButton(hitOpsSection, "Reset All Hitboxes", function()
 end)
 
 -- ============================================================
--- GAME TAB CONTENT (RUN N HIDE / DISASTER SURVIVAL & UTILITIES)
+-- 3. GAME TAB CONTENT (RUN N HIDE / DISASTER SURVIVAL)
+--    [ Weapons & Firepower ] [ Bounds & Barriers ] [ Mobility & Items ]
 -- ============================================================
-local gameLeftCol, gameRightCol = window:CreateColumns(gameTab)
-
 if gameTabTitle == "Run N Hide" then
-	-- ── LEFT COLUMN: WEAPON MECHANISMS & GUN OPERATIONS ────────
-	local weaponMechSection = window:AddSection(gameLeftCol, "Weapon Mechanisms")
+	local rnhSubTabs = window:CreateSubTabs(gameTab, { "Weapons & Firepower", "Bounds & Barriers", "Mobility & Items" })
+	local weaponSubTab = rnhSubTabs["Weapons & Firepower"]
+	local boundsSubTab = rnhSubTabs["Bounds & Barriers"]
+	local mobilitySubTab = rnhSubTabs["Mobility & Items"]
+
+	-- ── GAME SUB-TAB 1: WEAPONS & FIREPOWER ───────────────────
+	local wepLeftCol, wepRightCol = window:CreateColumns(weaponSubTab)
+
+	local weaponMechSection = window:AddSection(wepLeftCol, "Weapon Mechanisms")
 
 	window:AddToggle(weaponMechSection, "rnh_silent_audio", "Silent Gun Audio (Mute)", true, nil, function(val)
 		RunNHide.SilentGunAudio = val
@@ -485,27 +699,27 @@ if gameTabTitle == "Run N Hide" then
 		RunNHide.updateWeapons()
 	end)
 
-	window:AddToggle(weaponMechSection, "rnh_no_recoil", "Zero Recoil", false, nil, function(val)
+	local fireOverclockSection = window:AddSection(wepRightCol, "Overclocks & Actions")
+
+	window:AddToggle(fireOverclockSection, "rnh_no_recoil", "Zero Recoil", false, nil, function(val)
 		RunNHide.NoRecoil = val
 		RunNHide.updateWeapons()
 	end)
 
-	window:AddToggle(weaponMechSection, "rnh_fast_fire", "Rapid Fire Rate Overclock", false, nil, function(val)
+	window:AddToggle(fireOverclockSection, "rnh_fast_fire", "Rapid Fire Rate Overclock", false, nil, function(val)
 		RunNHide.FastFireRate = val
 		RunNHide.updateWeapons()
 	end)
 
-	window:AddSlider(weaponMechSection, "Burst Shot Count", 2, 10, 3, function(val)
+	window:AddSlider(fireOverclockSection, "Burst Shot Count", 2, 10, 3, function(val)
 		RunNHide.BurstCount = val
 	end)
 
-	window:AddSlider(weaponMechSection, "Burst Delay (ms)", 20, 150, 60, function(val)
+	window:AddSlider(fireOverclockSection, "Burst Delay (ms)", 20, 150, 60, function(val)
 		RunNHide.BurstDelay = val / 1000
 	end)
 
-	local gunOpsSection = window:AddSection(gameLeftCol, "Gun Operations")
-
-	window:AddButton(gunOpsSection, "Force Instant Reload", function()
+	window:AddButton(fireOverclockSection, "Force Instant Reload", function()
 		if RunNHide.forceReload() then
 			window:Notify("Run N Hide", "Weapon reloaded & chambered", 3)
 		else
@@ -513,7 +727,7 @@ if gameTabTitle == "Run N Hide" then
 		end
 	end)
 
-	window:AddButton(gunOpsSection, "Chamber Equipped Weapon", function()
+	window:AddButton(fireOverclockSection, "Chamber Equipped Weapon", function()
 		if RunNHide.forceChamber() then
 			window:Notify("Run N Hide", "Weapon chambered", 3)
 		else
@@ -521,8 +735,10 @@ if gameTabTitle == "Run N Hide" then
 		end
 	end)
 
-	-- ── RIGHT COLUMN: BOUNDS, ROLES, STAMINA & CONTROLS ────────
-	local boundsSection = window:AddSection(gameRightCol, "Map Bounds & Barrier Breaker")
+	-- ── GAME SUB-TAB 2: BOUNDS & BARRIERS ─────────────────────
+	local bndLeftCol, bndRightCol = window:CreateColumns(boundsSubTab)
+
+	local boundsSection = window:AddSection(bndLeftCol, "Boundary Removal")
 
 	window:AddToggle(boundsSection, "rnh_disable_barriers", "Disable Map Bounds & Barriers", false, nil, function(val)
 		RunNHide.DisableBarriers = val
@@ -540,19 +756,24 @@ if gameTabTitle == "Run N Hide" then
 		end
 	end)
 
-	window:AddToggle(boundsSection, "rnh_anti_void", "Anti-Void Safety Floor", false, nil, function(val)
+	local voidSection = window:AddSection(bndRightCol, "Void Safety & Audits")
+
+	window:AddToggle(voidSection, "rnh_anti_void", "Anti-Void Safety Floor", false, nil, function(val)
 		RunNHide.AntiVoidFloor = val
 		RunNHide.ensureVoidPlatform()
 	end)
 
-	window:AddButton(boundsSection, "Audit & Disable All Bounds Now", function()
+	window:AddButton(voidSection, "Audit & Disable All Bounds Now", function()
 		RunNHide.DisableBarriers = true
 		RunNHide.DisableKillbricks = true
 		local count = RunNHide.scanAndDisableBoundaries()
 		window:Notify("Audit", string.format("Neutralized %d boundaries & killbricks", count), 3.5)
 	end)
 
-	local staminaSection = window:AddSection(gameRightCol, "Stamina & Mobility")
+	-- ── GAME SUB-TAB 3: MOBILITY & ITEMS ──────────────────────
+	local mobLeftCol, mobRightCol = window:CreateColumns(mobilitySubTab)
+
+	local staminaSection = window:AddSection(mobLeftCol, "Stamina & Ragdoll")
 
 	window:AddToggle(staminaSection, "rnh_inf_stamina", "Infinite Stamina", false, nil, function(val)
 		RunNHide.InfiniteStamina = val
@@ -574,29 +795,35 @@ if gameTabTitle == "Run N Hide" then
 		RunNHide.RagdollSpeed = val
 	end)
 
-	local grabSection = window:AddSection(gameRightCol, "Item & Role Tracker")
+	local itemSection = window:AddSection(mobRightCol, "Item & Role Tracker")
 
-	window:AddToggle(grabSection, "rnh_role_tracker", "Role Tracker & ESP", false, nil, function(val)
+	window:AddToggle(itemSection, "rnh_role_tracker", "Role Tracker & ESP", false, nil, function(val)
 		RunNHide.RoleTracker = val
 	end)
 
-	window:AddToggle(grabSection, "rnh_auto_grab", "Auto-Grab Dropped Weapons", false, nil, function(val)
+	window:AddToggle(itemSection, "rnh_auto_grab", "Auto-Grab Dropped Weapons", false, nil, function(val)
 		RunNHide.AutoGrabWeapons = val
 	end)
 
-	window:AddButton(grabSection, "Grab All Scattered Guns Now", function()
+	window:AddButton(itemSection, "Grab All Scattered Guns Now", function()
 		local count = RunNHide.grabAllScatteredWeapons()
 		window:Notify("Weapons", string.format("Claimed %d dropped guns", count), 3)
 	end)
 
-	window:AddButton(grabSection, "Teleport to PVP Arena", function()
+	window:AddButton(itemSection, "Teleport to PVP Arena", function()
 		if RunNHide.teleportToArena() then
 			window:Notify("Arena", "Teleported to PVP Arena loadout zone", 3)
 		end
 	end)
 else
-	-- Disaster Intelligence (Default / NDS)
-	local disasterSection = window:AddSection(gameLeftCol, "Disaster Intelligence")
+	-- Disaster Survival Sub-Tabs
+	local ndsSubTabs = window:CreateSubTabs(gameTab, { "Disaster Intelligence", "Mobility & Flight", "Physics & Protection" })
+	local disSubTab = ndsSubTabs["Disaster Intelligence"]
+	local mobSubTab = ndsSubTabs["Mobility & Flight"]
+	local phySubTab = ndsSubTabs["Physics & Protection"]
+
+	local disLeftCol, disRightCol = window:CreateColumns(disSubTab)
+	local disasterSection = window:AddSection(disLeftCol, "Disaster Monitor")
 
 	window:AddToggle(disasterSection, "disaster_tracker", "Disaster Tracker", false, nil, function(enabled)
 		DisasterSurvival.DisasterTracker = enabled
@@ -611,78 +838,194 @@ else
 		window:Notify("Disaster Status", cur, 3.5)
 	end)
 
-	window:AddToggle(disasterSection, "no_fall_damage", "No Fall Damage", false, nil, function(enabled)
+	local fallSection = window:AddSection(disRightCol, "Fall Damage Bypass")
+	window:AddToggle(fallSection, "no_fall_damage", "No Fall Damage", false, nil, function(enabled)
 		DisasterSurvival.setNoFallDamage(enabled)
 	end)
 
-	window:AddToggle(disasterSection, "flight_no_fall", "Flight No Fall Damage", false, nil, function(enabled)
+	local mobLeftCol, mobRightCol = window:CreateColumns(mobSubTab)
+	local fltSection = window:AddSection(mobLeftCol, "Flight Navigation")
+	window:AddToggle(fltSection, "flight_no_fall", "Flight No Fall Damage", false, nil, function(enabled)
 		DisasterSurvival.setFlight(enabled)
 	end)
 
-	window:AddSlider(disasterSection, "Flight Speed", 20, 150, 50, function(value)
+	local spdSection = window:AddSection(mobRightCol, "Flight Velocity")
+	window:AddSlider(spdSection, "Flight Speed", 20, 150, 50, function(value)
 		DisasterSurvival.FlightSpeed = value
 	end)
 
-	-- Physics & Protection
-	local physicsSection = window:AddSection(gameRightCol, "Physics & Protection")
-
-	window:AddToggle(physicsSection, "anti_fling", "Anti-Fling Protection", false, nil, function(enabled)
+	local phyLeftCol, phyRightCol = window:CreateColumns(phySubTab)
+	local protSection = window:AddSection(phyLeftCol, "Protection")
+	window:AddToggle(protSection, "anti_fling", "Anti-Fling Protection", false, nil, function(enabled)
 		DisasterSurvival.setAntiFling(enabled)
 	end)
 
-	window:AddToggle(physicsSection, "player_fling", "Object / Player Fling", false, nil, function(enabled)
+	local flngSection = window:AddSection(phyRightCol, "Physics Fling")
+	window:AddToggle(flngSection, "player_fling", "Object / Player Fling", false, nil, function(enabled)
 		DisasterSurvival.setFling(enabled)
 	end)
 end
 
 -- ============================================================
--- VISUALS TAB CONTENT
 -- ============================================================
-local visLeftCol, visRightCol = window:CreateColumns(visualsTab)
+-- 4. VISUALS TAB CONTENT (HORIZONTAL MINI SUB-TABS)
+--    [ 2D Overlays & ESP ] [ 3D Chams & Skeletons ] [ ESP Customizer ]
+-- ============================================================
+local visSubTabs = window:CreateSubTabs(visualsTab, { "2D Overlays & ESP", "3D Chams & Skeletons", "ESP Customizer" })
+local esp2dSubTab = visSubTabs["2D Overlays & ESP"]
+local chamsSubTab = visSubTabs["3D Chams & Skeletons"]
+local customSubTab = visSubTabs["ESP Customizer"]
 
--- 2D ESP & Overlays
-local espSection = window:AddSection(visLeftCol, "2D ESP & Overlays")
+-- ── VISUALS SUB-TAB 1: 2D OVERLAYS & ESP ─────────────────────
+local v2dLeftCol, v2dRightCol = window:CreateColumns(esp2dSubTab)
 
-window:AddToggle(espSection, "music_tracker_widget", "Music Tracker Widget", true, nil, function(enabled)
-	musicTrackerWidget.SetVisible(enabled)
-end)
+-- Left Column: 2D Bounding Boxes
+local boxSection = window:AddSection(v2dLeftCol, "2D Bounding Boxes")
 
-window:AddToggle(espSection, "esp_box_2d", "2D ESP Box", false, nil, function(enabled)
+window:AddToggle(boxSection, "esp_box_2d", "2D ESP Box", false, nil, function(enabled)
 	Visuals.Box2D = enabled
 end)
 
-window:AddToggle(espSection, "esp_health_bar", "Health Bar", false, nil, function(enabled)
+window:AddToggle(boxSection, "esp_box_outlines", "ESP Box Outlines (Black Contrast)", false, nil, function(enabled)
+	Visuals.BoxOutlines = enabled
+end)
+
+window:AddToggle(boxSection, "esp_health_bar", "Health Bar (Dynamic Green/Red)", false, nil, function(enabled)
 	Visuals.HealthBar = enabled
 end)
 
-window:AddToggle(espSection, "esp_tracers", "Tracers", false, nil, function(enabled)
+window:AddToggle(boxSection, "esp_distance", "Distance Tags (Studs)", false, nil, function(enabled)
+	Visuals.Distance = enabled
+end)
+
+-- Right Column: Tracers & HUD Widgets
+local tracerSection = window:AddSection(v2dRightCol, "Tracers & HUD Widgets")
+
+window:AddToggle(tracerSection, "esp_tracers", "Snapline Tracers", false, nil, function(enabled)
 	Visuals.Tracers = enabled
 end)
 
--- 3D Chams & Skeletons
-local chamsSection = window:AddSection(visRightCol, "Chams & Skeletons")
+window:AddToggle(tracerSection, "music_tracker_widget", "Music Tracker Widget", true, nil, function(enabled)
+	musicTrackerWidget.SetVisible(enabled)
+end)
+
+-- ── VISUALS SUB-TAB 2: 3D CHAMS & SKELETONS ──────────────────
+local chmLeftCol, chmRightCol = window:CreateColumns(chamsSubTab)
+
+-- Left Column: 3D Highlights & Chams
+local chamsSection = window:AddSection(chmLeftCol, "3D Highlights & Chams")
 
 window:AddToggle(chamsSection, "esp_chams_3d", "3D Chams / Highlights", false, nil, function(enabled)
 	Visuals.Chams = enabled
-end)
-
-window:AddToggle(chamsSection, "esp_skeletons", "Skeleton ESP", false, nil, function(enabled)
-	Visuals.Skeleton = enabled
 end)
 
 window:AddSlider(chamsSection, "Chams Transparency", 0, 100, 50, function(value)
 	Visuals.ChamsTransparency = value / 100
 end)
 
--- ============================================================
--- SETTINGS TAB CONTENT (THEMES, MODULES, FPS, RENDERING, AUDIO)
--- ============================================================
-local setLeftCol, setRightCol = window:CreateColumns(settingsTab)
+window:AddSlider(chamsSection, "Chams Outline Transparency", 0, 100, 20, function(value)
+	Visuals.ChamsOutlineTransparency = value / 100
+end)
 
--- 1. Game Modules & Tab Visibility (Toggle/Hide game-specific & feature tabs)
-local moduleSection = window:AddSection(setLeftCol, "Game Modules & Tab Visibility")
+-- Right Column: Skeletons & Colors
+local skeletonSection = window:AddSection(chmRightCol, "Skeletons & Colors")
 
--- Game-Specific Module Tab (Run N Hide / Disaster Survival)
+window:AddToggle(skeletonSection, "esp_skeletons", "Skeleton ESP (Bone Rigs)", false, nil, function(enabled)
+	Visuals.Skeleton = enabled
+end)
+
+window:AddButton(skeletonSection, "Purple / Magenta Chams", function()
+	Visuals.ChamsColor = Color3.fromRGB(180, 70, 255)
+	Visuals.ChamsFillColor = Color3.fromRGB(180, 70, 255)
+	window:Notify("Chams", "Applied Purple / Magenta Chams", 2)
+end)
+
+window:AddButton(skeletonSection, "Cyan / Blue Chams", function()
+	Visuals.ChamsColor = Color3.fromRGB(55, 175, 245)
+	Visuals.ChamsFillColor = Color3.fromRGB(55, 175, 245)
+	window:Notify("Chams", "Applied Cyan / Blue Chams", 2)
+end)
+
+window:AddButton(skeletonSection, "Red / Crimson Chams", function()
+	Visuals.ChamsColor = Color3.fromRGB(245, 60, 60)
+	Visuals.ChamsFillColor = Color3.fromRGB(245, 60, 60)
+	window:Notify("Chams", "Applied Red / Crimson Chams", 2)
+end)
+
+window:AddButton(skeletonSection, "Gold / Yellow Chams", function()
+	Visuals.ChamsColor = Color3.fromRGB(255, 200, 50)
+	Visuals.ChamsFillColor = Color3.fromRGB(255, 200, 50)
+	window:Notify("Chams", "Applied Gold / Yellow Chams", 2)
+end)
+
+-- ── VISUALS SUB-TAB 3: ESP CUSTOMIZER ────────────────────────
+local cstLeftCol, cstRightCol = window:CreateColumns(customSubTab)
+
+-- Left Column: Tracer Origin Selector
+local originSection = window:AddSection(cstLeftCol, "Tracer Origin Selector")
+
+window:AddButton(originSection, "Tracer Origin: Bottom", function()
+	Visuals.TracerOrigin = "Bottom"
+	window:Notify("Tracers", "Tracer origin set to Screen Bottom", 2)
+end)
+
+window:AddButton(originSection, "Tracer Origin: Center", function()
+	Visuals.TracerOrigin = "Center"
+	window:Notify("Tracers", "Tracer origin set to Screen Center", 2)
+end)
+
+window:AddButton(originSection, "Tracer Origin: Mouse", function()
+	Visuals.TracerOrigin = "Mouse"
+	window:Notify("Tracers", "Tracer origin set to Mouse Cursor", 2)
+end)
+
+-- Right Column: ESP Palette Presets
+local paletteSection = window:AddSection(cstRightCol, "ESP Palette Presets")
+
+window:AddButton(paletteSection, "Default Cyan Palette", function()
+	Visuals.BoxColor = Color3.fromRGB(55, 175, 245)
+	Visuals.TracerColor = Color3.fromRGB(255, 255, 255)
+	Visuals.SkeletonColor = Color3.fromRGB(255, 200, 50)
+	window:Notify("Palette", "Default Cyan Palette applied", 2)
+end)
+
+window:AddButton(paletteSection, "Emerald Green Palette", function()
+	Visuals.BoxColor = Color3.fromRGB(50, 220, 80)
+	Visuals.TracerColor = Color3.fromRGB(50, 220, 80)
+	Visuals.SkeletonColor = Color3.fromRGB(120, 255, 140)
+	window:Notify("Palette", "Emerald Green Palette applied", 2)
+end)
+
+window:AddButton(paletteSection, "Ruby Red Palette", function()
+	Visuals.BoxColor = Color3.fromRGB(245, 60, 60)
+	Visuals.TracerColor = Color3.fromRGB(245, 60, 60)
+	Visuals.SkeletonColor = Color3.fromRGB(255, 120, 120)
+	window:Notify("Palette", "Ruby Palette applied", 2)
+end)
+
+window:AddButton(paletteSection, "Amethyst Purple Palette", function()
+	Visuals.BoxColor = Color3.fromRGB(180, 70, 255)
+	Visuals.TracerColor = Color3.fromRGB(220, 120, 255)
+	Visuals.SkeletonColor = Color3.fromRGB(200, 100, 255)
+	window:Notify("Palette", "Amethyst Palette applied", 2)
+end)
+
+-- ============================================================
+-- 5. SETTINGS TAB CONTENT (HORIZONTAL MINI SUB-TABS)
+--    [ Modules & Tabs ] [ Themes & Visuals ] [ Performance & Rendering ] [ System & Audio ]
+-- ============================================================
+local setSubTabs = window:CreateSubTabs(settingsTab, { "Modules & Tabs", "Themes & Visuals", "Performance & Rendering", "System & Audio" })
+local modSubTab = setSubTabs["Modules & Tabs"]
+local thmSubTab = setSubTabs["Themes & Visuals"]
+local prfSubTab = setSubTabs["Performance & Rendering"]
+local sysSubTab = setSubTabs["System & Audio"]
+
+-- ── SETTINGS SUB-TAB 1: MODULES & TABS ───────────────────────
+local modLeftCol, modRightCol = window:CreateColumns(modSubTab)
+
+-- Left Column: Sidebar Tab Visibility
+local moduleSection = window:AddSection(modLeftCol, "Sidebar Tab Visibility")
+
 window:AddToggle(moduleSection, "tab_game_module", string.format("%s (Game Tab)", gameTabTitle), true, nil, function(enabled)
 	FeatureManager.setModuleState("game_module", enabled)
 	window:SetTabVisibility(gameTab, enabled)
@@ -700,7 +1043,6 @@ window:AddToggle(moduleSection, "tab_game_module", string.format("%s (Game Tab)"
 	end
 end)
 
--- Combat Module Tab
 window:AddToggle(moduleSection, "tab_combat_module", "Combat (Aim & Hitboxes)", true, nil, function(enabled)
 	FeatureManager.setModuleState("combat", enabled)
 	window:SetTabVisibility(combatTab, enabled)
@@ -713,20 +1055,20 @@ window:AddToggle(moduleSection, "tab_combat_module", "Combat (Aim & Hitboxes)", 
 	end
 end)
 
--- Visuals Module Tab
 window:AddToggle(moduleSection, "tab_visuals_module", "Visuals (ESP & Chams)", true, nil, function(enabled)
 	FeatureManager.setModuleState("visuals", enabled)
 	window:SetTabVisibility(visualsTab, enabled)
 	if not enabled then
 		Visuals.Box2D = false
+		Visuals.BoxOutlines = false
 		Visuals.HealthBar = false
 		Visuals.Tracers = false
+		Visuals.Distance = false
 		Visuals.Chams = false
 		Visuals.Skeleton = false
 	end
 end)
 
--- Quick Action Buttons for Tab Visibility
 window:AddButton(moduleSection, string.format("Hide %s Tab", gameTabTitle), function()
 	window:SetTabVisibility(gameTab, false)
 	FeatureManager.setFeatureState("tab_game_module", false)
@@ -743,18 +1085,20 @@ window:AddButton(moduleSection, "Show All Sidebar Tabs", function()
 	window:Notify("Tabs Restored", "All sidebar tabs are now visible", 2.5)
 end)
 
--- Widgets Visibility Controls
-window:AddToggle(moduleSection, "mod_music_tracker", "Music Tracker Widget", true, nil, function(enabled)
+-- Right Column: Peripheral Widgets
+local widgetSection = window:AddSection(modRightCol, "Peripheral Widgets")
+
+window:AddToggle(widgetSection, "mod_music_tracker", "Music Tracker Widget", true, nil, function(enabled)
 	FeatureManager.setModuleState("music_tracker", enabled)
 	musicTrackerWidget.SetVisible(enabled)
 end)
 
-window:AddToggle(moduleSection, "mod_player_list", "Player List Widget", true, nil, function(enabled)
+window:AddToggle(widgetSection, "mod_player_list", "Player List Widget (Tab Key)", true, nil, function(enabled)
 	FeatureManager.setModuleState("player_list", enabled)
 	playerListWidget.Frame.Visible = enabled
 end)
 
-window:AddToggle(moduleSection, "mod_chat_widget", "Chat Widget", true, nil, function(enabled)
+window:AddToggle(widgetSection, "mod_chat_widget", "Chat Widget", true, nil, function(enabled)
 	FeatureManager.setModuleState("chat_widget", enabled)
 	chatWidgetInstance.Frame.Visible = enabled
 end)
@@ -781,48 +1125,66 @@ visualsTab.OnVisibilityChanged = function(vis: boolean)
 	end
 end
 
--- 2. Theme & Appearance (Persistent on Leave)
-local themeSection = window:AddSection(setLeftCol, "Theme & Appearance")
+-- ── SETTINGS SUB-TAB 2: THEMES & VISUALS ─────────────────────
+local thmLeftCol, thmRightCol = window:CreateColumns(thmSubTab)
 
-window:AddButton(themeSection, "Dark Mode", function()
+-- Left Column: Dark & Acrylic Themes
+local darkThemeSection = window:AddSection(thmLeftCol, "Dark & Acrylic Themes")
+
+window:AddButton(darkThemeSection, "Dark Mode", function()
 	window:SetTheme("Dark")
 	window:Notify("Theme", "Saved Dark Mode", 2)
 end)
 
-window:AddButton(themeSection, "Light Mode", function()
-	window:SetTheme("Light")
-	window:Notify("Theme", "Saved Light Mode", 2)
-end)
-
-window:AddButton(themeSection, "Translucent Dark (Acrylic)", function()
+window:AddButton(darkThemeSection, "Translucent Dark (Acrylic)", function()
 	window:SetTheme("TranslucentDark")
 	window:Notify("Theme", "Saved Acrylic Dark Mode", 2)
 end)
 
-window:AddButton(themeSection, "Translucent Light (Glass)", function()
-	window:SetTheme("TranslucentLight")
-	window:Notify("Theme", "Saved Glass Light Mode", 2)
-end)
-
-window:AddButton(themeSection, "Adaptive (Album Cover)", function()
+window:AddButton(darkThemeSection, "Adaptive (Album Cover)", function()
 	window:SetTheme("Adaptive")
 	window:Notify("Theme", "Saved Adaptive Mode", 2)
 end)
 
--- 3. Screen & GUI Cleanup
-local cleanSection = window:AddSection(setLeftCol, "Screen & GUI Optimization")
+-- Right Column: Light & Glass Themes
+local lightThemeSection = window:AddSection(thmRightCol, "Light & Glass Themes")
 
-window:AddToggle(cleanSection, "hide_default_guis", "Hide Game Default GUIs (Topbar & Core)", true, nil, function(enabled)
-	disableRobloxTopBarApp(enabled)
-	for _, guiType in ipairs(coreGuiOverlays) do
-		pcall(function()
-			StarterGui:SetCoreGuiEnabled(guiType, not enabled)
-		end)
+window:AddButton(lightThemeSection, "Light Mode", function()
+	window:SetTheme("Light")
+	window:Notify("Theme", "Saved Light Mode", 2)
+end)
+
+window:AddButton(lightThemeSection, "Translucent Light (Glass)", function()
+	window:SetTheme("TranslucentLight")
+	window:Notify("Theme", "Saved Glass Light Mode", 2)
+end)
+
+-- ── SETTINGS SUB-TAB 3: PERFORMANCE & RENDERING ──────────────
+local prfLeftCol, prfRightCol = window:CreateColumns(prfSubTab)
+
+-- Left Column: Performance & Framerate
+local perfSection = window:AddSection(prfLeftCol, "Performance & Framerate")
+
+local terrain = workspace:FindFirstChildOfClass("Terrain")
+window:AddToggle(perfSection, "fps_boost", "FPS BOOST (Shadows & Fog)", false, nil, function(enabled)
+	Lighting.GlobalShadows = not enabled
+	Lighting.FogEnd = if enabled then 9e9 else 10000
+	if terrain then
+		terrain.WaterWaveSize = if enabled then 0 else 0.15
+		terrain.WaterWaveSpeed = if enabled then 0 else 10
+		terrain.WaterReflectance = if enabled then 0 else 1
+	end
+end)
+
+window:AddToggle(perfSection, "fps_uncap", "FPS UNCAP (Remove 60 FPS Cap)", false, nil, function(enabled)
+	local setfps = (setfpscap or (set_fps_cap :: any))
+	if typeof(setfps) == "function" then
+		setfps(if enabled then 999 else 60)
 	end
 end)
 
 local hiddenGameGuis: {[ScreenGui]: boolean} = {}
-window:AddToggle(cleanSection, "hide_game_guis", "Hide Default Game GUIs", false, nil, function(enabled)
+window:AddToggle(perfSection, "hide_game_guis", "Hide Default Game GUIs (PlayerGui)", false, nil, function(enabled)
 	local pgui = localPlayer:FindFirstChild("PlayerGui")
 	if pgui then
 		for _, child in ipairs(pgui:GetChildren()) do
@@ -838,60 +1200,8 @@ window:AddToggle(cleanSection, "hide_game_guis", "Hide Default Game GUIs", false
 	end
 end)
 
--- 4. Performance Settings
-local perfSection = window:AddSection(setRightCol, "Performance")
-
-local terrain = workspace:FindFirstChildOfClass("Terrain")
-window:AddToggle(perfSection, "fps_boost", "FPS BOOST", false, nil, function(enabled)
-	Lighting.GlobalShadows = not enabled
-	Lighting.FogEnd = if enabled then 9e9 else 10000
-	if terrain then
-		terrain.WaterWaveSize = if enabled then 0 else 0.15
-		terrain.WaterWaveSpeed = if enabled then 0 else 10
-		terrain.WaterReflectance = if enabled then 0 else 1
-	end
-end)
-
-window:AddToggle(perfSection, "fps_uncap", "FPS UNCAP", false, nil, function(enabled)
-	local setfps = (setfpscap or (set_fps_cap :: any))
-	if typeof(setfps) == "function" then
-		setfps(if enabled then 999 else 60)
-	end
-end)
-
--- 5. Audio Volume Controller
-local audioSection = window:AddSection(setRightCol, "Audio Controls")
-
-local currentVolumeScale = 1.0
-local function updateSound(sound: Sound)
-	if sound:IsDescendantOf(game:GetService("VoiceChatService")) then return end
-	local base = sound:GetAttribute("OrigVolume")
-	if not base then
-		base = sound.Volume
-		sound:SetAttribute("OrigVolume", base)
-	end
-	sound.Volume = (base :: number) * currentVolumeScale
-end
-
-window:AddSlider(audioSection, "VOLUME CONTROLLER", 0, 100, 100, function(value)
-	currentVolumeScale = value / 100
-	for _, obj in ipairs(game:GetDescendants()) do
-		if obj:IsA("Sound") then
-			updateSound(obj)
-		end
-	end
-end)
-
-game.DescendantAdded:Connect(function(obj)
-	if obj:IsA("Sound") then
-		task.defer(function()
-			updateSound(obj)
-		end)
-	end
-end)
-
--- 6. Rendering Optimization
-local renderSection = window:AddSection(setRightCol, "3D & Texture Rendering")
+-- Right Column: 3D & Texture Optimization
+local renderSection = window:AddSection(prfRightCol, "3D & Texture Optimization")
 
 local meshConn: RBXScriptConnection? = nil
 window:AddToggle(renderSection, "dont_render_meshes", "DONT RENDER 3D MESHS", false, nil, function(enabled)
@@ -946,6 +1256,52 @@ window:AddToggle(renderSection, "dont_render_decals", "DONT RENDER DECALS", fals
 	elseif decalConn then
 		decalConn:Disconnect()
 		decalConn = nil
+	end
+end)
+
+-- ── SETTINGS SUB-TAB 4: SYSTEM & AUDIO ───────────────────────
+local sysLeftCol, sysRightCol = window:CreateColumns(sysSubTab)
+
+-- Left Column: Screen & GUI Optimization
+local cleanSection = window:AddSection(sysLeftCol, "Screen & GUI Optimization")
+
+window:AddToggle(cleanSection, "hide_default_guis", "Hide Game Default GUIs (Topbar & Core)", true, nil, function(enabled)
+	disableRobloxTopBarApp(enabled)
+	for _, guiType in ipairs(coreGuiOverlays) do
+		pcall(function()
+			StarterGui:SetCoreGuiEnabled(guiType, not enabled)
+		end)
+	end
+end)
+
+-- Right Column: Master Audio Volume
+local audioSection = window:AddSection(sysRightCol, "Master Audio Volume")
+
+local currentVolumeScale = 1.0
+local function updateSound(sound: Sound)
+	if sound:IsDescendantOf(game:GetService("VoiceChatService")) then return end
+	local base = sound:GetAttribute("OrigVolume")
+	if not base then
+		base = sound.Volume
+		sound:SetAttribute("OrigVolume", base)
+	end
+	sound.Volume = (base :: number) * currentVolumeScale
+end
+
+window:AddSlider(audioSection, "VOLUME CONTROLLER", 0, 100, 100, function(value)
+	currentVolumeScale = value / 100
+	for _, obj in ipairs(game:GetDescendants()) do
+		if obj:IsA("Sound") then
+			updateSound(obj)
+		end
+	end
+end)
+
+game.DescendantAdded:Connect(function(obj)
+	if obj:IsA("Sound") then
+		task.defer(function()
+			updateSound(obj)
+		end)
 	end
 end)
 

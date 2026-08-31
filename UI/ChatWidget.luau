@@ -707,7 +707,7 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	local popStroke = Instance.new("UIStroke")
 	popStroke.Color = UI.Theme.Border
-	popStroke.Thickness = 1.5
+	popStroke.Thickness = 2
 	popStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	popStroke.Parent = profilePopup
 	UI.registerThemeElement(popStroke, "Border")
@@ -921,7 +921,7 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	local quickPopStroke = Instance.new("UIStroke")
 	quickPopStroke.Color = UI.Theme.Accent
-	quickPopStroke.Thickness = 1.5
+	quickPopStroke.Thickness = 2
 	quickPopStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	quickPopStroke.Parent = quickPopup
 	UI.registerThemeElement(quickPopStroke, "Accent")

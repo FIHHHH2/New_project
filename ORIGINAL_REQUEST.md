@@ -75,3 +75,47 @@ Implement crisp, responsive micro-animations across all UI controls:
 - [ ] `check_services.py` passes with 0 missing services.
 - [ ] Git commit and push succeeds on `main`.
 - [ ] Live execution via Roblox MCP runs with 0 compile errors.
+
+## Follow-up — 2026-08-31T23:32:00Z
+
+Refactor and polish the Modular Roblox Menu UI architecture for supreme visual cleanliness, decluttering through expandable sidebar tabs and mini sub-tabs, and implement new utility/game features.
+
+Working directory: A:\Potassium\Modular-Roblox-Menu
+Integrity mode: development
+Requested team: 5 agents (1 decision/architecture lead, 4 implementation/feature coders)
+
+## Requirements
+
+### R1. Clean UI Architecture & Tab Decluttering (CoreUI.luau & Core/Main.luau)
+Organize all suite features into clean parent sidebar tabs and horizontal mini sub-tab pages (`CreateSubTabs`):
+- Ensure zero visual clutter by categorizing dense sections into intuitive mini sub-views across Combat, Visuals, Movement, Game Utils, and Settings.
+- Consistent container padding, responsive element height calculation, and unified squared retro styling with frosted acrylic gradients across all views.
+- Maintain right-click tab hiding and bidirectional settings synchronization.
+
+### R2. Feature Expansion & New Capabilities
+Implement impactful new player utilities and quality-of-life additions:
+- **Visuals Enhancement**: Box ESP outlines, Tracers origin selector (Bottom, Center, Mouse), Distance tags, and customizable Chams colors.
+- **Player Utilities**: Server Hop, Rejoin Server, Copy Game ID / Place ID, Anti-AFK timeout preventer, and Click Teleport tool.
+- **Combat Refinements**: FOV Circle color customizer, TriggerBot delay slider, and Wallbang thickness tolerance.
+
+### R3. Widget Polish & Cross-Platform Integrity
+Ensure all peripheral widgets (`PlayerList`, `ChatWidget`, `MusicTracker`, `Notification`) perfectly match the main window's theme tokens, 2px borders, topbar insets, and micro-interaction spring animations with 0 missing Roblox services or UTF-8 BOM encoding issues.
+
+## Acceptance Criteria
+
+### UI Layout & Mini Sub-Tabs
+- [ ] Dense tabs (Combat, Visuals, Movement, Game Utils, Settings) utilize horizontal mini sub-tabs to prevent vertical clutter.
+- [ ] Right-clicking any tab hides it from the sidebar, with full restore options in Settings.
+- [ ] Theme switching seamlessly updates all containers, strokes, gradients, and text across all 4 widgets.
+
+### New Features & Utility
+- [ ] Anti-AFK script running in background prevents idle disconnections.
+- [ ] Server Utilities (Rejoin, Server Hop, Copy Info) operate with safe error-handling pcalls.
+- [ ] ESP tracers and customization sliders work live without framerate drop.
+
+### Stability & Verification
+- [ ] `check_services.py` passes with 0 missing services.
+- [ ] All `.luau` files stripped of UTF-8 BOM bytes.
+- [ ] Git commit and push succeeds on `main`.
+- [ ] Live execution via Roblox MCP loads with 0 compile errors.
+

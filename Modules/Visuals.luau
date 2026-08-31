@@ -1,12 +1,14 @@
 --!strict
 --[=[
     ✦ Visuals Rendering Engine ✦
-    High-performance 2D ESP Boxes, Health Bars, Tracers, Skeletons, and 3D Highlights.
+    High-performance 2D ESP Boxes with Outlines, Health Bars, Tracers with Origin Selector,
+    Distance Tags, Skeletons, and 3D Highlight Chams with customizable colors.
 ]=]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera or Workspace:WaitForChild("Camera") :: Camera
@@ -16,25 +18,41 @@ Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 end)
 
 local Visuals = {
+	-- 2D ESP Settings
 	Box2D = false,
+	BoxOutlines = false,
+	BoxColor = Color3.fromRGB(55, 175, 245),
+	
 	HealthBar = false,
+	
 	Tracers = false,
+	TracerOrigin = "Bottom" :: "Bottom" | "Center" | "Mouse",
+	TracerColor = Color3.fromRGB(255, 255, 255),
+	
+	Distance = false,
+	DistanceColor = Color3.fromRGB(240, 240, 240),
+	
 	Skeleton = false,
+	SkeletonColor = Color3.fromRGB(255, 200, 50),
+	
+	-- 3D Chams / Highlights Settings
 	Chams = false,
 	ChamsTransparency = 0.5,
-	BoxColor = Color3.fromRGB(55, 175, 245),
-	TracerColor = Color3.fromRGB(255, 255, 255),
-	SkeletonColor = Color3.fromRGB(255, 200, 50),
-	ChamsColor = Color3.fromRGB(55, 175, 245)
+	ChamsOutlineTransparency = 0.2,
+	ChamsColor = Color3.fromRGB(180, 70, 255),
+	ChamsFillColor = Color3.fromRGB(180, 70, 255),
+	ChamsOutlineColor = Color3.fromRGB(255, 255, 255),
 }
 
 -- Registry of created visual elements per player
 type PlayerVisual = {
 	Highlight: Highlight?,
+	BoxOutline: any?,
 	Box: any?,
 	HealthBarBg: any?,
 	HealthBarFill: any?,
 	Tracer: any?,
+	DistanceTag: any?,
 	Bones: {any}
 }
 
@@ -44,52 +62,114 @@ local hasDrawing = (typeof(Drawing) == "table" and typeof(Drawing.new) == "funct
 local function createPlayerVisual(player: Player): PlayerVisual
 	local pv: PlayerVisual = {
 		Highlight = nil,
+		BoxOutline = nil,
 		Box = nil,
 		HealthBarBg = nil,
 		HealthBarFill = nil,
 		Tracer = nil,
+		DistanceTag = nil,
 		Bones = {}
 	}
 	
 	if hasDrawing then
+		-- Box Outline (Secondary black square for contrast, Thickness = 3.5)
+		local successOutline, boxOutline = pcall(function()
+			local square = Drawing.new("Square")
+			square.Thickness = 3.5
+			square.Filled = false
+			square.Color = Color3.fromRGB(0, 0, 0)
+			square.Visible = false
+			square.Transparency = 1
+			return square
+		end)
+		if successOutline and boxOutline then
+			pv.BoxOutline = boxOutline
+		end
+
 		-- 2D Box
-		local box = Drawing.new("Square")
-		box.Thickness = 1.5
-		box.Filled = false
-		box.Color = Visuals.BoxColor
-		box.Visible = false
-		pv.Box = box
+		local successBox, box = pcall(function()
+			local square = Drawing.new("Square")
+			square.Thickness = 1.5
+			square.Filled = false
+			square.Color = Visuals.BoxColor
+			square.Visible = false
+			square.Transparency = 1
+			return square
+		end)
+		if successBox and box then
+			pv.Box = box
+		end
 		
 		-- Health Bar BG
-		local hbBg = Drawing.new("Square")
-		hbBg.Thickness = 1
-		hbBg.Filled = true
-		hbBg.Color = Color3.fromRGB(15, 15, 15)
-		hbBg.Visible = false
-		pv.HealthBarBg = hbBg
+		local successHbBg, hbBg = pcall(function()
+			local square = Drawing.new("Square")
+			square.Thickness = 1
+			square.Filled = true
+			square.Color = Color3.fromRGB(15, 15, 15)
+			square.Visible = false
+			square.Transparency = 1
+			return square
+		end)
+		if successHbBg and hbBg then
+			pv.HealthBarBg = hbBg
+		end
 		
 		-- Health Bar Fill
-		local hbFill = Drawing.new("Square")
-		hbFill.Thickness = 1
-		hbFill.Filled = true
-		hbFill.Color = Color3.fromRGB(50, 220, 80)
-		hbFill.Visible = false
-		pv.HealthBarFill = hbFill
+		local successHbFill, hbFill = pcall(function()
+			local square = Drawing.new("Square")
+			square.Thickness = 1
+			square.Filled = true
+			square.Color = Color3.fromRGB(50, 220, 80)
+			square.Visible = false
+			square.Transparency = 1
+			return square
+		end)
+		if successHbFill and hbFill then
+			pv.HealthBarFill = hbFill
+		end
 		
 		-- Tracer line
-		local tracer = Drawing.new("Line")
-		tracer.Thickness = 1.2
-		tracer.Color = Visuals.TracerColor
-		tracer.Visible = false
-		pv.Tracer = tracer
+		local successTracer, tracer = pcall(function()
+			local line = Drawing.new("Line")
+			line.Thickness = 1.2
+			line.Color = Visuals.TracerColor
+			line.Visible = false
+			line.Transparency = 1
+			return line
+		end)
+		if successTracer and tracer then
+			pv.Tracer = tracer
+		end
+		
+		-- Distance tag (3D stud distance text positioned below bounding box)
+		local successDist, distTag = pcall(function()
+			local text = Drawing.new("Text")
+			text.Size = 13
+			text.Center = true
+			text.Outline = true
+			text.OutlineColor = Color3.fromRGB(0, 0, 0)
+			text.Color = Visuals.DistanceColor
+			text.Visible = false
+			text.Transparency = 1
+			return text
+		end)
+		if successDist and distTag then
+			pv.DistanceTag = distTag
+		end
 		
 		-- Skeleton bones (14 bone segments)
 		for i = 1, 14 do
-			local bone = Drawing.new("Line")
-			bone.Thickness = 1.2
-			bone.Color = Visuals.SkeletonColor
-			bone.Visible = false
-			table.insert(pv.Bones, bone)
+			local successBone, bone = pcall(function()
+				local line = Drawing.new("Line")
+				line.Thickness = 1.2
+				line.Color = Visuals.SkeletonColor
+				line.Visible = false
+				line.Transparency = 1
+				return line
+			end)
+			if successBone and bone then
+				table.insert(pv.Bones, bone)
+			end
 		end
 	end
 	
@@ -98,29 +178,55 @@ end
 
 local function cleanPlayerVisual(pv: PlayerVisual)
 	if pv.Highlight then
-		pv.Highlight:Destroy()
+		pcall(function() pv.Highlight:Destroy() end)
 		pv.Highlight = nil
 	end
-	if pv.Box then pv.Box:Remove() end
-	if pv.HealthBarBg then pv.HealthBarBg:Remove() end
-	if pv.HealthBarFill then pv.HealthBarFill:Remove() end
-	if pv.Tracer then pv.Tracer:Remove() end
+	if pv.BoxOutline then
+		pcall(function() pv.BoxOutline:Remove() end)
+		pv.BoxOutline = nil
+	end
+	if pv.Box then
+		pcall(function() pv.Box:Remove() end)
+		pv.Box = nil
+	end
+	if pv.HealthBarBg then
+		pcall(function() pv.HealthBarBg:Remove() end)
+		pv.HealthBarBg = nil
+	end
+	if pv.HealthBarFill then
+		pcall(function() pv.HealthBarFill:Remove() end)
+		pv.HealthBarFill = nil
+	end
+	if pv.Tracer then
+		pcall(function() pv.Tracer:Remove() end)
+		pv.Tracer = nil
+	end
+	if pv.DistanceTag then
+		pcall(function() pv.DistanceTag:Remove() end)
+		pv.DistanceTag = nil
+	end
 	for _, bone in ipairs(pv.Bones) do
-		bone:Remove()
+		pcall(function() bone:Remove() end)
 	end
 	pv.Bones = {}
+end
+
+local function hideAll(pv: PlayerVisual)
+	if pv.Highlight then pv.Highlight.Enabled = false end
+	if pv.BoxOutline then pv.BoxOutline.Visible = false end
+	if pv.Box then pv.Box.Visible = false end
+	if pv.HealthBarBg then pv.HealthBarBg.Visible = false end
+	if pv.HealthBarFill then pv.HealthBarFill.Visible = false end
+	if pv.Tracer then pv.Tracer.Visible = false end
+	if pv.DistanceTag then pv.DistanceTag.Visible = false end
+	for _, bone in ipairs(pv.Bones) do bone.Visible = false end
 end
 
 local function updatePlayer(player: Player, pv: PlayerVisual)
 	if player == LocalPlayer then return end
 	local character = player.Character
 	if not character then
-		if pv.Highlight then pv.Highlight.Enabled = false end
-		if pv.Box then pv.Box.Visible = false end
-		if pv.HealthBarBg then pv.HealthBarBg.Visible = false end
-		if pv.HealthBarFill then pv.HealthBarFill.Visible = false end
-		if pv.Tracer then pv.Tracer.Visible = false end
-		for _, bone in ipairs(pv.Bones) do bone.Visible = false end
+		hideAll(pv)
 		return
 	end
 	
@@ -128,32 +234,42 @@ local function updatePlayer(player: Player, pv: PlayerVisual)
 	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") :: BasePart?
 	
 	if not humanoid or not rootPart or humanoid.Health <= 0 then
-		if pv.Highlight then pv.Highlight.Enabled = false end
-		if pv.Box then pv.Box.Visible = false end
-		if pv.HealthBarBg then pv.HealthBarBg.Visible = false end
-		if pv.HealthBarFill then pv.HealthBarFill.Visible = false end
-		if pv.Tracer then pv.Tracer.Visible = false end
-		for _, bone in ipairs(pv.Bones) do bone.Visible = false end
+		hideAll(pv)
 		return
 	end
 	
 	-- 3D Chams / Highlight
 	if Visuals.Chams then
+		local fillColor = Visuals.ChamsFillColor or Visuals.ChamsColor or Color3.fromRGB(180, 70, 255)
+		local outlineColor = Visuals.ChamsOutlineColor or Color3.fromRGB(255, 255, 255)
+		local fillTransparency = Visuals.ChamsTransparency or 0.5
+		local outlineTransparency = Visuals.ChamsOutlineTransparency or 0.2
+		
 		if not pv.Highlight or pv.Highlight.Parent ~= character then
-			if pv.Highlight then pv.Highlight:Destroy() end
-			local hl = Instance.new("Highlight")
-			hl.Name = "ModularChams"
-			hl.FillColor = Visuals.ChamsColor
-			hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-			hl.FillTransparency = Visuals.ChamsTransparency
-			hl.OutlineTransparency = 0.2
-			hl.Adornee = character
-			hl.Parent = character
-			pv.Highlight = hl
+			if pv.Highlight then
+				pcall(function() pv.Highlight:Destroy() end)
+			end
+			local successHl, hl = pcall(function()
+				local inst = Instance.new("Highlight")
+				inst.Name = "ModularChams"
+				inst.FillColor = fillColor
+				inst.OutlineColor = outlineColor
+				inst.FillTransparency = fillTransparency
+				inst.OutlineTransparency = outlineTransparency
+				inst.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+				inst.Adornee = character
+				inst.Parent = character
+				return inst
+			end)
+			if successHl and hl then
+				pv.Highlight = hl
+			end
 		else
 			pv.Highlight.Enabled = true
-			pv.Highlight.FillColor = Visuals.ChamsColor
-			pv.Highlight.FillTransparency = Visuals.ChamsTransparency
+			pv.Highlight.FillColor = fillColor
+			pv.Highlight.OutlineColor = outlineColor
+			pv.Highlight.FillTransparency = fillTransparency
+			pv.Highlight.OutlineTransparency = outlineTransparency
 		end
 	elseif pv.Highlight then
 		pv.Highlight.Enabled = false
@@ -162,10 +278,12 @@ local function updatePlayer(player: Player, pv: PlayerVisual)
 	-- 2D Calculations
 	local rootPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
 	if not onScreen or not hasDrawing then
+		if pv.BoxOutline then pv.BoxOutline.Visible = false end
 		if pv.Box then pv.Box.Visible = false end
 		if pv.HealthBarBg then pv.HealthBarBg.Visible = false end
 		if pv.HealthBarFill then pv.HealthBarFill.Visible = false end
 		if pv.Tracer then pv.Tracer.Visible = false end
+		if pv.DistanceTag then pv.DistanceTag.Visible = false end
 		for _, bone in ipairs(pv.Bones) do bone.Visible = false end
 		return
 	end
@@ -179,15 +297,32 @@ local function updatePlayer(player: Player, pv: PlayerVisual)
 	local boxWidth = boxHeight * 0.65
 	local boxX = rootPos.X - (boxWidth / 2)
 	local boxY = headPos.Y
+	local boxSize = Vector2.new(boxWidth, boxHeight)
+	local boxPosition = Vector2.new(boxX, boxY)
 	
-	-- Render 2D Box
-	if Visuals.Box2D and pv.Box then
-		pv.Box.Size = Vector2.new(boxWidth, boxHeight)
-		pv.Box.Position = Vector2.new(boxX, boxY)
-		pv.Box.Color = Visuals.BoxColor
-		pv.Box.Visible = true
-	elseif pv.Box then
-		pv.Box.Visible = false
+	-- Render 2D Box & Box Outline
+	if Visuals.Box2D then
+		-- Render Box Outline (Secondary black Square behind box with Thickness = 3.5 for high contrast)
+		if Visuals.BoxOutlines and pv.BoxOutline then
+			pv.BoxOutline.Size = boxSize
+			pv.BoxOutline.Position = boxPosition
+			pv.BoxOutline.Thickness = 3.5
+			pv.BoxOutline.Color = Color3.fromRGB(0, 0, 0)
+			pv.BoxOutline.Visible = true
+		elseif pv.BoxOutline then
+			pv.BoxOutline.Visible = false
+		end
+
+		if pv.Box then
+			pv.Box.Size = boxSize
+			pv.Box.Position = boxPosition
+			pv.Box.Thickness = 1.5
+			pv.Box.Color = Visuals.BoxColor
+			pv.Box.Visible = true
+		end
+	else
+		if pv.Box then pv.Box.Visible = false end
+		if pv.BoxOutline then pv.BoxOutline.Visible = false end
 	end
 	
 	-- Render Health Bar next to 2D Box
@@ -210,15 +345,41 @@ local function updatePlayer(player: Player, pv: PlayerVisual)
 		if pv.HealthBarFill then pv.HealthBarFill.Visible = false end
 	end
 	
-	-- Render Tracer
+	-- Render Tracer with Origin Selector ("Bottom", "Center", "Mouse")
 	if Visuals.Tracers and pv.Tracer then
-		local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-		pv.Tracer.From = screenCenter
+		local tracerOrigin = Visuals.TracerOrigin or "Bottom"
+		local fromPos: Vector2
+		
+		if tracerOrigin == "Center" then
+			fromPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+		elseif tracerOrigin == "Mouse" then
+			local mousePos = UserInputService:GetMouseLocation()
+			fromPos = Vector2.new(mousePos.X, mousePos.Y)
+		else -- "Bottom" or default fallback
+			fromPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+		end
+		
+		pv.Tracer.From = fromPos
 		pv.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
 		pv.Tracer.Color = Visuals.TracerColor
 		pv.Tracer.Visible = true
 	elseif pv.Tracer then
 		pv.Tracer.Visible = false
+	end
+	
+	-- Render Distance Tag (3D stud distance calculation: math.floor((pos - myPos).Magnitude) .. "m")
+	if Visuals.Distance and pv.DistanceTag then
+		local myRoot = if LocalPlayer.Character then (LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character:FindFirstChild("UpperTorso")) :: BasePart? else nil
+		local myPos = if myRoot then myRoot.Position else Camera.CFrame.Position
+		local targetPos = rootPart.Position
+		local dist = math.floor((targetPos - myPos).Magnitude)
+		
+		pv.DistanceTag.Text = dist .. "m"
+		pv.DistanceTag.Position = Vector2.new(boxX + (boxWidth / 2), boxY + boxHeight + 2)
+		pv.DistanceTag.Color = Visuals.DistanceColor or Color3.fromRGB(240, 240, 240)
+		pv.DistanceTag.Visible = true
+	elseif pv.DistanceTag then
+		pv.DistanceTag.Visible = false
 	end
 	
 	-- Render Skeleton ESP
@@ -289,5 +450,12 @@ Players.PlayerRemoving:Connect(function(player)
 		playerVisuals[player] = nil
 	end
 end)
+
+function Visuals.cleanup()
+	for player, pv in pairs(playerVisuals) do
+		cleanPlayerVisual(pv)
+	end
+	playerVisuals = {}
+end
 
 return Visuals

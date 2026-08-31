@@ -25,7 +25,15 @@ KNOWN_SERVICES = {
     "Teams": "Teams",
     "TextService": "TextService",
     "TextChatService": "TextChatService",
-    "VoiceChatService": "VoiceChatService"
+    "VoiceChatService": "VoiceChatService",
+    "VirtualUser": "VirtualUser",
+    "VirtualInputManager": "VirtualInputManager",
+    "CollectionService": "CollectionService",
+    "ContentProvider": "ContentProvider",
+    "ProximityPromptService": "ProximityPromptService",
+    "AssetService": "AssetService",
+    "BadgeService": "BadgeService",
+    "GroupService": "GroupService",
 }
 
 def analyze_file(file_path):
@@ -82,7 +90,17 @@ def analyze_file(file_path):
         "syntax_balance": (open_keywords, ends)
     }
 
+def strip_bom(file_path):
+    with open(file_path, "rb") as f:
+        content = f.read()
+    if content.startswith(b"\xef\xbb\xbf"):
+        with open(file_path, "wb") as f:
+            f.write(content[3:])
+        return True
+    return False
+
 def main():
+    fix_bom = "--fix-bom" in sys.argv or "--clean" in sys.argv
     luau_files = []
     for root, dirs, files in os.walk(REPO_DIR):
         if ".git" in root or ".agents" in root:
@@ -90,6 +108,14 @@ def main():
         for f in files:
             if f.endswith(".luau"):
                 luau_files.append(os.path.join(root, f))
+
+    if fix_bom:
+        stripped_count = 0
+        for file_path in luau_files:
+            if strip_bom(file_path):
+                stripped_count += 1
+        if stripped_count > 0:
+            print(f"[INFO] Successfully stripped UTF-8 BOM from {stripped_count} file(s).")
 
     print("=" * 80)
     print(f"REPOSITORY STATIC INTEGRITY MATRIX ({len(luau_files)} LUAU FILES)")

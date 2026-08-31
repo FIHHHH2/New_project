@@ -37,9 +37,9 @@ end
 
 local function repositionCards()
 	for i, card in ipairs(activeCards) do
-		local targetY = -20 - (i * 74)
+		local targetY = -20 - (i * 80)
 		TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Position = UDim2.new(1, -270, 1, targetY)
+			Position = UDim2.new(1, -280, 1, targetY)
 		}):Play()
 	end
 end
@@ -50,8 +50,8 @@ function Notification.show(title: string, message: string, duration: number?)
 	
 	local card = Instance.new("Frame")
 	card.Name = "NotificationCard"
-	card.Size = UDim2.new(0, 250, 0, 68)
-	card.Position = UDim2.new(1, 40, 1, -20 - (#activeCards + 1) * 74)
+	card.Size = UDim2.new(0, 260, 0, 74)
+	card.Position = UDim2.new(1, 40, 1, -20 - (#activeCards + 1) * 80)
 	card.BackgroundColor3 = UI.Theme.Background
 	card.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	card.BorderSizePixel = 0
@@ -59,9 +59,21 @@ function Notification.show(title: string, message: string, duration: number?)
 	card.Parent = gui
 	UI.registerThemeElement(card, "Background")
 	
+	local bgGradient = Instance.new("UIGradient")
+	bgGradient.Rotation = 90
+	bgGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 210))
+	})
+	bgGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 0.15)
+	})
+	bgGradient.Parent = card
+
 	local cardStroke = Instance.new("UIStroke")
 	cardStroke.Color = UI.Theme.Border
-	cardStroke.Thickness = 1.5
+	cardStroke.Thickness = 2
 	cardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	cardStroke.Parent = card
 	UI.registerThemeElement(cardStroke, "Border")
@@ -70,16 +82,31 @@ function Notification.show(title: string, message: string, duration: number?)
 	cardScale.Scale = 0.92
 	cardScale.Parent = card
 	
-	-- topbar
+	-- Inset Topbar
 	local topbar = Instance.new("Frame")
 	topbar.Name = "TopBar"
-	topbar.Size = UDim2.new(1, 0, 0, 20)
-	topbar.Position = UDim2.new(0, 0, 0, 0)
+	topbar.Size = UDim2.new(1, -12, 0, 22)
+	topbar.Position = UDim2.new(0, 6, 0, 6)
 	topbar.BackgroundColor3 = UI.Theme.Container
 	topbar.BackgroundTransparency = UI.Theme.ContainerTransparency
 	topbar.BorderSizePixel = 0
 	topbar.Parent = card
 	UI.registerThemeElement(topbar, "Container")
+
+	local topGradient = Instance.new("UIGradient")
+	topGradient.Rotation = 45
+	topGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 230))
+	})
+	topGradient.Parent = topbar
+
+	local topStroke = Instance.new("UIStroke")
+	topStroke.Color = UI.Theme.Border
+	topStroke.Thickness = 1.5
+	topStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	topStroke.Parent = topbar
+	UI.registerThemeElement(topStroke, "Border")
 	
 	local topTitle = Instance.new("TextLabel")
 	topTitle.Size = UDim2.new(1, -44, 1, 0)
@@ -116,21 +143,11 @@ function Notification.show(title: string, message: string, duration: number?)
 	sqIcon.Parent = topbar
 	UI.registerThemeElement(sqIcon, "TextPrimary")
 	
-	-- top divider
-	local divider = Instance.new("Frame")
-	divider.Name = "Divider"
-	divider.Size = UDim2.new(1, 0, 0, 1.5)
-	divider.Position = UDim2.new(0, 0, 0, 20)
-	divider.BackgroundColor3 = UI.Theme.Border
-	divider.BorderSizePixel = 0
-	divider.Parent = card
-	UI.registerThemeElement(divider, "Border")
-	
 	-- message body
 	local bodyLabel = Instance.new("TextLabel")
 	bodyLabel.Name = "Message"
-	bodyLabel.Size = UDim2.new(1, -16, 1, -22)
-	bodyLabel.Position = UDim2.new(0, 8, 0, 21)
+	bodyLabel.Size = UDim2.new(1, -16, 1, -34)
+	bodyLabel.Position = UDim2.new(0, 8, 0, 32)
 	bodyLabel.BackgroundTransparency = 1
 	bodyLabel.Text = message
 	bodyLabel.TextColor3 = UI.Theme.TextPrimary
@@ -144,12 +161,12 @@ function Notification.show(title: string, message: string, duration: number?)
 	repositionCards()
 	
 	-- Slide in from right with spring pop-in (0.92 -> 1.0)
-	card.Position = UDim2.new(1, 40, 1, -20 - 74)
+	card.Position = UDim2.new(1, 40, 1, -20 - 80)
 	TweenService:Create(cardScale, TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 		Scale = 1.0
 	}):Play()
 	TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Position = UDim2.new(1, -270, 1, -20 - 74)
+		Position = UDim2.new(1, -280, 1, -20 - 80)
 	}):Play()
 	
 	task.delay(displayTime, function()

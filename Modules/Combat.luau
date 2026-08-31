@@ -24,6 +24,7 @@ end)
 local Combat = {
 	SilentAim = false,
 	Wallbang = false,
+	WallbangThickness = 5,
 	HitChance = 100,
 	TargetPart = "Head",
 	AimTracking = false,
@@ -36,7 +37,7 @@ local Combat = {
 	Smoothing = 0.40,
 	ExpandHitboxes = false,
 	HitboxSize = 12,
-	FovColor = Color3.fromRGB(55, 175, 245)
+	FovColor = Color3.fromRGB(255, 255, 255)
 }
 
 local hasDrawing = (typeof(Drawing) == "table" and typeof(Drawing.new) == "function")
@@ -87,13 +88,76 @@ local function isPartVisible(origin: Vector3, targetPart: BasePart, targetChar: 
 	return result.Instance:IsDescendantOf(targetChar)
 end
 
+function Combat.setFovColor(color: Color3)
+	Combat.FovColor = color
+	if fovDrawing then
+		fovDrawing.Color = color
+	end
+end
+
+function Combat.setTriggerBotDelay(delaySec: number)
+	Combat.TriggerBotDelay = math.clamp(delaySec, 0, 0.5)
+end
+
+function Combat.setWallbangThickness(thicknessStuds: number)
+	Combat.WallbangThickness = math.clamp(thicknessStuds, 0, 20)
+end
+
+function Combat.checkWallbangPenetration(origin: Vector3, targetPart: BasePart, targetChar: Model): (boolean, number)
+	if not targetPart or not targetChar then return false, 999 end
+
+	local targetPos = targetPart.Position
+	local toTarget = targetPos - origin
+	local totalDist = toTarget.Magnitude
+	if totalDist < 0.1 then
+		return true, 0
+	end
+
+	-- 1. Forward Raycast: from origin towards target to find entry point
+	local forwardParams = RaycastParams.new()
+	forwardParams.FilterType = Enum.RaycastFilterType.Exclude
+	forwardParams.FilterDescendantsInstances = { LocalPlayer.Character, targetChar }
+	forwardParams.IgnoreWater = true
+
+	local forwardResult = Workspace:Raycast(origin, toTarget, forwardParams)
+	if not forwardResult then
+		-- No obstacles between origin and target (Direct line of sight)
+		return true, 0
+	end
+
+	-- If non-collidable transparent barrier, allow hit
+	if not forwardResult.Instance.CanCollide and forwardResult.Instance.Transparency >= 0.75 then
+		return true, 0
+	end
+
+	local entryPoint = forwardResult.Position
+
+	-- 2. Backward Raycast: from target towards origin to find exit point
+	local fromTarget = origin - targetPos
+	local backwardParams = RaycastParams.new()
+	backwardParams.FilterType = Enum.RaycastFilterType.Exclude
+	backwardParams.FilterDescendantsInstances = { LocalPlayer.Character, targetChar }
+	backwardParams.IgnoreWater = true
+
+	local backwardResult = Workspace:Raycast(targetPos, fromTarget, backwardParams)
+	local exitPoint = if backwardResult then backwardResult.Position else targetPos
+
+	-- 3. Calculate Wall Thickness: (exitPoint - entryPoint).Magnitude
+	local thickness = (exitPoint - entryPoint).Magnitude
+	if not backwardResult then
+		thickness = (targetPos - entryPoint).Magnitude
+	end
+
+	local canPenetrate = (thickness <= Combat.WallbangThickness)
+	return canPenetrate, thickness
+end
+
 function Combat.getClosestTarget(ignoreWalls: boolean?): (Player?, BasePart?)
 	local screenCenter = getScreenCenter()
 	local closestPlayer: Player? = nil
 	local closestPart: BasePart? = nil
 	local maxRadius = if Combat.FovCircle then Combat.FovRadius else 1200
 	local shortestDist = maxRadius
-	local checkWall = (ignoreWalls ~= true and not Combat.Wallbang)
 	local camPos = Camera.CFrame.Position
 	
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -123,8 +187,12 @@ function Combat.getClosestTarget(ignoreWalls: boolean?): (Player?, BasePart?)
 		
 		local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
 		if dist < shortestDist then
-			local visible = true
-			if checkWall then
+			local visible = false
+			if ignoreWalls == true then
+				visible = true
+			elseif Combat.Wallbang then
+				visible = Combat.checkWallbangPenetration(camPos, targetPart, character)
+			else
 				visible = isPartVisible(camPos, targetPart, character)
 			end
 
@@ -147,7 +215,7 @@ RunService.Heartbeat:Connect(function()
 		return
 	end
 
-	cachedTargetPlayer, cachedTargetPart = Combat.getClosestTarget(Combat.Wallbang)
+	cachedTargetPlayer, cachedTargetPart = Combat.getClosestTarget()
 end)
 
 -- ── Metamethod Hooks for Silent Aim & Wallbang (Optimized) ───────────
@@ -170,13 +238,20 @@ pcall(function()
 					if target and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
 						local origin = select(1, ...)
 						if typeof(origin) == "Vector3" then
-							local dir = (target.Position - origin).Unit * 1000
-							local p3 = select(3, ...)
-							if Combat.Wallbang and typeof(p3) == "RaycastParams" then
-								p3.FilterType = Enum.RaycastFilterType.Include
-								p3.FilterDescendantsInstances = { target.Parent }
+							local targetChar = target.Parent :: Model?
+							local canHit = true
+							if Combat.Wallbang and targetChar then
+								canHit = Combat.checkWallbangPenetration(origin, target, targetChar)
 							end
-							return oldNamecall(self, origin, dir, p3)
+							if canHit then
+								local dir = (target.Position - origin).Unit * 1000
+								local p3 = select(3, ...)
+								if Combat.Wallbang and typeof(p3) == "RaycastParams" then
+									p3.FilterType = Enum.RaycastFilterType.Include
+									p3.FilterDescendantsInstances = { target.Parent }
+								end
+								return oldNamecall(self, origin, dir, p3)
+							end
 						end
 					end
 				end
@@ -221,7 +296,7 @@ pcall(function()
 	end
 end)
 
--- Trigger Bot Check (Raycast under cursor)
+-- Trigger Bot Check (Raycast under cursor with TriggerBotDelay slider support)
 local function checkTriggerBot()
 	if not Combat.TriggerBot then return end
 	local now = tick()
@@ -245,11 +320,18 @@ local function checkTriggerBot()
 				if Combat.TrackTeammates or not isTeammate(hitPlayer) then
 					local hum = hitChar:FindFirstChildOfClass("Humanoid")
 					if hum and hum.Health > 0 then
-						lastTriggerTime = now
-						local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
-						if tool and typeof(tool.Activate) == "function" then
-							tool:Activate()
-						end
+						lastTriggerTime = now + Combat.TriggerBotDelay
+						task.spawn(function()
+							if Combat.TriggerBotDelay > 0 then
+								task.wait(Combat.TriggerBotDelay)
+							end
+							if Combat.TriggerBot and LocalPlayer.Character then
+								local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
+								if tool and typeof(tool.Activate) == "function" then
+									tool:Activate()
+								end
+							end
+						end)
 					end
 				end
 			end

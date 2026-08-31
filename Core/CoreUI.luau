@@ -3,6 +3,11 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local GuiService = game:GetService("GuiService")
+local TeleportService = game:GetService("TeleportService")
+local StarterGui = game:GetService("StarterGui")
 
 local UI = require("UI/UI.luau")
 local Animations = require("UI/Animations.luau")
@@ -199,7 +204,7 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 		local function handleRightClick()
 			if tabObj.Name == "Main" or tabObj.IsHidden then return end
 			self:SetTabVisibility(tabObj, false)
-			self:Notify("Module Hidden", string.format("'%s' tab hidden. Re-enable in Settings > Game Modules.", tabObj.Name), 3.5)
+			self:Notify("Module Hidden", string.format("'%s' tab hidden. Re-enable in Settings > Modules & Tabs.", tabObj.Name), 3.5)
 		end
 
 		tabButton.MouseButton2Click:Connect(handleRightClick)
@@ -463,7 +468,9 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 		btn.Text = string.format("[ %s ]", name)
 		btn.TextColor3 = if idx == 1 then UI.Theme.AccentText else UI.Theme.TextSecondary
 		btn.Font = UI.Fonts.Header
-		btn.TextSize = 11
+		btn.TextSize = if numTabs >= 4 then 10 else 11
+		btn.TextTruncate = Enum.TextTruncate.None
+		btn.TextWrapped = false
 		btn.LayoutOrder = idx
 		btn.Parent = subTabBar
 
@@ -537,6 +544,7 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 
 		subTabs[name] = subTabObj
 		subTabs[idx] = subTabObj
+		subTabs.Tabs[name] = subTabObj
 		table.insert(subTabs.SubTabList, subTabObj)
 
 		if idx == 1 then
@@ -683,6 +691,11 @@ function CoreUI:CreateColumns(tabObj: any): (Frame, Frame)
 	rightLayout.Padding = UDim.new(0, 8)
 	rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	rightLayout.Parent = rightCol
+
+	if type(tabObj) == "table" then
+		tabObj.LeftColumn = leftCol
+		tabObj.RightColumn = rightCol
+	end
 
 	return leftCol, rightCol
 end

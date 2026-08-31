@@ -114,6 +114,8 @@ local function requireRemote(path: string): any
 			path = "Modules/DisasterSurvival.luau"
 		elseif path == "Modules/RunNHide" or path == "RunNHide" then
 			path = "Modules/RunNHide.luau"
+		elseif path == "Modules/PlayerUtilities" or path == "PlayerUtilities" then
+			path = "Modules/PlayerUtilities.luau"
 		end
 	end
 
@@ -162,6 +164,8 @@ local function requireRemote(path: string): any
 					return requireRemote("Modules/DisasterSurvival.luau")
 				elseif name == "RunNHide" then
 					return requireRemote("Modules/RunNHide.luau")
+				elseif name == "PlayerUtilities" then
+					return requireRemote("Modules/PlayerUtilities.luau")
 				end
 			end
 			return require(target)

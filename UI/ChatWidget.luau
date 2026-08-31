@@ -3,8 +3,11 @@
     ✦ Squared Retro Chat Widget with Single Header Action Buttons ✦
     Layout matching user diagram:
     [ Mugshot ] Chat : @Username   [ ⯎ ] [ ≡ ] [ 🎙 ]     [ - ] [ X ]
-    [ Chat Message Logs Container ]
-    [ Quick Chat ] [ /Text Message Input ] [ Send Msg ]
+    - [ ⯎ ] Roblox Logo: Opens Roblox Escape Settings Menu (Leave, Reset, etc.) safely via VirtualInputManager / Escape
+    - [ ≡ ] Hamburger: Opens quick dropdown menu (Backpack, Music Tracker, Player List, Main Menu, Reset Character, Leave)
+    - [ 🎙 ] Microphone: Toggles voice chat mute state (green = active, red = muted)
+    - [ Chat Message Logs Container ]
+    - [ Quick Chat ] [ /Text Message Input ] [ Send Msg ]
 ]=]
 
 local Players = game:GetService("Players")
@@ -45,9 +48,6 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	-- Disable default Roblox CoreGuis cleanly
 	local function disableRobloxCoreGuis()
-		pcall(function()
-			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
-		end)
 		pcall(function()
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
@@ -130,7 +130,7 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	-- Title: Chat : @Username
 	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(0, 120, 1, 0)
+	titleLabel.Size = UDim2.new(0, 110, 1, 0)
 	titleLabel.Position = UDim2.new(0, 29, 0, 0)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = string.format("Chat : @%s", Players.LocalPlayer.Name)
@@ -146,7 +146,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	local actionGroup = Instance.new("Frame")
 	actionGroup.Name = "TopBarActions"
 	actionGroup.Size = UDim2.new(0, 84, 0, 22)
-	actionGroup.Position = UDim2.new(0, 154, 0, 3)
+	actionGroup.Position = UDim2.new(0, 144, 0, 3)
 	actionGroup.BackgroundTransparency = 1
 	actionGroup.BorderSizePixel = 0
 	actionGroup.Parent = topbar
@@ -159,42 +159,52 @@ function ChatWidget.new(): ChatWidgetInstance
 	actLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	actLayout.Parent = actionGroup
 
-	local function makeHeaderBtn(name: string, order: number): ImageButton
-		local btn = Instance.new("ImageButton")
-		btn.Name = name
-		btn.Size = UDim2.new(0, 24, 0, 22)
-		btn.BackgroundColor3 = UI.Theme.ContainerDark
-		btn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
-		btn.BorderSizePixel = 0
-		btn.LayoutOrder = order
-		btn.Parent = actionGroup
-		UI.registerThemeElement(btn, "ContainerDark")
+	-- 1. Roblox Logo Button [ ⯎ ]
+	local rbxBtn = Instance.new("TextButton")
+	rbxBtn.Name = "RobloxLogoBtn"
+	rbxBtn.Size = UDim2.new(0, 24, 0, 22)
+	rbxBtn.BackgroundColor3 = UI.Theme.ContainerDark
+	rbxBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	rbxBtn.BorderSizePixel = 0
+	rbxBtn.Text = "⯎"
+	rbxBtn.TextColor3 = UI.Theme.TextPrimary
+	rbxBtn.Font = Enum.Font.GothamBold
+	rbxBtn.TextSize = 13
+	rbxBtn.LayoutOrder = 1
+	rbxBtn.Parent = actionGroup
+	UI.registerThemeElement(rbxBtn, "ContainerDark")
+	UI.registerThemeElement(rbxBtn, "TextPrimary")
 
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = UI.Theme.Border
-		stroke.Thickness = 1
-		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		stroke.Parent = btn
-		UI.registerThemeElement(stroke, "Border")
+	local rbxStroke = Instance.new("UIStroke")
+	rbxStroke.Color = UI.Theme.Border
+	rbxStroke.Thickness = 1
+	rbxStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	rbxStroke.Parent = rbxBtn
+	UI.registerThemeElement(rbxStroke, "Border")
 
-		btn.MouseEnter:Connect(function()
-			TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1.6, Color = UI.Theme.Accent }):Play()
-		end)
-		btn.MouseLeave:Connect(function()
-			TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1, Color = UI.Theme.Border }):Play()
-		end)
+	rbxBtn.MouseEnter:Connect(function()
+		TweenService:Create(rbxStroke, TweenInfo.new(0.12), { Thickness = 1.6, Color = UI.Theme.Accent }):Play()
+		TweenService:Create(rbxBtn, TweenInfo.new(0.12), { TextColor3 = UI.Theme.Accent }):Play()
+	end)
+	rbxBtn.MouseLeave:Connect(function()
+		TweenService:Create(rbxStroke, TweenInfo.new(0.12), { Thickness = 1, Color = UI.Theme.Border }):Play()
+		TweenService:Create(rbxBtn, TweenInfo.new(0.12), { TextColor3 = UI.Theme.TextPrimary }):Play()
+	end)
 
-		return btn
-	end
-
-	-- 1. Roblox Menu Button [ ⯎ ]
-	local rbxBtn = makeHeaderBtn("RobloxLogoBtn", 1)
-	rbxBtn.Image = "rbxassetid://10888371919"
-	rbxBtn.ScaleType = Enum.ScaleType.Fit
 	rbxBtn.MouseButton1Click:Connect(function()
-		pcall(function()
-			GuiService:SetMenuIsOpen(true)
-		end)
+		local vim = pcall(function() return game:GetService("VirtualInputManager") end) and game:GetService("VirtualInputManager") or nil
+		if vim then
+			pcall(function()
+				vim:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
+				task.delay(0.05, function()
+					vim:SendKeyEvent(false, Enum.KeyCode.Escape, false, game)
+				end)
+			end)
+		else
+			pcall(function()
+				GuiService:SetMenuIsOpen(not GuiService.MenuIsOpen)
+			end)
+		end
 	end)
 
 	-- 2. Hamburger Menu Button [ ≡ ]
@@ -229,31 +239,153 @@ function ChatWidget.new(): ChatWidgetInstance
 		TweenService:Create(menuBtn, TweenInfo.new(0.12), { TextColor3 = UI.Theme.TextPrimary }):Play()
 	end)
 
-	menuBtn.MouseButton1Click:Connect(function()
-		if _G.__ToggleProjectFihMenu then
-			_G.__ToggleProjectFihMenu()
-		end
-	end)
-
 	-- 3. Voice Chat Mic Button [ 🎙 ]
-	local micBtn = makeHeaderBtn("VoiceChatMicBtn", 3)
-	micBtn.Image = "rbxassetid://7072720970"
-	micBtn.ImageColor3 = Color3.fromRGB(245, 70, 70)
-	micBtn.ScaleType = Enum.ScaleType.Fit
+	local micBtn = Instance.new("TextButton")
+	micBtn.Name = "VoiceChatMicBtn"
+	micBtn.Size = UDim2.new(0, 24, 0, 22)
+	micBtn.BackgroundColor3 = UI.Theme.ContainerDark
+	micBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	micBtn.BorderSizePixel = 0
+	micBtn.Text = "🎙̸"
+	micBtn.TextColor3 = Color3.fromRGB(245, 75, 75)
+	micBtn.Font = Enum.Font.GothamBold
+	micBtn.TextSize = 12
+	micBtn.LayoutOrder = 3
+	micBtn.Parent = actionGroup
+	UI.registerThemeElement(micBtn, "ContainerDark")
+
+	local micStroke = Instance.new("UIStroke")
+	micStroke.Color = UI.Theme.Border
+	micStroke.Thickness = 1
+	micStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	micStroke.Parent = micBtn
+	UI.registerThemeElement(micStroke, "Border")
 
 	local isMuted = true
 	micBtn.MouseButton1Click:Connect(function()
 		isMuted = not isMuted
 		if isMuted then
-			micBtn.ImageColor3 = Color3.fromRGB(245, 70, 70)
+			micBtn.Text = "🎙̸"
+			micBtn.TextColor3 = Color3.fromRGB(245, 75, 75)
 		else
-			micBtn.ImageColor3 = Color3.fromRGB(60, 225, 90)
+			micBtn.Text = "🎙"
+			micBtn.TextColor3 = Color3.fromRGB(60, 225, 90)
 		end
 		pcall(function()
 			if VoiceChatService and VoiceChatService:IsVoiceEnabledForUserIdAsync(Players.LocalPlayer.UserId) then
 				VoiceChatService:joinVoice()
 			end
 		end)
+	end)
+
+	-- ============================================================
+	-- ── HAMBURGER DROPDOWN QUICK MENU ───────────────────────────
+	-- ============================================================
+	local dropdown = Instance.new("Frame")
+	dropdown.Name = "HamburgerDropdown"
+	dropdown.Size = UDim2.new(0, 150, 0, 170)
+	dropdown.Position = UDim2.new(0, 110, 0, TOPBAR_H + 4)
+	dropdown.BackgroundColor3 = UI.Theme.Background
+	dropdown.BackgroundTransparency = 0.05
+	dropdown.BorderSizePixel = 0
+	dropdown.Visible = false
+	dropdown.ZIndex = 50
+	dropdown.Parent = widget
+	UI.registerThemeElement(dropdown, "Background")
+
+	local dropStroke = Instance.new("UIStroke")
+	dropStroke.Color = UI.Theme.Border
+	dropStroke.Thickness = 1.2
+	dropStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	dropStroke.Parent = dropdown
+	UI.registerThemeElement(dropStroke, "Border")
+
+	local dropLayout = Instance.new("UIListLayout")
+	dropLayout.FillDirection = Enum.FillDirection.Vertical
+	dropLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	dropLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+	dropLayout.Padding = UDim.new(0, 2)
+	dropLayout.Parent = dropdown
+
+	local bpActive = false
+	local function createDropItem(text: string, onClick: () -> ())
+		local item = Instance.new("TextButton")
+		item.Size = UDim2.new(1, -6, 0, 25)
+		item.BackgroundColor3 = UI.Theme.ContainerDark
+		item.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+		item.BorderSizePixel = 0
+		item.Text = "  " .. text
+		item.TextColor3 = UI.Theme.TextPrimary
+		item.Font = UI.Fonts.Header
+		item.TextSize = 10
+		item.TextXAlignment = Enum.TextXAlignment.Left
+		item.ZIndex = 51
+		item.Parent = dropdown
+		UI.registerThemeElement(item, "ContainerDark")
+		UI.registerThemeElement(item, "TextPrimary")
+
+		item.MouseEnter:Connect(function()
+			TweenService:Create(item, TweenInfo.new(0.1), { BackgroundColor3 = UI.Theme.Accent, TextColor3 = UI.Theme.AccentText }):Play()
+		end)
+		item.MouseLeave:Connect(function()
+			TweenService:Create(item, TweenInfo.new(0.1), { BackgroundColor3 = UI.Theme.ContainerDark, TextColor3 = UI.Theme.TextPrimary }):Play()
+		end)
+
+		item.MouseButton1Click:Connect(function()
+			dropdown.Visible = false
+			onClick()
+		end)
+	end
+
+	createDropItem("🎒 Backpack", function()
+		bpActive = not bpActive
+		pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, bpActive)
+		end)
+	end)
+
+	createDropItem("♫ Music Tracker", function()
+		for _, g in ipairs(CoreGui:GetChildren()) do
+			if g.Name == "ModularMusicTrackerGui" then
+				local w = g:FindFirstChild("MusicTrackerWidget")
+				if w and w:IsA("Frame") then
+					w.Visible = not w.Visible
+				end
+			end
+		end
+	end)
+
+	createDropItem("👥 Player List", function()
+		for _, g in ipairs(CoreGui:GetChildren()) do
+			if g.Name == "ModularPlayerListGui" then
+				local w = g:FindFirstChild("PlayerListFrame")
+				if w and w:IsA("Frame") then
+					w.Visible = not w.Visible
+				end
+			end
+		end
+	end)
+
+	createDropItem("⚡ Main Menu", function()
+		if _G.__ToggleProjectFihMenu then
+			_G.__ToggleProjectFihMenu()
+		end
+	end)
+
+	createDropItem("⚠ Reset Character", function()
+		local char = Players.LocalPlayer.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if hum then hum.Health = 0 end
+	end)
+
+	createDropItem("🚪 Leave Game", function()
+		pcall(function()
+			game:Shutdown()
+		end)
+	end)
+
+	menuBtn.MouseButton1Click:Connect(function()
+		dropdown.Visible = not dropdown.Visible
 	end)
 
 	-- Right: Minimize [-] & Close [X] Buttons
@@ -495,6 +627,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	local minimized = false
 	minBtn.MouseButton1Click:Connect(function()
 		minimized = not minimized
+		dropdown.Visible = false
 		if minimized then
 			container.Visible = false
 			bottomBar.Visible = false
@@ -511,6 +644,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	end)
 
 	closeBtn.MouseButton1Click:Connect(function()
+		dropdown.Visible = false
 		local closeTween = TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 			Size = UDim2.new(0, widget.AbsoluteSize.X * 0.9, 0, 0),
 			BackgroundTransparency = 1

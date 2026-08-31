@@ -55,11 +55,39 @@ local window = CoreUI.new("Project Fih Menu")
 local playerListWidget = PlayerList.new()
 local chatWidgetInstance = ChatWidget.new()
 
+local function getGameTabName(): string
+	local placeId = game.PlaceId
+	if placeId == 189707 or string.find(string.lower(game.Name), "disaster") then
+		return "Disasters"
+	elseif placeId == 286090429 or string.find(string.lower(game.Name), "arsenal") then
+		return "Arsenal"
+	elseif placeId == 6872265039 or placeId == 6872274481 or string.find(string.lower(game.Name), "bedwars") then
+		return "BedWars"
+	elseif placeId == 142823291 or string.find(string.lower(game.Name), "murder") then
+		return "MM2"
+	end
+	
+	local conciseName = "Game"
+	pcall(function()
+		local MarketplaceService = game:GetService("MarketplaceService")
+		local info = MarketplaceService:GetProductInfo(placeId)
+		if info and info.Name then
+			local firstWord = string.split(info.Name, " ")[1]
+			if firstWord and #firstWord <= 10 then
+				conciseName = firstWord
+			end
+		end
+	end)
+	return conciseName
+end
+
+local gameTabTitle = getGameTabName()
+
 -- Active sidebar navigation tabs
 local mainTab = window:CreateTab("Main")
 local visualsTab = window:CreateTab("Visuals")
 local combatTab = window:CreateTab("Combat")
-local gameTab = window:CreateTab("Game")
+local gameTab = window:CreateTab(gameTabTitle)
 
 -- Dedicated Settings & Configs tabs (opened/closed via subheader buttons)
 local settingsTab = window:CreateTab("Settings", true)

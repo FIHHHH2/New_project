@@ -71,13 +71,13 @@ function CoreUI:CreateTab(name: string)
 
 	local pad = Instance.new("UIPadding")
 	pad.PaddingLeft = UDim.new(0, 2)
-	pad.PaddingRight = UDim.new(0, 8)
+	pad.PaddingRight = UDim.new(0, 6)
 	pad.PaddingTop = UDim.new(0, 2)
 	pad.PaddingBottom = UDim.new(0, 12)
 	pad.Parent = tabContent
 	
 	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 8)
+	layout.Padding = UDim.new(0, 10)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = tabContent
 	
@@ -172,6 +172,7 @@ function CoreUI:AddSection(parent: GuiObject, title: string): Frame
 	section.Size = UDim2.new(1, 0, 0, 0)
 	section.AutomaticSize = Enum.AutomaticSize.Y
 	section.BackgroundTransparency = 1
+	section.BorderSizePixel = 0
 	section.ClipsDescendants = true
 	section.Parent = parent
 
@@ -180,6 +181,7 @@ function CoreUI:AddSection(parent: GuiObject, title: string): Frame
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = section
 
+	-- standalone boxed header [ Option Types ]
 	local headerBox = Instance.new("Frame")
 	headerBox.Name = "HeaderBox"
 	headerBox.Size = UDim2.new(1, 0, 0, 24)
@@ -213,14 +215,15 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	row.Name = featureId .. "Row"
 	row.Size = UDim2.new(1, 0, 0, 24)
 	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
 	row.ClipsDescendants = true
 	row.Parent = section
 
 	-- Segment 1: [ X ]
 	local checkBtn = Instance.new("TextButton")
 	checkBtn.Name = "CheckBtn"
-	checkBtn.Size = UDim2.new(0, 22, 0, 22)
-	checkBtn.Position = UDim2.new(0, 0, 0.5, -11)
+	checkBtn.Size = UDim2.new(0, 24, 1, 0)
+	checkBtn.Position = UDim2.new(0, 0, 0, 0)
 	checkBtn.BackgroundColor3 = if feature.state then UI.Theme.Accent else UI.Theme.Container
 	checkBtn.BorderSizePixel = 0
 	checkBtn.Text = if feature.state then "X" else ""
@@ -238,8 +241,8 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	-- Segment 2: [ Option Name ]
 	local titleBox = Instance.new("TextButton")
 	titleBox.Name = "TitleBox"
-	titleBox.Size = UDim2.new(1, -86, 0, 22)
-	titleBox.Position = UDim2.new(0, 25, 0.5, -11)
+	titleBox.Size = UDim2.new(1, -92, 1, 0)
+	titleBox.Position = UDim2.new(0, 28, 0, 0)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BorderSizePixel = 0
 	titleBox.Text = ""
@@ -252,8 +255,8 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	titleStroke.Parent = titleBox
 
 	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(1, -6, 1, 0)
-	titleLabel.Position = UDim2.new(0, 4, 0, 0)
+	titleLabel.Size = UDim2.new(1, -8, 1, 0)
+	titleLabel.Position = UDim2.new(0, 6, 0, 0)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = name
 	titleLabel.TextColor3 = UI.Theme.TextPrimary
@@ -265,8 +268,8 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	-- Segment 3: [ Bind ]
 	local keybindBtn = Instance.new("TextButton")
 	keybindBtn.Name = "KeybindBtn"
-	keybindBtn.Size = UDim2.new(0, 58, 0, 22)
-	keybindBtn.Position = UDim2.new(1, -58, 0.5, -11)
+	keybindBtn.Size = UDim2.new(0, 60, 1, 0)
+	keybindBtn.Position = UDim2.new(1, -60, 0, 0)
 	keybindBtn.BackgroundColor3 = UI.Theme.Container
 	keybindBtn.BorderSizePixel = 0
 	keybindBtn.Text = if feature.keybind then string.format("[%s]", feature.keybind.Name) else "[None]"
@@ -313,15 +316,16 @@ end
 function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number, default: number, callback: (number) -> ())
 	local row = Instance.new("Frame")
 	row.Name = name .. "SliderRow"
-	row.Size = UDim2.new(1, 0, 0, 42)
+	row.Size = UDim2.new(1, 0, 0, 46)
 	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
 	row.ClipsDescendants = true
 	row.Parent = section
 
 	-- header line: [ Option Name ] + [ Val ]
 	local titleBox = Instance.new("Frame")
 	titleBox.Name = "TitleBox"
-	titleBox.Size = UDim2.new(1, -48, 0, 20)
+	titleBox.Size = UDim2.new(1, -54, 0, 22)
 	titleBox.Position = UDim2.new(0, 0, 0, 0)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BorderSizePixel = 0
@@ -329,32 +333,32 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 
 	local titleStroke = Instance.new("UIStroke")
 	titleStroke.Color = UI.Theme.Border
-	titleStroke.Thickness = 1
+	titleStroke.Thickness = 1.2
 	titleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	titleStroke.Parent = titleBox
 
 	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(1, -6, 1, 0)
-	titleLabel.Position = UDim2.new(0, 4, 0, 0)
+	titleLabel.Size = UDim2.new(1, -8, 1, 0)
+	titleLabel.Position = UDim2.new(0, 6, 0, 0)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = name
 	titleLabel.TextColor3 = UI.Theme.TextPrimary
 	titleLabel.Font = UI.Theme.BodyFont
-	titleLabel.TextSize = 10
+	titleLabel.TextSize = 11
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.Parent = titleBox
 
 	local valBox = Instance.new("Frame")
 	valBox.Name = "ValBox"
-	valBox.Size = UDim2.new(0, 44, 0, 20)
-	valBox.Position = UDim2.new(1, -44, 0, 0)
+	valBox.Size = UDim2.new(0, 50, 0, 22)
+	valBox.Position = UDim2.new(1, -50, 0, 0)
 	valBox.BackgroundColor3 = UI.Theme.Container
 	valBox.BorderSizePixel = 0
 	valBox.Parent = row
 
 	local valStroke = Instance.new("UIStroke")
 	valStroke.Color = UI.Theme.Border
-	valStroke.Thickness = 1
+	valStroke.Thickness = 1.2
 	valStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	valStroke.Parent = valBox
 
@@ -364,21 +368,21 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	valLabel.Text = tostring(default)
 	valLabel.TextColor3 = UI.Theme.Accent
 	valLabel.Font = UI.Theme.MonoFont
-	valLabel.TextSize = 10
+	valLabel.TextSize = 11
 	valLabel.Parent = valBox
 
 	-- track
 	local bar = Instance.new("Frame")
 	bar.Name = "SliderTrack"
-	bar.Size = UDim2.new(1, 0, 0, 14)
-	bar.Position = UDim2.new(0, 0, 0, 24)
-	bar.BackgroundColor3 = UI.Theme.Container
+	bar.Size = UDim2.new(1, 0, 0, 16)
+	bar.Position = UDim2.new(0, 0, 0, 26)
+	bar.BackgroundColor3 = UI.Theme.ContainerDark
 	bar.BorderSizePixel = 0
 	bar.Parent = row
 
 	local barStroke = Instance.new("UIStroke")
 	barStroke.Color = UI.Theme.Border
-	barStroke.Thickness = 1
+	barStroke.Thickness = 1.2
 	barStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	barStroke.Parent = bar
 

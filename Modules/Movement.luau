@@ -23,7 +23,7 @@ function Movement.init(window: any)
 	local flightSection = window:AddSection(leftCol, "Flight & Collision")
 	
 	local noclipConn: RBXScriptConnection? = nil
-	window:AddToggle(flightSection, "noclip_toggle", "Noclip", false, Enum.KeyCode.N, function(enabled)
+	window:AddToggle(flightSection, "noclip_toggle", "Noclip", false, nil, function(enabled)
 		if enabled then
 			noclipConn = RunService.Stepped:Connect(function()
 				if LocalPlayer.Character then
@@ -41,7 +41,7 @@ function Movement.init(window: any)
 	end)
 	
 	local infJumpConn: RBXScriptConnection? = nil
-	window:AddToggle(flightSection, "inf_jump", "Infinite Jump", false, Enum.KeyCode.Space, function(enabled)
+	window:AddToggle(flightSection, "inf_jump", "Infinite Jump", false, nil, function(enabled)
 		if enabled then
 			infJumpConn = UserInputService.JumpRequest:Connect(function()
 				if LocalPlayer.Character then

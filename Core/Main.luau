@@ -39,16 +39,16 @@ window:AddBanner(mainTab)
 
 local leftCol, rightCol = window:CreateColumns(mainTab)
 
--- LEFT COLUMN: Self Configs & Movement
+-- LEFT COLUMN: Self Configs & Movement (Keybinds default to nil)
 local selfSection = window:AddSection(leftCol, "Self Configs")
 
-window:AddToggle(selfSection, "walkspeed_boost", "WalkSpeed Boost", false, Enum.KeyCode.V, function(enabled)
+window:AddToggle(selfSection, "walkspeed_boost", "WalkSpeed Boost", false, nil, function(enabled)
 	if humanoid then
 		humanoid.WalkSpeed = if enabled then 32 else 16
 	end
 end)
 
-window:AddToggle(selfSection, "jumppower_boost", "JumpPower Boost", false, Enum.KeyCode.B, function(enabled)
+window:AddToggle(selfSection, "jumppower_boost", "JumpPower Boost", false, nil, function(enabled)
 	if humanoid then
 		humanoid.JumpPower = if enabled then 100 else 50
 	end
@@ -64,7 +64,7 @@ end)
 local moveSection = window:AddSection(leftCol, "Movement")
 
 local noclipConn: RBXScriptConnection? = nil
-window:AddToggle(moveSection, "noclip_toggle", "Noclip", false, Enum.KeyCode.N, function(enabled)
+window:AddToggle(moveSection, "noclip_toggle", "Noclip", false, nil, function(enabled)
 	if enabled then
 		noclipConn = RunService.Stepped:Connect(function()
 			if localPlayer.Character then
@@ -82,7 +82,7 @@ window:AddToggle(moveSection, "noclip_toggle", "Noclip", false, Enum.KeyCode.N, 
 end)
 
 local infJumpConn: RBXScriptConnection? = nil
-window:AddToggle(moveSection, "inf_jump", "Infinite Jump", false, Enum.KeyCode.Space, function(enabled)
+window:AddToggle(moveSection, "inf_jump", "Infinite Jump", false, nil, function(enabled)
 	if enabled then
 		infJumpConn = UserInputService.JumpRequest:Connect(function()
 			if localPlayer.Character then
@@ -111,10 +111,10 @@ window:AddSlider(moveSection, "Hip Height Offset", 0, 20, 0, function(value)
 	end
 end)
 
--- RIGHT COLUMN: Combat
+-- RIGHT COLUMN: Combat (Keybinds default to nil)
 local combatSection = window:AddSection(rightCol, "Combat")
 
-window:AddToggle(combatSection, "silent_aim", "Silent Aim", false, Enum.KeyCode.Q, function(enabled)
+window:AddToggle(combatSection, "silent_aim", "Silent Aim", false, nil, function(enabled)
 	print("[Combat] Silent Aim:", enabled)
 end)
 

@@ -21,7 +21,7 @@ function Combat.init(window: any)
 	-- Targeting & Aim
 	local aimSection = window:AddSection(leftCol, "Aim Assistance")
 	
-	window:AddToggle(aimSection, "silent_aim", "Silent Aim", false, Enum.KeyCode.Q, function(enabled)
+	window:AddToggle(aimSection, "silent_aim", "Silent Aim", false, nil, function(enabled)
 		print("[Combat] Silent Aim:", enabled)
 	end)
 	

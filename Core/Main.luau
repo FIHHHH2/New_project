@@ -93,8 +93,12 @@ window:AddToggle(moveSection, "noclip_toggle", "Noclip", false, nil, function(en
 		end
 		-- Cleanly restore limb collision upon disabling noclip
 		if localPlayer.Character then
+			local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
+			if hum then
+				hum:ChangeState(Enum.HumanoidStateType.Running)
+			end
 			for _, part in ipairs(localPlayer.Character:GetDescendants()) do
-				if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+				if part:IsA("BasePart") and (part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Torso" or part.Name == "CollisionPart" or part.Name == "Head") then
 					part.CanCollide = true
 				end
 			end

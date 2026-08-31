@@ -468,12 +468,12 @@ function MusicTracker.new()
 		end
 
 		local t = os.clock()
-		local peakMult = math.clamp(currentAudioPeak * 2.2 + 0.50, 0.6, 2.0)
+		local peakMult = math.clamp(currentAudioPeak * 2.4 + 0.60, 0.7, 2.2)
 		for i, bar in ipairs(visualizerBars) do
 			local specVal = currentSpectrum[i] or 0.35
 			local wave = math.abs(math.sin(t * 14 + i * 0.80)) * 0.45 + 0.55
-			local h = math.clamp(math.floor(specVal * 48 * peakMult * wave + 4), 4, 46)
-			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), 0.50)
+			local h = math.clamp(math.floor(specVal * 50 * peakMult * wave + 4), 4, 46)
+			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), 0.55)
 		end
 	end)
 

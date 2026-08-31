@@ -4,6 +4,7 @@ Connects Windows Media Session (Spotify, SoundCloud, YouTube, Apple Music)
 and native Windows Audio Engine to the Modular Roblox UI suite at http://127.0.0.1:8888.
 
 Features:
+- Isolated Per-Process Media Audio Session Metering (ignores Roblox, Discord, Mic, Game sounds)
 - Sub-Second Precision Synced Lyrics Engine with Real-Time UTC Timestamp Tracking
 - High-Sensitivity Audio Session Metering with Ultra-Responsive AGC & 16-Band Visualizer Spectrum
 - True HSV/HSL Rich Palette Extractor (Vibrant Adaptive Cover Theme)
@@ -44,7 +45,7 @@ current_media = {
     "hasCover": False,
     "coverVersion": 0,
     "audioPeak": 0.0,
-    "spectrum": [0.15] * 16,
+    "spectrum": [0.20] * 16,
     "theme": {
         "accent": [55, 175, 245],
         "bg": [18, 18, 22],
@@ -58,36 +59,64 @@ cover_cache = {}
 lyrics_cache = {}
 cover_version_counter = 1
 
-# ── High-Sensitivity Audio Peak Metering with Instant AGC ──────────
-audio_meter = None
-try:
-    from pycaw.pycaw import AudioUtilities, IAudioMeterInformation
-    from comtypes import CLSCTX_ALL
-    speakers = AudioUtilities.GetSpeakers()
-    if speakers and hasattr(speakers, "_dev") and speakers._dev:
-        interface = speakers._dev.Activate(IAudioMeterInformation._iid_, CLSCTX_ALL, None)
-        audio_meter = interface.QueryInterface(IAudioMeterInformation)
-except Exception:
-    audio_meter = None
+# ── Isolated Media Audio Metering (Excludes Mic, Roblox, Discord, Games) ──
+EXCLUDE_PROCS = {
+    "robloxplayerbeta.exe", "roblox.exe", "discord.exe", "telegram.exe",
+    "whatsapp.exe", "slack.exe", "teams.exe", "zoom.exe", "obs64.exe",
+    "obs32.exe", "steam.exe", "svchost.exe", "system", "audiodg.exe"
+}
+
+MEDIA_PROCS = {
+    "spotify.exe", "applemusic.exe", "tidal.exe", "chrome.exe",
+    "msedge.exe", "firefox.exe", "librewolf.exe", "brave.exe",
+    "opera.exe", "vivaldi.exe", "vlc.exe", "music.ui.exe",
+    "wmplayer.exe", "foobar2000.exe", "itunes.exe", "aimp.exe"
+}
 
 smoothed_peak = 0.0
 max_recent_peak = 0.02
-band_energy = [0.15] * 16
+band_energy = [0.20] * 16
 phase = 0.0
+
+def get_media_peak() -> float:
+    try:
+        from pycaw.pycaw import AudioUtilities, IAudioMeterInformation
+        sessions = AudioUtilities.GetAllSessions()
+        media_peak = 0.0
+        fallback_peak = 0.0
+
+        for s in sessions:
+            if not s.Process:
+                continue
+            try:
+                pname = s.Process.name().lower()
+            except Exception:
+                continue
+
+            if pname in EXCLUDE_PROCS:
+                continue
+
+            if s._ctl:
+                try:
+                    meter = s._ctl.QueryInterface(IAudioMeterInformation)
+                    peak = float(meter.GetPeakValue())
+                    if pname in MEDIA_PROCS:
+                        media_peak = max(media_peak, peak)
+                    else:
+                        fallback_peak = max(fallback_peak, peak)
+                except Exception:
+                    pass
+
+        return media_peak if media_peak > 0.001 else fallback_peak
+    except Exception:
+        return 0.0
 
 def update_audio_spectrum():
     global smoothed_peak, max_recent_peak, band_energy, phase
-    peak = 0.0
-    if audio_meter:
-        try:
-            peak = float(audio_meter.GetPeakValue())
-        except Exception:
-            peak = 0.0
-    elif current_media["isPlaying"]:
-        peak = 0.40 + 0.30 * math.sin(time.time() * 6)
+    peak = get_media_peak()
 
-    # If system is outputting sound, mark media active
-    if peak > 0.002:
+    # If media is outputting sound, mark media active
+    if peak > 0.001:
         current_media["isPlaying"] = True
 
     # Ultra-Sensitive Automatic Gain Control
@@ -97,7 +126,7 @@ def update_audio_spectrum():
         max_recent_peak = max(0.0005, max_recent_peak * 0.988)
 
     ratio = min(1.0, peak / max(0.0005, max_recent_peak))
-    boosted_peak = math.pow(ratio, 0.28) * 1.85 if ratio > 0 else 0.0
+    boosted_peak = math.pow(ratio, 0.28) * 1.95 if ratio > 0 else 0.0
     boosted_peak = max(0.0, min(1.0, boosted_peak))
 
     # Fast attack, smooth decay
@@ -111,11 +140,11 @@ def update_audio_spectrum():
     phase += 0.25
     new_spectrum = []
     for i in range(16):
-        bass_mult = 1.65 if i < 5 else (1.35 if i < 10 else 1.10)
+        bass_mult = 1.70 if i < 5 else (1.40 if i < 10 else 1.15)
         osc = math.sin(phase * (1.3 + i * 0.22) + i * 0.55) * 0.40 + 0.60
-        noise = (random.random() - 0.5) * 0.12
-        val = max(0.20, min(1.0, (smoothed_peak * bass_mult * osc + noise) * 1.30))
-        band_energy[i] = band_energy[i] * 0.25 + val * 0.75
+        noise = (random.random() - 0.5) * 0.10
+        val = max(0.20, min(1.0, (smoothed_peak * bass_mult * osc + noise) * 1.35))
+        band_energy[i] = band_energy[i] * 0.22 + val * 0.78
         new_spectrum.append(round(band_energy[i], 3))
 
     current_media["spectrum"] = new_spectrum
@@ -415,7 +444,6 @@ async def fetch_windows_media():
                 current_media["artist"] = a
                 current_media["isPlaying"] = is_playing
 
-                # Real-time position calculation taking UTC elapsed delta into account
                 pos = 0.0
                 dur = 0.0
                 if timeline:
@@ -469,7 +497,6 @@ async def fetch_windows_media():
                 current_media["hasCover"] = len(current_cover_bytes) > 0
                 current_media["coverVersion"] = cover_version_counter
 
-                # Fetch real-time synced lyrics for the exact live timestamp
                 current_lyric = get_current_lyric_line(t, a, pos, dur)
                 current_media["lyrics"] = current_lyric
     except Exception:
@@ -554,7 +581,7 @@ def run_media_loop():
             asyncio.run(fetch_windows_media())
         except Exception:
             pass
-        time.sleep(0.2) # High-precision 5 Hz media timestamp updates
+        time.sleep(0.2)
 
 def run_audio_loop():
     while True:

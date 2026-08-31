@@ -47,11 +47,11 @@ function ChatWidget.new(): ChatWidgetInstance
 	local TOPBAR_H = 28
 	local BOTTOM_H = 28
 
-	-- ── Main Widget Frame ─────────────────────────────────────────────
+	-- ── Main Widget Frame (Positioned beneath Roblox TopBar) ───────────
 	local widget = Instance.new("Frame")
 	widget.Name = "ChatWidget"
 	widget.Size = UDim2.new(0, DEFAULT_W, 0, DEFAULT_H)
-	widget.Position = UDim2.new(0, 14, 0, 14)
+	widget.Position = UDim2.new(0, 14, 0, 52)
 	widget.BackgroundColor3 = UI.Theme.Background
 	widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	widget.BorderSizePixel = 0
@@ -524,6 +524,15 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	sendBtn.MouseButton1Click:Connect(function() sendMessage(textBox.Text) end)
 	textBox.FocusLost:Connect(function(enter) if enter then sendMessage(textBox.Text) end end)
+
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Slash then
+			widget.Visible = true
+			task.defer(function()
+				textBox:CaptureFocus()
+			end)
+		end
+	end)
 
 	local quickPhrases = { "gg", "Hello!", "Nice one!", "Look out!", "Need help!" }
 	local qIdx = 1

@@ -249,59 +249,70 @@ window:AddSlider(moveSection, "Hip Height Offset", 0, 20, 0, function(value)
 end)
 
 -- ============================================================
--- COMBAT TAB CONTENT
+-- COMBAT TAB CONTENT (MINI SUB-TABS: AIM ASSISTANCE & HITBOXES)
 -- ============================================================
-local combatLeftCol, combatRightCol = window:CreateColumns(combatTab)
+local combatSubTabs = window:CreateSubTabs(combatTab, { "Aim Assistance", "Hitbox Modifiers" })
+local aimSubTab = combatSubTabs["Aim Assistance"]
+local hitSubTab = combatSubTabs["Hitbox Modifiers"]
 
--- Aim Assistance & Tracking
-local aimSection = window:AddSection(combatLeftCol, "Aim Assistance")
+-- ── SUB-TAB 1: AIM ASSISTANCE ────────────────────────────────
+local aimLeftCol, aimRightCol = window:CreateColumns(aimSubTab)
 
-window:AddToggle(aimSection, "silent_aim", "Silent Aim", false, nil, function(enabled)
+-- Left Column: Targeting & Automation
+local targetingSection = window:AddSection(aimLeftCol, "Targeting & Automation")
+
+window:AddToggle(targetingSection, "silent_aim", "Silent Aim", false, nil, function(enabled)
 	Combat.SilentAim = enabled
 end)
 
-window:AddToggle(aimSection, "wall_bang", "Wall Bang (Shoot Thru Walls)", false, nil, function(enabled)
+window:AddToggle(targetingSection, "wall_bang", "Wall Bang (Shoot Thru Walls)", false, nil, function(enabled)
 	Combat.Wallbang = enabled
 end)
 
-window:AddToggle(aimSection, "target_head", "Target Head (Off = Torso)", true, nil, function(enabled)
+window:AddToggle(targetingSection, "target_head", "Target Head (Off = Torso)", true, nil, function(enabled)
 	Combat.TargetPart = if enabled then "Head" else "Torso"
 end)
 
-window:AddToggle(aimSection, "aim_tracking", "Aim Tracking (Camera Lock)", false, nil, function(enabled)
-	Combat.AimTracking = enabled
-end)
-
-window:AddToggle(aimSection, "aim_always", "Always Lock (Ignore RMB Hold)", false, nil, function(enabled)
-	Combat.AimMode = if enabled then "Always" else "Hold RMB"
-end)
-
-window:AddToggle(aimSection, "track_teammates", "Track Teammates", false, nil, function(enabled)
+window:AddToggle(targetingSection, "track_teammates", "Track Teammates", false, nil, function(enabled)
 	Combat.TrackTeammates = enabled
 end)
 
-window:AddToggle(aimSection, "trigger_bot", "Trigger Bot", false, nil, function(enabled)
+window:AddToggle(targetingSection, "trigger_bot", "Trigger Bot", false, nil, function(enabled)
 	Combat.TriggerBot = enabled
 end)
 
-window:AddToggle(aimSection, "fov_circle", "FOV Circle", false, nil, function(enabled)
+-- Right Column: Camera Tracking & FOV Dynamics
+local trackingSection = window:AddSection(aimRightCol, "Tracking & FOV Dynamics")
+
+window:AddToggle(trackingSection, "aim_tracking", "Aim Tracking (Camera Lock)", false, nil, function(enabled)
+	Combat.AimTracking = enabled
+end)
+
+window:AddToggle(trackingSection, "aim_always", "Always Lock (Ignore RMB Hold)", false, nil, function(enabled)
+	Combat.AimMode = if enabled then "Always" else "Hold RMB"
+end)
+
+window:AddToggle(trackingSection, "fov_circle", "FOV Circle", false, nil, function(enabled)
 	Combat.FovCircle = enabled
 end)
 
-window:AddSlider(aimSection, "FOV Radius", 30, 360, 120, function(value)
+window:AddSlider(trackingSection, "FOV Radius", 30, 360, 120, function(value)
 	Combat.FovRadius = value
 end)
 
-window:AddSlider(aimSection, "Hit Chance %", 10, 100, 100, function(value)
+window:AddSlider(trackingSection, "Hit Chance %", 10, 100, 100, function(value)
 	Combat.HitChance = value
 end)
 
-window:AddSlider(aimSection, "Aim Smoothing", 5, 100, 25, function(value)
+window:AddSlider(trackingSection, "Aim Smoothing", 5, 100, 25, function(value)
 	Combat.Smoothing = value / 100
 end)
 
--- Hitboxes & Range
-local hitSection = window:AddSection(combatRightCol, "Hitbox Modifiers")
+-- ── SUB-TAB 2: HITBOX MODIFIERS ──────────────────────────────
+local hitLeftCol, hitRightCol = window:CreateColumns(hitSubTab)
+
+-- Left Column: Hitbox Expansion
+local hitSection = window:AddSection(hitLeftCol, "Hitbox Expansion")
 
 window:AddToggle(hitSection, "expand_hitboxes", "Expand Hitbox's", false, nil, function(enabled)
 	Combat.ExpandHitboxes = enabled
@@ -312,6 +323,14 @@ end)
 
 window:AddSlider(hitSection, "Hitbox Size", 2, 30, 12, function(value)
 	Combat.HitboxSize = value
+end)
+
+-- Right Column: Hitbox Operations & Utilities
+local hitOpsSection = window:AddSection(hitRightCol, "Hitbox Operations")
+
+window:AddButton(hitOpsSection, "Reset All Hitboxes", function()
+	Combat.resetHitboxes()
+	window:Notify("Hitboxes", "All player hitboxes restored to default", 2.5)
 end)
 
 -- ============================================================

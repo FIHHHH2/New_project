@@ -46,6 +46,7 @@ function CoreUI.new(titleText: string)
 	self.ConfigsTab = nil
 	self.ActiveToggles = {}
 	self.SliderFills = {}
+	self.SubTabGroups = {}
 	
 	-- Wire toggle click handlers for Settings and Configs
 	if self.SettingsBtn then
@@ -87,6 +88,14 @@ function CoreUI:SetTheme(themeName: string)
 	for _, fill in ipairs(self.SliderFills) do
 		if fill and fill.Parent then
 			fill.BackgroundColor3 = UI.Theme.Accent
+		end
+	end
+	-- Reapply active subtab visuals across all registered subtab bars
+	if self.SubTabGroups then
+		for _, subTabGroup in ipairs(self.SubTabGroups) do
+			if subTabGroup.UpdateTheme then
+				subTabGroup.UpdateTheme()
+			end
 		end
 	end
 end
@@ -314,7 +323,279 @@ function CoreUI:AddBanner(tabObj): Frame
 	return UI.createBannerCard(tabObj.Page)
 end
 
-function CoreUI:CreateColumns(tabObj): (Frame, Frame)
+function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
+	local parentPage: GuiObject
+	if type(parentTab) == "table" and parentTab.Page then
+		parentPage = parentTab.Page
+	elseif typeof(parentTab) == "Instance" and parentTab:IsA("GuiObject") then
+		parentPage = parentTab
+	else
+		error("[CoreUI:CreateSubTabs] Invalid parentTab provided.")
+	end
+
+	-- 1. Horizontal Sub-Tab Bar Container (LayoutOrder = 1)
+	local subTabBar = Instance.new("Frame")
+	subTabBar.Name = "SubTabBar"
+	subTabBar.Size = UDim2.new(1, -4, 0, 26)
+	subTabBar.Position = UDim2.new(0, 2, 0, 0)
+	subTabBar.BackgroundColor3 = UI.Theme.ContainerDark
+	subTabBar.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	subTabBar.BorderSizePixel = 0
+	subTabBar.LayoutOrder = 1
+	subTabBar.ClipsDescendants = false
+	subTabBar.Parent = parentPage
+	UI.registerThemeElement(subTabBar, "ContainerDark")
+
+	local barStroke = Instance.new("UIStroke")
+	barStroke.Color = UI.Theme.Border
+	barStroke.Thickness = 1.2
+	barStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	barStroke.Parent = subTabBar
+	UI.registerThemeElement(barStroke, "Border")
+
+	local barPadding = Instance.new("UIPadding")
+	barPadding.PaddingLeft = UDim.new(0, 3)
+	barPadding.PaddingRight = UDim.new(0, 3)
+	barPadding.PaddingTop = UDim.new(0, 2)
+	barPadding.PaddingBottom = UDim.new(0, 2)
+	barPadding.Parent = subTabBar
+
+	local barLayout = Instance.new("UIListLayout")
+	barLayout.FillDirection = Enum.FillDirection.Horizontal
+	barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	barLayout.Padding = UDim.new(0, 4)
+	barLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	barLayout.Parent = subTabBar
+
+	-- 2. Sub-Pages Container (LayoutOrder = 2)
+	local subPagesContainer = Instance.new("Frame")
+	subPagesContainer.Name = "SubPagesContainer"
+	subPagesContainer.Size = UDim2.new(1, 0, 0, 0)
+	subPagesContainer.AutomaticSize = Enum.AutomaticSize.Y
+	subPagesContainer.BackgroundTransparency = 1
+	subPagesContainer.BorderSizePixel = 0
+	subPagesContainer.LayoutOrder = 2
+	subPagesContainer.ClipsDescendants = false
+	subPagesContainer.Parent = parentPage
+
+	local subPagesLayout = Instance.new("UIListLayout")
+	subPagesLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	subPagesLayout.Padding = UDim.new(0, 0)
+	subPagesLayout.Parent = subPagesContainer
+
+	local subTabs = {
+		Bar = subTabBar,
+		Container = subPagesContainer,
+		ActiveSubTab = nil :: any,
+		Tabs = {} :: {[string]: any},
+		SubTabList = {} :: {any},
+		OnTabChanged = nil :: ((string, string?) -> ())?,
+		Select = nil :: any,
+		GetActive = nil :: any,
+		UpdateTheme = nil :: any,
+	}
+
+	local numTabs = #subTabNames
+	local tabWidthScale = 1 / math.max(1, numTabs)
+	local spacingOffset = math.floor((4 * (numTabs - 1)) / numTabs)
+
+	for idx, name in ipairs(subTabNames) do
+		-- Sub-Tab Button
+		local btn = Instance.new("TextButton")
+		btn.Name = name .. "SubTabBtn"
+		btn.Size = UDim2.new(tabWidthScale, -spacingOffset, 1, 0)
+		btn.BackgroundColor3 = if idx == 1 then UI.Theme.Accent else UI.Theme.Container
+		btn.BackgroundTransparency = if idx == 1 then 0 else UI.Theme.ContainerTransparency
+		btn.BorderSizePixel = 0
+		btn.Text = string.format("[ %s ]", name)
+		btn.TextColor3 = if idx == 1 then UI.Theme.AccentText else UI.Theme.TextSecondary
+		btn.Font = UI.Fonts.Header
+		btn.TextSize = 11
+		btn.LayoutOrder = idx
+		btn.Parent = subTabBar
+
+		local btnGrad = Instance.new("UIGradient")
+		btnGrad.Name = "ActiveGradient"
+		btnGrad.Rotation = 90
+		btnGrad.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 220))
+		})
+		btnGrad.Enabled = (idx == 1)
+		btnGrad.Parent = btn
+
+		local btnStroke = Instance.new("UIStroke")
+		btnStroke.Color = if idx == 1 then UI.Theme.Border else UI.Theme.BorderDim
+		btnStroke.Thickness = if idx == 1 then 1.5 else 1.0
+		btnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		btnStroke.Parent = btn
+
+		-- Sub-Tab Page
+		local page = Instance.new("Frame")
+		page.Name = name .. "SubPage"
+		page.Size = UDim2.new(1, 0, 0, 0)
+		page.AutomaticSize = Enum.AutomaticSize.Y
+		page.BackgroundTransparency = 1
+		page.BorderSizePixel = 0
+		page.Visible = (idx == 1)
+		page.ClipsDescendants = false
+		page.LayoutOrder = idx
+		page.Parent = subPagesContainer
+
+		local pageLayout = Instance.new("UIListLayout")
+		pageLayout.Padding = UDim.new(0, 8)
+		pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		pageLayout.Parent = page
+
+		local subTabObj = {
+			Name = name,
+			Button = btn,
+			Page = page,
+			Stroke = btnStroke,
+			Gradient = btnGrad,
+			ParentTab = parentTab,
+			Index = idx
+		}
+
+		-- Hover effects
+		btn.MouseEnter:Connect(function()
+			if subTabs.ActiveSubTab ~= subTabObj then
+				TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 1.5, Color = UI.Theme.Border }):Play()
+				TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark, TextColor3 = UI.Theme.TextPrimary }):Play()
+			end
+		end)
+
+		btn.MouseLeave:Connect(function()
+			if subTabs.ActiveSubTab ~= subTabObj then
+				TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 1.0, Color = UI.Theme.BorderDim }):Play()
+				TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container, TextColor3 = UI.Theme.TextSecondary }):Play()
+			end
+		end)
+
+		btn.MouseButton1Click:Connect(function()
+			subTabs:Select(name)
+		end)
+
+		subTabs[name] = subTabObj
+		subTabs[idx] = subTabObj
+		table.insert(subTabs.SubTabList, subTabObj)
+
+		if idx == 1 then
+			subTabs.ActiveSubTab = subTabObj
+		end
+	end
+
+	-- SubTab Selection Function
+	function subTabs:Select(target: any)
+		local targetObj = if type(target) == "string" then subTabs[target] elseif type(target) == "number" then subTabs[target] else target
+		if not targetObj or subTabs.ActiveSubTab == targetObj then return end
+
+		local oldSubTab = subTabs.ActiveSubTab
+		subTabs.ActiveSubTab = targetObj
+
+		-- Deactivate Old SubTab
+		if oldSubTab then
+			oldSubTab.Page.Visible = false
+			oldSubTab.Page.Position = UDim2.new(0, 0, 0, 0)
+			if oldSubTab.Button and oldSubTab.Stroke then
+				TweenService:Create(oldSubTab.Button, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {
+					BackgroundColor3 = UI.Theme.Container,
+					BackgroundTransparency = UI.Theme.ContainerTransparency,
+					TextColor3 = UI.Theme.TextSecondary
+				}):Play()
+				TweenService:Create(oldSubTab.Stroke, TweenInfo.new(0.18), {
+					Color = UI.Theme.BorderDim,
+					Thickness = 1.0
+				}):Play()
+				if oldSubTab.Gradient then oldSubTab.Gradient.Enabled = false end
+			end
+		end
+
+		-- Activate New SubTab Button
+		if targetObj.Button and targetObj.Stroke then
+			TweenService:Create(targetObj.Button, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				BackgroundColor3 = UI.Theme.Accent,
+				BackgroundTransparency = 0,
+				TextColor3 = UI.Theme.AccentText
+			}):Play()
+			TweenService:Create(targetObj.Stroke, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Color = UI.Theme.Border,
+				Thickness = 1.5
+			}):Play()
+			if targetObj.Gradient then targetObj.Gradient.Enabled = true end
+		end
+
+		-- Activate New SubTab Page with Spring Dynamics
+		targetObj.Page.Visible = true
+		targetObj.Page.Position = UDim2.new(0, 16, 0, 0)
+		TweenService:Create(targetObj.Page, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0, 0, 0, 0)
+		}):Play()
+
+		-- Domino Ripple for Top-Level Child Elements
+		local rippleElements: {GuiObject} = {}
+		for _, child in ipairs(targetObj.Page:GetChildren()) do
+			if child:IsA("GuiObject") and not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
+				table.insert(rippleElements, child)
+			end
+		end
+
+		for idx, elem in ipairs(rippleElements) do
+			elem.Position = UDim2.new(0, 10, 0, 0)
+			task.delay((idx - 1) * 0.025, function()
+				if subTabs.ActiveSubTab == targetObj and elem and elem.Parent then
+					TweenService:Create(elem, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+						Position = UDim2.new(0, 0, 0, 0)
+					}):Play()
+				end
+			end)
+		end
+
+		if subTabs.OnTabChanged then
+			pcall(subTabs.OnTabChanged, targetObj.Name, oldSubTab and oldSubTab.Name)
+		end
+	end
+
+	function subTabs:GetActive()
+		return subTabs.ActiveSubTab
+	end
+
+	-- Theme Re-application Handler
+	subTabs.UpdateTheme = function()
+		for _, tab in ipairs(subTabs.SubTabList) do
+			if tab == subTabs.ActiveSubTab then
+				tab.Button.BackgroundColor3 = UI.Theme.Accent
+				tab.Button.BackgroundTransparency = 0
+				tab.Button.TextColor3 = UI.Theme.AccentText
+				tab.Stroke.Color = UI.Theme.Border
+				tab.Stroke.Thickness = 1.5
+				if tab.Gradient then tab.Gradient.Enabled = true end
+			else
+				tab.Button.BackgroundColor3 = UI.Theme.Container
+				tab.Button.BackgroundTransparency = UI.Theme.ContainerTransparency
+				tab.Button.TextColor3 = UI.Theme.TextSecondary
+				tab.Stroke.Color = UI.Theme.BorderDim
+				tab.Stroke.Thickness = 1.0
+				if tab.Gradient then tab.Gradient.Enabled = false end
+			end
+		end
+	end
+
+	if not self.SubTabGroups then
+		self.SubTabGroups = {}
+	end
+	table.insert(self.SubTabGroups, subTabs)
+
+	return subTabs
+end
+
+function CoreUI:CreateColumns(tabObj: any): (Frame, Frame)
+	local parentPage: GuiObject? = if type(tabObj) == "table" and tabObj.Page then tabObj.Page elseif typeof(tabObj) == "Instance" and tabObj:IsA("GuiObject") then tabObj else nil
+	if not parentPage then
+		error("[CoreUI:CreateColumns] Expected tabObj table or GuiObject instance.")
+	end
+
 	local columnsContainer = Instance.new("Frame")
 	columnsContainer.Name = "ColumnsContainer"
 	columnsContainer.Size = UDim2.new(1, 0, 0, 0)
@@ -322,7 +603,7 @@ function CoreUI:CreateColumns(tabObj): (Frame, Frame)
 	columnsContainer.BackgroundTransparency = 1
 	columnsContainer.BorderSizePixel = 0
 	columnsContainer.ClipsDescendants = false
-	columnsContainer.Parent = tabObj.Page
+	columnsContainer.Parent = parentPage
 
 	local leftCol = Instance.new("Frame")
 	leftCol.Name = "LeftColumn"

@@ -8,24 +8,24 @@
 - `UI/UI.luau`: Core styling tokens, palettes (`Dark`, `Light`, `TranslucentDark`, `TranslucentLight`, `Adaptive`), fonts, and theme persistence.
 
 ## Feature Inventory
-| # | Feature | Description | Milestone | Source |
+| # | Feature | Description | Milestone | Status |
 |---|---------|-------------|-----------|--------|
-| 1 | `CreateSubTabs` Method | Lightweight horizontal mini sub-tab bar with fluid spring transitions and theme reactivity | M1 | ORIGINAL_REQUEST §R1 |
-| 2 | `CreateColumns` Generalization | Allow `CreateColumns` to accept sub-tab page tables or GuiObjects directly | M1 | Survey (Explorer 1) |
-| 3 | Combat Tab Sub-Views | Split Combat tab into `[ Aim Assistance ]` and `[ Hitbox Modifiers ]` sub-tabs | M2 | ORIGINAL_REQUEST §R2 |
-| 4 | Config & Callback Preservation | Preserve all 13 toggle/slider config keys and engine callbacks in Combat tab | M2 | Survey (Explorer 2) |
-| 5 | Engine Systems Integrity | Preserve Aim tracking, Walk Fling, PlayerList actions, Music visualizer, Theme/Config | M3 | ORIGINAL_REQUEST §R3 |
-| 6 | Service Declarations & check_services.py | Add check_services.py to root and fix missing service accesses in ChatWidget/MusicTracker | M3 | ORIGINAL_REQUEST §Integrity |
-| 7 | UTF-8 BOM Verification | Ensure all .luau files have 0 BOM bytes | M3 | ORIGINAL_REQUEST §Integrity |
-| 8 | Git Commit & Push | Commit refactor and push cleanly to main branch | M4 | ORIGINAL_REQUEST §Integrity |
+| 1 | `CreateSubTabs` Method | Lightweight horizontal mini sub-tab bar with fluid spring transitions and theme reactivity | M1 | DONE |
+| 2 | `CreateColumns` Generalization | Allow `CreateColumns` to accept sub-tab page tables or GuiObjects directly | M1 | DONE |
+| 3 | Combat Tab Sub-Views | Split Combat tab into `[ Aim Assistance ]` and `[ Hitbox Modifiers ]` sub-tabs | M2 | DONE |
+| 4 | Config & Callback Preservation | Preserve all 13 toggle/slider config keys and engine callbacks in Combat tab | M2 | DONE |
+| 5 | Engine Systems Integrity | Preserve Aim tracking, Walk Fling, PlayerList actions, Music visualizer, Theme/Config | M3 | DONE |
+| 6 | Service Declarations & check_services.py | Add check_services.py to root and fix missing service accesses in ChatWidget/MusicTracker | M3 | DONE |
+| 7 | UTF-8 BOM Verification | Ensure all .luau files have 0 BOM bytes | M3 | DONE |
+| 8 | Git Commit & Push | Commit refactor and push cleanly to main branch | M4 | DONE |
 
 ## Milestones
-| # | Name | Scope | Dependencies | Status |
-|---|------|-------|-------------|--------|
-| 1 | CoreUI Sub-Tabs Architecture | Implement `CreateSubTabs`, update `CreateColumns` and `SetTheme` in `Core/CoreUI.luau` | none | PLANNED |
-| 2 | Combat Tab Refactor | Apply sub-tabs to Combat tab in `Core/Main.luau` with balanced columns | M1 | PLANNED |
-| 3 | Verification, Integrity & Services Fix | Place `check_services.py`, fix `Workspace` accesses, verify 0 BOM, verify engine subsystems | M1, M2 | PLANNED |
-| 4 | Git Deployment & E2E Validation | Stage all modified files, commit with descriptive message, push to main | M1, M2, M3 | PLANNED |
+| # | Name | Scope | Dependencies | Status | Key Outputs |
+|---|------|-------|-------------|--------|-------------|
+| 1 | CoreUI Sub-Tabs Architecture | Implement `CreateSubTabs`, update `CreateColumns` and `SetTheme` in `Core/CoreUI.luau` | none | DONE | `Core/CoreUI.luau`, smooth spring transitions, theme updates |
+| 2 | Combat Tab Refactor | Apply sub-tabs to Combat tab in `Core/Main.luau` with balanced columns | M1 | DONE | `Core/Main.luau`, dual sub-tabs `[ Aim Assistance ]` & `[ Hitbox Modifiers ]` |
+| 3 | Verification, Integrity & Services Fix | Place `check_services.py`, fix `Workspace` accesses, verify 0 BOM, verify engine subsystems | M1, M2 | DONE | `check_services.py` (0 missing services, 0 BOMs), engine verified |
+| 4 | Git Deployment & E2E Validation | Stage all modified files, commit with descriptive message, push to main | M1, M2, M3 | DONE | SHA `f9e90df` pushed to `origin/main` |
 
 ## Interface Contracts
 ### `CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})`
@@ -42,8 +42,3 @@
 ### `CoreUI:CreateColumns(tabObj: any): (Frame, Frame)`
 - **Inputs**: `tabObj` (Tab object, sub-tab object, or GuiObject)
 - **Output**: `leftCol` (Frame), `rightCol` (Frame)
-
-## Code Layout
-- `Core/CoreUI.luau` (Exclusive write: Worker M1)
-- `Core/Main.luau` (Exclusive write: Worker M2)
-- `check_services.py`, `UI/ChatWidget.luau`, `UI/MusicTracker.luau` (Exclusive write: Worker M3)

@@ -21,35 +21,44 @@ local playerTab = window:CreateTab("Player")
 local visualsTab = window:CreateTab("Visuals")
 local combatTab = window:CreateTab("Combat")
 
--- sections & controls on Main tab
-local selfConfigs = window:AddSection(mainTab, "Self Configs")
+-- top banner card on Main tab
+window:AddBanner(mainTab)
 
-window:AddToggle(selfConfigs, "walkspeed_boost", "WalkSpeed Boost", false, Enum.KeyCode.V, function(enabled)
+-- dual-column layout below banner
+local leftCol, rightCol = window:CreateColumns(mainTab)
+
+-- left column: Self Configs
+local selfSection = window:AddSection(leftCol, "Self Configs")
+
+window:AddToggle(selfSection, "walkspeed_boost", "WalkSpeed Boost", false, Enum.KeyCode.V, function(enabled)
 	if humanoid then
 		humanoid.WalkSpeed = if enabled then 32 else 16
 	end
 end)
 
-window:AddToggle(selfConfigs, "jumppower_boost", "JumpPower Boost", false, Enum.KeyCode.B, function(enabled)
+window:AddToggle(selfSection, "jumppower_boost", "JumpPower Boost", false, Enum.KeyCode.B, function(enabled)
 	if humanoid then
 		humanoid.JumpPower = if enabled then 100 else 50
 	end
 end)
 
-window:AddSlider(selfConfigs, "WalkSpeed Value", 16, 150, 16, function(value)
+window:AddSlider(selfSection, "Custom Speed", 16, 150, 16, function(value)
 	if humanoid then
 		humanoid.WalkSpeed = value
 	end
 end)
 
-local modulesSection = window:AddSection(mainTab, "Modules")
+-- right column: Modules & Combat
+local moduleSection = window:AddSection(rightCol, "Modules")
 
-window:AddToggle(modulesSection, "run_and_hide", "Run & Hide", false, Enum.KeyCode.H, function(enabled)
+window:AddToggle(moduleSection, "run_and_hide", "Run & Hide", false, Enum.KeyCode.H, function(enabled)
 	print("[Module] Run & Hide:", enabled)
 end)
 
-local visualConfigs = window:AddSection(visualsTab, "Rendering")
-
-window:AddToggle(visualConfigs, "esp_players", "Highlight Players", false, Enum.KeyCode.J, function(enabled)
+window:AddToggle(moduleSection, "esp_players", "Highlight Players", false, Enum.KeyCode.J, function(enabled)
 	print("[Visuals] Highlight:", enabled)
+end)
+
+window:AddToggle(moduleSection, "infinite_jump", "Infinite Jump", false, Enum.KeyCode.Space, function(enabled)
+	print("[Combat] Infinite Jump:", enabled)
 end)

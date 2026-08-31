@@ -1,21 +1,22 @@
 --!strict
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local UI = {}
 UI.__index = UI
 
 UI.Theme = {
-	Background = Color3.fromRGB(18, 18, 20),
-	BackgroundTransparency = 0.1,
-	Border = Color3.fromRGB(220, 220, 225),
-	BorderDim = Color3.fromRGB(80, 80, 90),
-	Accent = Color3.fromRGB(240, 65, 65),
+	Background = Color3.fromRGB(16, 16, 18),
+	BackgroundTransparency = 0.05,
+	Border = Color3.fromRGB(225, 225, 230),
+	BorderDim = Color3.fromRGB(75, 75, 85),
+	Accent = Color3.fromRGB(240, 60, 60),
 	AccentText = Color3.fromRGB(255, 255, 255),
 	TextPrimary = Color3.fromRGB(245, 245, 245),
-	TextSecondary = Color3.fromRGB(150, 150, 160),
-	Container = Color3.fromRGB(26, 26, 30),
-	ContainerBorder = Color3.fromRGB(60, 60, 70),
+	TextSecondary = Color3.fromRGB(155, 155, 165),
+	Container = Color3.fromRGB(24, 24, 28),
+	ContainerBorder = Color3.fromRGB(65, 65, 75),
 	HeaderFont = Enum.Font.GothamBold,
 	BodyFont = Enum.Font.GothamMedium,
 	MonoFont = Enum.Font.Code
@@ -24,8 +25,8 @@ UI.Theme = {
 function UI.createWindow(titleText: string)
 	local mainFrame = Instance.new("Frame")
 	mainFrame.Name = "MainWindow"
-	mainFrame.Size = UDim2.new(0, 680, 0, 430)
-	mainFrame.Position = UDim2.new(0.5, -340, 0.5, -215)
+	mainFrame.Size = UDim2.new(0, 720, 0, 480)
+	mainFrame.Position = UDim2.new(0.5, -360, 0.5, -240)
 	mainFrame.BackgroundColor3 = UI.Theme.Background
 	mainFrame.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	mainFrame.BorderSizePixel = 0
@@ -49,10 +50,10 @@ function UI.createWindow(titleText: string)
 	topbar.BackgroundTransparency = 1
 	topbar.Parent = mainFrame
 
-	-- topbar title box [Project Fih Menu >>>>>]
+	-- title box [Project Fih Menu >>>>>]
 	local titleBox = Instance.new("Frame")
 	titleBox.Name = "TitleBox"
-	titleBox.Size = UDim2.new(0, 220, 1, 0)
+	titleBox.Size = UDim2.new(0, 230, 1, 0)
 	titleBox.Position = UDim2.new(0, 0, 0, 0)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BorderSizePixel = 0
@@ -78,8 +79,8 @@ function UI.createWindow(titleText: string)
 	-- center decorative bar [>>>>>>>>>>>>>>>>>>>>>>>>>>>>]
 	local decoBar = Instance.new("Frame")
 	decoBar.Name = "DecoBar"
-	decoBar.Size = UDim2.new(1, -298, 1, 0)
-	decoBar.Position = UDim2.new(0, 226, 0, 0)
+	decoBar.Size = UDim2.new(1, -308, 1, 0)
+	decoBar.Position = UDim2.new(0, 236, 0, 0)
 	decoBar.BackgroundColor3 = UI.Theme.Container
 	decoBar.BorderSizePixel = 0
 	decoBar.ClipsDescendants = true
@@ -94,7 +95,7 @@ function UI.createWindow(titleText: string)
 	local decoLabel = Instance.new("TextLabel")
 	decoLabel.Size = UDim2.new(1, 0, 1, 0)
 	decoLabel.BackgroundTransparency = 1
-	decoLabel.Text = ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+	decoLabel.Text = ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 	decoLabel.TextColor3 = UI.Theme.BorderDim
 	decoLabel.Font = UI.Theme.MonoFont
 	decoLabel.TextSize = 12
@@ -283,7 +284,7 @@ function UI.createWindow(titleText: string)
 	local footerHatch = Instance.new("TextLabel")
 	footerHatch.Size = UDim2.new(1, 0, 1, 0)
 	footerHatch.BackgroundTransparency = 1
-	footerHatch.Text = "////////////////////////////////////////////////////////////////////////////////////////////////////"
+	footerHatch.Text = "////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////"
 	footerHatch.TextColor3 = UI.Theme.BorderDim
 	footerHatch.Font = UI.Theme.MonoFont
 	footerHatch.TextSize = 11
@@ -327,7 +328,7 @@ function UI.createWindow(titleText: string)
 		minimized = not minimized
 		bodyFrame.Visible = not minimized
 		footerBar.Visible = not minimized
-		mainFrame.Size = if minimized then UDim2.new(0, 680, 0, 36) else UDim2.new(0, 680, 0, 430)
+		mainFrame.Size = if minimized then UDim2.new(0, 720, 0, 36) else UDim2.new(0, 720, 0, 480)
 	end)
 
 	closeButton.MouseButton1Click:Connect(function()
@@ -335,6 +336,175 @@ function UI.createWindow(titleText: string)
 	end)
 
 	return mainFrame, topbar, sidebar, contentContainer, activeTagLabel, uiScale
+end
+
+function UI.createBannerCard(parent: GuiObject): Frame
+	local banner = Instance.new("Frame")
+	banner.Name = "PlayerGameBanner"
+	banner.Size = UDim2.new(1, -6, 0, 84)
+	banner.BackgroundColor3 = UI.Theme.Container
+	banner.BorderSizePixel = 0
+	banner.Parent = parent
+
+	local bannerStroke = Instance.new("UIStroke")
+	bannerStroke.Color = UI.Theme.Border
+	bannerStroke.Thickness = 1.5
+	bannerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	bannerStroke.Parent = banner
+
+	-- left player mugshot box
+	local mugshotBox = Instance.new("Frame")
+	mugshotBox.Name = "MugshotBox"
+	mugshotBox.Size = UDim2.new(0, 76, 1, -8)
+	mugshotBox.Position = UDim2.new(0, 4, 0, 4)
+	mugshotBox.BackgroundColor3 = UI.Theme.Background
+	mugshotBox.BorderSizePixel = 0
+	mugshotBox.Parent = banner
+
+	local mugshotStroke = Instance.new("UIStroke")
+	mugshotStroke.Color = UI.Theme.Border
+	mugshotStroke.Thickness = 1.2
+	mugshotStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	mugshotStroke.Parent = mugshotBox
+
+	local avatarImg = Instance.new("ImageLabel")
+	avatarImg.Size = UDim2.new(1, -4, 1, -4)
+	avatarImg.Position = UDim2.new(0, 2, 0, 2)
+	avatarImg.BackgroundTransparency = 1
+	avatarImg.Image = Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+	avatarImg.Parent = mugshotBox
+
+	-- right section
+	local rightSide = Instance.new("Frame")
+	rightSide.Name = "RightSide"
+	rightSide.Size = UDim2.new(1, -90, 1, -8)
+	rightSide.Position = UDim2.new(0, 84, 0, 4)
+	rightSide.BackgroundTransparency = 1
+	rightSide.Parent = banner
+
+	-- top row: [ Player Name : Game Name ]
+	local titleRow = Instance.new("Frame")
+	titleRow.Name = "TitleRow"
+	titleRow.Size = UDim2.new(1, 0, 0, 22)
+	titleRow.BackgroundColor3 = UI.Theme.Background
+	titleRow.BorderSizePixel = 0
+	titleRow.Parent = rightSide
+
+	local titleRowStroke = Instance.new("UIStroke")
+	titleRowStroke.Color = UI.Theme.Border
+	titleRowStroke.Thickness = 1.2
+	titleRowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	titleRowStroke.Parent = titleRow
+
+	local gameName = "Roblox Experience"
+	pcall(function()
+		local info = MarketplaceService:GetProductInfo(game.PlaceId)
+		if info and info.Name then
+			gameName = info.Name
+		end
+	end)
+
+	local titleRowLabel = Instance.new("TextLabel")
+	titleRowLabel.Size = UDim2.new(1, -12, 1, 0)
+	titleRowLabel.Position = UDim2.new(0, 6, 0, 0)
+	titleRowLabel.BackgroundTransparency = 1
+	titleRowLabel.Text = string.format("%s   :   %s", Players.LocalPlayer.DisplayName, gameName)
+	titleRowLabel.TextColor3 = UI.Theme.TextPrimary
+	titleRowLabel.Font = UI.Theme.HeaderFont
+	titleRowLabel.TextSize = 11
+	titleRowLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleRowLabel.Parent = titleRow
+
+	-- middle info block + game icon
+	local middleBlock = Instance.new("Frame")
+	middleBlock.Name = "MiddleBlock"
+	middleBlock.Size = UDim2.new(1, 0, 1, -26)
+	middleBlock.Position = UDim2.new(0, 0, 0, 26)
+	middleBlock.BackgroundTransparency = 1
+	middleBlock.Parent = rightSide
+
+	-- game icon (right side of middle block)
+	local gameIconBox = Instance.new("Frame")
+	gameIconBox.Name = "GameIconBox"
+	gameIconBox.Size = UDim2.new(0, 50, 1, 0)
+	gameIconBox.Position = UDim2.new(1, -50, 0, 0)
+	gameIconBox.BackgroundColor3 = UI.Theme.Background
+	gameIconBox.BorderSizePixel = 0
+	gameIconBox.Parent = middleBlock
+
+	local gameIconStroke = Instance.new("UIStroke")
+	gameIconStroke.Color = UI.Theme.Border
+	gameIconStroke.Thickness = 1.2
+	gameIconStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	gameIconStroke.Parent = gameIconBox
+
+	local gameIconImg = Instance.new("ImageLabel")
+	gameIconImg.Size = UDim2.new(1, -4, 1, -4)
+	gameIconImg.Position = UDim2.new(0, 2, 0, 2)
+	gameIconImg.BackgroundTransparency = 1
+	gameIconImg.Image = string.format("rbxthumb://type=GameIcon&id=%d&w=150&h=150", game.PlaceId)
+	gameIconImg.Parent = gameIconBox
+
+	-- info rows
+	local infoList = Instance.new("Frame")
+	infoList.Name = "InfoList"
+	infoList.Size = UDim2.new(1, -56, 1, 0)
+	infoList.BackgroundTransparency = 1
+	infoList.Parent = middleBlock
+
+	-- info row 1 [ etc ]
+	local infoRow1 = Instance.new("Frame")
+	infoRow1.Name = "InfoRow1"
+	infoRow1.Size = UDim2.new(1, 0, 0, 22)
+	infoRow1.Position = UDim2.new(0, 0, 0, 0)
+	infoRow1.BackgroundColor3 = UI.Theme.Background
+	infoRow1.BorderSizePixel = 0
+	infoRow1.Parent = infoList
+
+	local row1Stroke = Instance.new("UIStroke")
+	row1Stroke.Color = UI.Theme.Border
+	row1Stroke.Thickness = 1
+	row1Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	row1Stroke.Parent = infoRow1
+
+	local row1Label = Instance.new("TextLabel")
+	row1Label.Size = UDim2.new(1, -8, 1, 0)
+	row1Label.Position = UDim2.new(0, 6, 0, 0)
+	row1Label.BackgroundTransparency = 1
+	row1Label.Text = string.format("User: @%s | UserID: %d", Players.LocalPlayer.Name, Players.LocalPlayer.UserId)
+	row1Label.TextColor3 = UI.Theme.TextSecondary
+	row1Label.Font = UI.Theme.MonoFont
+	row1Label.TextSize = 10
+	row1Label.TextXAlignment = Enum.TextXAlignment.Left
+	row1Label.Parent = infoRow1
+
+	-- info row 2 [ etc ]
+	local infoRow2 = Instance.new("Frame")
+	infoRow2.Name = "InfoRow2"
+	infoRow2.Size = UDim2.new(1, 0, 0, 22)
+	infoRow2.Position = UDim2.new(0, 0, 0, 26)
+	infoRow2.BackgroundColor3 = UI.Theme.Background
+	infoRow2.BorderSizePixel = 0
+	infoRow2.Parent = infoList
+
+	local row2Stroke = Instance.new("UIStroke")
+	row2Stroke.Color = UI.Theme.Border
+	row2Stroke.Thickness = 1
+	row2Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	row2Stroke.Parent = infoRow2
+
+	local row2Label = Instance.new("TextLabel")
+	row2Label.Size = UDim2.new(1, -8, 1, 0)
+	row2Label.Position = UDim2.new(0, 6, 0, 0)
+	row2Label.BackgroundTransparency = 1
+	row2Label.Text = string.format("Account Age: %d days | PlaceID: %d", Players.LocalPlayer.AccountAge, game.PlaceId)
+	row2Label.TextColor3 = UI.Theme.TextSecondary
+	row2Label.Font = UI.Theme.MonoFont
+	row2Label.TextSize = 10
+	row2Label.TextXAlignment = Enum.TextXAlignment.Left
+	row2Label.Parent = infoRow2
+
+	return banner
 end
 
 return UI

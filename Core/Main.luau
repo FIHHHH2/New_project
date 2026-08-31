@@ -334,10 +334,6 @@ if gameTabTitle == "Run N Hide" then
 		RunNHide.AimWallCheck = val
 	end)
 
-	window:AddToggle(aimSection, "rnh_aim_threats", "Prioritize Threats / Shooters", true, nil, function(val)
-		RunNHide.AimPrioritizeThreat = val
-	end)
-
 	window:AddToggle(aimSection, "rnh_aim_head", "Target Head (Off = Torso)", true, nil, function(val)
 		RunNHide.AimTargetPart = if val then "Head" else "Torso"
 	end)
@@ -445,11 +441,6 @@ if gameTabTitle == "Run N Hide" then
 		end
 	end)
 
-	window:AddToggle(boundsSection, "rnh_door_phase", "Door Phase (Pass Through Closed)", false, nil, function(val)
-		RunNHide.DoorPhase = val
-		if val then RunNHide.scanAndDisableBoundaries() end
-	end)
-
 	window:AddToggle(boundsSection, "rnh_anti_void", "Anti-Void Safety Floor", false, nil, function(val)
 		RunNHide.AntiVoidFloor = val
 		RunNHide.updateVoidPlatform()
@@ -458,36 +449,14 @@ if gameTabTitle == "Run N Hide" then
 	window:AddButton(boundsSection, "Audit & Disable All Bounds Now", function()
 		RunNHide.DisableBarriers = true
 		RunNHide.DisableKillbricks = true
-		RunNHide.DoorPhase = true
 		local count = RunNHide.scanAndDisableBoundaries()
 		window:Notify("Boundary Audit", string.format("All invisible walls & killbricks purged (%d checked)", count), 3.5)
 	end)
 
-	local roleSection = window:AddSection(gameRightCol, "Role Tracker & Alerts")
+	local roleSection = window:AddSection(gameRightCol, "Role Tracker")
 
 	window:AddToggle(roleSection, "rnh_role_tracker", "Role Tracker Watcher", false, nil, function(val)
 		RunNHide.RoleTracker = val
-	end)
-
-	window:AddToggle(roleSection, "rnh_role_alert", "Shooter / Killer Reveal Alert", true, nil, function(val)
-		RunNHide.RoleNotifier = val
-	end)
-
-	window:AddButton(roleSection, "Scan All Player Roles Now", function()
-		local threats = {}
-		local sheriffs = {}
-		for _, p in ipairs(Players:GetPlayers()) do
-			if p ~= localPlayer then
-				local cat = RunNHide.getPlayerRoleCategory(p)
-				if cat == "Threat" or cat == "Armed" then
-					table.insert(threats, p.DisplayName)
-				elseif cat == "Sheriff" then
-					table.insert(sheriffs, p.DisplayName)
-				end
-			end
-		end
-		local summary = string.format("Threats: %s | Sheriffs: %s", if #threats > 0 then table.concat(threats, ", ") else "None", if #sheriffs > 0 then table.concat(sheriffs, ", ") else "None")
-		window:Notify("Role Scan", summary, 4)
 	end)
 
 	local stamSection = window:AddSection(gameRightCol, "Stamina & Ragdoll Mobility")

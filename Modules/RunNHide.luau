@@ -9,7 +9,6 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local TeleportService = game:GetService("TeleportService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera or Workspace:WaitForChild("Camera") :: Camera
@@ -29,7 +28,6 @@ local RunNHide = {
 	-- Boundary & Barrier Breaker
 	DisableBarriers = false,
 	DisableKillbricks = false,
-	DoorPhase = false,
 	AntiVoidFloor = false,
 	DisabledParts = {} :: {[BasePart]: string},
 	VoidSafetyPlat = nil :: Part?,
@@ -55,12 +53,10 @@ local RunNHide = {
 	AimSmoothing = 5,
 	AimTargetPart = "Head",
 	AimWallCheck = true,
-	AimPrioritizeThreat = true,
 	AimKeyHeld = false,
 
 	-- Role Tracker
 	RoleTracker = false,
-	RoleNotifier = true,
 	LastKnownRoles = {} :: {[Player]: string},
 
 	-- Internal states
@@ -364,11 +360,6 @@ local function neutralizeSinglePart(part: Instance)
 		part.CanQuery = false
 		RunNHide.DisabledParts[part] = "Barrier"
 	end
-
-	if RunNHide.DoorPhase and (name:find("doorhitbox") or (name:find("door") and part.Transparency >= 0.7)) then
-		part.CanCollide = false
-		RunNHide.DisabledParts[part] = "DoorHitbox"
-	end
 end
 
 function RunNHide.scanAndDisableBoundaries(): number
@@ -458,7 +449,6 @@ local function getBestAimTarget(): BasePart?
 	local screenCenter = Vector2.new(vp.X / 2, vp.Y / 2)
 	local bestTarget: BasePart? = nil
 	local shortestDist = RunNHide.AimRadius or 140
-	local highestPriority = -1
 
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p ~= LocalPlayer and p.Character then
@@ -477,20 +467,9 @@ local function getBestAimTarget(): BasePart?
 							canSee = isPartVisible(cam.CFrame.Position, part, {LocalPlayer.Character, char})
 						end
 
-						if canSee then
-							local roleCat = RunNHide.getPlayerRoleCategory(p)
-							local priority = 0
-							if RunNHide.AimPrioritizeThreat and roleCat == "Threat" then
-								priority = 2
-							elseif RunNHide.AimPrioritizeThreat and (roleCat == "Sheriff" or roleCat == "Armed") then
-								priority = 1
-							end
-
-							if priority > highestPriority or (priority == highestPriority and screenDist < shortestDist) then
-								highestPriority = priority
-								shortestDist = screenDist
-								bestTarget = part
-							end
+						if canSee and screenDist < shortestDist then
+							shortestDist = screenDist
+							bestTarget = part
 						end
 					end
 				end
@@ -611,7 +590,7 @@ function RunNHide.init(notifyCallback: ((string, string) -> ())?)
 
 	-- Boundary Watcher
 	local boundWatch = Workspace.DescendantAdded:Connect(function(child)
-		if RunNHide.DisableBarriers or RunNHide.DisableKillbricks or RunNHide.DoorPhase then
+		if RunNHide.DisableBarriers or RunNHide.DisableKillbricks then
 			task.wait(0.05)
 			neutralizeSinglePart(child)
 		end
@@ -619,7 +598,7 @@ function RunNHide.init(notifyCallback: ((string, string) -> ())?)
 	table.insert(connections, boundWatch)
 
 	local boundHeartbeat = RunService.Heartbeat:Connect(function()
-		if RunNHide.DisableBarriers or RunNHide.DisableKillbricks or RunNHide.DoorPhase then
+		if RunNHide.DisableBarriers or RunNHide.DisableKillbricks then
 			for part, _ in pairs(RunNHide.DisabledParts) do
 				if part and part.Parent then
 					if part.CanCollide then part.CanCollide = false end
@@ -657,19 +636,11 @@ function RunNHide.init(notifyCallback: ((string, string) -> ())?)
 
 	-- Role Watchdog Loop
 	local roleConn = RunService.Heartbeat:Connect(function()
-		if RunNHide.RoleTracker or RunNHide.RoleNotifier then
+		if RunNHide.RoleTracker then
 			for _, p in ipairs(Players:GetPlayers()) do
 				if p ~= LocalPlayer then
 					local roleCat = RunNHide.getPlayerRoleCategory(p)
-					local prevCat = RunNHide.LastKnownRoles[p]
-					if roleCat ~= prevCat then
-						RunNHide.LastKnownRoles[p] = roleCat
-						if RunNHide.RoleNotifier and (roleCat == "Threat" or roleCat == "Armed") and prevCat ~= nil then
-							if notifyCallback then
-								notifyCallback("ROLE ALERT", string.format("%s is %s!", p.DisplayName, roleCat == "Threat" and "THE SHOOTER / KILLER" or "ARMED"))
-							end
-						end
-					end
+					RunNHide.LastKnownRoles[p] = roleCat
 				end
 			end
 		end
@@ -808,12 +779,6 @@ function RunNHide.teleportToArena(): boolean
 		return true
 	end
 	return false
-end
-
-function RunNHide.joinVCServer()
-	pcall(function()
-		TeleportService:Teleport(game.PlaceId, LocalPlayer)
-	end)
 end
 
 function RunNHide.forceReload(): boolean

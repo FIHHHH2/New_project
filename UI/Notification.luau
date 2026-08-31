@@ -1,7 +1,7 @@
 --!strict
 --[=[
     ✦ Squared Retro Notification System ✦
-    Renders pixel-perfect themed notification popups matching the squared wireframe aesthetic.
+    Renders pixel-perfect themed notification popups matching the user mockup.
 ]=]
 
 local TweenService = game:GetService("TweenService")
@@ -14,13 +14,14 @@ local Notification = {}
 Notification.__index = Notification
 
 local notifGui: ScreenGui? = nil
-local notifHolder: Frame? = nil
+local activeCards: {Frame} = {}
 
-local function getNotificationHolder(): Frame
-	if not notifHolder or not notifHolder.Parent then
+local function getNotificationGui(): ScreenGui
+	if not notifGui or not notifGui.Parent then
 		notifGui = Instance.new("ScreenGui")
 		notifGui.Name = "ModularNotificationsGui"
 		notifGui.ResetOnSpawn = false
+		notifGui.DisplayOrder = 9999
 		notifGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 		
 		pcall(function()
@@ -29,40 +30,32 @@ local function getNotificationHolder(): Frame
 		if not notifGui.Parent then
 			notifGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 		end
-		
-		local holder = Instance.new("Frame")
-		holder.Name = "NotificationHolder"
-		holder.Size = UDim2.new(0, 280, 1, -40)
-		holder.Position = UDim2.new(1, -290, 0, 20)
-		holder.BackgroundTransparency = 1
-		holder.BorderSizePixel = 0
-		holder.ClipsDescendants = false
-		holder.Parent = notifGui
-		
-		local list = Instance.new("UIListLayout")
-		list.HorizontalAlignment = Enum.HorizontalAlignment.Right
-		list.VerticalAlignment = Enum.VerticalAlignment.Bottom
-		list.Padding = UDim.new(0, 8)
-		list.SortOrder = Enum.SortOrder.LayoutOrder
-		list.Parent = holder
-		
-		notifHolder = holder
 	end
-	return notifHolder :: Frame
+	return notifGui :: ScreenGui
+end
+
+local function repositionCards()
+	for i, card in ipairs(activeCards) do
+		local targetY = -20 - (i * 76)
+		TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = UDim2.new(1, -270, 1, targetY)
+		}):Play()
+	end
 end
 
 function Notification.show(title: string, message: string, duration: number?)
-	local holder = getNotificationHolder()
-	local displayTime = duration or 2.5
+	local gui = getNotificationGui()
+	local displayTime = duration or 2.8
 	
 	local card = Instance.new("Frame")
 	card.Name = "NotificationCard"
-	card.Size = UDim2.new(1, 0, 0, 68)
-	card.Position = UDim2.new(1, 40, 0, 0)
+	card.Size = UDim2.new(0, 250, 0, 68)
+	card.Position = UDim2.new(1, 40, 1, -20 - (#activeCards + 1) * 76)
 	card.BackgroundColor3 = UI.Theme.Background
 	card.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	card.BorderSizePixel = 0
-	card.ClipsDescendants = true
+	card.ClipsDescendants = false
+	card.Parent = gui
 	UI.registerThemeElement(card, "Background")
 	
 	local cardStroke = Instance.new("UIStroke")
@@ -84,7 +77,7 @@ function Notification.show(title: string, message: string, duration: number?)
 	UI.registerThemeElement(topbar, "Container")
 	
 	local topTitle = Instance.new("TextLabel")
-	topTitle.Size = UDim2.new(1, -48, 1, 0)
+	topTitle.Size = UDim2.new(1, -44, 1, 0)
 	topTitle.Position = UDim2.new(0, 6, 0, 0)
 	topTitle.BackgroundTransparency = 1
 	topTitle.Text = title or "New Notification!"
@@ -97,8 +90,8 @@ function Notification.show(title: string, message: string, duration: number?)
 	
 	-- topbar icons: [-] and [□]
 	local minIcon = Instance.new("TextLabel")
-	minIcon.Size = UDim2.new(0, 16, 1, 0)
-	minIcon.Position = UDim2.new(1, -36, 0, 0)
+	minIcon.Size = UDim2.new(0, 14, 1, 0)
+	minIcon.Position = UDim2.new(1, -32, 0, 0)
 	minIcon.BackgroundTransparency = 1
 	minIcon.Text = "—"
 	minIcon.TextColor3 = UI.Theme.TextPrimary
@@ -108,8 +101,8 @@ function Notification.show(title: string, message: string, duration: number?)
 	UI.registerThemeElement(minIcon, "TextPrimary")
 	
 	local sqIcon = Instance.new("TextLabel")
-	sqIcon.Size = UDim2.new(0, 16, 1, 0)
-	sqIcon.Position = UDim2.new(1, -18, 0, 0)
+	sqIcon.Size = UDim2.new(0, 14, 1, 0)
+	sqIcon.Position = UDim2.new(1, -16, 0, 0)
 	sqIcon.BackgroundTransparency = 1
 	sqIcon.Text = "□"
 	sqIcon.TextColor3 = UI.Theme.TextPrimary
@@ -137,25 +130,30 @@ function Notification.show(title: string, message: string, duration: number?)
 	bodyLabel.Text = message
 	bodyLabel.TextColor3 = UI.Theme.TextPrimary
 	bodyLabel.Font = UI.Fonts.Header
-	bodyLabel.TextSize = 13
+	bodyLabel.TextSize = 12
 	bodyLabel.TextXAlignment = Enum.TextXAlignment.Center
 	bodyLabel.Parent = card
 	UI.registerThemeElement(bodyLabel, "TextPrimary")
 	
-	card.Parent = holder
+	table.insert(activeCards, 1, card)
+	repositionCards()
 	
-	-- Slide In Animation
-	card.Position = UDim2.new(1, 60, 0, 0)
-	local tweenIn = TweenService:Create(card, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0, 0, 0, 0)
-	})
-	tweenIn:Play()
+	-- Slide in from right
+	card.Position = UDim2.new(1, 40, 1, -20 - 76)
+	TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Position = UDim2.new(1, -270, 1, -20 - 76)
+	}):Play()
 	
-	-- Auto Dismiss
 	task.delay(displayTime, function()
 		if card and card.Parent then
+			local idx = table.find(activeCards, card)
+			if idx then
+				table.remove(activeCards, idx)
+			end
+			repositionCards()
+			
 			local tweenOut = TweenService:Create(card, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				Position = UDim2.new(1, 60, 0, 0),
+				Position = UDim2.new(1, 40, card.Position.Y.Scale, card.Position.Y.Offset),
 				BackgroundTransparency = 1
 			})
 			tweenOut:Play()
@@ -167,8 +165,8 @@ function Notification.show(title: string, message: string, duration: number?)
 end
 
 function Notification.notifyFeature(featureName: string, state: boolean)
-	local stateText = if state then "Enabled !" else "Disabled !"
-	Notification.show("New Notification!", string.format("%s %s", featureName, stateText))
+	local stateText = if state then "Option Enabled !" else "Option Disabled !"
+	Notification.show("New Notification!", string.format("%s: %s", featureName, stateText))
 end
 
 return Notification

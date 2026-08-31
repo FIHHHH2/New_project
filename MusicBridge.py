@@ -4,8 +4,8 @@ Connects Windows Media Session (Spotify, SoundCloud, YouTube, Apple Music)
 and native Windows Audio Engine to the Modular Roblox UI suite at http://127.0.0.1:8888.
 
 Features:
-- Real-Time Windows Audio Session Peak Metering with Automatic Gain Control (AGC) & 16-Band Visualizer Spectrum
-- Dynamic Album Artwork Color Palette Extraction (Adaptive Cover Theme)
+- High-Sensitivity Audio Session Metering with Ultra-Responsive AGC & 16-Band Visualizer Spectrum
+- True HSV/HSL Rich Palette Extractor (Vibrant Adaptive Cover Theme)
 - Multi-source Synced Lyrics engine (LRCLIB, title split heuristics, Lyrics.ovh fallback)
 - Real-time album artwork streamer (/cover.png)
 - Windowless system tray app with "Run on Startup" toggle
@@ -18,6 +18,7 @@ import json
 import time
 import math
 import random
+import colorsys
 import asyncio
 import threading
 import winreg
@@ -42,7 +43,7 @@ current_media = {
     "hasCover": False,
     "coverVersion": 0,
     "audioPeak": 0.0,
-    "spectrum": [0.05] * 16,
+    "spectrum": [0.15] * 16,
     "theme": {
         "accent": [55, 175, 245],
         "bg": [18, 18, 22],
@@ -56,7 +57,7 @@ cover_cache = {}
 lyrics_cache = {}
 cover_version_counter = 1
 
-# ── Windows Audio Peak Meter Setup with Automatic Gain Control ──────
+# ── High-Sensitivity Audio Peak Metering with Instant AGC ──────────
 audio_meter = None
 try:
     from pycaw.pycaw import AudioUtilities, IAudioMeterInformation
@@ -69,8 +70,8 @@ except Exception:
     audio_meter = None
 
 smoothed_peak = 0.0
-max_recent_peak = 0.05
-band_energy = [0.05] * 16
+max_recent_peak = 0.02
+band_energy = [0.15] * 16
 phase = 0.0
 
 def update_audio_spectrum():
@@ -82,40 +83,41 @@ def update_audio_spectrum():
         except Exception:
             peak = 0.0
     elif current_media["isPlaying"]:
-        peak = 0.35 + 0.25 * math.sin(time.time() * 5)
+        peak = 0.40 + 0.30 * math.sin(time.time() * 6)
 
-    # Automatic Gain Control (AGC): Tracks dynamic range so quiet songs still trigger visualizer
+    # Ultra-Sensitive Automatic Gain Control
     if peak > max_recent_peak:
-        max_recent_peak = max(0.005, peak)
+        max_recent_peak = max(0.001, peak)
     else:
-        max_recent_peak = max(0.005, max_recent_peak * 0.992)
+        max_recent_peak = max(0.001, max_recent_peak * 0.990)
 
-    # Normalize peak and apply square-root perceptual curve
-    norm_peak = min(1.0, peak / max(0.005, max_recent_peak))
-    curved_peak = math.sqrt(norm_peak) if norm_peak > 0 else 0.0
+    # Non-linear gain boost: power 0.4 makes quiet sounds and vocals clearly visible
+    ratio = min(1.0, peak / max(0.001, max_recent_peak))
+    boosted_peak = math.pow(ratio, 0.40) * 1.35 if ratio > 0 else 0.0
+    boosted_peak = max(0.0, min(1.0, boosted_peak))
 
     # Fast attack, smooth decay
-    if curved_peak > smoothed_peak:
-        smoothed_peak = smoothed_peak * 0.25 + curved_peak * 0.75
+    if boosted_peak > smoothed_peak:
+        smoothed_peak = smoothed_peak * 0.20 + boosted_peak * 0.80
     else:
-        smoothed_peak = smoothed_peak * 0.75 + curved_peak * 0.25
+        smoothed_peak = smoothed_peak * 0.70 + boosted_peak * 0.30
 
     current_media["audioPeak"] = round(smoothed_peak, 3)
 
-    phase += 0.2
+    phase += 0.22
     new_spectrum = []
     for i in range(16):
-        # Bass frequencies (0-4) bounce higher and punchier
-        bass_boost = 1.35 if i < 5 else (1.1 if i < 10 else 0.85)
-        osc = math.sin(phase * (1.2 + i * 0.25) + i * 0.6) * 0.35 + 0.65
-        noise = (random.random() - 0.5) * 0.1
-        val = max(0.05, min(1.0, (smoothed_peak * bass_boost * osc + noise)))
-        band_energy[i] = band_energy[i] * 0.35 + val * 0.65
+        # Bass frequencies (0-4) bounce with extra force
+        bass_mult = 1.45 if i < 5 else (1.2 if i < 10 else 0.95)
+        osc = math.sin(phase * (1.3 + i * 0.22) + i * 0.55) * 0.40 + 0.60
+        noise = (random.random() - 0.5) * 0.12
+        val = max(0.10, min(1.0, (smoothed_peak * bass_mult * osc + noise)))
+        band_energy[i] = band_energy[i] * 0.30 + val * 0.70
         new_spectrum.append(round(band_energy[i], 3))
 
     current_media["spectrum"] = new_spectrum
 
-# ── Dynamic Palette Extractor (Adaptive Cover Theme) ───────────────
+# ── Rich Vibrant Palette Extractor (HSV Dynamic Range) ─────────────
 def extract_palette(img_bytes: bytes):
     if not img_bytes or len(img_bytes) < 100:
         return {
@@ -126,33 +128,42 @@ def extract_palette(img_bytes: bytes):
         }
     try:
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-        small = img.resize((48, 48))
-        quantized = small.quantize(colors=8, method=Image.Quantize.MEDIANCUT).convert("RGB")
-        colors = quantized.getcolors(48 * 48)
-        if not colors:
-            return current_media["theme"]
+        small = img.resize((40, 40))
+        pixels = list(small.getdata())
 
-        def score_color(c):
-            r, g, b = c[1]
-            mx, mn = max(r, g, b), min(r, g, b)
-            sat = (mx - mn) / max(1, mx)
-            bright = mx / 255.0
-            if bright < 0.15 or bright > 0.95 or sat < 0.1:
-                return -1
-            return sat * 1.5 + (c[0] / 2304.0)
+        best_accent = None
+        best_score = -1.0
 
-        scored = sorted(colors, key=score_color, reverse=True)
-        accent_rgb = list(scored[0][1]) if (scored and score_color(scored[0]) > 0) else list(colors[0][1])
+        for r, g, b in pixels:
+            h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+            if s > 0.15 and 0.18 < v < 0.98:
+                score = (s ** 1.4) * (v ** 0.85)
+                if score > best_score:
+                    best_score = score
+                    best_accent = (h, s, v)
 
-        mx = max(accent_rgb)
-        if mx < 110:
-            scale = 140 / max(1, mx)
-            accent_rgb = [min(255, int(c * scale)) for c in accent_rgb]
+        if not best_accent:
+            h, s, v = 0.58, 0.75, 0.90
+        else:
+            h, s, v = best_accent
 
-        dom_rgb = list(sorted(colors, key=lambda x: x[0], reverse=True)[0][1])
-        bg_rgb = [max(12, min(32, int(c * 0.22))) for c in dom_rgb]
-        container_rgb = [min(55, int(c * 1.5 + 8)) for c in bg_rgb]
-        border_rgb = [min(120, int(c * 2.2 + 25)) for c in bg_rgb]
+        # Vibrant Accent: Boost saturation and ensure high-visibility brightness
+        accent_s = max(0.75, min(1.0, s * 1.30))
+        accent_v = max(0.85, min(1.0, v * 1.25))
+        ar, ag, ab = colorsys.hsv_to_rgb(h, accent_s, accent_v)
+        accent_rgb = [int(ar * 255), int(ag * 255), int(ab * 255)]
+
+        # Tinted Dark Background
+        bgr, bgg, bgb = colorsys.hsv_to_rgb(h, 0.40, 0.08)
+        bg_rgb = [max(12, int(bgr * 255)), max(12, int(bgg * 255)), max(16, int(bgb * 255))]
+
+        # Tinted Container Box
+        ctr, ctg, ctb = colorsys.hsv_to_rgb(h, 0.35, 0.15)
+        container_rgb = [int(ctr * 255), int(ctg * 255), int(ctb * 255)]
+
+        # Tinted Glowing Border
+        bdr, bdg, bdb = colorsys.hsv_to_rgb(h, 0.55, 0.50)
+        border_rgb = [int(bdr * 255), int(bdg * 255), int(bdb * 255)]
 
         return {
             "accent": accent_rgb,

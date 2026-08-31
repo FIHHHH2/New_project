@@ -1,17 +1,19 @@
 --!strict
 --[=[
-    ✦ Music Tracker UI Widget with Audio Visualizer & Lyrics ✦
-    Features: Dynamic Song Cover updates on song change, Idle Music Note fallback,
-    Song Title & Artist, Lyrics display, Audio Visualizer, Playback controls,
-    and Local Media Bridge client.
+    ✦ Squared Retro Music Tracker Widget with Real Audio EQ & Full Cover ✦
+    Features:
+    - Full-bleed album artwork box (no black borders or padding gaps)
+    - Expanded multi-line lyrics container with ample reading space
+    - Ultra-sensitive 16-band audio visualizer dancing to live media loudness & AGC
+    - Full IgnoreGuiInset dragging and minimize controls
 ]=]
 
-local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
 
 local UI = require("UI/UI.luau")
 
@@ -19,24 +21,17 @@ local MusicTracker = {}
 MusicTracker.__index = MusicTracker
 
 local BRIDGE_URL = "http://127.0.0.1:8888"
-local MUSIC_NOTE_ICON = "rbxassetid://7072718362" -- Clean Music Note Icon
+local MUSIC_NOTE_ICON = "rbxassetid://10888371919"
 
--- Built-in demo playlist when external bridge is offline
 local DEMO_TRACKS = {
 	{
 		title = "Starboy",
 		artist = "The Weeknd ft. Daft Punk",
 		cover = "rbxassetid://13470984852",
-		lyrics = "Look what you've done, I'm a motherfuckin' starboy"
+		lyrics = "I'm tryna put you in the worst mood, ah"
 	},
 	{
 		title = "Blinding Lights",
-		artist = "The Weeknd",
-		cover = "rbxassetid://13470984852",
-		lyrics = "I said, ooh, I'm blinded by the lights"
-	},
-	{
-		title = "After Hours",
 		artist = "The Weeknd",
 		cover = "rbxassetid://13470984852",
 		lyrics = "Where are you now when I need you most?"
@@ -55,14 +50,14 @@ function MusicTracker.new()
 		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	end
 
-	local DEFAULT_W, DEFAULT_H = 390, 160
+	local DEFAULT_W, DEFAULT_H = 430, 182
 	local TOPBAR_H = 26
 
 	-- ── Main Widget Frame ─────────────────────────────────────────────
 	local widget = Instance.new("Frame")
 	widget.Name = "MusicTrackerWidget"
 	widget.Size = UDim2.new(0, DEFAULT_W, 0, DEFAULT_H)
-	widget.Position = UDim2.new(0, 14, 1, -180)
+	widget.Position = UDim2.new(0, 14, 1, -200)
 	widget.BackgroundColor3 = UI.Theme.Background
 	widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	widget.BorderSizePixel = 0
@@ -160,10 +155,10 @@ function MusicTracker.new()
 	body.BorderSizePixel = 0
 	body.Parent = widget
 
-	-- ── Left Column: Song Cover ──────────────────────────────────────
+	-- ── Left Column: Song Cover (Full Bleed) ──────────────────────────
 	local coverBox = Instance.new("Frame")
 	coverBox.Name = "SongCoverBox"
-	coverBox.Size = UDim2.new(0, 118, 1, 0)
+	coverBox.Size = UDim2.new(0, 142, 1, 0)
 	coverBox.Position = UDim2.new(0, 0, 0, 0)
 	coverBox.BackgroundColor3 = UI.Theme.ContainerDark
 	coverBox.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
@@ -181,18 +176,18 @@ function MusicTracker.new()
 
 	local coverImg = Instance.new("ImageLabel")
 	coverImg.Name = "CoverImage"
-	coverImg.Size = UDim2.new(1, -4, 1, -4)
-	coverImg.Position = UDim2.new(0, 2, 0, 2)
+	coverImg.Size = UDim2.new(1, 0, 1, 0)
+	coverImg.Position = UDim2.new(0, 0, 0, 0)
 	coverImg.BackgroundTransparency = 1
 	coverImg.Image = MUSIC_NOTE_ICON
-	coverImg.ScaleType = Enum.ScaleType.Fit
+	coverImg.ScaleType = Enum.ScaleType.Crop
 	coverImg.Parent = coverBox
 
-	-- ── Right Column: Stack (Title, Lyrics, Visualizer & Controls) ────
+	-- ── Right Column: Stack (Title, Expanded Lyrics, Visualizer & Controls) ──
 	local rightCol = Instance.new("Frame")
 	rightCol.Name = "RightColumn"
-	rightCol.Size = UDim2.new(1, -126, 1, 0)
-	rightCol.Position = UDim2.new(0, 126, 0, 0)
+	rightCol.Size = UDim2.new(1, -150, 1, 0)
+	rightCol.Position = UDim2.new(0, 150, 0, 0)
 	rightCol.BackgroundTransparency = 1
 	rightCol.BorderSizePixel = 0
 	rightCol.Parent = body
@@ -205,7 +200,7 @@ function MusicTracker.new()
 	-- Box 1: Song Title
 	local titleBox = Instance.new("Frame")
 	titleBox.Name = "SongTitleBox"
-	titleBox.Size = UDim2.new(1, 0, 0, 28)
+	titleBox.Size = UDim2.new(1, 0, 0, 26)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
@@ -221,11 +216,11 @@ function MusicTracker.new()
 	UI.registerThemeElement(titleBoxStroke, "Border")
 
 	local songTitleLabel = Instance.new("TextLabel")
-	songTitleLabel.Name = "SongTitleText"
+	songTitleLabel.Name = "SongTitle"
 	songTitleLabel.Size = UDim2.new(1, -12, 1, 0)
 	songTitleLabel.Position = UDim2.new(0, 6, 0, 0)
 	songTitleLabel.BackgroundTransparency = 1
-	songTitleLabel.Text = "No Song Playing"
+	songTitleLabel.Text = "Waiting for Media..."
 	songTitleLabel.TextColor3 = UI.Theme.TextPrimary
 	songTitleLabel.Font = UI.Fonts.Header
 	songTitleLabel.TextSize = 11
@@ -234,16 +229,17 @@ function MusicTracker.new()
 	songTitleLabel.Parent = titleBox
 	UI.registerThemeElement(songTitleLabel, "TextPrimary")
 
-	-- Box 2: Lyrics
+	-- Box 2: Expanded Lyrics (Generous 48px space for full 2-line reading)
 	local lyricsBox = Instance.new("Frame")
 	lyricsBox.Name = "LyricsBox"
-	lyricsBox.Size = UDim2.new(1, 0, 0, 36)
-	lyricsBox.BackgroundColor3 = UI.Theme.Container
-	lyricsBox.BackgroundTransparency = UI.Theme.ContainerTransparency
+	lyricsBox.Size = UDim2.new(1, 0, 0, 48)
+	lyricsBox.BackgroundColor3 = UI.Theme.ContainerDark
+	lyricsBox.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	lyricsBox.BorderSizePixel = 0
 	lyricsBox.LayoutOrder = 2
+	lyricsBox.ClipsDescendants = true
 	lyricsBox.Parent = rightCol
-	UI.registerThemeElement(lyricsBox, "Container")
+	UI.registerThemeElement(lyricsBox, "ContainerDark")
 
 	local lyricsStroke = Instance.new("UIStroke")
 	lyricsStroke.Color = UI.Theme.Border
@@ -254,27 +250,37 @@ function MusicTracker.new()
 
 	local lyricsLabel = Instance.new("TextLabel")
 	lyricsLabel.Name = "LyricsText"
-	lyricsLabel.Size = UDim2.new(1, -12, 1, 0)
-	lyricsLabel.Position = UDim2.new(0, 6, 0, 0)
+	lyricsLabel.Size = UDim2.new(1, -12, 1, -4)
+	lyricsLabel.Position = UDim2.new(0, 6, 0, 2)
 	lyricsLabel.BackgroundTransparency = 1
-	lyricsLabel.Text = "♫ Waiting for audio session..."
-	lyricsLabel.TextColor3 = UI.Theme.TextSecondary
-	lyricsLabel.Font = UI.Fonts.Mono
+	lyricsLabel.Text = "♫ Play a track on Spotify / SoundCloud / YouTube"
+	lyricsLabel.TextColor3 = UI.Theme.TextPrimary
+	lyricsLabel.Font = UI.Fonts.Body
 	lyricsLabel.TextSize = 10
 	lyricsLabel.TextXAlignment = Enum.TextXAlignment.Left
-	lyricsLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	lyricsLabel.TextYAlignment = Enum.TextYAlignment.Center
+	lyricsLabel.TextWrapped = true
 	lyricsLabel.Parent = lyricsBox
-	UI.registerThemeElement(lyricsLabel, "TextSecondary")
+	UI.registerThemeElement(lyricsLabel, "TextPrimary")
 
-	-- Box 3: Audio Visualizer & Playback Controls
+	-- Box 3: Visualizer Spectrum & Media Controls
+	local bottomControls = Instance.new("Frame")
+	bottomControls.Name = "BottomControls"
+	bottomControls.Size = UDim2.new(1, 0, 1, -84)
+	bottomControls.BackgroundTransparency = 1
+	bottomControls.BorderSizePixel = 0
+	bottomControls.LayoutOrder = 3
+	bottomControls.Parent = rightCol
+
+	-- Visualizer Container
 	local visualizerBox = Instance.new("Frame")
-	visualizerBox.Name = "AudioVisualizerBox"
-	visualizerBox.Size = UDim2.new(1, 0, 0, 48)
+	visualizerBox.Name = "VisualizerBox"
+	visualizerBox.Size = UDim2.new(1, -94, 1, 0)
+	visualizerBox.Position = UDim2.new(0, 0, 0, 0)
 	visualizerBox.BackgroundColor3 = UI.Theme.Container
 	visualizerBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	visualizerBox.BorderSizePixel = 0
-	visualizerBox.LayoutOrder = 3
-	visualizerBox.Parent = rightCol
+	visualizerBox.Parent = bottomControls
 	UI.registerThemeElement(visualizerBox, "Container")
 
 	local visStroke = Instance.new("UIStroke")
@@ -284,84 +290,77 @@ function MusicTracker.new()
 	visStroke.Parent = visualizerBox
 	UI.registerThemeElement(visStroke, "Border")
 
-	-- Visualizer Spectrum Bars Area
-	local barsFrame = Instance.new("Frame")
-	barsFrame.Name = "SpectrumBars"
-	barsFrame.Size = UDim2.new(1, -94, 1, -8)
-	barsFrame.Position = UDim2.new(0, 6, 0, 4)
-	barsFrame.BackgroundTransparency = 1
-	barsFrame.BorderSizePixel = 0
-	barsFrame.Parent = visualizerBox
+	local visBarsContainer = Instance.new("Frame")
+	visBarsContainer.Name = "BarsContainer"
+	visBarsContainer.Size = UDim2.new(1, -12, 1, -8)
+	visBarsContainer.Position = UDim2.new(0, 6, 0, 4)
+	visBarsContainer.BackgroundTransparency = 1
+	visBarsContainer.Parent = visualizerBox
 
-	local barsLayout = Instance.new("UIListLayout")
-	barsLayout.FillDirection = Enum.FillDirection.Horizontal
-	barsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-	barsLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-	barsLayout.Padding = UDim.new(0, 3)
-	barsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	barsLayout.Parent = barsFrame
+	local visLayout = Instance.new("UIListLayout")
+	visLayout.FillDirection = Enum.FillDirection.Horizontal
+	visLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	visLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	visLayout.Padding = UDim.new(0, 3)
+	visLayout.Parent = visBarsContainer
 
-	local BAR_COUNT = 16
 	local visualizerBars: {Frame} = {}
-	for i = 1, BAR_COUNT do
+	for i = 1, 16 do
 		local bar = Instance.new("Frame")
 		bar.Name = "Bar_" .. i
-		bar.Size = UDim2.new(0, 6, 0, 8)
+		bar.Size = UDim2.new(0, 6, 0, 3)
 		bar.BackgroundColor3 = UI.Theme.Accent
 		bar.BorderSizePixel = 0
-		bar.LayoutOrder = i
-		bar.Parent = barsFrame
+		bar.Parent = visBarsContainer
 		UI.registerThemeElement(bar, "Accent")
 		table.insert(visualizerBars, bar)
 	end
 
-	-- Control Buttons Area
-	local controlsFrame = Instance.new("Frame")
-	controlsFrame.Name = "ControlsFrame"
-	controlsFrame.Size = UDim2.new(0, 82, 1, -8)
-	controlsFrame.Position = UDim2.new(1, -86, 0, 4)
-	controlsFrame.BackgroundTransparency = 1
-	controlsFrame.BorderSizePixel = 0
-	controlsFrame.Parent = visualizerBox
+	-- Control Buttons
+	local ctrlFrame = Instance.new("Frame")
+	ctrlFrame.Name = "Controls"
+	ctrlFrame.Size = UDim2.new(0, 88, 1, 0)
+	ctrlFrame.Position = UDim2.new(1, -88, 0, 0)
+	ctrlFrame.BackgroundTransparency = 1
+	ctrlFrame.Parent = bottomControls
 
 	local ctrlLayout = Instance.new("UIListLayout")
 	ctrlLayout.FillDirection = Enum.FillDirection.Horizontal
 	ctrlLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 	ctrlLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	ctrlLayout.Padding = UDim.new(0, 4)
-	ctrlLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	ctrlLayout.Parent = controlsFrame
+	ctrlLayout.Padding = UDim.new(0, 3)
+	ctrlLayout.Parent = ctrlFrame
 
-	local function makeCtrlBtn(name: string, text: string, order: number): TextButton
+	local function makeCtrlBtn(name: string, symbol: string, order: number): TextButton
 		local btn = Instance.new("TextButton")
 		btn.Name = name
-		btn.Size = UDim2.new(0, 24, 0, 24)
+		btn.Size = UDim2.new(0, 26, 1, 0)
 		btn.BackgroundColor3 = UI.Theme.ContainerDark
 		btn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 		btn.BorderSizePixel = 0
-		btn.Text = text
+		btn.Text = symbol
 		btn.TextColor3 = UI.Theme.TextPrimary
-		btn.Font = UI.Fonts.Mono
-		btn.TextSize = 10
+		btn.Font = UI.Fonts.Header
+		btn.TextSize = 11
 		btn.LayoutOrder = order
-		btn.Parent = controlsFrame
+		btn.Parent = ctrlFrame
 		UI.registerThemeElement(btn, "ContainerDark")
 		UI.registerThemeElement(btn, "TextPrimary")
 
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = UI.Theme.Border
-		stroke.Thickness = 1
-		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		stroke.Parent = btn
-		UI.registerThemeElement(stroke, "Border")
+		local bStroke = Instance.new("UIStroke")
+		bStroke.Color = UI.Theme.Border
+		bStroke.Thickness = 1
+		bStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		bStroke.Parent = btn
+		UI.registerThemeElement(bStroke, "Border")
 
 		btn.MouseEnter:Connect(function()
-			TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
-			TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Accent, TextColor3 = UI.Theme.AccentText }):Play()
+			TweenService:Create(bStroke, TweenInfo.new(0.12), { Thickness = 1.6, Color = UI.Theme.Accent }):Play()
+			TweenService:Create(btn, TweenInfo.new(0.12), { TextColor3 = UI.Theme.Accent }):Play()
 		end)
 		btn.MouseLeave:Connect(function()
-			TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1 }):Play()
-			TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark, TextColor3 = UI.Theme.TextPrimary }):Play()
+			TweenService:Create(bStroke, TweenInfo.new(0.12), { Thickness = 1, Color = UI.Theme.Border }):Play()
+			TweenService:Create(btn, TweenInfo.new(0.12), { TextColor3 = UI.Theme.TextPrimary }):Play()
 		end)
 
 		return btn
@@ -378,7 +377,7 @@ function MusicTracker.new()
 	local lastSongTitle = ""
 	local lastCoverVersion = -1
 	local previousCoverFile: string? = nil
-	local currentSpectrum = { 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05 }
+	local currentSpectrum = { 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15 }
 	local currentAudioPeak = 0.0
 
 	local function loadRealCoverBinary(v: number?)
@@ -403,8 +402,9 @@ function MusicTracker.new()
 						task.delay(0.12, function()
 							coverImg.Image = assetUri
 							coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
-							coverImg.Size = UDim2.new(1, -4, 1, -4)
-							coverImg.Position = UDim2.new(0, 2, 0, 2)
+							coverImg.Size = UDim2.new(1, 0, 1, 0)
+							coverImg.Position = UDim2.new(0, 0, 0, 0)
+							coverImg.ScaleType = Enum.ScaleType.Crop
 							TweenService:Create(coverImg, TweenInfo.new(0.18, Enum.EasingStyle.Quad), { ImageTransparency = 0 }):Play()
 						end)
 
@@ -424,6 +424,7 @@ function MusicTracker.new()
 			coverImg.ImageColor3 = UI.Theme.Accent
 			coverImg.Size = UDim2.new(0, 52, 0, 52)
 			coverImg.Position = UDim2.new(0.5, -26, 0.5, -26)
+			coverImg.ScaleType = Enum.ScaleType.Fit
 			return
 		end
 
@@ -436,8 +437,9 @@ function MusicTracker.new()
 			if coverUrl:find("rbxassetid") then
 				coverImg.Image = coverUrl
 				coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
-				coverImg.Size = UDim2.new(1, -4, 1, -4)
-				coverImg.Position = UDim2.new(0, 2, 0, 2)
+				coverImg.Size = UDim2.new(1, 0, 1, 0)
+				coverImg.Position = UDim2.new(0, 0, 0, 0)
+				coverImg.ScaleType = Enum.ScaleType.Crop
 			end
 		end
 	end
@@ -451,9 +453,9 @@ function MusicTracker.new()
 		updateCover(t.cover, false, nil)
 	end
 
-	-- Start on clean idle state
 	updateCover(nil, true, nil)
 
+	-- Highly sensitive visualizer animation loop
 	local visualizerConn = RunService.RenderStepped:Connect(function()
 		if not widget.Visible or not isPlaying then
 			for _, bar in ipairs(visualizerBars) do
@@ -463,12 +465,12 @@ function MusicTracker.new()
 		end
 
 		local t = os.clock()
-		local peakMult = math.clamp(currentAudioPeak * 1.5, 0.4, 1.25)
+		local peakMult = math.clamp(currentAudioPeak * 1.6, 0.45, 1.4)
 		for i, bar in ipairs(visualizerBars) do
-			local specVal = currentSpectrum[i] or 0.15
-			local wave = math.abs(math.sin(t * 11 + i * 0.7)) * 0.35 + 0.65
-			local h = math.clamp(math.floor(specVal * 28 * peakMult * wave + 3), 3, 34)
-			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), 0.35)
+			local specVal = currentSpectrum[i] or 0.20
+			local wave = math.abs(math.sin(t * 12 + i * 0.72)) * 0.40 + 0.60
+			local h = math.clamp(math.floor(specVal * 36 * peakMult * wave + 3), 3, 40)
+			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), 0.40)
 		end
 	end)
 
@@ -625,15 +627,11 @@ function MusicTracker.new()
 
 	return {
 		Frame = widget,
-		SetVisible = function(visible: boolean)
-			widget.Visible = visible
+		SetVisible = function(v: boolean)
+			widget.Visible = v
 		end,
 		Toggle = function()
 			widget.Visible = not widget.Visible
-		end,
-		Destroy = function()
-			pcall(function() visualizerConn:Disconnect() end)
-			pcall(function() screenGui:Destroy() end)
 		end
 	}
 end

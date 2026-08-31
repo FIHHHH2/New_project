@@ -1,5 +1,7 @@
 --!strict
 local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local SoundService = game:GetService("SoundService")
 
 local CoreUI = require("Core/CoreUI.luau")
 local FeatureManager = require("Core/FeatureManager.luau")
@@ -19,10 +21,15 @@ local window = CoreUI.new("Project Fih Menu")
 local mainTab = window:CreateTab("Main")
 local subTab = window:CreateTab("Tab")
 
--- top banner card on Main tab
+-- dedicated Settings tab (opened via top right [Settings] button)
+local settingsTab = window:CreateTab("Settings", true)
+window:BindSettingsButton(settingsTab)
+
+-- ============================================================
+-- MAIN TAB CONTENT
+-- ============================================================
 window:AddBanner(mainTab)
 
--- dual-column layout below banner
 local leftCol, rightCol = window:CreateColumns(mainTab)
 
 -- left column: category "Self Configs"
@@ -59,4 +66,129 @@ end)
 
 window:AddToggle(moduleSection, "infinite_jump", "Infinite Jump", false, Enum.KeyCode.Space, function(enabled)
 	print("[Combat] Infinite Jump:", enabled)
+end)
+
+-- ============================================================
+-- SETTINGS TAB CONTENT (FPS, RENDERING, AUDIO, ETC)
+-- ============================================================
+local setLeftCol, setRightCol = window:CreateColumns(settingsTab)
+
+-- Performance Settings
+local perfSection = window:AddSection(setLeftCol, "Performance")
+
+local terrain = workspace:FindFirstChildOfClass("Terrain")
+window:AddToggle(perfSection, "fps_boost", "FPS BOOST", false, nil, function(enabled)
+	Lighting.GlobalShadows = not enabled
+	Lighting.FogEnd = if enabled then 9e9 else 10000
+	if terrain then
+		terrain.WaterWaveSize = if enabled then 0 else 0.15
+		terrain.WaterWaveSpeed = if enabled then 0 else 10
+		terrain.WaterReflectance = if enabled then 0 else 1
+	end
+end)
+
+window:AddToggle(perfSection, "fps_uncap", "FPS UNCAP", false, nil, function(enabled)
+	local setfps = (setfpscap or (set_fps_cap :: any))
+	if typeof(setfps) == "function" then
+		setfps(if enabled then 999 else 60)
+	end
+end)
+
+-- Audio Volume Controller (Scales all game audios, excludes VoiceChat)
+local audioSection = window:AddSection(setLeftCol, "Audio Controls")
+
+local currentVolumeScale = 1.0
+local audioConnections: {RBXScriptConnection} = {}
+
+local function updateSound(sound: Sound)
+	if sound:IsDescendantOf(game:GetService("VoiceChatService")) then return end
+	local base = sound:GetAttribute("OrigVolume")
+	if not base then
+		base = sound.Volume
+		sound:SetAttribute("OrigVolume", base)
+	end
+	sound.Volume = (base :: number) * currentVolumeScale
+end
+
+window:AddSlider(audioSection, "VOLUME CONTROLLER", 0, 100, 100, function(value)
+	currentVolumeScale = value / 100
+	for _, obj in ipairs(game:GetDescendants()) do
+		if obj:IsA("Sound") then
+			updateSound(obj)
+		end
+	end
+end)
+
+table.insert(audioConnections, game.DescendantAdded:Connect(function(obj)
+	if obj:IsA("Sound") then
+		task.defer(function()
+			updateSound(obj)
+		end)
+	end
+end))
+
+-- Rendering Optimization Settings
+local renderSection = window:AddSection(setRightCol, "3D & Texture Rendering")
+
+local meshConn: RBXScriptConnection? = nil
+window:AddToggle(renderSection, "dont_render_meshes", "DONT RENDER 3D MESHS", false, nil, function(enabled)
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("MeshPart") then
+			if enabled then
+				if not obj:GetAttribute("OrigTransparency") then
+					obj:SetAttribute("OrigTransparency", obj.Transparency)
+				end
+				obj.Transparency = 1
+			else
+				local orig = obj:GetAttribute("OrigTransparency") or 0
+				obj.Transparency = orig :: number
+			end
+		end
+	end
+	
+	if enabled then
+		meshConn = workspace.DescendantAdded:Connect(function(obj)
+			if obj:IsA("MeshPart") then
+				obj.Transparency = 1
+			end
+		end)
+	elseif meshConn then
+		meshConn:Disconnect()
+		meshConn = nil
+	end
+end)
+
+local decalConn: RBXScriptConnection? = nil
+window:AddToggle(renderSection, "dont_render_decals", "DONT RENDER DECALS", false, nil, function(enabled)
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("Decal") or obj:IsA("Texture") then
+			if enabled then
+				if not obj:GetAttribute("OrigTransparency") then
+					obj:SetAttribute("OrigTransparency", obj.Transparency)
+				end
+				obj.Transparency = 1
+			else
+				local orig = obj:GetAttribute("OrigTransparency") or 0
+				obj.Transparency = orig :: number
+			end
+		end
+	end
+	
+	if enabled then
+		decalConn = workspace.DescendantAdded:Connect(function(obj)
+			if obj:IsA("Decal") or obj:IsA("Texture") then
+				obj.Transparency = 1
+			end
+		end)
+	elseif decalConn then
+		decalConn:Disconnect()
+		decalConn = nil
+	end
+end)
+
+-- Interface Options
+local miscSection = window:AddSection(setRightCol, "Interface & Misc")
+
+window:AddToggle(miscSection, "smooth_animations", "Fast Animations", true, nil, function(enabled)
+	print("[Settings] Fast Animations:", enabled)
 end)

@@ -25,7 +25,7 @@ function CoreUI.new(titleText: string)
 		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	end
 	
-	local mainFrame, topbar, sidebar, contentContainer, activeTagLabel, uiScale = UI.createWindow(titleText)
+	local mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale = UI.createWindow(titleText)
 	mainFrame.Parent = screenGui
 	
 	self.ScreenGui = screenGui
@@ -33,31 +33,39 @@ function CoreUI.new(titleText: string)
 	self.Sidebar = sidebar
 	self.ContentContainer = contentContainer
 	self.ActiveTagLabel = activeTagLabel
+	self.SettingsBtn = settingsBtn
+	self.ConfigsBtn = configsBtn
 	self.UiScale = uiScale
 	self.Tabs = {}
 	self.ActiveTab = nil
+	self.SettingsTab = nil
 	
 	return self
 end
 
-function CoreUI:CreateTab(name: string)
-	local tabButton = Instance.new("TextButton")
-	tabButton.Name = name .. "TabBtn"
-	tabButton.Size = UDim2.new(1, -4, 0, 30)
-	tabButton.Position = UDim2.new(0, 2, 0, 0)
-	tabButton.BackgroundColor3 = UI.Theme.Container
-	tabButton.BorderSizePixel = 0
-	tabButton.Text = name
-	tabButton.TextColor3 = UI.Theme.TextSecondary
-	tabButton.Font = UI.Theme.HeaderFont
-	tabButton.TextSize = 12
-	tabButton.Parent = self.Sidebar
+function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
+	local tabButton: TextButton? = nil
+	local tabStroke: UIStroke? = nil
 	
-	local tabStroke = Instance.new("UIStroke")
-	tabStroke.Color = UI.Theme.Border
-	tabStroke.Thickness = 1.5
-	tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	tabStroke.Parent = tabButton
+	if not isHiddenFromSidebar then
+		tabButton = Instance.new("TextButton")
+		tabButton.Name = name .. "TabBtn"
+		tabButton.Size = UDim2.new(1, -4, 0, 30)
+		tabButton.Position = UDim2.new(0, 2, 0, 0)
+		tabButton.BackgroundColor3 = UI.Theme.Container
+		tabButton.BorderSizePixel = 0
+		tabButton.Text = name
+		tabButton.TextColor3 = UI.Theme.TextSecondary
+		tabButton.Font = UI.Theme.HeaderFont
+		tabButton.TextSize = 12
+		tabButton.Parent = self.Sidebar
+		
+		tabStroke = Instance.new("UIStroke")
+		tabStroke.Color = UI.Theme.Border
+		tabStroke.Thickness = 1.5
+		tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		tabStroke.Parent = tabButton
+	end
 	
 	local tabContent = Instance.new("ScrollingFrame")
 	tabContent.Name = name .. "Page"
@@ -88,16 +96,19 @@ function CoreUI:CreateTab(name: string)
 		Button = tabButton,
 		Page = tabContent,
 		Stroke = tabStroke,
-		Layout = layout
+		Layout = layout,
+		IsHidden = isHiddenFromSidebar or false
 	}
 	
-	tabButton.MouseButton1Click:Connect(function()
-		self:SelectTab(tabObj)
-	end)
+	if tabButton then
+		tabButton.MouseButton1Click:Connect(function()
+			self:SelectTab(tabObj)
+		end)
+	end
 	
 	table.insert(self.Tabs, tabObj)
 	
-	if #self.Tabs == 1 then
+	if not isHiddenFromSidebar and #self.Tabs == 1 then
 		self:SelectTab(tabObj)
 	end
 	
@@ -108,19 +119,43 @@ function CoreUI:SelectTab(tabObj)
 	for _, tab in ipairs(self.Tabs) do
 		if tab == tabObj then
 			tab.Page.Visible = true
-			tab.Button.BackgroundColor3 = UI.Theme.Accent
-			tab.Button.TextColor3 = UI.Theme.AccentText
-			tab.Stroke.Color = UI.Theme.Border
+			if tab.Button and tab.Stroke then
+				tab.Button.BackgroundColor3 = UI.Theme.Accent
+				tab.Button.TextColor3 = UI.Theme.AccentText
+				tab.Stroke.Color = UI.Theme.Border
+			end
 		else
 			tab.Page.Visible = false
-			tab.Button.BackgroundColor3 = UI.Theme.Container
-			tab.Button.TextColor3 = UI.Theme.TextSecondary
-			tab.Stroke.Color = UI.Theme.BorderDim
+			if tab.Button and tab.Stroke then
+				tab.Button.BackgroundColor3 = UI.Theme.Container
+				tab.Button.TextColor3 = UI.Theme.TextSecondary
+				tab.Stroke.Color = UI.Theme.BorderDim
+			end
 		end
 	end
 	self.ActiveTab = tabObj
 	if self.ActiveTagLabel then
 		self.ActiveTagLabel.Text = tabObj.Name
+	end
+	
+	-- Settings & configs buttons are ONLY visible on Main / Menu tab
+	local isMenuTab = (tabObj.Name == "Main" or tabObj.Name == "Menu")
+	if self.SettingsBtn then
+		self.SettingsBtn.Visible = isMenuTab
+	end
+	if self.ConfigsBtn then
+		self.ConfigsBtn.Visible = isMenuTab
+	end
+end
+
+function CoreUI:BindSettingsButton(settingsTabObj)
+	self.SettingsTab = settingsTabObj
+	if self.SettingsBtn then
+		self.SettingsBtn.MouseButton1Click:Connect(function()
+			if self.SettingsTab then
+				self:SelectTab(self.SettingsTab)
+			end
+		end)
 	end
 end
 

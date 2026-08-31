@@ -235,7 +235,7 @@ function UI.createWindow(titleText: string)
 	activeTagLabel.TextSize = 12
 	activeTagLabel.Parent = activeTagBox
 
-	-- subheader right utility buttons: [Settings] and [configs]
+	-- subheader right utility buttons: [Settings] and [configs] (only visible on Menu/Main tab)
 	local configsBtn = Instance.new("TextButton")
 	configsBtn.Name = "ConfigsBtn"
 	configsBtn.Size = UDim2.new(0, 72, 0, 24)
@@ -246,6 +246,7 @@ function UI.createWindow(titleText: string)
 	configsBtn.TextColor3 = UI.Theme.TextPrimary
 	configsBtn.Font = UI.Theme.HeaderFont
 	configsBtn.TextSize = 11
+	configsBtn.Visible = true
 	configsBtn.Parent = subHeader
 
 	local configsStroke = Instance.new("UIStroke")
@@ -264,6 +265,7 @@ function UI.createWindow(titleText: string)
 	settingsBtn.TextColor3 = UI.Theme.TextPrimary
 	settingsBtn.Font = UI.Theme.HeaderFont
 	settingsBtn.TextSize = 11
+	settingsBtn.Visible = true
 	settingsBtn.Parent = subHeader
 
 	local settingsStroke = Instance.new("UIStroke")
@@ -352,7 +354,7 @@ function UI.createWindow(titleText: string)
 		mainFrame.Visible = false
 	end)
 
-	return mainFrame, topbar, sidebar, contentContainer, activeTagLabel, uiScale
+	return mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale
 end
 
 function UI.createBannerCard(parent: GuiObject): Frame

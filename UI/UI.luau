@@ -105,29 +105,44 @@ function UI.setTheme(themeName: string)
 		local inst = entry.Instance
 		if inst and inst.Parent then
 			local pt = entry.PropType
-			if pt == "Background" and inst:IsA("Frame") then
+			if pt == "Background" and inst:IsA("GuiObject") then
 				TweenService:Create(inst, tweenInfo, {
 					BackgroundColor3 = targetTheme.Background,
 					BackgroundTransparency = targetTheme.BackgroundTransparency
 				}):Play()
-			elseif pt == "Container" and (inst:IsA("Frame") or inst:IsA("TextButton")) then
+			elseif pt == "Container" and inst:IsA("GuiObject") then
 				TweenService:Create(inst, tweenInfo, {
 					BackgroundColor3 = targetTheme.Container,
 					BackgroundTransparency = targetTheme.ContainerTransparency
 				}):Play()
-			elseif pt == "ContainerDark" and inst:IsA("Frame") then
+			elseif pt == "ContainerDark" and inst:IsA("GuiObject") then
 				TweenService:Create(inst, tweenInfo, {
 					BackgroundColor3 = targetTheme.ContainerDark,
 					BackgroundTransparency = targetTheme.ContainerDarkTransparency
+				}):Play()
+			elseif pt == "Accent" and inst:IsA("GuiObject") then
+				TweenService:Create(inst, tweenInfo, {
+					BackgroundColor3 = targetTheme.Accent
 				}):Play()
 			elseif pt == "Border" and inst:IsA("UIStroke") then
 				TweenService:Create(inst, tweenInfo, { Color = targetTheme.Border }):Play()
 			elseif pt == "BorderDim" and inst:IsA("UIStroke") then
 				TweenService:Create(inst, tweenInfo, { Color = targetTheme.BorderDim }):Play()
-			elseif pt == "TextPrimary" and (inst:IsA("TextLabel") or inst:IsA("TextButton")) then
-				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextPrimary }):Play()
-			elseif pt == "TextSecondary" and (inst:IsA("TextLabel") or inst:IsA("TextButton")) then
-				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextSecondary }):Play()
+			elseif pt == "TextPrimary" then
+				if inst:IsA("TextLabel") or inst:IsA("TextButton") then
+					TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextPrimary }):Play()
+				elseif inst:IsA("TextBox") then
+					TweenService:Create(inst, tweenInfo, {
+						TextColor3 = targetTheme.TextPrimary,
+						PlaceholderColor3 = targetTheme.TextSecondary
+					}):Play()
+				end
+			elseif pt == "TextSecondary" then
+				if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+					TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextSecondary }):Play()
+				end
+			elseif pt == "AccentText" and (inst:IsA("TextLabel") or inst:IsA("TextButton")) then
+				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.Accent }):Play()
 			elseif pt == "BorderDimText" and inst:IsA("TextLabel") then
 				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.BorderDim }):Play()
 			end

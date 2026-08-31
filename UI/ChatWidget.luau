@@ -411,6 +411,7 @@ function ChatWidget.new(): ChatWidgetInstance
 		nameLabel.TextYAlignment = Enum.TextYAlignment.Top
 		nameLabel.TextWrapped = true
 		nameLabel.Parent = row
+		UI.registerThemeElement(nameLabel, "AccentText")
 
 		-- Message body
 		local textLabel = Instance.new("TextLabel")

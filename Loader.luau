@@ -4,7 +4,32 @@
     Fetches and resolves all modular sub-packages dynamically over HTTP.
 ]=]
 
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+
+-- Cleanup any previously running suite instance before reloading
+if _G.__ModularSuite_Cleanup then
+	pcall(_G.__ModularSuite_Cleanup)
+	_G.__ModularSuite_Cleanup = nil
+end
+
+-- Destroy any existing duplicate ScreenGuis in CoreGui and PlayerGui
+for _, c in ipairs(CoreGui:GetChildren()) do
+	if c.Name == "ModularEngineGui" or c.Name == "ModularNotificationsGui" then
+		c:Destroy()
+	end
+end
+
+local lp = Players.LocalPlayer
+local pgui = lp and lp:FindFirstChild("PlayerGui")
+if pgui then
+	for _, c in ipairs(pgui:GetChildren()) do
+		if c.Name == "ModularEngineGui" or c.Name == "ModularNotificationsGui" then
+			c:Destroy()
+		end
+	end
+end
 
 -- Dynamically resolve latest commit SHA to bypass any CDN edge cache delays
 local REPO_OWNER = "FIHHHH2"
@@ -133,6 +158,26 @@ local Visuals = requireRemote("Modules/Visuals.luau")
 local Combat = requireRemote("Modules/Combat.luau")
 local Movement = requireRemote("Modules/Movement.luau")
 local DisasterSurvival = requireRemote("Modules/DisasterSurvival.luau")
+
+-- Register suite cleanup function
+_G.__ModularSuite_Cleanup = function()
+	pcall(function()
+		DisasterSurvival.cleanup()
+		Combat.resetHitboxes()
+		for _, c in ipairs(CoreGui:GetChildren()) do
+			if c.Name == "ModularEngineGui" or c.Name == "ModularNotificationsGui" then
+				c:Destroy()
+			end
+		end
+		if pgui then
+			for _, c in ipairs(pgui:GetChildren()) do
+				if c.Name == "ModularEngineGui" or c.Name == "ModularNotificationsGui" then
+					c:Destroy()
+				end
+			end
+		end
+	end)
+end
 
 -- Bootstrap Main Runtime
 local mainSource = fetchSource("Core/Main.luau")

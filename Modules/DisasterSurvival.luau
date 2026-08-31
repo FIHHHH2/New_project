@@ -14,7 +14,7 @@ local Camera = Workspace.CurrentCamera or Workspace:WaitForChild("Camera") :: Ca
 
 local DisasterSurvival = {
 	DisasterTracker = false,
-	CurrentDisaster = "None",
+	CurrentDisaster = "None (In Lobby)",
 	NoFallDamage = false,
 	Flight = false,
 	FlightSpeed = 50,
@@ -27,13 +27,28 @@ local flightConn: RBXScriptConnection? = nil
 local antiFlingConn: RBXScriptConnection? = nil
 local flingConn: RBXScriptConnection? = nil
 local tagConn: RBXScriptConnection? = nil
+local stateConn: RBXScriptConnection? = nil
 
--- Clean Fall Damage Script in character
+-- Clean Fall Damage Script in character and hook FreeFall state
 local function applyNoFallDamage(char: Model)
 	local fallScript = char:FindFirstChild("FallDamageScript")
 	if fallScript then
 		fallScript:Destroy()
 	end
+	
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if hum then
+		if stateConn then stateConn:Disconnect() end
+		stateConn = hum.StateChanged:Connect(function(oldState, newState)
+			if DisasterSurvival.NoFallDamage and (newState == Enum.HumanoidStateType.Landed or newState == Enum.HumanoidStateType.Freefall) then
+				local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if hrp and hrp.AssemblyLinearVelocity.Y < -50 then
+					hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z)
+				end
+			end
+		end)
+	end
+	
 	char.ChildAdded:Connect(function(child)
 		if DisasterSurvival.NoFallDamage and child.Name == "FallDamageScript" then
 			task.defer(function()
@@ -49,12 +64,14 @@ local function hookDisasterTag(char: Model, notifyCallback: ((string) -> ())?)
 	
 	local function checkTag(tag: Instance)
 		if tag:IsA("StringValue") and tag.Name == "SurvivalTag" then
-			DisasterSurvival.CurrentDisaster = tag.Value
+			local current = if tag.Value ~= "" then tag.Value else "None (In Lobby)"
+			DisasterSurvival.CurrentDisaster = current
 			if notifyCallback and tag.Value ~= "" and tag.Value ~= "None" then
 				notifyCallback(tag.Value)
 			end
 			tag.Changed:Connect(function(newVal)
-				DisasterSurvival.CurrentDisaster = newVal
+				local val = if newVal ~= "" then newVal else "None (In Lobby)"
+				DisasterSurvival.CurrentDisaster = val
 				if notifyCallback and newVal ~= "" and newVal ~= "None" then
 					notifyCallback(newVal)
 				end
@@ -65,6 +82,8 @@ local function hookDisasterTag(char: Model, notifyCallback: ((string) -> ())?)
 	local existingTag = char:FindFirstChild("SurvivalTag")
 	if existingTag then
 		checkTag(existingTag)
+	else
+		DisasterSurvival.CurrentDisaster = "None (In Lobby)"
 	end
 	tagConn = char.ChildAdded:Connect(checkTag)
 end
@@ -154,7 +173,6 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
 			local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 			if not hrp then return end
 			
-			-- Zero out extreme unnatural velocity impulses
 			if hrp.AssemblyLinearVelocity.Magnitude > 110 then
 				hrp.AssemblyLinearVelocity = Vector3.zero
 			end
@@ -162,7 +180,6 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
 				hrp.AssemblyAngularVelocity = Vector3.zero
 			end
 			
-			-- Disable collision with other player characters to prevent player collision fling
 			for _, otherPlayer in ipairs(Players:GetPlayers()) do
 				if otherPlayer ~= LocalPlayer and otherPlayer.Character then
 					for _, part in ipairs(otherPlayer.Character:GetDescendants()) do
@@ -176,6 +193,16 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
 	elseif antiFlingConn then
 		antiFlingConn:Disconnect()
 		antiFlingConn = nil
+		-- Restore collision
+		for _, otherPlayer in ipairs(Players:GetPlayers()) do
+			if otherPlayer ~= LocalPlayer and otherPlayer.Character then
+				for _, part in ipairs(otherPlayer.Character:GetDescendants()) do
+					if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+						part.CanCollide = true
+					end
+				end
+			end
+		end
 	end
 end
 
@@ -188,7 +215,6 @@ function DisasterSurvival.setFling(enabled: boolean)
 			local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 			if not hrp then return end
 			
-			-- High torque spin velocity for touch fling
 			hrp.AssemblyAngularVelocity = Vector3.new(0, 99999, 0)
 		end)
 	elseif flingConn then
@@ -197,6 +223,23 @@ function DisasterSurvival.setFling(enabled: boolean)
 		local char = LocalPlayer.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if hrp then
+			hrp.AssemblyAngularVelocity = Vector3.zero
+		end
+	end
+end
+
+function DisasterSurvival.cleanup()
+	if flightConn then flightConn:Disconnect() flightConn = nil end
+	if antiFlingConn then antiFlingConn:Disconnect() antiFlingConn = nil end
+	if flingConn then flingConn:Disconnect() flingConn = nil end
+	if tagConn then tagConn:Disconnect() tagConn = nil end
+	if stateConn then stateConn:Disconnect() stateConn = nil end
+	if LocalPlayer.Character then
+		local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+		local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if hum then hum.PlatformStand = false end
+		if hrp then
+			hrp.AssemblyLinearVelocity = Vector3.zero
 			hrp.AssemblyAngularVelocity = Vector3.zero
 		end
 	end

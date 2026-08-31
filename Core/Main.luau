@@ -71,7 +71,7 @@ window:AddSlider(selfSection, "Custom Speed", 16, 150, 16, function(value)
 	end
 end)
 
--- RIGHT COLUMN: Movement
+-- RIGHT COLUMN: Movement (Fixed Noclip with clean state restoration)
 local moveSection = window:AddSection(rightCol, "Movement")
 
 local noclipConn: RBXScriptConnection? = nil
@@ -86,9 +86,19 @@ window:AddToggle(moveSection, "noclip_toggle", "Noclip", false, nil, function(en
 				end
 			end
 		end)
-	elseif noclipConn then
-		noclipConn:Disconnect()
-		noclipConn = nil
+	else
+		if noclipConn then
+			noclipConn:Disconnect()
+			noclipConn = nil
+		end
+		-- Cleanly restore limb collision upon disabling noclip
+		if localPlayer.Character then
+			for _, part in ipairs(localPlayer.Character:GetDescendants()) do
+				if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+					part.CanCollide = true
+				end
+			end
+		end
 	end
 end)
 
@@ -182,7 +192,7 @@ local disasterSection = window:AddSection(gameLeftCol, "Disaster Intelligence")
 
 window:AddToggle(disasterSection, "disaster_tracker", "Disaster Tracker", false, nil, function(enabled)
 	DisasterSurvival.DisasterTracker = enabled
-	if enabled and DisasterSurvival.CurrentDisaster ~= "None" and DisasterSurvival.CurrentDisaster ~= "" then
+	if enabled and DisasterSurvival.CurrentDisaster ~= "None (In Lobby)" and DisasterSurvival.CurrentDisaster ~= "" then
 		window:Notify("Current Disaster", DisasterSurvival.CurrentDisaster, 3.5)
 	end
 end)

@@ -467,13 +467,17 @@ function MusicTracker.new()
 
 	updateCover(nil, true, nil)
 
-	-- ── Continuous 60+ FPS Fast Spring-Damper Visualizer Physics ───────
+	-- ── Continuous 60+ FPS Lightning-Fast Spring-Damper Visualizer Physics ─
 	local visualizerConn = RunService.RenderStepped:Connect(function(dt: number)
 		local safeDt = math.clamp(dt or 0.016, 0.001, 0.05)
 		local isAudible = isPlaying or (currentAudioPeak > 0.005)
 
 		local targetEnergy = if (widget.Visible and isAudible) then currentAudioPeak else 0.0
-		smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 22.0, 0.15, 0.85)
+		if targetEnergy > smoothedEnergy then
+			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 60.0, 0.40, 0.98)
+		else
+			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 24.0, 0.15, 0.85)
+		end
 
 		local t = os.clock()
 		for i = 1, 16 do
@@ -481,16 +485,16 @@ function MusicTracker.new()
 			if not bar then continue end
 
 			if not widget.Visible or smoothedEnergy < 0.002 then
-				currentHeights[i] = math.max(3.0, currentHeights[i] + (3.0 - currentHeights[i]) * math.clamp(safeDt * 14.0, 0.10, 0.5))
+				currentHeights[i] = math.max(3.0, currentHeights[i] + (3.0 - currentHeights[i]) * math.clamp(safeDt * 20.0, 0.15, 0.6))
 				bar.Size = UDim2.new(0, 6, 0, currentHeights[i])
 			else
 				local rawSpec = currentSpectrum[i] or 0.15
-				local waveHarmonic = math.sin(t * 7.5 + i * 0.55) * 0.20 + math.cos(t * 4.8 - i * 0.40) * 0.12 + 0.70
-				local targetHeight = math.clamp(rawSpec * 28.0 * (smoothedEnergy * 1.18 + 0.15) * waveHarmonic + 3.0, 3.0, 34.0)
+				local waveHarmonic = math.sin(t * 12.0 + i * 0.60) * 0.22 + math.cos(t * 7.5 - i * 0.45) * 0.14 + 0.68
+				local targetHeight = math.clamp(rawSpec * 28.0 * (smoothedEnergy * 1.20 + 0.15) * waveHarmonic + 3.0, 3.0, 34.0)
 
 				-- High-speed physical spring with balanced damping for instant punch
-				local springForce = (targetHeight - currentHeights[i]) * 85.0
-				local dampingForce = currentVelocities[i] * 16.5
+				local springForce = (targetHeight - currentHeights[i]) * 160.0
+				local dampingForce = currentVelocities[i] * 22.0
 				currentVelocities[i] = currentVelocities[i] + (springForce - dampingForce) * safeDt
 				currentHeights[i] = math.clamp(currentHeights[i] + currentVelocities[i] * safeDt, 3.0, 35.0)
 
@@ -527,7 +531,7 @@ function MusicTracker.new()
 	-- ── Local Bridge Poller (Audio Spectrum, Lyrics, Adaptive Theme) ─
 	task.spawn(function()
 		while true do
-			task.wait(0.1)
+			task.wait(0.04)
 			if widget.Visible then
 				pcall(function()
 					local raw = game:HttpGet(BRIDGE_URL .. "/current")

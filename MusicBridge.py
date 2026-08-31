@@ -119,31 +119,34 @@ def update_audio_spectrum():
     if peak > 0.001:
         current_media["isPlaying"] = True
 
-    # Balanced Musical Automatic Gain Control
+    # Ultra-Reactive Automatic Gain Control
     if peak > max_recent_peak:
-        max_recent_peak = max(0.005, peak)
+        max_recent_peak = max(0.004, peak)
     else:
-        max_recent_peak = max(0.005, max_recent_peak * 0.992)
+        max_recent_peak = max(0.004, max_recent_peak * 0.995)
 
-    ratio = min(1.0, peak / max(0.005, max_recent_peak))
-    boosted_peak = math.pow(ratio, 0.75) * 1.0 if ratio > 0 else 0.0
+    ratio = min(1.0, peak / max(0.004, max_recent_peak))
+    boosted_peak = math.pow(ratio, 0.68) * 1.12 if ratio > 0 else 0.0
     boosted_peak = max(0.0, min(1.0, boosted_peak))
 
-    # Quick, snappy attack and rapid release
+    # Instantaneous 0ms attack on transients, snappy rapid release
     if boosted_peak > smoothed_peak:
-        smoothed_peak = smoothed_peak * 0.10 + boosted_peak * 0.90
+        smoothed_peak = boosted_peak
     else:
-        smoothed_peak = smoothed_peak * 0.70 + boosted_peak * 0.30
+        smoothed_peak = smoothed_peak * 0.85 + boosted_peak * 0.15
 
     current_media["audioPeak"] = round(smoothed_peak, 3)
 
-    phase += 0.28
+    phase += 0.40
     new_spectrum = []
     for i in range(16):
-        bass_mult = 1.25 if i < 5 else (1.10 if i < 10 else 0.90)
-        osc = math.sin(phase * (1.10 + i * 0.18) + i * 0.45) * 0.25 + 0.75
+        bass_mult = 1.30 if i < 5 else (1.12 if i < 10 else 0.92)
+        osc = math.sin(phase * (1.20 + i * 0.22) + i * 0.48) * 0.28 + 0.72
         val = max(0.05, min(1.0, (smoothed_peak * bass_mult * osc)))
-        band_energy[i] = band_energy[i] * 0.45 + val * 0.55
+        if val > band_energy[i]:
+            band_energy[i] = val
+        else:
+            band_energy[i] = band_energy[i] * 0.80 + val * 0.20
         new_spectrum.append(round(band_energy[i], 3))
 
     current_media["spectrum"] = new_spectrum
@@ -582,13 +585,7 @@ def run_media_loop():
             pass
         time.sleep(0.2)
 
-def run_audio_loop():
-    while True:
-        try:
-            update_audio_spectrum()
-        except Exception:
-            pass
-        time.sleep(0.033)
+        time.sleep(0.012)
 
 # ── System Tray Icon & Menu ────────────────────────────────────────
 def create_tray_icon():

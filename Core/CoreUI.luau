@@ -18,6 +18,7 @@ function CoreUI.new(titleText: string)
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ModularEngineGui"
 	screenGui.ResetOnSpawn = false
+	screenGui.IgnoreGuiInset = true
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	
 	pcall(function()

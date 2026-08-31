@@ -31,6 +31,7 @@ function PlayerList.new(): PlayerListWidget
 	screenGui.Name = "ModularPlayerListGui"
 	screenGui.ResetOnSpawn = false
 	screenGui.DisplayOrder = 500
+	screenGui.IgnoreGuiInset = true
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	pcall(function() screenGui.Parent = CoreGui end)
 	if not screenGui.Parent then

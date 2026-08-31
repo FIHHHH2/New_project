@@ -1,9 +1,9 @@
 --!strict
 --[=[
-    ✦ Combat Engine ✦
-    High-performance Silent Aim (with Wallbang & Metamethod Redirection),
-    Aim Tracking (Right-Click Hold), Screen-Centered FOV Circle, Trigger Bot,
-    and Hitbox Expander.
+    ✦ High-Performance Combat Engine ✦
+    Optimized lag-free Silent Aim (with cached O(1) target resolution),
+    Wallbang redirection, Aim Tracking (Right-Click Hold), Screen-Centered FOV Circle,
+    Trigger Bot, and throttled Hitbox Expander.
 ]=]
 
 local Players = game:GetService("Players")
@@ -41,7 +41,7 @@ local fovDrawing: any = nil
 if hasDrawing then
 	local circle = Drawing.new("Circle")
 	circle.Thickness = 1.5
-	circle.NumSides = 64
+	circle.NumSides = 48
 	circle.Radius = Combat.FovRadius
 	circle.Filled = false
 	circle.Color = Combat.FovColor
@@ -52,6 +52,9 @@ end
 
 local originalHitboxSizes: {[BasePart]: Vector3} = {}
 local lastTriggerTime = 0
+local cachedTargetPlayer: Player? = nil
+local cachedTargetPart: BasePart? = nil
+local lastTargetUpdateTime = 0
 
 local function isTeammate(player: Player): boolean
 	if not LocalPlayer.Team then return false end
@@ -59,7 +62,8 @@ local function isTeammate(player: Player): boolean
 end
 
 local function getScreenCenter(): Vector2
-	return Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+	local vp = Camera.ViewportSize
+	return Vector2.new(vp.X / 2, vp.Y / 2)
 end
 
 local function isPartVisible(origin: Vector3, targetPart: BasePart, ignoreList: {Instance}?): boolean
@@ -79,6 +83,8 @@ function Combat.getClosestTarget(ignoreWalls: boolean?): (Player?, BasePart?)
 	local closestPart: BasePart? = nil
 	local shortestDist = Combat.FovRadius
 	local checkWall = (ignoreWalls ~= true and not Combat.Wallbang)
+	local camPos = Camera.CFrame.Position
+	local myChar = LocalPlayer.Character
 	
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player == LocalPlayer then continue end
@@ -107,7 +113,7 @@ function Combat.getClosestTarget(ignoreWalls: boolean?): (Player?, BasePart?)
 		if dist < shortestDist then
 			local visible = true
 			if checkWall then
-				visible = isPartVisible(Camera.CFrame.Position, targetPart, {LocalPlayer.Character, character})
+				visible = isPartVisible(camPos, targetPart, {myChar, character})
 			end
 
 			if visible then
@@ -121,41 +127,61 @@ function Combat.getClosestTarget(ignoreWalls: boolean?): (Player?, BasePart?)
 	return closestPlayer, closestPart
 end
 
--- ── Metamethod Hooks for Silent Aim & Wallbang ─────────────────────
+-- ── Throttled Target Cache Updater (Prevents High-Frequency Frame Spikes) ──
+RunService.Heartbeat:Connect(function()
+	if not Combat.SilentAim and not Combat.AimTracking then
+		cachedTargetPlayer = nil
+		cachedTargetPart = nil
+		return
+	end
+
+	local now = tick()
+	if now - lastTargetUpdateTime >= 0.033 then -- 30 FPS update rate for target solver
+		lastTargetUpdateTime = now
+		cachedTargetPlayer, cachedTargetPart = Combat.getClosestTarget(Combat.Wallbang)
+	end
+end)
+
+-- ── Metamethod Hooks for Silent Aim & Wallbang (Optimized) ───────────
 pcall(function()
 	local hook = hookmetamethod or (getgenv and getgenv().hookmetamethod)
 	local getnamecall = getnamecallmethod or (getgenv and getgenv().getnamecallmethod)
 	local checkcall = checkcaller or (getgenv and getgenv().checkcaller)
 
 	if type(hook) == "function" and type(getnamecall) == "function" then
-		-- __namecall hook for Workspace:Raycast / FindPartOnRay
+		-- Fast __namecall hook with O(1) cached target lookup
 		local oldNamecall: any
 		oldNamecall = hook(game, "__namecall", function(self, ...)
-			local method = getnamecall()
-			local args = {...}
+			if not Combat.SilentAim then
+				return oldNamecall(self, ...)
+			end
 
-			if Combat.SilentAim and not (checkcall and checkcall()) then
-				if math.random(1, 100) <= Combat.HitChance then
-					local _, targetPart = Combat.getClosestTarget(Combat.Wallbang)
-					if targetPart then
-						if method == "Raycast" and self == Workspace then
-							local origin = args[1]
-							if typeof(origin) == "Vector3" then
-								args[2] = (targetPart.Position - origin).Unit * 1000
-								if Combat.Wallbang and typeof(args[3]) == "RaycastParams" then
-									local params: RaycastParams = args[3]
-									params.FilterType = Enum.RaycastFilterType.Include
-									params.FilterDescendantsInstances = { targetPart.Parent }
-								end
-								return oldNamecall(self, table.unpack(args))
+			local method = getnamecall()
+			if method == "Raycast" and self == Workspace then
+				if not (checkcall and checkcall()) then
+					local target = cachedTargetPart
+					if target and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
+						local origin = select(1, ...)
+						if typeof(origin) == "Vector3" then
+							local dir = (target.Position - origin).Unit * 1000
+							local p3 = select(3, ...)
+							if Combat.Wallbang and typeof(p3) == "RaycastParams" then
+								p3.FilterType = Enum.RaycastFilterType.Include
+								p3.FilterDescendantsInstances = { target.Parent }
 							end
-						elseif (method == "FindPartOnRay" or method == "findPartOnRay" or method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist") and self == Workspace then
-							local ray = args[1]
-							if typeof(ray) == "Ray" then
-								local newDirection = (targetPart.Position - ray.Origin).Unit * 1000
-								args[1] = Ray.new(ray.Origin, newDirection)
-								return oldNamecall(self, table.unpack(args))
-							end
+							return oldNamecall(self, origin, dir, p3)
+						end
+					end
+				end
+			elseif (method == "FindPartOnRay" or method == "findPartOnRay" or method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist") and self == Workspace then
+				if not (checkcall and checkcall()) then
+					local target = cachedTargetPart
+					if target and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
+						local ray = select(1, ...)
+						if typeof(ray) == "Ray" then
+							local newDir = (target.Position - ray.Origin).Unit * 1000
+							local newRay = Ray.new(ray.Origin, newDir)
+							return oldNamecall(self, newRay, select(2, ...))
 						end
 					end
 				end
@@ -164,21 +190,21 @@ pcall(function()
 			return oldNamecall(self, ...)
 		end)
 
-		-- __index hook for Mouse.Hit and Mouse.Target
+		-- Fast __index hook for Mouse.Hit and Mouse.Target
 		local oldIndex: any
 		oldIndex = hook(game, "__index", function(self, key)
-			if Combat.SilentAim and not (checkcall and checkcall()) then
-				if typeof(self) == "Instance" and self:IsA("Mouse") then
-					if key == "Hit" or key == "Target" then
-						if math.random(1, 100) <= Combat.HitChance then
-							local _, targetPart = Combat.getClosestTarget(Combat.Wallbang)
-							if targetPart then
-								if key == "Hit" then
-									return targetPart.CFrame
-								elseif key == "Target" then
-									return targetPart
-								end
-							end
+			if not Combat.SilentAim then
+				return oldIndex(self, key)
+			end
+
+			if (key == "Hit" or key == "Target") and typeof(self) == "Instance" and self:IsA("Mouse") then
+				if not (checkcall and checkcall()) then
+					local target = cachedTargetPart
+					if target and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
+						if key == "Hit" then
+							return target.CFrame
+						elseif key == "Target" then
+							return target
 						end
 					end
 				end
@@ -225,11 +251,11 @@ local function checkTriggerBot()
 	end
 end
 
--- Main RenderStepped Combat Loop
+-- Main RenderStepped Combat Loop (Fast, No Heavy Iteration)
 RunService.RenderStepped:Connect(function()
 	local screenCenter = getScreenCenter()
 	
-	-- FOV Circle Rendering: Centered strictly on screen center
+	-- FOV Circle Rendering
 	if fovDrawing then
 		if Combat.FovCircle then
 			fovDrawing.Position = screenCenter
@@ -243,7 +269,7 @@ RunService.RenderStepped:Connect(function()
 	
 	-- Aim Tracking Loop: Only tracks when holding Right Mouse Button (MouseButton2)
 	if Combat.AimTracking and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-		local _, targetPart = Combat.getClosestTarget(Combat.Wallbang)
+		local targetPart = cachedTargetPart
 		if targetPart then
 			local currentCF = Camera.CFrame
 			local targetCF = CFrame.lookAt(currentCF.Position, targetPart.Position)
@@ -253,20 +279,25 @@ RunService.RenderStepped:Connect(function()
 	
 	-- Trigger Bot Execution
 	checkTriggerBot()
-	
-	-- Hitbox Expander Loop
-	if Combat.ExpandHitboxes then
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player ~= LocalPlayer and player.Character then
-				if not Combat.TrackTeammates and isTeammate(player) then continue end
-				local hrp = player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-				if hrp then
-					if not originalHitboxSizes[hrp] then
-						originalHitboxSizes[hrp] = hrp.Size
+end)
+
+-- Hitbox Expander Loop (Throttled at 5 Hz)
+task.spawn(function()
+	while true do
+		task.wait(0.2)
+		if Combat.ExpandHitboxes then
+			for _, player in ipairs(Players:GetPlayers()) do
+				if player ~= LocalPlayer and player.Character then
+					if not Combat.TrackTeammates and isTeammate(player) then continue end
+					local hrp = player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+					if hrp then
+						if not originalHitboxSizes[hrp] then
+							originalHitboxSizes[hrp] = hrp.Size
+						end
+						hrp.Size = Vector3.new(Combat.HitboxSize, Combat.HitboxSize, Combat.HitboxSize)
+						hrp.Transparency = 0.6
+						hrp.CanCollide = false
 					end
-					hrp.Size = Vector3.new(Combat.HitboxSize, Combat.HitboxSize, Combat.HitboxSize)
-					hrp.Transparency = 0.6
-					hrp.CanCollide = false
 				end
 			end
 		end

@@ -47,6 +47,7 @@ function MusicTracker.new()
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ModularMusicTrackerGui"
 	screenGui.ResetOnSpawn = false
+	screenGui.IgnoreGuiInset = true
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 	pcall(function() screenGui.Parent = CoreGui end)

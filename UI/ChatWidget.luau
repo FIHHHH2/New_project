@@ -1,13 +1,11 @@
 --!strict
 --[=[
-    ✦ Squared Retro Chat Widget with Single Header Action Buttons ✦
-    Layout matching user diagram:
-    [ Mugshot ] Chat : @Username   [ ⯎ ] [ ≡ ] [ 🎙 ]     [ - ] [ X ]
-    - [ ⯎ ] Roblox Logo: Opens Roblox Escape Settings Menu (Leave, Reset, etc.) safely via VirtualInputManager / Escape
-    - [ ≡ ] Hamburger: Opens quick dropdown menu (Backpack, Music Tracker, Player List, Main Menu, Reset Character, Leave)
-    - [ 🎙 ] Microphone: Toggles voice chat mute state (green = active, red = muted)
-    - [ Chat Message Logs Container ]
-    - [ Quick Chat ] [ /Text Message Input ] [ Send Msg ]
+    ✦ Squared Retro Chat Widget with Seamless RichText Flow & Full-Screen Dragging ✦
+    Features:
+    - IgnoreGuiInset = true (can be positioned and dragged anywhere on screen including top border)
+    - Seamless RichText chat messages: message flows immediately after player name with zero gaps or truncation
+    - Action Header: [ ⯎ ] Roblox Menu, [ ≡ ] Hamburger Dropdown, [ 🎙 ] VoiceChat Mic Toggle
+    - Quick chat and send message controls
 ]=]
 
 local Players = game:GetService("Players")
@@ -40,6 +38,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	screenGui.Name = "ModularChatGui"
 	screenGui.ResetOnSpawn = false
 	screenGui.DisplayOrder = 500
+	screenGui.IgnoreGuiInset = true -- Allows moving anywhere on screen including top CoreGui area
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	pcall(function() screenGui.Parent = CoreGui end)
 	if not screenGui.Parent then
@@ -130,7 +129,7 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	-- Title: Chat : @Username
 	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(0, 110, 1, 0)
+	titleLabel.Size = UDim2.new(0, 115, 1, 0)
 	titleLabel.Position = UDim2.new(0, 29, 0, 0)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = string.format("Chat : @%s", Players.LocalPlayer.Name)
@@ -146,7 +145,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	local actionGroup = Instance.new("Frame")
 	actionGroup.Name = "TopBarActions"
 	actionGroup.Size = UDim2.new(0, 84, 0, 22)
-	actionGroup.Position = UDim2.new(0, 144, 0, 3)
+	actionGroup.Position = UDim2.new(0, 148, 0, 3)
 	actionGroup.BackgroundTransparency = 1
 	actionGroup.BorderSizePixel = 0
 	actionGroup.Parent = topbar
@@ -159,21 +158,18 @@ function ChatWidget.new(): ChatWidgetInstance
 	actLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	actLayout.Parent = actionGroup
 
-	-- 1. Roblox Logo Button [ ⯎ ]
-	local rbxBtn = Instance.new("TextButton")
+	-- 1. Roblox Menu Button [ ⯎ ]
+	local rbxBtn = Instance.new("ImageButton")
 	rbxBtn.Name = "RobloxLogoBtn"
 	rbxBtn.Size = UDim2.new(0, 24, 0, 22)
 	rbxBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	rbxBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	rbxBtn.BorderSizePixel = 0
-	rbxBtn.Text = "⯎"
-	rbxBtn.TextColor3 = UI.Theme.TextPrimary
-	rbxBtn.Font = Enum.Font.GothamBold
-	rbxBtn.TextSize = 13
+	rbxBtn.Image = "rbxasset://textures/ui/TopBar/icon_roblox.png"
+	rbxBtn.ScaleType = Enum.ScaleType.Fit
 	rbxBtn.LayoutOrder = 1
 	rbxBtn.Parent = actionGroup
 	UI.registerThemeElement(rbxBtn, "ContainerDark")
-	UI.registerThemeElement(rbxBtn, "TextPrimary")
 
 	local rbxStroke = Instance.new("UIStroke")
 	rbxStroke.Color = UI.Theme.Border
@@ -184,11 +180,9 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	rbxBtn.MouseEnter:Connect(function()
 		TweenService:Create(rbxStroke, TweenInfo.new(0.12), { Thickness = 1.6, Color = UI.Theme.Accent }):Play()
-		TweenService:Create(rbxBtn, TweenInfo.new(0.12), { TextColor3 = UI.Theme.Accent }):Play()
 	end)
 	rbxBtn.MouseLeave:Connect(function()
 		TweenService:Create(rbxStroke, TweenInfo.new(0.12), { Thickness = 1, Color = UI.Theme.Border }):Play()
-		TweenService:Create(rbxBtn, TweenInfo.new(0.12), { TextColor3 = UI.Theme.TextPrimary }):Play()
 	end)
 
 	rbxBtn.MouseButton1Click:Connect(function()
@@ -246,10 +240,10 @@ function ChatWidget.new(): ChatWidgetInstance
 	micBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	micBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	micBtn.BorderSizePixel = 0
-	micBtn.Text = "🎙̸"
+	micBtn.Text = "MIC"
 	micBtn.TextColor3 = Color3.fromRGB(245, 75, 75)
 	micBtn.Font = Enum.Font.GothamBold
-	micBtn.TextSize = 12
+	micBtn.TextSize = 8
 	micBtn.LayoutOrder = 3
 	micBtn.Parent = actionGroup
 	UI.registerThemeElement(micBtn, "ContainerDark")
@@ -265,10 +259,10 @@ function ChatWidget.new(): ChatWidgetInstance
 	micBtn.MouseButton1Click:Connect(function()
 		isMuted = not isMuted
 		if isMuted then
-			micBtn.Text = "🎙̸"
+			micBtn.Text = "MIC"
 			micBtn.TextColor3 = Color3.fromRGB(245, 75, 75)
 		else
-			micBtn.Text = "🎙"
+			micBtn.Text = "ON"
 			micBtn.TextColor3 = Color3.fromRGB(60, 225, 90)
 		end
 		pcall(function()
@@ -337,14 +331,14 @@ function ChatWidget.new(): ChatWidgetInstance
 		end)
 	end
 
-	createDropItem("🎒 Backpack", function()
+	createDropItem("Backpack", function()
 		bpActive = not bpActive
 		pcall(function()
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, bpActive)
 		end)
 	end)
 
-	createDropItem("♫ Music Tracker", function()
+	createDropItem("Music Tracker", function()
 		for _, g in ipairs(CoreGui:GetChildren()) do
 			if g.Name == "ModularMusicTrackerGui" then
 				local w = g:FindFirstChild("MusicTrackerWidget")
@@ -355,7 +349,7 @@ function ChatWidget.new(): ChatWidgetInstance
 		end
 	end)
 
-	createDropItem("👥 Player List", function()
+	createDropItem("Player List", function()
 		for _, g in ipairs(CoreGui:GetChildren()) do
 			if g.Name == "ModularPlayerListGui" then
 				local w = g:FindFirstChild("PlayerListFrame")
@@ -366,19 +360,19 @@ function ChatWidget.new(): ChatWidgetInstance
 		end
 	end)
 
-	createDropItem("⚡ Main Menu", function()
+	createDropItem("Main Menu", function()
 		if _G.__ToggleProjectFihMenu then
 			_G.__ToggleProjectFihMenu()
 		end
 	end)
 
-	createDropItem("⚠ Reset Character", function()
+	createDropItem("Reset Character", function()
 		local char = Players.LocalPlayer.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		if hum then hum.Health = 0 end
 	end)
 
-	createDropItem("🚪 Leave Game", function()
+	createDropItem("Leave Game", function()
 		pcall(function()
 			game:Shutdown()
 		end)
@@ -456,7 +450,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	UI.registerThemeElement(containerStroke, "Border")
 
 	local listLayout = Instance.new("UIListLayout")
-	listLayout.Padding = UDim.new(0, 4)
+	listLayout.Padding = UDim.new(0, 3)
 	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	listLayout.Parent = container
 
@@ -549,51 +543,34 @@ function ChatWidget.new(): ChatWidgetInstance
 	sendStroke.Parent = sendBtn
 	UI.registerThemeElement(sendStroke, "Border")
 
-	-- ── Message Line Constructor ──────────────────────────────────────
+	-- ── Message Line Constructor (Seamless RichText Flow) ─────────────
 	local function addMessage(sender: string, text: string)
 		local isSystem = (sender == "System")
-		local row = Instance.new("Frame")
-		row.Name = "MessageRow"
-		row.Size = UDim2.new(1, 0, 0, 0)
-		row.AutomaticSize = Enum.AutomaticSize.Y
-		row.BackgroundTransparency = 1
-		row.BorderSizePixel = 0
-		row.Parent = container
+		local msgLabel = Instance.new("TextLabel")
+		msgLabel.Name = "MessageLine"
+		msgLabel.Size = UDim2.new(1, -8, 0, 0)
+		msgLabel.Position = UDim2.new(0, 4, 0, 0)
+		msgLabel.AutomaticSize = Enum.AutomaticSize.Y
+		msgLabel.BackgroundTransparency = 1
+		msgLabel.RichText = true
+		msgLabel.TextWrapped = true
+		msgLabel.Font = UI.Fonts.Body
+		msgLabel.TextSize = 11
+		msgLabel.TextXAlignment = Enum.TextXAlignment.Left
+		msgLabel.TextColor3 = UI.Theme.TextPrimary
+		msgLabel.Parent = container
 
-		local senderLabel = Instance.new("TextLabel")
-		senderLabel.Name = "Sender"
-		senderLabel.Size = UDim2.new(0, 75, 0, 14)
-		senderLabel.Position = UDim2.new(0, 4, 0, 1)
-		senderLabel.BackgroundTransparency = 1
-		senderLabel.Text = sender .. ":"
-		senderLabel.TextColor3 = if isSystem then UI.Theme.TextSecondary else UI.Theme.Accent
-		senderLabel.Font = UI.Fonts.Header
-		senderLabel.TextSize = 10
-		senderLabel.TextXAlignment = Enum.TextXAlignment.Left
-		senderLabel.TextTruncate = Enum.TextTruncate.AtEnd
-		senderLabel.Parent = row
-
-		local textLabel = Instance.new("TextLabel")
-		textLabel.Name = "Content"
-		textLabel.Size = UDim2.new(1, -85, 0, 0)
-		textLabel.Position = UDim2.new(0, 82, 0, 1)
-		textLabel.AutomaticSize = Enum.AutomaticSize.Y
-		textLabel.BackgroundTransparency = 1
-		textLabel.Text = text
-		textLabel.TextColor3 = UI.Theme.TextPrimary
-		textLabel.Font = UI.Fonts.Body
-		textLabel.TextSize = 10
-		textLabel.TextXAlignment = Enum.TextXAlignment.Left
-		textLabel.TextWrapped = true
-		textLabel.Parent = row
-		UI.registerThemeElement(textLabel, "TextPrimary")
+		local senderHex = if isSystem then "#A0A0AA" else "#37AFF5"
+		local cleanName = sender:gsub("<", "&lt;"):gsub(">", "&gt;")
+		local cleanMsg = text:gsub("<", "&lt;"):gsub(">", "&gt;")
+		msgLabel.Text = string.format("<font color='%s'><b>%s:</b></font> %s", senderHex, cleanName, cleanMsg)
 
 		task.defer(function()
 			container.CanvasPosition = Vector2.new(0, math.max(0, container.AbsoluteCanvasSize.Y - container.AbsoluteWindowSize.Y))
 		end)
 	end
 
-	-- ── Dragging & Resize Handlers ────────────────────────────────────
+	-- ── Dragging & Full-Screen Boundaries Handlers ────────────────────
 	local dragging = false
 	local dragInput: InputObject? = nil
 	local dragStart = Vector3.zero
@@ -720,7 +697,7 @@ function ChatWidget.new(): ChatWidgetInstance
 			TextChatService.OnIncomingMessage = function(msg)
 				if not msg.TextSource then return end
 				local player = Players:GetPlayerByUserId(msg.TextSource.UserId)
-				local name = if player then player.DisplayName else "Server"
+				local name = if player then (player.DisplayName ~= "" and player.DisplayName or player.Name) else "Server"
 				addMessage(name, msg.Text)
 			end
 		end)

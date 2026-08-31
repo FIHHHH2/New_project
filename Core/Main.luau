@@ -677,6 +677,10 @@ window:AddButton(themeSection, "Translucent Light (Glass)", function()
 	window:SetTheme("TranslucentLight")
 end)
 
+window:AddButton(themeSection, "Adaptive (Album Cover)", function()
+	window:SetTheme("Adaptive")
+end)
+
 -- GUI Visibility & Screen Cleanup Controls
 local cleanSection = window:AddSection(setLeftCol, "Screen & GUI Optimization")
 

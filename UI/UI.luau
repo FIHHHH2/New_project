@@ -71,6 +71,22 @@ UI.Themes = {
 		ContainerTransparency = 0.35,
 		ContainerDark = Color3.fromRGB(225, 228, 236),
 		ContainerDarkTransparency = 0.45
+	},
+	Adaptive = {
+		Name = "Adaptive",
+		Background = Color3.fromRGB(18, 18, 22),
+		BackgroundTransparency = 0.02,
+		Border = Color3.fromRGB(240, 240, 250),
+		BorderDim = Color3.fromRGB(80, 80, 95),
+		Accent = Color3.fromRGB(55, 175, 245),
+		AccentDark = Color3.fromRGB(30, 120, 200),
+		AccentText = Color3.fromRGB(255, 255, 255),
+		TextPrimary = Color3.fromRGB(245, 245, 245),
+		TextSecondary = Color3.fromRGB(165, 165, 175),
+		Container = Color3.fromRGB(26, 26, 32),
+		ContainerTransparency = 0,
+		ContainerDark = Color3.fromRGB(18, 18, 22),
+		ContainerDarkTransparency = 0
 	}
 }
 
@@ -92,6 +108,20 @@ UI.RegisteredElements = {} :: {ThemedElement}
 
 function UI.registerThemeElement(inst: Instance, propType: string)
 	table.insert(UI.RegisteredElements, { Instance = inst, PropType = propType })
+end
+
+function UI.applyAdaptiveTheme(accentCol: Color3, bgCol: Color3, containerCol: Color3, borderCol: Color3?)
+	local ad = UI.Themes.Adaptive
+	ad.Accent = accentCol
+	ad.AccentDark = Color3.fromRGB(math.floor(accentCol.R * 255 * 0.7), math.floor(accentCol.G * 255 * 0.7), math.floor(accentCol.B * 255 * 0.7))
+	ad.Background = bgCol
+	ad.Container = containerCol
+	ad.ContainerDark = bgCol
+	ad.Border = borderCol or Color3.fromRGB(240, 240, 250)
+
+	if UI.CurrentTheme.Name == "Adaptive" then
+		UI.setTheme("Adaptive")
+	end
 end
 
 function UI.setTheme(themeName: string)

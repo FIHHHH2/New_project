@@ -378,6 +378,8 @@ function MusicTracker.new()
 	local lastSongTitle = ""
 	local lastCoverVersion = -1
 	local previousCoverFile: string? = nil
+	local currentSpectrum = { 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05 }
+	local currentAudioPeak = 0.0
 
 	local function loadRealCoverBinary(v: number?)
 		local wrf = writefile or (getgenv and getgenv().writefile)
@@ -393,7 +395,6 @@ function MusicTracker.new()
 				end
 				local imgBytes = game:HttpGet(BRIDGE_URL .. "/cover.png?nocache=" .. tostring(os.time()) .. "_" .. tostring(math.random(1000, 9999)))
 				if imgBytes and #imgBytes > 100 then
-					-- Unique filename per song change to bypass Roblox internal getcustomasset caching
 					local newFile = string.format("FihSuite/cover_%d_%d.png", os.time(), math.random(100, 999))
 					wrf(newFile, imgBytes)
 					local assetUri = getAsset(newFile)
@@ -407,7 +408,6 @@ function MusicTracker.new()
 							TweenService:Create(coverImg, TweenInfo.new(0.18, Enum.EasingStyle.Quad), { ImageTransparency = 0 }):Play()
 						end)
 
-						-- Clean up old cover file
 						if previousCoverFile and type(dlf) == "function" then
 							pcall(dlf, previousCoverFile)
 						end
@@ -427,7 +427,6 @@ function MusicTracker.new()
 			return
 		end
 
-		-- Download real image bytes from bridge server with cache-busting
 		task.spawn(function()
 			loadRealCoverBinary(coverVersion)
 		end)
@@ -458,18 +457,15 @@ function MusicTracker.new()
 	local visualizerConn = RunService.RenderStepped:Connect(function()
 		if not widget.Visible or not isPlaying then
 			for _, bar in ipairs(visualizerBars) do
-				bar.Size = UDim2.new(0, 6, 0, 4)
+				bar.Size = UDim2.new(0, 6, 0, 3)
 			end
 			return
 		end
 
-		local t = tick()
 		for i, bar in ipairs(visualizerBars) do
-			local freq = (i * 0.8) + (t * 6)
-			local h1 = math.abs(math.sin(freq))
-			local h2 = math.abs(math.cos(freq * 1.5))
-			local combined = math.clamp((h1 * 0.6 + h2 * 0.4) * 36, 4, 38)
-			bar.Size = UDim2.new(0, 6, 0, combined)
+			local specVal = currentSpectrum[i] or 0.05
+			local h = math.clamp(math.floor(specVal * 32), 3, 34)
+			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), 0.35)
 		end
 	end)
 
@@ -498,16 +494,33 @@ function MusicTracker.new()
 		end)
 	end)
 
-	-- ── Local Bridge Poller (Spotify / SoundCloud / YouTube) ──────────
+	-- ── Local Bridge Poller (Audio Spectrum, Lyrics, Adaptive Theme) ─
 	task.spawn(function()
 		while true do
-			task.wait(1.0)
+			task.wait(0.2)
 			if widget.Visible then
 				pcall(function()
 					local raw = game:HttpGet(BRIDGE_URL .. "/current")
 					if raw and raw ~= "" then
 						local data = HttpService:JSONDecode(raw)
 						if data and data.title then
+							if data.spectrum and typeof(data.spectrum) == "table" then
+								currentSpectrum = data.spectrum
+							end
+							if data.audioPeak then
+								currentAudioPeak = data.audioPeak
+							end
+							if data.theme and typeof(data.theme) == "table" then
+								local t = data.theme
+								if t.accent and t.bg and t.container then
+									local acc = Color3.fromRGB(t.accent[1], t.accent[2], t.accent[3])
+									local bg = Color3.fromRGB(t.bg[1], t.bg[2], t.bg[3])
+									local ct = Color3.fromRGB(t.container[1], t.container[2], t.container[3])
+									local bd = t.border and Color3.fromRGB(t.border[1], t.border[2], t.border[3]) or nil
+									UI.applyAdaptiveTheme(acc, bg, ct, bd)
+								end
+							end
+
 							local isIdle = (data.title == "No Song Playing" or not data.isPlaying)
 							local coverVersion = data.coverVersion or 0
 							if data.title ~= lastSongTitle or coverVersion ~= lastCoverVersion then

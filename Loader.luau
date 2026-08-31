@@ -109,6 +109,8 @@ local function requireRemote(path: string): any
 			path = "Modules/Movement.luau"
 		elseif path == "Modules/DisasterSurvival" or path == "DisasterSurvival" then
 			path = "Modules/DisasterSurvival.luau"
+		elseif path == "Modules/RunNHide" or path == "RunNHide" then
+			path = "Modules/RunNHide.luau"
 		end
 	end
 
@@ -153,6 +155,8 @@ local function requireRemote(path: string): any
 					return requireRemote("Modules/Movement.luau")
 				elseif name == "DisasterSurvival" then
 					return requireRemote("Modules/DisasterSurvival.luau")
+				elseif name == "RunNHide" then
+					return requireRemote("Modules/RunNHide.luau")
 				end
 			end
 			return require(target)
@@ -180,10 +184,12 @@ local Visuals = requireRemote("Modules/Visuals.luau")
 local Combat = requireRemote("Modules/Combat.luau")
 local Movement = requireRemote("Modules/Movement.luau")
 local DisasterSurvival = requireRemote("Modules/DisasterSurvival.luau")
+local RunNHide = requireRemote("Modules/RunNHide.luau")
 
 _G.__ModularSuite_Cleanup = function()
 	pcall(function()
 		DisasterSurvival.cleanup()
+		RunNHide.cleanup()
 		Combat.resetHitboxes()
 		for _, name in ipairs(guiNames) do
 			for _, c in ipairs(CoreGui:GetChildren()) do
@@ -238,6 +244,8 @@ local customMainEnv = setmetatable({
 				return Movement
 			elseif name == "DisasterSurvival" then
 				return DisasterSurvival
+			elseif name == "RunNHide" then
+				return RunNHide
 			end
 		end
 		return require(target)

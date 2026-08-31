@@ -306,13 +306,13 @@ function ChatWidget.new(): ChatWidgetInstance
 	local dragging = false
 	local dragInput: InputObject? = nil
 	local dragStart = Vector3.zero
-	local startPos = UDim2.new()
+	local startAbsPos = Vector2.zero
 
 	topbar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
 			dragStart = input.Position
-			startPos = widget.Position
+			startAbsPos = widget.AbsolutePosition
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					dragging = false
@@ -331,9 +331,9 @@ function ChatWidget.new(): ChatWidgetInstance
 		if input == dragInput and dragging then
 			local delta = input.Position - dragStart
 			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-			local newX = math.clamp(startPos.X.Offset + delta.X, 0, vpSize.X - widget.AbsoluteSize.X)
-			local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, vpSize.Y - widget.AbsoluteSize.Y)
-			widget.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
+			local targetX = math.clamp(startAbsPos.X + delta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
+			local targetY = math.clamp(startAbsPos.Y + delta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
+			widget.Position = UDim2.new(0, targetX, 0, targetY)
 		end
 	end)
 

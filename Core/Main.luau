@@ -15,6 +15,7 @@ local ChatWidget = require("UI/ChatWidget.luau")
 local Visuals = require("Modules/Visuals.luau")
 local Combat = require("Modules/Combat.luau")
 local DisasterSurvival = require("Modules/DisasterSurvival.luau")
+local RunNHide = require("Modules/RunNHide.luau")
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character
@@ -57,13 +58,16 @@ local chatWidgetInstance = ChatWidget.new()
 
 local function getGameTabName(): string
 	local placeId = game.PlaceId
-	if placeId == 189707 or string.find(string.lower(game.Name), "disaster") then
+	local nameLower = string.lower(game.Name)
+	if game:GetService("ReplicatedStorage"):FindFirstChild("GunSystem") or string.find(nameLower, "run") or string.find(nameLower, "hide") or string.find(nameLower, "demise") then
+		return "Run N Hide"
+	elseif placeId == 189707 or string.find(nameLower, "disaster") then
 		return "Disasters"
-	elseif placeId == 286090429 or string.find(string.lower(game.Name), "arsenal") then
+	elseif placeId == 286090429 or string.find(nameLower, "arsenal") then
 		return "Arsenal"
-	elseif placeId == 6872265039 or placeId == 6872274481 or string.find(string.lower(game.Name), "bedwars") then
+	elseif placeId == 6872265039 or placeId == 6872274481 or string.find(nameLower, "bedwars") then
 		return "BedWars"
-	elseif placeId == 142823291 or string.find(string.lower(game.Name), "murder") then
+	elseif placeId == 142823291 or string.find(nameLower, "murder") then
 		return "MM2"
 	end
 	
@@ -96,11 +100,15 @@ local configsTab = window:CreateTab("Configs", true)
 window:BindSettingsTab(settingsTab)
 window:BindConfigsTab(configsTab)
 
--- Initialize Game Survival Engine
+-- Initialize Game Engines
 DisasterSurvival.init(function(disasterName)
 	if DisasterSurvival.DisasterTracker then
 		window:Notify("Disaster Warning!", string.format("Detected: %s", disasterName), 4)
 	end
+end)
+
+RunNHide.init(function(title, msg)
+	window:Notify(title, msg, 4)
 end)
 
 -- ============================================================
@@ -246,48 +254,295 @@ window:AddSlider(hitSection, "Hitbox Size", 2, 30, 12, function(value)
 end)
 
 -- ============================================================
--- GAME TAB CONTENT (NATURAL DISASTER SURVIVAL & UTILITIES)
+-- GAME TAB CONTENT (RUN N HIDE / DISASTER SURVIVAL & UTILITIES)
 -- ============================================================
 local gameLeftCol, gameRightCol = window:CreateColumns(gameTab)
 
--- Disaster Intelligence
-local disasterSection = window:AddSection(gameLeftCol, "Disaster Intelligence")
+if gameTabTitle == "Run N Hide" then
+	-- ── LEFT COLUMN: AIM ASSIST & COMBAT ───────────────────────
+	local aimSection = window:AddSection(gameLeftCol, "Aim Assist Engine")
 
-window:AddToggle(disasterSection, "disaster_tracker", "Disaster Tracker", false, nil, function(enabled)
-	DisasterSurvival.DisasterTracker = enabled
-	if enabled and DisasterSurvival.CurrentDisaster ~= "None (In Lobby)" and DisasterSurvival.CurrentDisaster ~= "" then
-		window:Notify("Current Disaster", DisasterSurvival.CurrentDisaster, 3.5)
-	end
-end)
+	window:AddToggle(aimSection, "rnh_aim_assist", "Aim Assist (Hold R-Click)", false, nil, function(val)
+		RunNHide.AimAssist = val
+	end)
 
-window:AddButton(disasterSection, "Check Current Disaster", function()
-	local tag = localPlayer.Character and localPlayer.Character:FindFirstChild("SurvivalTag")
-	local cur = if tag and tag:IsA("StringValue") and tag.Value ~= "" then tag.Value else "None (In Lobby)"
-	window:Notify("Disaster Status", cur, 3.5)
-end)
+	window:AddToggle(aimSection, "rnh_aim_fov", "Show Aim Assist FOV", false, nil, function(val)
+		RunNHide.AimAssistFOV = val
+	end)
 
-window:AddToggle(disasterSection, "no_fall_damage", "No Fall Damage", false, nil, function(enabled)
-	DisasterSurvival.setNoFallDamage(enabled)
-end)
+	window:AddToggle(aimSection, "rnh_aim_wallcheck", "Aim Wallcheck (Visible Only)", true, nil, function(val)
+		RunNHide.AimWallCheck = val
+	end)
 
-window:AddToggle(disasterSection, "flight_no_fall", "Flight No Fall Damage", false, nil, function(enabled)
-	DisasterSurvival.setFlight(enabled)
-end)
+	window:AddToggle(aimSection, "rnh_aim_threats", "Prioritize Threats / Shooters", true, nil, function(val)
+		RunNHide.AimPrioritizeThreat = val
+	end)
 
-window:AddSlider(disasterSection, "Flight Speed", 20, 150, 50, function(value)
-	DisasterSurvival.FlightSpeed = value
-end)
+	window:AddToggle(aimSection, "rnh_aim_head", "Target Head (Off = Torso)", true, nil, function(val)
+		RunNHide.AimTargetPart = if val then "Head" else "Torso"
+	end)
 
--- Physics & Protection
-local physicsSection = window:AddSection(gameRightCol, "Physics & Protection")
+	window:AddSlider(aimSection, "Aim FOV Radius", 40, 350, 140, function(val)
+		RunNHide.AimRadius = val
+	end)
 
-window:AddToggle(physicsSection, "anti_fling", "Anti-Fling Protection", false, nil, function(enabled)
-	DisasterSurvival.setAntiFling(enabled)
-end)
+	window:AddSlider(aimSection, "Aim Smoothing (1=Snap)", 1, 15, 5, function(val)
+		RunNHide.AimSmoothing = val
+	end)
 
-window:AddToggle(physicsSection, "player_fling", "Object / Player Fling", false, nil, function(enabled)
-	DisasterSurvival.setFling(enabled)
-end)
+	local weaponMechSection = window:AddSection(gameLeftCol, "Weapon Mechanisms")
+
+	window:AddToggle(weaponMechSection, "rnh_silent_audio", "Silent Gun Audio (Mute)", true, nil, function(val)
+		RunNHide.SilentGunAudio = val
+		RunNHide.updateWeapons(true)
+	end)
+
+	window:AddToggle(weaponMechSection, "rnh_quick_reload", "Quick Reload & Instant Rack", false, nil, function(val)
+		RunNHide.QuickReload = val
+		RunNHide.AutoChamber = val
+		RunNHide.updateWeapons()
+	end)
+
+	window:AddToggle(weaponMechSection, "rnh_complete_auto", "Complete Auto (All Guns)", false, nil, function(val)
+		RunNHide.CompleteAuto = val
+		if val then
+			RunNHide.SemiAutoForce = false
+			RunNHide.BurstMode = false
+		end
+		RunNHide.updateWeapons()
+	end)
+
+	window:AddToggle(weaponMechSection, "rnh_semi_auto", "The Semi-Auto Force", false, nil, function(val)
+		RunNHide.SemiAutoForce = val
+		if val then
+			RunNHide.CompleteAuto = false
+			RunNHide.BurstMode = false
+		end
+		RunNHide.updateWeapons()
+	end)
+
+	window:AddToggle(weaponMechSection, "rnh_burst_mode", "The Burst Rounds", false, nil, function(val)
+		RunNHide.BurstMode = val
+		if val then
+			RunNHide.CompleteAuto = false
+			RunNHide.SemiAutoForce = false
+		end
+		RunNHide.updateWeapons()
+	end)
+
+	window:AddToggle(weaponMechSection, "rnh_no_recoil", "Zero Recoil", false, nil, function(val)
+		RunNHide.NoRecoil = val
+		RunNHide.updateWeapons()
+	end)
+
+	window:AddToggle(weaponMechSection, "rnh_fast_fire", "Rapid Fire Rate Overclock", false, nil, function(val)
+		RunNHide.FastFireRate = val
+		RunNHide.updateWeapons()
+	end)
+
+	window:AddSlider(weaponMechSection, "Burst Shot Count", 2, 10, 3, function(val)
+		RunNHide.BurstCount = val
+	end)
+
+	window:AddSlider(weaponMechSection, "Burst Delay (ms)", 20, 150, 60, function(val)
+		RunNHide.BurstDelay = val / 1000
+	end)
+
+	local gunOpsSection = window:AddSection(gameLeftCol, "Gun Operations")
+
+	window:AddButton(gunOpsSection, "Force Instant Reload", function()
+		if RunNHide.forceReload() then
+			window:Notify("Run N Hide", "Weapon reloaded & chambered", 3)
+		else
+			window:Notify("Run N Hide", "No gun equipped", 3)
+		end
+	end)
+
+	window:AddButton(gunOpsSection, "Chamber Equipped Weapon", function()
+		if RunNHide.forceChamber() then
+			window:Notify("Run N Hide", "Weapon chambered", 3)
+		else
+			window:Notify("Run N Hide", "No gun equipped", 3)
+		end
+	end)
+
+	-- ── RIGHT COLUMN: BOUNDS, ROLES, STAMINA & CONTROLS ────────
+	local boundsSection = window:AddSection(gameRightCol, "Map Bounds & Barrier Breaker")
+
+	window:AddToggle(boundsSection, "rnh_disable_barriers", "Disable Map Bounds & Barriers", false, nil, function(val)
+		RunNHide.DisableBarriers = val
+		if val then
+			local count = RunNHide.scanAndDisableBoundaries()
+			window:Notify("Bounds", string.format("Barriers & clips disabled (%d checked)", count), 3)
+		end
+	end)
+
+	window:AddToggle(boundsSection, "rnh_disable_kill", "Disable Kill Bricks & Death Zones", false, nil, function(val)
+		RunNHide.DisableKillbricks = val
+		if val then
+			RunNHide.scanAndDisableBoundaries()
+			window:Notify("Bounds", "Killbricks & death zones neutralized", 3)
+		end
+	end)
+
+	window:AddToggle(boundsSection, "rnh_door_phase", "Door Phase (Pass Through Closed)", false, nil, function(val)
+		RunNHide.DoorPhase = val
+		if val then RunNHide.scanAndDisableBoundaries() end
+	end)
+
+	window:AddToggle(boundsSection, "rnh_anti_void", "Anti-Void Safety Floor", false, nil, function(val)
+		RunNHide.AntiVoidFloor = val
+		RunNHide.updateVoidPlatform()
+	end)
+
+	window:AddButton(boundsSection, "Audit & Disable All Bounds Now", function()
+		RunNHide.DisableBarriers = true
+		RunNHide.DisableKillbricks = true
+		RunNHide.DoorPhase = true
+		local count = RunNHide.scanAndDisableBoundaries()
+		window:Notify("Boundary Audit", string.format("All invisible walls & killbricks purged (%d checked)", count), 3.5)
+	end)
+
+	local roleSection = window:AddSection(gameRightCol, "Role Tracker & Alerts")
+
+	window:AddToggle(roleSection, "rnh_role_tracker", "Role Tracker Watcher", false, nil, function(val)
+		RunNHide.RoleTracker = val
+	end)
+
+	window:AddToggle(roleSection, "rnh_role_alert", "Shooter / Killer Reveal Alert", true, nil, function(val)
+		RunNHide.RoleNotifier = val
+	end)
+
+	window:AddButton(roleSection, "Scan All Player Roles Now", function()
+		local threats = {}
+		local sheriffs = {}
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p ~= localPlayer then
+				local cat = RunNHide.getPlayerRoleCategory(p)
+				if cat == "Threat" or cat == "Armed" then
+					table.insert(threats, p.DisplayName)
+				elseif cat == "Sheriff" then
+					table.insert(sheriffs, p.DisplayName)
+				end
+			end
+		end
+		local summary = string.format("Threats: %s | Sheriffs: %s", if #threats > 0 then table.concat(threats, ", ") else "None", if #sheriffs > 0 then table.concat(sheriffs, ", ") else "None")
+		window:Notify("Role Scan", summary, 4)
+	end)
+
+	local stamSection = window:AddSection(gameRightCol, "Stamina & Ragdoll Mobility")
+
+	window:AddToggle(stamSection, "rnh_move_ragdoll", "Move In Ragdoll (WASD Steer)", true, nil, function(val)
+		RunNHide.MoveInRagdoll = val
+	end)
+
+	window:AddToggle(stamSection, "rnh_ragdoll_jump", "Ragdoll Jump Boost (Spacebar)", true, nil, function(val)
+		RunNHide.RagdollJumpBoost = val
+	end)
+
+	window:AddToggle(stamSection, "rnh_auto_standup", "Auto Instant Standup", false, nil, function(val)
+		RunNHide.AutoStandup = val
+	end)
+
+	window:AddToggle(stamSection, "rnh_inf_stamina", "Infinite Stamina (Zero Drain)", false, nil, function(val)
+		RunNHide.InfiniteStamina = val
+		RunNHide.updateStamina()
+	end)
+
+	window:AddToggle(stamSection, "rnh_fast_regen", "Fast Stamina Recovery", false, nil, function(val)
+		RunNHide.FastRegen = val
+		RunNHide.updateStamina()
+	end)
+
+	window:AddToggle(stamSection, "rnh_speed_boost", "Sprint Speed Multiplier", false, nil, function(val)
+		RunNHide.SpeedBoost = val
+		RunNHide.updateStamina()
+	end)
+
+	window:AddSlider(stamSection, "Ragdoll Move Speed", 16, 120, 32, function(val)
+		RunNHide.RagdollSpeed = val
+	end)
+
+	window:AddSlider(stamSection, "Stamina Drain Reduction %", 0, 100, 50, function(val)
+		RunNHide.StaminaReduction = val
+		RunNHide.updateStamina()
+	end)
+
+	window:AddSlider(stamSection, "Sprint Speed Factor", 1, 3, 1, function(val)
+		RunNHide.SpeedMultiplier = val
+		RunNHide.updateStamina()
+	end)
+
+	window:AddButton(stamSection, "Force Instant Standup / Recover", function()
+		RunNHide.forceStandup()
+		window:Notify("Ragdoll", "Recovered from ragdoll state", 3)
+	end)
+
+	local grabSection = window:AddSection(gameRightCol, "Weapon Spawns & Arena")
+
+	window:AddToggle(grabSection, "rnh_auto_grab", "Auto-Grab Spawned Weapons", false, nil, function(val)
+		RunNHide.AutoGrabWeapons = val
+		if val then
+			local c = RunNHide.grabAllScatteredWeapons()
+			window:Notify("Weapon Grabber", string.format("Auto-grab active (%d prompts checked)", c), 3)
+		end
+	end)
+
+	window:AddButton(grabSection, "Grab All Map Weapons Now", function()
+		local c = RunNHide.grabAllScatteredWeapons()
+		window:Notify("Weapon Grabber", string.format("Grabbed %d weapons from map", c), 3.5)
+	end)
+
+	window:AddButton(grabSection, "Teleport to PVP Arena", function()
+		if RunNHide.teleportToArena() then
+			window:Notify("Arena", "Teleported to PVP Arena loadout zone", 3)
+		end
+	end)
+
+	window:AddButton(grabSection, "Join VC Server Only", function()
+		window:Notify("Server Hop", "Initiating voice server hop...", 3)
+		RunNHide.joinVCServer()
+	end)
+else
+	-- Disaster Intelligence (Default / NDS)
+	local disasterSection = window:AddSection(gameLeftCol, "Disaster Intelligence")
+
+	window:AddToggle(disasterSection, "disaster_tracker", "Disaster Tracker", false, nil, function(enabled)
+		DisasterSurvival.DisasterTracker = enabled
+		if enabled and DisasterSurvival.CurrentDisaster ~= "None (In Lobby)" and DisasterSurvival.CurrentDisaster ~= "" then
+			window:Notify("Current Disaster", DisasterSurvival.CurrentDisaster, 3.5)
+		end
+	end)
+
+	window:AddButton(disasterSection, "Check Current Disaster", function()
+		local tag = localPlayer.Character and localPlayer.Character:FindFirstChild("SurvivalTag")
+		local cur = if tag and tag:IsA("StringValue") and tag.Value ~= "" then tag.Value else "None (In Lobby)"
+		window:Notify("Disaster Status", cur, 3.5)
+	end)
+
+	window:AddToggle(disasterSection, "no_fall_damage", "No Fall Damage", false, nil, function(enabled)
+		DisasterSurvival.setNoFallDamage(enabled)
+	end)
+
+	window:AddToggle(disasterSection, "flight_no_fall", "Flight No Fall Damage", false, nil, function(enabled)
+		DisasterSurvival.setFlight(enabled)
+	end)
+
+	window:AddSlider(disasterSection, "Flight Speed", 20, 150, 50, function(value)
+		DisasterSurvival.FlightSpeed = value
+	end)
+
+	-- Physics & Protection
+	local physicsSection = window:AddSection(gameRightCol, "Physics & Protection")
+
+	window:AddToggle(physicsSection, "anti_fling", "Anti-Fling Protection", false, nil, function(enabled)
+		DisasterSurvival.setAntiFling(enabled)
+	end)
+
+	window:AddToggle(physicsSection, "player_fling", "Object / Player Fling", false, nil, function(enabled)
+		DisasterSurvival.setFling(enabled)
+	end)
+end
 
 -- ============================================================
 -- VISUALS TAB CONTENT

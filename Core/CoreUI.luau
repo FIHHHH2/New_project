@@ -6,6 +6,7 @@ local CoreGui = game:GetService("CoreGui")
 local UI = require("UI/UI.luau")
 local Animations = require("UI/Animations.luau")
 local FeatureManager = require("Core/FeatureManager.luau")
+local Notification = require("UI/Notification.luau")
 
 local CoreUI = {}
 CoreUI.__index = CoreUI
@@ -429,6 +430,12 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 		checkBtn.Text = if state then "X" else ""
 	end
 
+	-- Synchronize visual state when toggled via keyboard keybind or external call
+	feature.onStateChanged = function(newState: boolean)
+		updateToggleVisual(newState)
+		Notification.notifyFeature(name, newState)
+	end
+
 	table.insert(self.ActiveToggles, function()
 		updateToggleVisual(feature.state)
 	end)
@@ -436,7 +443,6 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	local function toggleAction()
 		local nextState = not feature.state
 		FeatureManager.setFeatureState(featureId, nextState)
-		updateToggleVisual(nextState)
 	end
 
 	checkBtn.MouseButton1Click:Connect(toggleAction)
@@ -629,6 +635,10 @@ function CoreUI:AddButton(section: Frame, name: string, callback: () -> ())
 		end)
 		callback()
 	end)
+end
+
+function CoreUI:Notify(title: string, message: string, duration: number?)
+	Notification.show(title, message, duration)
 end
 
 return CoreUI

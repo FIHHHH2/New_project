@@ -10,7 +10,8 @@ export type FeatureRecord = {
 	state: boolean,
 	keybind: Enum.KeyCode?,
 	callback: (boolean) -> (),
-	onKeybindChanged: ((Enum.KeyCode?) -> ())?
+	onKeybindChanged: ((Enum.KeyCode?) -> ())?,
+	onStateChanged: ((boolean) -> ())?
 }
 
 local registeredFeatures: {[string]: FeatureRecord} = {}
@@ -67,7 +68,8 @@ function FeatureManager.register(id: string, name: string, defaultState: boolean
 		state = defaultState,
 		keybind = defaultKeybind,
 		callback = callback,
-		onKeybindChanged = nil
+		onKeybindChanged = nil,
+		onStateChanged = nil
 	}
 	registeredFeatures[id] = record
 	rebuildKeybindMap()
@@ -88,6 +90,9 @@ function FeatureManager.setFeatureState(id: string, state: boolean)
 	if feat.state == state then return end
 	
 	feat.state = state
+	if feat.onStateChanged then
+		feat.onStateChanged(state)
+	end
 	local success, err = pcall(feat.callback, state)
 	if not success then
 		warn(string.format("[FeatureManager] error toggling feature %s: %s", id, tostring(err)))

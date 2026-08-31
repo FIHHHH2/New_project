@@ -50,6 +50,8 @@ local function requireRemote(path: string): any
 			path = "UI/Animations.luau"
 		elseif path == "UI/UI" or path == "UI" then
 			path = "UI/UI.luau"
+		elseif path == "UI/Notification" or path == "Notification" then
+			path = "UI/Notification.luau"
 		elseif path == "Core/FeatureManager" or path == "FeatureManager" then
 			path = "Core/FeatureManager.luau"
 		elseif path == "Core/CoreUI" or path == "CoreUI" then
@@ -89,6 +91,8 @@ local function requireRemote(path: string): any
 					return requireRemote("UI/Animations.luau")
 				elseif name == "UI" then
 					return requireRemote("UI/UI.luau")
+				elseif name == "Notification" then
+					return requireRemote("UI/Notification.luau")
 				elseif name == "FeatureManager" then
 					return requireRemote("Core/FeatureManager.luau")
 				elseif name == "CoreUI" then
@@ -118,11 +122,10 @@ print("[Loader] Initializing Modular Roblox UI suite...")
 -- Preload dependencies in order
 local Animations = requireRemote("UI/Animations.luau")
 local UI = requireRemote("UI/UI.luau")
+local Notification = requireRemote("UI/Notification.luau")
 local FeatureManager = requireRemote("Core/FeatureManager.luau")
 local CoreUI = requireRemote("Core/CoreUI.luau")
 local Visuals = requireRemote("Modules/Visuals.luau")
-local Combat = requireRemote("Modules/Combat.luau")
-local Movement = requireRemote("Modules/Movement.luau")
 
 -- Bootstrap Main Runtime
 local mainSource = fetchSource("Core/Main.luau")
@@ -145,14 +148,12 @@ local customMainEnv = setmetatable({
 				return FeatureManager
 			elseif name == "UI" then
 				return UI
+			elseif name == "Notification" then
+				return Notification
 			elseif name == "Animations" then
 				return Animations
 			elseif name == "Visuals" then
 				return Visuals
-			elseif name == "Combat" then
-				return Combat
-			elseif name == "Movement" then
-				return Movement
 			end
 		end
 		return require(target)

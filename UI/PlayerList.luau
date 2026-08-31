@@ -1,11 +1,12 @@
 --!strict
 --[=[
     ✦ Squared Retro Player List Widget ✦
-    Auto-scales to player count, clamps to viewport, theme-reactive.
+    Incremental add/remove with slide animation. Never rebuilds the full list.
 ]=]
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 
 local UI = require("UI/UI.luau")
@@ -13,37 +14,28 @@ local UI = require("UI/UI.luau")
 local PlayerList = {}
 PlayerList.__index = PlayerList
 
-export type PlayerListWidget = {
-	Frame: Frame,
-	Container: ScrollingFrame,
-	IsMinimized: boolean,
-	Visible: boolean
-}
-
 local ROW_H = 42
 local ROW_GAP = 4
-local HEADER_H = 32
-local PAD_V = 4
-local MAX_H = 300
-local MIN_H = 40
+local HEADER_H = 30
+local MAX_CONTENT_H = 280
 
-function PlayerList.new(): PlayerListWidget
+function PlayerList.new()
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ModularPlayerListGui"
 	screenGui.ResetOnSpawn = false
 	screenGui.DisplayOrder = 500
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
 	pcall(function() screenGui.Parent = CoreGui end)
 	if not screenGui.Parent then
 		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	end
 
-	-- ── Widget Frame ────────────────────────────────────────────────
+	-- ── Widget (anchored to top-right) ──────────────────────────────
 	local widget = Instance.new("Frame")
 	widget.Name = "PlayerListWidget"
-	widget.Size = UDim2.new(0, 270, 0, HEADER_H)
-	widget.Position = UDim2.new(1, -282, 0, 10)
+	widget.AnchorPoint = Vector2.new(1, 0)
+	widget.Size = UDim2.new(0, 260, 0, HEADER_H)
+	widget.Position = UDim2.new(1, -8, 0, 8)
 	widget.BackgroundColor3 = UI.Theme.Background
 	widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	widget.BorderSizePixel = 0
@@ -61,7 +53,7 @@ function PlayerList.new(): PlayerListWidget
 	-- ── Topbar ──────────────────────────────────────────────────────
 	local topbar = Instance.new("Frame")
 	topbar.Name = "TopBar"
-	topbar.Size = UDim2.new(1, 0, 0, HEADER_H - 2)
+	topbar.Size = UDim2.new(1, 0, 0, HEADER_H)
 	topbar.Position = UDim2.new(0, 0, 0, 0)
 	topbar.BackgroundColor3 = UI.Theme.Container
 	topbar.BackgroundTransparency = UI.Theme.ContainerTransparency
@@ -81,7 +73,7 @@ function PlayerList.new(): PlayerListWidget
 	titleLabel.Size = UDim2.new(1, -56, 1, 0)
 	titleLabel.Position = UDim2.new(0, 8, 0, 0)
 	titleLabel.BackgroundTransparency = 1
-	titleLabel.Text = "Players (0)"
+	titleLabel.Text = string.format("Players (%d)", #Players:GetPlayers())
 	titleLabel.TextColor3 = UI.Theme.TextPrimary
 	titleLabel.Font = UI.Fonts.Header
 	titleLabel.TextSize = 11
@@ -90,9 +82,8 @@ function PlayerList.new(): PlayerListWidget
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
 	local minBtn = Instance.new("TextButton")
-	minBtn.Name = "MinBtn"
-	minBtn.Size = UDim2.new(0, 22, 0, 20)
-	minBtn.Position = UDim2.new(1, -48, 0, 5)
+	minBtn.Size = UDim2.new(0, 20, 0, 18)
+	minBtn.Position = UDim2.new(1, -44, 0, 6)
 	minBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	minBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	minBtn.BorderSizePixel = 0
@@ -103,18 +94,11 @@ function PlayerList.new(): PlayerListWidget
 	minBtn.Parent = topbar
 	UI.registerThemeElement(minBtn, "ContainerDark")
 	UI.registerThemeElement(minBtn, "TextPrimary")
-
-	local minStroke = Instance.new("UIStroke")
-	minStroke.Color = UI.Theme.Border
-	minStroke.Thickness = 1
-	minStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	minStroke.Parent = minBtn
-	UI.registerThemeElement(minStroke, "Border")
+	Instance.new("UIStroke", minBtn).Color = UI.Theme.Border
 
 	local closeBtn = Instance.new("TextButton")
-	closeBtn.Name = "CloseBtn"
-	closeBtn.Size = UDim2.new(0, 22, 0, 20)
-	closeBtn.Position = UDim2.new(1, -24, 0, 5)
+	closeBtn.Size = UDim2.new(0, 20, 0, 18)
+	closeBtn.Position = UDim2.new(1, -22, 0, 6)
 	closeBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	closeBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	closeBtn.BorderSizePixel = 0
@@ -125,15 +109,9 @@ function PlayerList.new(): PlayerListWidget
 	closeBtn.Parent = topbar
 	UI.registerThemeElement(closeBtn, "ContainerDark")
 	UI.registerThemeElement(closeBtn, "TextPrimary")
+	Instance.new("UIStroke", closeBtn).Color = UI.Theme.Border
 
-	local closeStroke = Instance.new("UIStroke")
-	closeStroke.Color = UI.Theme.Border
-	closeStroke.Thickness = 1
-	closeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	closeStroke.Parent = closeBtn
-	UI.registerThemeElement(closeStroke, "Border")
-
-	-- ── Scrolling Player List ────────────────────────────────────────
+	-- ── Scrolling container ──────────────────────────────────────────
 	local container = Instance.new("ScrollingFrame")
 	container.Name = "PlayerListContainer"
 	container.Size = UDim2.new(1, 0, 1, -HEADER_H)
@@ -141,10 +119,16 @@ function PlayerList.new(): PlayerListWidget
 	container.BackgroundTransparency = 1
 	container.BorderSizePixel = 0
 	container.ScrollBarThickness = 3
+	container.ScrollBarImageColor3 = UI.Theme.Accent
 	container.CanvasSize = UDim2.new(0, 0, 0, 0)
 	container.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	container.ClipsDescendants = true
 	container.Parent = widget
+
+	local listLayout = Instance.new("UIListLayout")
+	listLayout.Padding = UDim.new(0, ROW_GAP)
+	listLayout.SortOrder = Enum.SortOrder.Name
+	listLayout.Parent = container
 
 	local listPad = Instance.new("UIPadding")
 	listPad.PaddingLeft = UDim.new(0, 4)
@@ -153,40 +137,28 @@ function PlayerList.new(): PlayerListWidget
 	listPad.PaddingBottom = UDim.new(0, 4)
 	listPad.Parent = container
 
-	local listLayout = Instance.new("UIListLayout")
-	listLayout.Padding = UDim.new(0, ROW_GAP)
-	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	listLayout.Parent = container
-
-	-- ── Auto-size helper ─────────────────────────────────────────────
+	-- ── Height recalculation ─────────────────────────────────────────
 	local minimized = false
 
 	local function recalcHeight()
 		if minimized then return end
+		local count = #Players:GetPlayers()
+		local contentH = count * (ROW_H + ROW_GAP) + 8
+		local targetH = HEADER_H + math.min(contentH, MAX_CONTENT_H)
+		-- clamp to viewport
 		local vpH = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y or 720
-		local wposY = widget.AbsolutePosition.Y
-		local available = vpH - wposY - 8
-		local playerCount = #Players:GetPlayers()
-		local contentH = playerCount * (ROW_H + ROW_GAP) + PAD_V * 2
-		local targetH = HEADER_H + math.min(contentH, MAX_H - HEADER_H)
-		targetH = math.max(targetH, MIN_H)
-		targetH = math.min(targetH, available)
-		widget.Size = UDim2.new(0, 270, 0, targetH)
+		local posY = widget.AbsolutePosition.Y
+		targetH = math.min(targetH, vpH - posY - 8)
+		TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, 260, 0, math.max(HEADER_H, targetH))
+		}):Play()
 	end
 
-	-- ── Drag logic (position-clamped) ────────────────────────────────
+	-- ── Drag topbar ──────────────────────────────────────────────────
 	local dragging = false
 	local dragInput: InputObject? = nil
 	local dragStart = Vector3.zero
 	local startPos = UDim2.new()
-
-	local function clampPosition()
-		local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-		local absSize = widget.AbsoluteSize
-		local px = math.clamp(widget.Position.X.Offset, 0, vpSize.X - absSize.X)
-		local py = math.clamp(widget.Position.Y.Offset, 0, vpSize.Y - absSize.Y)
-		widget.Position = UDim2.new(0, px, 0, py)
-	end
 
 	topbar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -196,46 +168,45 @@ function PlayerList.new(): PlayerListWidget
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					dragging = false
-					clampPosition()
 					recalcHeight()
 				end
 			end)
 		end
 	end)
-
 	topbar.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement then
-			dragInput = input
-		end
+		if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
 	end)
-
 	UserInputService.InputChanged:Connect(function(input)
 		if input == dragInput and dragging then
 			local delta = input.Position - dragStart
-			widget.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+			local newX = math.clamp(startPos.X.Offset + delta.X, widget.AbsoluteSize.X, vpSize.X)
+			local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, vpSize.Y - widget.AbsoluteSize.Y)
+			widget.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
 		end
 	end)
 
-	-- ── Minimize & Close ────────────────────────────────────────────
+	-- ── Minimize / Close ─────────────────────────────────────────────
 	minBtn.MouseButton1Click:Connect(function()
 		minimized = not minimized
 		container.Visible = not minimized
 		if minimized then
-			widget.Size = UDim2.new(0, 270, 0, HEADER_H)
+			TweenService:Create(widget, TweenInfo.new(0.2), { Size = UDim2.new(0, 260, 0, HEADER_H) }):Play()
 		else
 			recalcHeight()
 		end
 	end)
-
 	closeBtn.MouseButton1Click:Connect(function()
 		widget.Visible = false
 	end)
 
-	-- ── Player Row Builder ────────────────────────────────────────────
-	local function renderPlayerRow(player: Player)
+	-- ── Build single player row (no full rebuild) ────────────────────
+	local function addPlayerRow(player: Player)
+		if container:FindFirstChild("PLR_" .. player.Name) then return end
+
 		local row = Instance.new("Frame")
-		row.Name = string.format("PlayerRow_%s", player.Name)
-		row.Size = UDim2.new(1, 0, 0, ROW_H)
+		row.Name = "PLR_" .. player.Name
+		row.Size = UDim2.new(1, 0, 0, 0) -- start collapsed for animation
 		row.BackgroundColor3 = UI.Theme.Container
 		row.BackgroundTransparency = UI.Theme.ContainerTransparency
 		row.BorderSizePixel = 0
@@ -259,13 +230,7 @@ function PlayerList.new(): PlayerListWidget
 		avatarBox.BorderSizePixel = 0
 		avatarBox.Parent = row
 		UI.registerThemeElement(avatarBox, "ContainerDark")
-
-		local avStroke = Instance.new("UIStroke")
-		avStroke.Color = UI.Theme.Border
-		avStroke.Thickness = 1
-		avStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		avStroke.Parent = avatarBox
-		UI.registerThemeElement(avStroke, "Border")
+		Instance.new("UIStroke", avatarBox).Color = UI.Theme.Border
 
 		local avatarImg = Instance.new("ImageLabel")
 		avatarImg.Size = UDim2.new(1, 0, 1, 0)
@@ -273,9 +238,9 @@ function PlayerList.new(): PlayerListWidget
 		avatarImg.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
 		avatarImg.Parent = avatarBox
 
-		-- Name row
+		-- Display name
 		local nameLabel = Instance.new("TextLabel")
-		nameLabel.Size = UDim2.new(1, -44, 0, 17)
+		nameLabel.Size = UDim2.new(1, -44, 0, 18)
 		nameLabel.Position = UDim2.new(0, 42, 0, 4)
 		nameLabel.BackgroundTransparency = 1
 		nameLabel.Text = string.format("%s (@%s)", player.DisplayName, player.Name)
@@ -287,13 +252,13 @@ function PlayerList.new(): PlayerListWidget
 		nameLabel.Parent = row
 		UI.registerThemeElement(nameLabel, "TextPrimary")
 
-		-- Sub info row
+		-- Sub info
 		local subLabel = Instance.new("TextLabel")
 		subLabel.Size = UDim2.new(1, -44, 0, 14)
-		subLabel.Position = UDim2.new(0, 42, 0, 22)
+		subLabel.Position = UDim2.new(0, 42, 0, 24)
 		subLabel.BackgroundTransparency = 1
-		local teamStr = if player.Team then string.format("[ %s ] ", player.Team.Name) else ""
-		subLabel.Text = string.format("%sID: %d | Age: %dd", teamStr, player.UserId, player.AccountAge)
+		local teamStr = if player.Team then string.format("[%s] ", player.Team.Name) else ""
+		subLabel.Text = string.format("%sID: %d | %dd", teamStr, player.UserId, player.AccountAge)
 		subLabel.TextColor3 = UI.Theme.TextSecondary
 		subLabel.Font = UI.Fonts.Mono
 		subLabel.TextSize = 9
@@ -301,36 +266,38 @@ function PlayerList.new(): PlayerListWidget
 		subLabel.TextTruncate = Enum.TextTruncate.AtEnd
 		subLabel.Parent = row
 		UI.registerThemeElement(subLabel, "TextSecondary")
-	end
 
-	-- ── Player Refresh ────────────────────────────────────────────────
-	local function refreshPlayers()
-		for _, child in ipairs(container:GetChildren()) do
-			if child:IsA("Frame") then child:Destroy() end
-		end
-		for _, p in ipairs(Players:GetPlayers()) do
-			renderPlayerRow(p)
-		end
+		-- Slide-in animation
+		TweenService:Create(row, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(1, 0, 0, ROW_H)
+		}):Play()
+
 		titleLabel.Text = string.format("Players (%d)", #Players:GetPlayers())
 		recalcHeight()
 	end
 
-	Players.PlayerAdded:Connect(function()
-		task.wait(0.1)
-		refreshPlayers()
-	end)
-	Players.PlayerRemoving:Connect(function()
-		task.wait(0.1)
-		refreshPlayers()
-	end)
-	refreshPlayers()
+	local function removePlayerRow(player: Player)
+		local row = container:FindFirstChild("PLR_" .. player.Name)
+		if not row then return end
+		local tween = TweenService:Create(row, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Size = UDim2.new(1, 0, 0, 0)
+		})
+		tween:Play()
+		tween.Completed:Connect(function()
+			row:Destroy()
+			titleLabel.Text = string.format("Players (%d)", #Players:GetPlayers())
+			recalcHeight()
+		end)
+	end
 
-	return {
-		Frame = widget,
-		Container = container,
-		IsMinimized = false,
-		Visible = true
-	}
+	-- ── Wire up events ────────────────────────────────────────────────
+	Players.PlayerAdded:Connect(addPlayerRow)
+	Players.PlayerRemoving:Connect(removePlayerRow)
+
+	-- Initial population
+	for _, p in ipairs(Players:GetPlayers()) do
+		addPlayerRow(p)
+	end
 end
 
 return PlayerList

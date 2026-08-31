@@ -18,6 +18,7 @@ local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 
 local UI = require("UI/UI.luau")
+local Animations = require("UI/Animations.luau")
 
 local MusicTracker = {}
 MusicTracker.__index = MusicTracker
@@ -76,6 +77,10 @@ function MusicTracker.new()
 	outerStroke.Parent = widget
 	UI.registerThemeElement(outerStroke, "Border")
 
+	local uiScale = Instance.new("UIScale")
+	uiScale.Scale = 1.0
+	uiScale.Parent = widget
+
 	-- ── Topbar (Drag Handle) ──────────────────────────────────────────
 	local topbar = Instance.new("Frame")
 	topbar.Name = "TopBar"
@@ -121,6 +126,7 @@ function MusicTracker.new()
 	minBtn.TextSize = 13
 	minBtn.Parent = topbar
 	UI.registerThemeElement(minBtn, "ContainerDark")
+	UI.registerThemeElement(minBtn, "TextPrimary")
 
 	local minStroke = Instance.new("UIStroke")
 	minStroke.Color = UI.Theme.Border
@@ -142,6 +148,7 @@ function MusicTracker.new()
 	closeBtn.TextSize = 11
 	closeBtn.Parent = topbar
 	UI.registerThemeElement(closeBtn, "ContainerDark")
+	UI.registerThemeElement(closeBtn, "TextPrimary")
 
 	local closeStroke = Instance.new("UIStroke")
 	closeStroke.Color = UI.Theme.Border
@@ -653,27 +660,61 @@ function MusicTracker.new()
 		end
 	end)
 
-	closeBtn.MouseButton1Click:Connect(function()
-		local closeTween = TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Size = UDim2.new(0, widget.AbsoluteSize.X * 0.9, 0, 0),
-			BackgroundTransparency = 1
-		})
-		closeTween:Play()
-		closeTween.Completed:Connect(function()
-			widget.Visible = false
-			widget.Size = UDim2.new(0, DEFAULT_W, 0, DEFAULT_H)
-			widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
+	local isOpen = true
+	local isTransitioning = false
+
+	local function openWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
+		if isOpen or isTransitioning then return end
+		isTransitioning = true
+		Animations.openWindow(widget, uiScale, function()
+			isOpen = true
+			isTransitioning = false
+			if onComplete then onComplete() end
 		end)
+	end
+
+	local function closeWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
+		if not isOpen or isTransitioning then return end
+		isTransitioning = true
+		Animations.closeWindow(widget, uiScale, function()
+			isOpen = false
+			isTransitioning = false
+			if onComplete then onComplete() end
+		end)
+	end
+
+	local function toggleWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
+		if isOpen then
+			closeWidget(onComplete)
+		else
+			openWidget(onComplete)
+		end
+	end
+
+	local function setWidgetVisible(selfOrVal: any, maybeVal: any)
+		local v = if type(selfOrVal) == "boolean" then selfOrVal elseif type(maybeVal) == "boolean" then maybeVal else true
+		if v then
+			openWidget()
+		else
+			closeWidget()
+		end
+	end
+
+	closeBtn.MouseButton1Click:Connect(function()
+		closeWidget()
 	end)
 
 	return {
 		Frame = widget,
-		SetVisible = function(v: boolean)
-			widget.Visible = v
-		end,
-		Toggle = function()
-			widget.Visible = not widget.Visible
-		end
+		UiScale = uiScale,
+		IsOpen = function() return isOpen end,
+		Open = openWidget,
+		Close = closeWidget,
+		SetVisible = setWidgetVisible,
+		Toggle = toggleWidget
 	}
 end
 

@@ -17,6 +17,7 @@ local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 
 local UI = require("UI/UI.luau")
+local Animations = require("UI/Animations.luau")
 
 local PlayerList = {}
 PlayerList.__index = PlayerList
@@ -24,9 +25,14 @@ PlayerList.__index = PlayerList
 export type PlayerListWidget = {
 	Frame: Frame,
 	Container: ScrollingFrame,
+	UiScale: UIScale,
 	IsMinimized: boolean,
 	Visible: boolean,
-	Toggle: () -> ()
+	IsOpen: () -> boolean,
+	Open: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
+	Close: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
+	Toggle: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
+	SetVisible: (selfOrVal: any, maybeVal: any) -> ()
 }
 
 local ROW_H = 38
@@ -65,6 +71,10 @@ function PlayerList.new(): PlayerListWidget
 	outerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	outerStroke.Parent = widget
 	UI.registerThemeElement(outerStroke, "Border")
+
+	local uiScale = Instance.new("UIScale")
+	uiScale.Scale = 1.0
+	uiScale.Parent = widget
 
 	-- ── Topbar (Drag Handle) ──────────────────────────────────────────
 	local topbar = Instance.new("Frame")
@@ -221,7 +231,11 @@ function PlayerList.new(): PlayerListWidget
 			local targetY = math.clamp(startAbsPos.Y + delta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
 			widget.Position = UDim2.new(0, targetX, 0, targetY)
 			if popupFrame and popupFrame.Visible then
-				popupFrame.Visible = false
+				if closeContextMenu then
+					closeContextMenu()
+				else
+					popupFrame.Visible = false
+				end
 			end
 		end
 	end)
@@ -254,9 +268,57 @@ function PlayerList.new(): PlayerListWidget
 	attachBtnFX(closeBtn, true)
 
 	-- ── Minimize / Close ─────────────────────────────────────────────
+	local isOpen = true
+	local isTransitioning = false
+	local isPopupOpen = false
+
+	-- Forward declare closeContextMenu
+	local closeContextMenu: () -> ()
+
+	local function openWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
+		if isOpen or isTransitioning then return end
+		isTransitioning = true
+		Animations.openWindow(widget, uiScale, function()
+			isOpen = true
+			isTransitioning = false
+			if onComplete then onComplete() end
+		end)
+	end
+
+	local function closeWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
+		if not isOpen or isTransitioning then return end
+		isTransitioning = true
+		if closeContextMenu then closeContextMenu() end
+		Animations.closeWindow(widget, uiScale, function()
+			isOpen = false
+			isTransitioning = false
+			if onComplete then onComplete() end
+		end)
+	end
+
+	local function toggleWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
+		if isOpen then
+			closeWidget(onComplete)
+		else
+			openWidget(onComplete)
+		end
+	end
+
+	local function setWidgetVisible(selfOrVal: any, maybeVal: any)
+		local v = if type(selfOrVal) == "boolean" then selfOrVal elseif type(maybeVal) == "boolean" then maybeVal else true
+		if v then
+			openWidget()
+		else
+			closeWidget()
+		end
+	end
+
 	minBtn.MouseButton1Click:Connect(function()
 		minimized = not minimized
-		if popupFrame then popupFrame.Visible = false end
+		if closeContextMenu then closeContextMenu() end
 		if minimized then
 			container.Visible = false
 			TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -269,17 +331,7 @@ function PlayerList.new(): PlayerListWidget
 	end)
 
 	closeBtn.MouseButton1Click:Connect(function()
-		if popupFrame then popupFrame.Visible = false end
-		local closeTween = TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Size = UDim2.new(0, widget.AbsoluteSize.X * 0.9, 0, 0),
-			BackgroundTransparency = 1
-		})
-		closeTween:Play()
-		closeTween.Completed:Connect(function()
-			widget.Visible = false
-			widget.Size = UDim2.new(0, 260, 0, HEADER_H + 40)
-			widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
-		end)
+		closeWidget()
 	end)
 
 	-- ── Floating Player Context Menu Popup ───────────────────────────
@@ -300,6 +352,10 @@ function PlayerList.new(): PlayerListWidget
 	popupStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	popupStroke.Parent = popupFrame
 	UI.registerThemeElement(popupStroke, "Accent")
+
+	local popupScale = Instance.new("UIScale")
+	popupScale.Scale = 1.0
+	popupScale.Parent = popupFrame
 
 	-- Popup Header with Avatar & Details
 	local pHeader = Instance.new("Frame")
@@ -370,7 +426,9 @@ function PlayerList.new(): PlayerListWidget
 	pCloseBtn.Parent = pHeader
 	UI.registerThemeElement(pCloseBtn, "ContainerDark")
 	UI.registerThemeElement(pCloseBtn, "TextPrimary")
-	pCloseBtn.MouseButton1Click:Connect(function() popupFrame.Visible = false end)
+	pCloseBtn.MouseButton1Click:Connect(function()
+		if closeContextMenu then closeContextMenu() end
+	end)
 
 	-- Popup Action Buttons List
 	local pBtnContainer = Instance.new("Frame")
@@ -510,6 +568,12 @@ function PlayerList.new(): PlayerListWidget
 		end
 	end)
 
+	closeContextMenu = function()
+		if not isPopupOpen then return end
+		isPopupOpen = false
+		Animations.popOut(popupFrame, popupScale)
+	end
+
 	local function openContextMenuForPlayer(player: Player, rowAbsPos: Vector2)
 		currentTargetPlayer = player
 		pAvatarImg.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
@@ -523,30 +587,32 @@ function PlayerList.new(): PlayerListWidget
 			friendBtn.Text = if isFriend then "Unfriend" else "Add Friend"
 		end)
 
-		-- Dynamic Smart Positioning
+		-- Dynamic Smart Positioning (8px viewport margin & flip detection)
 		local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
 		local wPos = widget.AbsolutePosition
 		local wSize = widget.AbsoluteSize
+		local margin = 8
+
+		local spaceLeft = wPos.X - margin
+		local spaceRight = vpSize.X - (wPos.X + wSize.X) - margin
 
 		local posX = 0
-		if wPos.X >= POPUP_W + 12 then
-			-- Place to the left of widget
-			posX = wPos.X - POPUP_W - 8
+		if spaceLeft >= POPUP_W then
+			posX = wPos.X - POPUP_W - margin
+		elseif spaceRight >= POPUP_W then
+			posX = wPos.X + wSize.X + margin
+		elseif spaceLeft >= spaceRight then
+			posX = wPos.X - POPUP_W - margin
 		else
-			-- Place to the right of widget
-			posX = wPos.X + wSize.X + 8
+			posX = wPos.X + wSize.X + margin
 		end
 
-		local posY = math.clamp(rowAbsPos.Y, 10, math.max(10, vpSize.Y - POPUP_H - 12))
-		posX = math.clamp(posX, 10, math.max(10, vpSize.X - POPUP_W - 12))
+		local posY = math.clamp(rowAbsPos.Y, margin, math.max(margin, vpSize.Y - POPUP_H - margin))
+		posX = math.clamp(posX, margin, math.max(margin, vpSize.X - POPUP_W - margin))
 
 		popupFrame.Position = UDim2.new(0, posX, 0, posY)
-		popupFrame.Visible = true
-
-		popupFrame.BackgroundTransparency = 1
-		TweenService:Create(popupFrame, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			BackgroundTransparency = UI.Theme.BackgroundTransparency
-		}):Play()
+		isPopupOpen = true
+		Animations.popIn(popupFrame, popupScale)
 	end
 
 	-- ── Incremental Domino-Animated Player Rows (Clickable) ───────────
@@ -557,9 +623,9 @@ function PlayerList.new(): PlayerListWidget
 		local rowBtn = Instance.new("TextButton")
 		rowBtn.Name = rowId
 		rowBtn.Size = UDim2.new(1, 0, 0, ROW_H)
-		rowBtn.Position = UDim2.new(1, 40, 0, 0)
+		rowBtn.Position = UDim2.new(0, 24, 0, 0)
 		rowBtn.BackgroundColor3 = UI.Theme.Container
-		rowBtn.BackgroundTransparency = 1
+		rowBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
 		rowBtn.BorderSizePixel = 0
 		rowBtn.Text = ""
 		rowBtn.AutoButtonColor = false
@@ -643,10 +709,11 @@ function PlayerList.new(): PlayerListWidget
 
 		-- Slide-in from right to left (Domino effect)
 		local function playSlide()
-			rowBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
-			TweenService:Create(rowBtn, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Position = UDim2.new(0, 0, 0, 0)
-			}):Play()
+			if rowBtn and rowBtn.Parent then
+				TweenService:Create(rowBtn, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+					Position = UDim2.new(0, 0, 0, 0)
+				}):Play()
+			end
 		end
 
 		if delaySec and delaySec > 0 then
@@ -663,8 +730,8 @@ function PlayerList.new(): PlayerListWidget
 		local rowId = "PLR_" .. tostring(player.UserId)
 		local row = container:FindFirstChild(rowId)
 		if row and row:IsA("TextButton") then
-			local tween = TweenService:Create(row, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				Position = UDim2.new(1, 40, 0, 0),
+			local tween = TweenService:Create(row, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Position = UDim2.new(0, 24, 0, 0),
 				BackgroundTransparency = 1
 			})
 			tween:Play()
@@ -674,8 +741,8 @@ function PlayerList.new(): PlayerListWidget
 				updateWidgetHeight()
 			end)
 		end
-		if currentTargetPlayer == player and popupFrame then
-			popupFrame.Visible = false
+		if currentTargetPlayer == player and isPopupOpen then
+			closeContextMenu()
 		end
 	end
 
@@ -688,21 +755,21 @@ function PlayerList.new(): PlayerListWidget
 	-- Populate existing players with domino wave
 	task.spawn(function()
 		for i, p in ipairs(Players:GetPlayers()) do
-			createPlayerRow(p, (i - 1) * 0.04)
+			createPlayerRow(p, (i - 1) * 0.035)
 		end
 	end)
 
 	return {
 		Frame = widget,
 		Container = container,
+		UiScale = uiScale,
 		IsMinimized = false,
 		Visible = true,
-		Toggle = function()
-			widget.Visible = not widget.Visible
-			if not widget.Visible and popupFrame then
-				popupFrame.Visible = false
-			end
-		end
+		IsOpen = function() return isOpen end,
+		Open = openWidget,
+		Close = closeWidget,
+		Toggle = toggleWidget,
+		SetVisible = setWidgetVisible,
 	}
 end
 

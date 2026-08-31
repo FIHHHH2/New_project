@@ -39,6 +39,8 @@ function CoreUI.new(titleText: string)
 	self.SettingsBtn = settingsBtn
 	self.ConfigsBtn = configsBtn
 	self.UiScale = uiScale
+	self.IsOpen = true
+	self.IsTransitioning = false
 	self.Tabs = {}
 	self.ActiveTab = nil
 	self.PreviousTab = nil
@@ -249,7 +251,7 @@ function CoreUI:SelectTab(tabObj)
 	})
 	enterTween:Play()
 
-	-- 3. Animate Tab Button Spring & Ripple
+	-- 3. Animate Tab Button Spring & Indicator Pulse
 	if tabObj.Button and tabObj.Stroke then
 		tabObj.Button.Size = UDim2.new(1, -8, 0, 27)
 		TweenService:Create(tabObj.Button, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
@@ -259,10 +261,10 @@ function CoreUI:SelectTab(tabObj)
 			BackgroundTransparency = 0,
 			TextColor3 = UI.Theme.AccentText
 		}):Play()
-		TweenService:Create(tabObj.Stroke, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			Color = UI.Theme.Border,
-			Thickness = 1.6
-		}):Play()
+		
+		-- Indicator pulse on active tab stroke
+		Animations.pulseIndicator(tabObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.2, 1.6)
+		
 		local grad = tabObj.Button:FindFirstChild("ActiveGradient") :: UIGradient?
 		if grad then grad.Enabled = true end
 	end
@@ -270,21 +272,12 @@ function CoreUI:SelectTab(tabObj)
 	-- 4. Cascaded Domino Ripple for Elements inside Incoming Tab Page
 	local elementsToAnimate: {GuiObject} = {}
 	for _, child in ipairs(tabObj.Page:GetChildren()) do
-		if child:IsA("Frame") and child.Name ~= "ActiveGradient" then
+		if child:IsA("GuiObject") and child.Name ~= "ActiveGradient" and not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
 			table.insert(elementsToAnimate, child)
 		end
 	end
 
-	for idx, element in ipairs(elementsToAnimate) do
-		element.Position = UDim2.new(0, 12, 0, 0)
-		task.delay((idx - 1) * 0.03, function()
-			if self.ActiveTab == tabObj and element and element.Parent then
-				TweenService:Create(element, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-					Position = UDim2.new(0, 0, 0, 0)
-				}):Play()
-			end
-		end)
-	end
+	Animations.dominoRipple(elementsToAnimate, 0.03, 12, 0.24)
 
 	self.ActiveTab = tabObj
 	if self.ActiveTagLabel then
@@ -458,20 +451,26 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 			Index = idx
 		}
 
-		-- Hover effects
-		btn.MouseEnter:Connect(function()
-			if subTabs.ActiveSubTab ~= subTabObj then
-				TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 1.5, Color = UI.Theme.Border }):Play()
-				TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark, TextColor3 = UI.Theme.TextPrimary }):Play()
+		-- Hover & click effects with micro-squash and border glow
+		Animations.attachMicroSquash(
+			btn,
+			btnStroke,
+			function()
+				return if subTabs.ActiveSubTab == subTabObj then UI.Theme.Accent else UI.Theme.Container
+			end,
+			function()
+				return if subTabs.ActiveSubTab == subTabObj then UI.Theme.Accent else UI.Theme.ContainerDark
+			end,
+			function()
+				return UI.Theme.Accent
+			end,
+			function()
+				return if subTabs.ActiveSubTab == subTabObj then UI.Theme.Border else UI.Theme.BorderDim
+			end,
+			function()
+				return UI.Theme.Border
 			end
-		end)
-
-		btn.MouseLeave:Connect(function()
-			if subTabs.ActiveSubTab ~= subTabObj then
-				TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 1.0, Color = UI.Theme.BorderDim }):Play()
-				TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container, TextColor3 = UI.Theme.TextSecondary }):Play()
-			end
-		end)
+		)
 
 		btn.MouseButton1Click:Connect(function()
 			subTabs:Select(name)
@@ -512,17 +511,17 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 			end
 		end
 
-		-- Activate New SubTab Button
+		-- Activate New SubTab Button with Indicator Pulse
 		if targetObj.Button and targetObj.Stroke then
 			TweenService:Create(targetObj.Button, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 				BackgroundColor3 = UI.Theme.Accent,
 				BackgroundTransparency = 0,
 				TextColor3 = UI.Theme.AccentText
 			}):Play()
-			TweenService:Create(targetObj.Stroke, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-				Color = UI.Theme.Border,
-				Thickness = 1.5
-			}):Play()
+			
+			-- Active sub-tab indicator pulse
+			Animations.pulseIndicator(targetObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.2, 1.5)
+			
 			if targetObj.Gradient then targetObj.Gradient.Enabled = true end
 		end
 
@@ -541,16 +540,7 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 			end
 		end
 
-		for idx, elem in ipairs(rippleElements) do
-			elem.Position = UDim2.new(0, 10, 0, 0)
-			task.delay((idx - 1) * 0.025, function()
-				if subTabs.ActiveSubTab == targetObj and elem and elem.Parent then
-					TweenService:Create(elem, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-						Position = UDim2.new(0, 0, 0, 0)
-					}):Play()
-				end
-			end)
-		end
+		Animations.dominoRipple(rippleElements, 0.025, 10, 0.22)
 
 		if subTabs.OnTabChanged then
 			pcall(subTabs.OnTabChanged, targetObj.Name, oldSubTab and oldSubTab.Name)
@@ -713,10 +703,7 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	checkBtn.BackgroundColor3 = if feature.state then UI.Theme.Accent else UI.Theme.Container
 	checkBtn.BackgroundTransparency = if feature.state then 0 else UI.Theme.ContainerTransparency
 	checkBtn.BorderSizePixel = 0
-	checkBtn.Text = if feature.state then "X" else ""
-	checkBtn.TextColor3 = UI.Theme.AccentText
-	checkBtn.Font = UI.Fonts.Header
-	checkBtn.TextSize = 12
+	checkBtn.Text = ""
 	checkBtn.Parent = row
 
 	local checkStroke = Instance.new("UIStroke")
@@ -725,6 +712,22 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	checkStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	checkStroke.Parent = checkBtn
 	UI.registerThemeElement(checkStroke, "Border")
+
+	local checkMark = Instance.new("TextLabel")
+	checkMark.Name = "CheckMark"
+	checkMark.Size = UDim2.new(1, 0, 1, 0)
+	checkMark.Position = UDim2.new(0, 0, 0, 0)
+	checkMark.BackgroundTransparency = 1
+	checkMark.Text = "X"
+	checkMark.TextColor3 = UI.Theme.AccentText
+	checkMark.Font = UI.Fonts.Header
+	checkMark.TextSize = 12
+	checkMark.Visible = feature.state
+	checkMark.Parent = checkBtn
+
+	local checkScale = Instance.new("UIScale")
+	checkScale.Scale = if feature.state then 1.0 else 0.0
+	checkScale.Parent = checkMark
 
 	-- Segment 2: [ Option Name ]
 	local titleBox = Instance.new("TextButton")
@@ -781,34 +784,52 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	UI.registerThemeElement(bindStroke, "Border")
 
 	local function updateToggleVisual(state: boolean)
-		TweenService:Create(checkBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
-			BackgroundColor3 = if state then UI.Theme.Accent else UI.Theme.Container,
-			BackgroundTransparency = if state then 0 else UI.Theme.ContainerTransparency
-		}):Play()
-		checkBtn.Text = if state then "X" else ""
+		if state then
+			TweenService:Create(checkBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = UI.Theme.Accent,
+				BackgroundTransparency = 0
+			}):Play()
+			checkMark.Visible = true
+			checkMark.TextColor3 = UI.Theme.AccentText
+			Animations.popScale(checkMark, 0.0, 1.25, 1.0, 0.20)
+		else
+			TweenService:Create(checkBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				BackgroundColor3 = UI.Theme.Container,
+				BackgroundTransparency = UI.Theme.ContainerTransparency
+			}):Play()
+			local closeTween = TweenService:Create(checkScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Scale = 0.0
+			})
+			closeTween:Play()
+			closeTween.Completed:Connect(function()
+				if not feature.state then
+					checkMark.Visible = false
+				end
+			end)
+		end
 	end
 
-	-- Hover animations on toggle components
-	titleBox.MouseEnter:Connect(function()
-		TweenService:Create(titleStroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
-	end)
-	titleBox.MouseLeave:Connect(function()
-		TweenService:Create(titleStroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
-	end)
+	-- Hover animations on toggle components across all 3 segments with border glow
+	local function onToggleHoverEnter()
+		TweenService:Create(checkStroke, TweenInfo.new(0.12), { Thickness = 1.8, Color = UI.Theme.Accent }):Play()
+		TweenService:Create(titleStroke, TweenInfo.new(0.12), { Thickness = 1.8, Color = UI.Theme.Accent }):Play()
+		TweenService:Create(bindStroke, TweenInfo.new(0.12), { Thickness = 1.8, Color = UI.Theme.Accent }):Play()
+		TweenService:Create(titleBox, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark }):Play()
+	end
 
-	checkBtn.MouseEnter:Connect(function()
-		TweenService:Create(checkStroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
-	end)
-	checkBtn.MouseLeave:Connect(function()
-		TweenService:Create(checkStroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
-	end)
+	local function onToggleHoverLeave()
+		TweenService:Create(checkStroke, TweenInfo.new(0.12), { Thickness = 1.2, Color = UI.Theme.Border }):Play()
+		TweenService:Create(titleStroke, TweenInfo.new(0.12), { Thickness = 1.2, Color = UI.Theme.Border }):Play()
+		TweenService:Create(bindStroke, TweenInfo.new(0.12), { Thickness = 1.2, Color = UI.Theme.Border }):Play()
+		TweenService:Create(titleBox, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container }):Play()
+	end
 
-	keybindBtn.MouseEnter:Connect(function()
-		TweenService:Create(bindStroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
-	end)
-	keybindBtn.MouseLeave:Connect(function()
-		TweenService:Create(bindStroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
-	end)
+	titleBox.MouseEnter:Connect(onToggleHoverEnter)
+	titleBox.MouseLeave:Connect(onToggleHoverLeave)
+	checkBtn.MouseEnter:Connect(onToggleHoverEnter)
+	checkBtn.MouseLeave:Connect(onToggleHoverLeave)
+	keybindBtn.MouseEnter:Connect(onToggleHoverEnter)
+	keybindBtn.MouseLeave:Connect(onToggleHoverLeave)
 
 	-- Synchronize visual state when toggled via keyboard keybind or external call
 	feature.onStateChanged = function(newState: boolean)
@@ -946,22 +967,40 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	})
 	fillGrad.Parent = fill
 
+	-- Responsive track border glow on hover
+	bar.MouseEnter:Connect(function()
+		TweenService:Create(barStroke, TweenInfo.new(0.12), { Color = UI.Theme.Accent, Thickness = 1.6 }):Play()
+	end)
+	bar.MouseLeave:Connect(function()
+		TweenService:Create(barStroke, TweenInfo.new(0.12), { Color = UI.Theme.Border, Thickness = 1.2 }):Play()
+	end)
+
 	local sliding = false
+	local currentVal = initialValue
+
+	local function applyValue(val: number)
+		if val ~= currentVal then
+			currentVal = val
+			valLabel.Text = tostring(val)
+			valLabel.TextColor3 = UI.Theme.Accent
+			Animations.popScale(valLabel, 1.15, nil, 1.0, 0.15)
+		end
+		local ratio = math.clamp((val - min) / (max - min), 0, 1)
+		TweenService:Create(fill, TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(ratio, 0, 1, 0)
+		}):Play()
+	end
 
 	local function update(input: InputObject)
 		local ratio = math.clamp((input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
 		local rawVal = min + (max - min) * ratio
 		local val = math.floor(rawVal + 0.5)
-		fill.Size = UDim2.new(ratio, 0, 1, 0)
-		valLabel.Text = tostring(val)
-		valLabel.TextColor3 = UI.Theme.Accent
+		applyValue(val)
 		FeatureManager.setSliderValue(name, val)
 	end
 
 	sliderRecord.onValueChanged = function(newVal: number)
-		local r = math.clamp((newVal - min) / (max - min), 0, 1)
-		fill.Size = UDim2.new(r, 0, 1, 0)
-		valLabel.Text = tostring(newVal)
+		applyValue(newVal)
 	end
 
 	bar.InputBegan:Connect(function(input)
@@ -1014,15 +1053,16 @@ function CoreUI:AddButton(section: Frame, name: string, callback: () -> ())
 	btnStroke.Parent = btn
 	UI.registerThemeElement(btnStroke, "Border")
 
-	-- Hover animations
-	btn.MouseEnter:Connect(function()
-		TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
-		TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark }):Play()
-	end)
-	btn.MouseLeave:Connect(function()
-		TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
-		TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container }):Play()
-	end)
+	-- Micro-squash and border glow on hover/click with instant response (UIScale 0.96 down, 1.0 Back.Out up)
+	Animations.attachMicroSquash(
+		btn,
+		btnStroke,
+		function() return UI.Theme.Container end,
+		function() return UI.Theme.ContainerDark end,
+		function() return UI.Theme.Accent end,
+		function() return UI.Theme.Border end,
+		function() return UI.Theme.Accent end
+	)
 
 	btn.MouseButton1Click:Connect(function()
 		TweenService:Create(btn, TweenInfo.new(0.08), { BackgroundColor3 = UI.Theme.Accent, TextColor3 = UI.Theme.AccentText }):Play()
@@ -1119,6 +1159,42 @@ end
 
 function CoreUI:Notify(title: string, message: string, duration: number?)
 	Notification.show(title, message, duration)
+end
+
+function CoreUI:Open(onComplete: (() -> ())?)
+	if self.IsOpen or self.IsTransitioning then return end
+	self.IsTransitioning = true
+	Animations.openWindow(self.MainFrame, self.UiScale, function()
+		self.IsOpen = true
+		self.IsTransitioning = false
+		if onComplete then onComplete() end
+	end)
+end
+
+function CoreUI:Close(onComplete: (() -> ())?)
+	if not self.IsOpen or self.IsTransitioning then return end
+	self.IsTransitioning = true
+	Animations.closeWindow(self.MainFrame, self.UiScale, function()
+		self.IsOpen = false
+		self.IsTransitioning = false
+		if onComplete then onComplete() end
+	end)
+end
+
+function CoreUI:Toggle(onComplete: (() -> ())?)
+	if self.IsOpen then
+		self:Close(onComplete)
+	else
+		self:Open(onComplete)
+	end
+end
+
+function CoreUI:SetVisible(state: boolean, onComplete: (() -> ())?)
+	if state then
+		self:Open(onComplete)
+	else
+		self:Close(onComplete)
+	end
 end
 
 return CoreUI

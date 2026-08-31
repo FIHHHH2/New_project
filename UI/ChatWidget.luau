@@ -20,6 +20,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 
 local UI = require("UI/UI.luau")
+local Animations = require("UI/Animations.luau")
 
 local ChatWidget = {}
 ChatWidget.__index = ChatWidget
@@ -30,8 +31,14 @@ export type ChatWidgetInstance = {
 	InputBox: TextBox,
 	SendBtn: TextButton,
 	QuickBtn: TextButton,
+	UiScale: UIScale,
 	IsMinimized: boolean,
-	Visible: boolean
+	Visible: boolean,
+	IsOpen: () -> boolean,
+	Open: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
+	Close: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
+	Toggle: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
+	SetVisible: (selfOrVal: any, maybeVal: any) -> ()
 }
 
 function ChatWidget.new(): ChatWidgetInstance
@@ -84,6 +91,10 @@ function ChatWidget.new(): ChatWidgetInstance
 	outerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	outerStroke.Parent = widget
 	UI.registerThemeElement(outerStroke, "Border")
+
+	local uiScale = Instance.new("UIScale")
+	uiScale.Scale = 1.0
+	uiScale.Parent = widget
 
 	-- ============================================================
 	-- ── TOPBAR: HEADER (AVATAR, TITLE, ACTIONS, [-] & [X]) ──────
@@ -340,24 +351,40 @@ function ChatWidget.new(): ChatWidgetInstance
 	end)
 
 	createDropItem("Music Tracker", function()
-		for _, g in ipairs(CoreGui:GetChildren()) do
-			if g.Name == "ModularMusicTrackerGui" then
+		local function toggleMT(parent: Instance?)
+			if not parent then return false end
+			local g = parent:FindFirstChild("ModularMusicTrackerGui")
+			if g then
 				local w = g:FindFirstChild("MusicTrackerWidget")
 				if w and w:IsA("Frame") then
 					w.Visible = not w.Visible
+					return true
 				end
 			end
+			return false
+		end
+		if not toggleMT(CoreGui) then
+			local lp = Players.LocalPlayer
+			if lp then toggleMT(lp:FindFirstChild("PlayerGui")) end
 		end
 	end)
 
 	createDropItem("Player List", function()
-		for _, g in ipairs(CoreGui:GetChildren()) do
-			if g.Name == "ModularPlayerListGui" then
-				local w = g:FindFirstChild("PlayerListFrame")
+		local function togglePL(parent: Instance?)
+			if not parent then return false end
+			local g = parent:FindFirstChild("ModularPlayerListGui")
+			if g then
+				local w = g:FindFirstChild("PlayerListWidget") or g:FindFirstChild("PlayerListFrame")
 				if w and w:IsA("Frame") then
 					w.Visible = not w.Visible
+					return true
 				end
 			end
+			return false
+		end
+		if not togglePL(CoreGui) then
+			local lp = Players.LocalPlayer
+			if lp then togglePL(lp:FindFirstChild("PlayerGui")) end
 		end
 	end)
 
@@ -397,6 +424,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	minBtn.TextSize = 13
 	minBtn.Parent = topbar
 	UI.registerThemeElement(minBtn, "ContainerDark")
+	UI.registerThemeElement(minBtn, "TextPrimary")
 
 	local minStroke = Instance.new("UIStroke")
 	minStroke.Color = UI.Theme.Border
@@ -418,6 +446,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	closeBtn.TextSize = 11
 	closeBtn.Parent = topbar
 	UI.registerThemeElement(closeBtn, "ContainerDark")
+	UI.registerThemeElement(closeBtn, "TextPrimary")
 
 	local closeStroke = Instance.new("UIStroke")
 	closeStroke.Color = UI.Theme.Border
@@ -481,6 +510,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	quickBtn.ZIndex = 6
 	quickBtn.Parent = bottomBar
 	UI.registerThemeElement(quickBtn, "Container")
+	UI.registerThemeElement(quickBtn, "TextPrimary")
 
 	local quickStroke = Instance.new("UIStroke")
 	quickStroke.Color = UI.Theme.Border
@@ -587,6 +617,60 @@ function ChatWidget.new(): ChatWidgetInstance
 	end)
 
 	-- ============================================================
+	-- ── WINDOW CONTROLLER & POPUP STATE ─────────────────────────
+	-- ============================================================
+	local isOpen = true
+	local isTransitioning = false
+	local isProfileOpen = false
+	local isQuickOpen = false
+
+	local closeProfilePopup: () -> ()
+	local closeQuickPopup: () -> ()
+
+	local function openWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
+		if isOpen or isTransitioning then return end
+		isTransitioning = true
+		Animations.openWindow(widget, uiScale, function()
+			isOpen = true
+			isTransitioning = false
+			if onComplete then onComplete() end
+		end)
+	end
+
+	local function closeWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
+		if not isOpen or isTransitioning then return end
+		isTransitioning = true
+		dropdown.Visible = false
+		if closeProfilePopup then closeProfilePopup() end
+		if closeQuickPopup then closeQuickPopup() end
+		Animations.closeWindow(widget, uiScale, function()
+			isOpen = false
+			isTransitioning = false
+			if onComplete then onComplete() end
+		end)
+	end
+
+	local function toggleWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
+		if isOpen then
+			closeWidget(onComplete)
+		else
+			openWidget(onComplete)
+		end
+	end
+
+	local function setWidgetVisible(selfOrVal: any, maybeVal: any)
+		local v = if type(selfOrVal) == "boolean" then selfOrVal elseif type(maybeVal) == "boolean" then maybeVal else true
+		if v then
+			openWidget()
+		else
+			closeWidget()
+		end
+	end
+
+	-- ============================================================
 	-- ── PLAYER ACTION CONTEXT MENU POPUP ────────────────────────
 	-- ============================================================
 	local profilePopup = Instance.new("Frame")
@@ -607,6 +691,16 @@ function ChatWidget.new(): ChatWidgetInstance
 	popStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	popStroke.Parent = profilePopup
 	UI.registerThemeElement(popStroke, "Border")
+
+	local profileScale = Instance.new("UIScale")
+	profileScale.Scale = 1.0
+	profileScale.Parent = profilePopup
+
+	closeProfilePopup = function()
+		if not isProfileOpen then return end
+		isProfileOpen = false
+		Animations.popOut(profilePopup, profileScale)
+	end
 
 	local popHeader = Instance.new("Frame")
 	popHeader.Size = UDim2.new(1, 0, 0, 48)
@@ -666,9 +760,10 @@ function ChatWidget.new(): ChatWidgetInstance
 	popClose.TextSize = 10
 	popClose.ZIndex = 83
 	popClose.Parent = popHeader
+	UI.registerThemeElement(popClose, "TextPrimary")
 
 	popClose.MouseButton1Click:Connect(function()
-		profilePopup.Visible = false
+		closeProfilePopup()
 	end)
 
 	local popBtnsFrame = Instance.new("Frame")
@@ -719,7 +814,7 @@ function ChatWidget.new(): ChatWidgetInstance
 			if activeSelectedPlayer then
 				onClick(activeSelectedPlayer)
 			end
-			profilePopup.Visible = false
+			closeProfilePopup()
 		end)
 	end
 
@@ -727,7 +822,9 @@ function ChatWidget.new(): ChatWidgetInstance
 		local myChar = Players.LocalPlayer.Character
 		local tChar = target.Character
 		if myChar and tChar and myChar:FindFirstChild("HumanoidRootPart") and tChar:FindFirstChild("HumanoidRootPart") then
-			myChar.HumanoidRootPart.CFrame = tChar.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+			local myHrp = myChar:FindFirstChild("HumanoidRootPart") :: BasePart
+			local tHrp = tChar:FindFirstChild("HumanoidRootPart") :: BasePart
+			myHrp.CFrame = tHrp.CFrame * CFrame.new(0, 0, 3)
 		end
 	end)
 
@@ -735,6 +832,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	createPopAction("Spectate / Spy", 2, function(target)
 		isSpying = not isSpying
 		local cam = workspace.CurrentCamera
+		if not cam then return end
 		if isSpying and target.Character and target.Character:FindFirstChildOfClass("Humanoid") then
 			cam.CameraSubject = target.Character:FindFirstChildOfClass("Humanoid")
 		else
@@ -777,13 +875,193 @@ function ChatWidget.new(): ChatWidgetInstance
 		popAvatar.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
 		
 		local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-		local x = math.clamp(clickPos.X, 10, vp.X - 200)
-		local y = math.clamp(clickPos.Y, 10, vp.Y - 250)
+		local x = math.clamp(clickPos.X, 8, math.max(8, vp.X - 198))
+		local y = math.clamp(clickPos.Y, 8, math.max(8, vp.Y - 248))
 		profilePopup.Position = UDim2.new(0, x, 0, y)
-		profilePopup.Visible = true
+		isProfileOpen = true
+		Animations.popIn(profilePopup, profileScale)
 	end
 
-	-- ── Message Line Constructor (Seamless RichText Flow + Profile Hook) ──
+	-- ============================================================
+	-- ── QUICK PHRASES CONTEXT MENU POPUP ────────────────────────
+	-- ============================================================
+	local QUICK_POP_W = 140
+	local QUICK_POP_H = 175
+	quickPopup = Instance.new("Frame")
+	quickPopup.Name = "QuickPhrasesPopup"
+	quickPopup.Size = UDim2.new(0, QUICK_POP_W, 0, QUICK_POP_H)
+	quickPopup.Position = UDim2.new(0, 20, 0, 100)
+	quickPopup.BackgroundColor3 = UI.Theme.Background
+	quickPopup.BackgroundTransparency = UI.Theme.BackgroundTransparency
+	quickPopup.BorderSizePixel = 0
+	quickPopup.Visible = false
+	quickPopup.ZIndex = 85
+	quickPopup.Parent = screenGui
+	UI.registerThemeElement(quickPopup, "Background")
+
+	local quickPopStroke = Instance.new("UIStroke")
+	quickPopStroke.Color = UI.Theme.Accent
+	quickPopStroke.Thickness = 1.5
+	quickPopStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	quickPopStroke.Parent = quickPopup
+	UI.registerThemeElement(quickPopStroke, "Accent")
+
+	quickScale = Instance.new("UIScale")
+	quickScale.Scale = 1.0
+	quickScale.Parent = quickPopup
+
+	closeQuickPopup = function()
+		if not isQuickOpen then return end
+		isQuickOpen = false
+		Animations.popOut(quickPopup, quickScale)
+	end
+
+	local quickPopHeader = Instance.new("Frame")
+	quickPopHeader.Name = "QuickHeader"
+	quickPopHeader.Size = UDim2.new(1, 0, 0, 22)
+	quickPopHeader.BackgroundColor3 = UI.Theme.Container
+	quickPopHeader.BackgroundTransparency = UI.Theme.ContainerTransparency
+	quickPopHeader.BorderSizePixel = 0
+	quickPopHeader.ZIndex = 86
+	quickPopHeader.Parent = quickPopup
+	UI.registerThemeElement(quickPopHeader, "Container")
+
+	local quickHeadStroke = Instance.new("UIStroke")
+	quickHeadStroke.Color = UI.Theme.Border
+	quickHeadStroke.Thickness = 1
+	quickHeadStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	quickHeadStroke.Parent = quickPopHeader
+	UI.registerThemeElement(quickHeadStroke, "Border")
+
+	local quickHeadLabel = Instance.new("TextLabel")
+	quickHeadLabel.Size = UDim2.new(1, -24, 1, 0)
+	quickHeadLabel.Position = UDim2.new(0, 6, 0, 0)
+	quickHeadLabel.BackgroundTransparency = 1
+	quickHeadLabel.Text = "Quick Phrases"
+	quickHeadLabel.TextColor3 = UI.Theme.TextPrimary
+	quickHeadLabel.Font = UI.Fonts.Header
+	quickHeadLabel.TextSize = 10
+	quickHeadLabel.TextXAlignment = Enum.TextXAlignment.Left
+	quickHeadLabel.ZIndex = 87
+	quickHeadLabel.Parent = quickPopHeader
+	UI.registerThemeElement(quickHeadLabel, "TextPrimary")
+
+	local quickCloseBtn = Instance.new("TextButton")
+	quickCloseBtn.Size = UDim2.new(0, 16, 0, 16)
+	quickCloseBtn.Position = UDim2.new(1, -18, 0, 3)
+	quickCloseBtn.BackgroundColor3 = UI.Theme.ContainerDark
+	quickCloseBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	quickCloseBtn.BorderSizePixel = 0
+	quickCloseBtn.Text = "X"
+	quickCloseBtn.TextColor3 = UI.Theme.TextPrimary
+	quickCloseBtn.Font = UI.Fonts.Header
+	quickCloseBtn.TextSize = 9
+	quickCloseBtn.ZIndex = 87
+	quickCloseBtn.Parent = quickPopHeader
+	UI.registerThemeElement(quickCloseBtn, "ContainerDark")
+	UI.registerThemeElement(quickCloseBtn, "TextPrimary")
+	quickCloseBtn.MouseButton1Click:Connect(function()
+		closeQuickPopup()
+	end)
+
+	local quickListFrame = Instance.new("ScrollingFrame")
+	quickListFrame.Size = UDim2.new(1, -8, 1, -28)
+	quickListFrame.Position = UDim2.new(0, 4, 0, 24)
+	quickListFrame.BackgroundTransparency = 1
+	quickListFrame.BorderSizePixel = 0
+	quickListFrame.ScrollBarThickness = 2
+	quickListFrame.ScrollBarImageColor3 = UI.Theme.Accent
+	quickListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+	quickListFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	quickListFrame.ZIndex = 86
+	quickListFrame.Parent = quickPopup
+
+	local quickListLayout = Instance.new("UIListLayout")
+	quickListLayout.Padding = UDim.new(0, 3)
+	quickListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	quickListLayout.Parent = quickListFrame
+
+	local quickPhrasesList = {
+		"gg",
+		"Hello!",
+		"Nice one!",
+		"Look out!",
+		"Need help!",
+		"AFK",
+		"On my way!"
+	}
+
+	-- Forward declare sendMessage
+	local sendMessage: (string) -> ()
+
+	for idx, phrase in ipairs(quickPhrasesList) do
+		local pBtn = Instance.new("TextButton")
+		pBtn.Name = "QuickPhrase_" .. idx
+		pBtn.Size = UDim2.new(1, -4, 0, 20)
+		pBtn.BackgroundColor3 = UI.Theme.ContainerDark
+		pBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+		pBtn.BorderSizePixel = 0
+		pBtn.Text = "  " .. phrase
+		pBtn.TextColor3 = UI.Theme.TextPrimary
+		pBtn.Font = UI.Fonts.Body
+		pBtn.TextSize = 10
+		pBtn.TextXAlignment = Enum.TextXAlignment.Left
+		pBtn.LayoutOrder = idx
+		pBtn.ZIndex = 87
+		pBtn.Parent = quickListFrame
+		UI.registerThemeElement(pBtn, "ContainerDark")
+		UI.registerThemeElement(pBtn, "TextPrimary")
+
+		local pStroke = Instance.new("UIStroke")
+		pStroke.Color = UI.Theme.Border
+		pStroke.Thickness = 0.8
+		pStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		pStroke.Parent = pBtn
+		UI.registerThemeElement(pStroke, "Border")
+
+		pBtn.MouseEnter:Connect(function()
+			TweenService:Create(pBtn, TweenInfo.new(0.1), { BackgroundColor3 = UI.Theme.Accent, TextColor3 = UI.Theme.AccentText }):Play()
+		end)
+		pBtn.MouseLeave:Connect(function()
+			TweenService:Create(pBtn, TweenInfo.new(0.1), { BackgroundColor3 = UI.Theme.ContainerDark, TextColor3 = UI.Theme.TextPrimary }):Play()
+		end)
+
+		pBtn.MouseButton1Click:Connect(function()
+			if sendMessage then
+				sendMessage(phrase)
+			end
+			closeQuickPopup()
+		end)
+	end
+
+	local function openQuickPhrases()
+		local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+		local qPos = quickBtn.AbsolutePosition
+		local posX = math.clamp(qPos.X, 8, math.max(8, vp.X - QUICK_POP_W - 8))
+		local posY = qPos.Y - QUICK_POP_H - 6
+		if posY < 8 then
+			posY = qPos.Y + quickBtn.AbsoluteSize.Y + 6
+		end
+		posY = math.clamp(posY, 8, math.max(8, vp.Y - QUICK_POP_H - 8))
+
+		quickPopup.Position = UDim2.new(0, posX, 0, posY)
+		isQuickOpen = true
+		Animations.popIn(quickPopup, quickScale)
+	end
+
+	local function toggleQuickPhrases()
+		if isQuickOpen then
+			closeQuickPopup()
+		else
+			openQuickPhrases()
+		end
+	end
+
+	quickBtn.MouseButton1Click:Connect(function()
+		toggleQuickPhrases()
+	end)
+
+	-- ── Message Line Constructor (Seamless RichText Flow + Profile Hook + Slide Animation) ──
 	local function addMessage(sender: string, text: string)
 		local isSystem = (sender == "System")
 		local targetPlayer: Player? = nil
@@ -799,15 +1077,18 @@ function ChatWidget.new(): ChatWidgetInstance
 		local msgBtn = Instance.new("TextButton")
 		msgBtn.Name = "MessageLine"
 		msgBtn.Size = UDim2.new(1, -8, 0, 0)
+		msgBtn.Position = UDim2.new(0, 16, 0, 0)
 		msgBtn.AutomaticSize = Enum.AutomaticSize.Y
 		msgBtn.BackgroundTransparency = 1
 		msgBtn.RichText = true
 		msgBtn.TextWrapped = true
+		msgBtn.TextTransparency = 1
 		msgBtn.Font = UI.Fonts.Body
 		msgBtn.TextSize = 11
 		msgBtn.TextXAlignment = Enum.TextXAlignment.Left
 		msgBtn.TextColor3 = UI.Theme.TextPrimary
 		msgBtn.Parent = container
+		UI.registerThemeElement(msgBtn, "TextPrimary")
 
 		local senderHex = if isSystem then "#A0A0AA" else "#37AFF5"
 		local cleanName = sender:gsub("<", "&lt;"):gsub(">", "&gt;")
@@ -820,6 +1101,14 @@ function ChatWidget.new(): ChatWidgetInstance
 				openPlayerProfile(targetPlayer :: Player, mousePos)
 			end)
 		end
+
+		-- Domino slide-in & text fade
+		TweenService:Create(msgBtn, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0, 0, 0, 0)
+		}):Play()
+		TweenService:Create(msgBtn, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			TextTransparency = 0
+		}):Play()
 
 		task.defer(function()
 			container.CanvasPosition = Vector2.new(0, math.max(0, container.AbsoluteCanvasSize.Y - container.AbsoluteWindowSize.Y))
@@ -854,6 +1143,8 @@ function ChatWidget.new(): ChatWidgetInstance
 			local targetX = math.clamp(startAbsPos.X + delta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
 			local targetY = math.clamp(startAbsPos.Y + delta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
 			widget.Position = UDim2.new(0, targetX, 0, targetY)
+			if closeProfilePopup then closeProfilePopup() end
+			if closeQuickPopup then closeQuickPopup() end
 		end
 	end)
 
@@ -861,6 +1152,8 @@ function ChatWidget.new(): ChatWidgetInstance
 	minBtn.MouseButton1Click:Connect(function()
 		minimized = not minimized
 		dropdown.Visible = false
+		if closeProfilePopup then closeProfilePopup() end
+		if closeQuickPopup then closeQuickPopup() end
 		if minimized then
 			container.Visible = false
 			bottomBar.Visible = false
@@ -879,22 +1172,12 @@ function ChatWidget.new(): ChatWidgetInstance
 	end)
 
 	closeBtn.MouseButton1Click:Connect(function()
-		dropdown.Visible = false
-		local closeTween = TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Size = UDim2.new(0, widget.AbsoluteSize.X * 0.9, 0, 0),
-			BackgroundTransparency = 1
-		})
-		closeTween:Play()
-		closeTween.Completed:Connect(function()
-			widget.Visible = false
-			widget.Size = UDim2.new(0, DEFAULT_W, 0, DEFAULT_H)
-			widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
-		end)
+		closeWidget()
 	end)
 
 	-- ── Message Sending Logic ─────────────────────────────────────────
 	local isSending = false
-	local function sendMessage(msg: string)
+	sendMessage = function(msg: string)
 		if isSending or not msg or msg == "" then return end
 		isSending = true
 		textBox.Text = ""
@@ -925,10 +1208,20 @@ function ChatWidget.new(): ChatWidgetInstance
 	sendBtn.MouseButton1Click:Connect(function() sendMessage(textBox.Text) end)
 	textBox.FocusLost:Connect(function(enter) if enter then sendMessage(textBox.Text) end end)
 
-	-- Slash key opens & focuses chat input
+	-- Slash key opens & focuses chat input with smooth animation
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Slash then
-			widget.Visible = true
+			if not isOpen then
+				openWidget(function()
+					textBox.Text = ""
+					textBox:CaptureFocus()
+				end)
+			else
+				task.defer(function()
+					textBox.Text = ""
+					textBox:CaptureFocus()
+				end)
+			end
 			if minimized then
 				minimized = false
 				container.Visible = true
@@ -936,18 +1229,7 @@ function ChatWidget.new(): ChatWidgetInstance
 				resizeGrip.Visible = true
 				widget.Size = UDim2.new(0, widget.AbsoluteSize.X, 0, DEFAULT_H)
 			end
-			task.defer(function()
-				textBox.Text = ""
-				textBox:CaptureFocus()
-			end)
 		end
-	end)
-
-	local quickPhrases = { "gg", "Hello!", "Nice one!", "Look out!", "Need help!" }
-	local qIdx = 1
-	quickBtn.MouseButton1Click:Connect(function()
-		sendMessage(quickPhrases[qIdx])
-		qIdx = (qIdx % #quickPhrases) + 1
 	end)
 
 	-- ── Single Incoming Message Hook ─────────────────────────────────
@@ -982,8 +1264,14 @@ function ChatWidget.new(): ChatWidgetInstance
 		InputBox = textBox,
 		SendBtn = sendBtn,
 		QuickBtn = quickBtn,
+		UiScale = uiScale,
 		IsMinimized = false,
-		Visible = true
+		Visible = true,
+		IsOpen = function() return isOpen end,
+		Open = openWidget,
+		Close = closeWidget,
+		Toggle = toggleWidget,
+		SetVisible = setWidgetVisible,
 	}
 end
 

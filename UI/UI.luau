@@ -4,6 +4,8 @@ local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local MarketplaceService = game:GetService("MarketplaceService")
 
+local Animations = require("UI/Animations.luau")
+
 local UI = {}
 UI.__index = UI
 
@@ -178,11 +180,13 @@ function UI.setTheme(themeName: string)
 	UI.Theme = targetTheme
 	UI.saveTheme(themeName)
 	
-	local tweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	
+	local liveElements = {}
 	for _, entry in ipairs(UI.RegisteredElements) do
 		local inst = entry.Instance
 		if inst and inst.Parent then
+			table.insert(liveElements, entry)
 			local pt = entry.PropType
 			if pt == "Background" and inst:IsA("GuiObject") then
 				TweenService:Create(inst, tweenInfo, {
@@ -227,6 +231,7 @@ function UI.setTheme(themeName: string)
 			end
 		end
 	end
+	UI.RegisteredElements = liveElements
 end
 
 function UI.createWindow(titleText: string)
@@ -633,38 +638,44 @@ function UI.createWindow(titleText: string)
 	local isOpen = true
 	local isTransitioning = false
 
-	local function openWindow()
+	local function openWindow(onComplete: (() -> ())?)
 		if isOpen or isTransitioning then return end
 		isTransitioning = true
-		mainFrame.Visible = true
-		mainFrame.Size = UDim2.new(0, 720 * 0.9, 0, 0)
-		mainFrame.BackgroundTransparency = 1
-		local openTween = TweenService:Create(mainFrame, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = if minimized then UDim2.new(0, 720, 0, 44) else UDim2.new(0, 720, 0, 480),
-			BackgroundTransparency = UI.Theme.BackgroundTransparency
-		})
-		openTween:Play()
-		openTween.Completed:Connect(function()
+		Animations.openWindow(mainFrame, uiScale, function()
 			isOpen = true
 			isTransitioning = false
+			if onComplete then
+				onComplete()
+			end
 		end)
 	end
 
-	local function closeWindow()
+	local function closeWindow(onComplete: (() -> ())?)
 		if not isOpen or isTransitioning then return end
 		isTransitioning = true
-		local closeTween = TweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Size = UDim2.new(0, 720 * 0.9, 0, 0),
-			BackgroundTransparency = 1
-		})
-		closeTween:Play()
-		closeTween.Completed:Connect(function()
-			mainFrame.Visible = false
-			mainFrame.Size = UDim2.new(0, 720, 0, 480)
-			mainFrame.BackgroundTransparency = UI.Theme.BackgroundTransparency
+		Animations.closeWindow(mainFrame, uiScale, function()
 			isOpen = false
 			isTransitioning = false
+			if onComplete then
+				onComplete()
+			end
 		end)
+	end
+
+	local function toggleWindow(onComplete: (() -> ())?)
+		if isOpen then
+			closeWindow(onComplete)
+		else
+			openWindow(onComplete)
+		end
+	end
+
+	local function setWindowVisible(visible: boolean, onComplete: (() -> ())?)
+		if visible then
+			openWindow(onComplete)
+		else
+			closeWindow(onComplete)
+		end
 	end
 
 	closeButton.MouseButton1Click:Connect(function()
@@ -674,15 +685,20 @@ function UI.createWindow(titleText: string)
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
 		if input.KeyCode == Enum.KeyCode.RightBracket then
-			if isOpen then
-				closeWindow()
-			else
-				openWindow()
-			end
+			toggleWindow()
 		end
 	end)
 
-	return mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale
+	local controller = {
+		openWindow = openWindow,
+		closeWindow = closeWindow,
+		toggleWindow = toggleWindow,
+		setWindowVisible = setWindowVisible,
+		isOpen = function() return isOpen end,
+		isTransitioning = function() return isTransitioning end,
+	}
+
+	return mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale, controller
 end
 
 function UI.createBannerCard(parent: GuiObject): Frame

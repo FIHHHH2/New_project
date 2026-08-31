@@ -9,6 +9,7 @@ local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 
 local UI = require("UI/UI.luau")
+local Animations = require("UI/Animations.luau")
 
 local Notification = {}
 Notification.__index = Notification
@@ -64,6 +65,10 @@ function Notification.show(title: string, message: string, duration: number?)
 	cardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	cardStroke.Parent = card
 	UI.registerThemeElement(cardStroke, "Border")
+
+	local cardScale = Instance.new("UIScale")
+	cardScale.Scale = 0.92
+	cardScale.Parent = card
 	
 	-- topbar
 	local topbar = Instance.new("Frame")
@@ -138,8 +143,11 @@ function Notification.show(title: string, message: string, duration: number?)
 	table.insert(activeCards, 1, card)
 	repositionCards()
 	
-	-- Slide in from right
+	-- Slide in from right with spring pop-in (0.92 -> 1.0)
 	card.Position = UDim2.new(1, 40, 1, -20 - 74)
+	TweenService:Create(cardScale, TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1.0
+	}):Play()
 	TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 		Position = UDim2.new(1, -270, 1, -20 - 74)
 	}):Play()
@@ -152,6 +160,26 @@ function Notification.show(title: string, message: string, duration: number?)
 			end
 			repositionCards()
 			
+			TweenService:Create(cardScale, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Scale = 0.92
+			}):Play()
+
+			for _, desc in ipairs(card:GetDescendants()) do
+				if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+					TweenService:Create(desc, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+						TextTransparency = 1
+					}):Play()
+				elseif desc:IsA("Frame") then
+					TweenService:Create(desc, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+						BackgroundTransparency = 1
+					}):Play()
+				elseif desc:IsA("UIStroke") then
+					TweenService:Create(desc, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+						Transparency = 1
+					}):Play()
+				end
+			end
+
 			local tweenOut = TweenService:Create(card, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 				Position = UDim2.new(1, 40, card.Position.Y.Scale, card.Position.Y.Offset),
 				BackgroundTransparency = 1

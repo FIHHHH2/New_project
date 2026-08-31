@@ -5,6 +5,7 @@ local SoundService = game:GetService("SoundService")
 
 local CoreUI = require("Core/CoreUI.luau")
 local FeatureManager = require("Core/FeatureManager.luau")
+local Visuals = require("Modules/Visuals.luau")
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
@@ -17,11 +18,12 @@ end)
 
 local window = CoreUI.new("Project Fih Menu")
 
--- active tabs: Main & Tab placeholder
+-- Active sidebar navigation tabs
 local mainTab = window:CreateTab("Main")
+local visualsTab = window:CreateTab("Visuals")
 local subTab = window:CreateTab("Tab")
 
--- dedicated Settings & Configs tabs (opened/closed via top right buttons)
+-- Dedicated Settings & Configs tabs (opened/closed via top right buttons)
 local settingsTab = window:CreateTab("Settings", true)
 local configsTab = window:CreateTab("Configs", true)
 
@@ -56,19 +58,50 @@ window:AddSlider(selfSection, "Custom Speed", 16, 150, 16, function(value)
 	end
 end)
 
--- right column: category "Modules"
+-- right column: category "Modules" (Gameplay Utilities)
 local moduleSection = window:AddSection(rightCol, "Modules")
 
 window:AddToggle(moduleSection, "run_and_hide", "Run & Hide", false, Enum.KeyCode.H, function(enabled)
 	print("[Module] Run & Hide:", enabled)
 end)
 
-window:AddToggle(moduleSection, "esp_players", "Highlight Players", false, Enum.KeyCode.J, function(enabled)
-	print("[Visuals] Highlight:", enabled)
+window:AddToggle(moduleSection, "auto_interact", "Auto Interact", false, Enum.KeyCode.E, function(enabled)
+	print("[Module] Auto Interact:", enabled)
 end)
 
-window:AddToggle(moduleSection, "infinite_jump", "Infinite Jump", false, Enum.KeyCode.Space, function(enabled)
-	print("[Combat] Infinite Jump:", enabled)
+-- ============================================================
+-- VISUALS TAB CONTENT
+-- ============================================================
+local visLeftCol, visRightCol = window:CreateColumns(visualsTab)
+
+-- 2D ESP & Boxes
+local espSection = window:AddSection(visLeftCol, "2D ESP & Overlays")
+
+window:AddToggle(espSection, "esp_box_2d", "2D ESP Box", false, nil, function(enabled)
+	Visuals.Box2D = enabled
+end)
+
+window:AddToggle(espSection, "esp_health_bar", "Health Bar", false, nil, function(enabled)
+	Visuals.HealthBar = enabled
+end)
+
+window:AddToggle(espSection, "esp_tracers", "Tracers", false, nil, function(enabled)
+	Visuals.Tracers = enabled
+end)
+
+-- 3D Chams & Skeletons
+local chamsSection = window:AddSection(visRightCol, "Chams & Skeletons")
+
+window:AddToggle(chamsSection, "esp_chams_3d", "3D Chams / Highlights", false, nil, function(enabled)
+	Visuals.Chams = enabled
+end)
+
+window:AddToggle(chamsSection, "esp_skeletons", "Skeleton ESP", false, nil, function(enabled)
+	Visuals.Skeleton = enabled
+end)
+
+window:AddSlider(chamsSection, "Chams Transparency", 0, 100, 50, function(value)
+	Visuals.ChamsTransparency = value / 100
 end)
 
 -- ============================================================

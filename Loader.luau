@@ -63,11 +63,19 @@ local function cleanSource(str: string): string
 end
 
 local function fetchSource(path: string): string
-	local url = BASE_URL .. path
+	local bust = tostring(os.time()) .. "_" .. tostring(math.random(10000, 99999))
+	local url = BASE_URL .. path .. "?nocache=" .. bust
 	local success, content = pcall(function()
 		return game:HttpGet(url)
 	end)
 	if not success or not content or content == "" then
+		-- Fallback without query parameter if query is unsupported by executor
+		local fbSuccess, fbContent = pcall(function()
+			return game:HttpGet(BASE_URL .. path)
+		end)
+		if fbSuccess and fbContent and fbContent ~= "" then
+			return cleanSource(fbContent)
+		end
 		error(string.format("[Loader] Failed to fetch module at %s: %s", url, tostring(content)))
 	end
 	return cleanSource(content)

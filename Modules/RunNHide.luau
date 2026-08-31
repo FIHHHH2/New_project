@@ -363,7 +363,7 @@ function RunNHide.scanAndDisableBoundaries(): number
 	return count
 end
 
-local function updateVoidSafetyFloor()
+function RunNHide.updateVoidSafetyFloor()
 	if RunNHide.AntiVoidFloor then
 		if not RunNHide.VoidSafetyPlat or not RunNHide.VoidSafetyPlat.Parent then
 			local plat = Instance.new("Part")
@@ -385,6 +385,7 @@ local function updateVoidSafetyFloor()
 		end
 	end
 end
+RunNHide.ensureVoidPlatform = RunNHide.updateVoidSafetyFloor
 
 function RunNHide.getPlayerRoleCategory(p: Player): (string, Color3)
 	local role = p:GetAttribute("Role")

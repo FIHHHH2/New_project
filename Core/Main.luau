@@ -30,6 +30,9 @@ local configsTab = window:CreateTab("Configs", true)
 window:BindSettingsTab(settingsTab)
 window:BindConfigsTab(configsTab)
 
+-- Track loaded modules to prevent duplicate tabs
+local loadedModules: {[string]: any} = {}
+
 -- ============================================================
 -- MAIN TAB CONTENT
 -- ============================================================
@@ -58,15 +61,39 @@ window:AddSlider(selfSection, "Custom Speed", 16, 150, 16, function(value)
 	end
 end)
 
--- right column: category "Modules" (Gameplay Utilities)
+-- right column: category "Modules" (Dynamic Module Loader)
 local moduleSection = window:AddSection(rightCol, "Modules")
 
-window:AddToggle(moduleSection, "run_and_hide", "Run & Hide", false, Enum.KeyCode.H, function(enabled)
-	print("[Module] Run & Hide:", enabled)
+window:AddButton(moduleSection, "Load Combat Module", function()
+	if loadedModules["Combat"] then
+		window:SelectTab(loadedModules["Combat"])
+	else
+		local success, Combat = pcall(function()
+			return require("Modules/Combat.luau")
+		end)
+		if success and Combat and typeof(Combat.init) == "function" then
+			local tab = Combat.init(window)
+			loadedModules["Combat"] = tab
+		else
+			warn("[Main] Failed to load Combat module:", Combat)
+		end
+	end
 end)
 
-window:AddToggle(moduleSection, "auto_interact", "Auto Interact", false, Enum.KeyCode.E, function(enabled)
-	print("[Module] Auto Interact:", enabled)
+window:AddButton(moduleSection, "Load Movement Module", function()
+	if loadedModules["Movement"] then
+		window:SelectTab(loadedModules["Movement"])
+	else
+		local success, Movement = pcall(function()
+			return require("Modules/Movement.luau")
+		end)
+		if success and Movement and typeof(Movement.init) == "function" then
+			local tab = Movement.init(window)
+			loadedModules["Movement"] = tab
+		else
+			warn("[Main] Failed to load Movement module:", Movement)
+		end
+	end
 end)
 
 -- ============================================================

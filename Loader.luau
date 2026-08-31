@@ -58,6 +58,10 @@ local function requireRemote(path: string): any
 			path = "Core/Main.luau"
 		elseif path == "Modules/Visuals" or path == "Visuals" then
 			path = "Modules/Visuals.luau"
+		elseif path == "Modules/Combat" or path == "Combat" then
+			path = "Modules/Combat.luau"
+		elseif path == "Modules/Movement" or path == "Movement" then
+			path = "Modules/Movement.luau"
 		end
 	end
 
@@ -91,6 +95,10 @@ local function requireRemote(path: string): any
 					return requireRemote("Core/CoreUI.luau")
 				elseif name == "Visuals" then
 					return requireRemote("Modules/Visuals.luau")
+				elseif name == "Combat" then
+					return requireRemote("Modules/Combat.luau")
+				elseif name == "Movement" then
+					return requireRemote("Modules/Movement.luau")
 				end
 			end
 			return require(target)

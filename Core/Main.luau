@@ -16,12 +16,12 @@ local Combat = require("Modules/Combat.luau")
 local DisasterSurvival = require("Modules/DisasterSurvival.luau")
 
 local localPlayer = Players.LocalPlayer
-local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+local character = localPlayer.Character
+local humanoid: Humanoid? = if character then character:FindFirstChildOfClass("Humanoid") else nil
 
 localPlayer.CharacterAdded:Connect(function(char)
 	character = char
-	humanoid = char:WaitForChild("Humanoid") :: Humanoid
+	humanoid = char:WaitForChild("Humanoid", 5) :: Humanoid?
 end)
 
 -- Disable overlapping default CoreGui elements that conflict with our widgets

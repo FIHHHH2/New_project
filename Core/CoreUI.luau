@@ -105,6 +105,7 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 		tabButton.TextColor3 = UI.Theme.TextSecondary
 		tabButton.Font = UI.Fonts.Header
 		tabButton.TextSize = 12
+		tabButton.LayoutOrder = #self.Tabs + 1
 		tabButton.Parent = self.Sidebar
 		UI.registerThemeElement(tabButton, "Container")
 		UI.registerThemeElement(tabButton, "TextSecondary")
@@ -131,11 +132,13 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 	local tabContent = Instance.new("ScrollingFrame")
 	tabContent.Name = name .. "Page"
 	tabContent.Size = UDim2.new(1, 0, 1, 0)
+	tabContent.Position = UDim2.new(0, 0, 0, 0)
 	tabContent.BackgroundTransparency = 1
 	tabContent.BorderSizePixel = 0
 	tabContent.ScrollBarThickness = 3
+	tabContent.ScrollBarImageColor3 = UI.Theme.Accent
 	tabContent.Visible = false
-	tabContent.ClipsDescendants = true
+	tabContent.ClipsDescendants = false
 	tabContent.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	tabContent.CanvasSize = UDim2.new(0, 0, 0, 0)
 	tabContent.Parent = self.ContentContainer

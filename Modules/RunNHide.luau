@@ -467,35 +467,66 @@ function RunNHide.init(notifyCallback: ((string, string) -> ())?)
 	end)
 	table.insert(connections, stamConn)
 
-	-- Ragdoll Movement & Auto Standup
+	-- Ragdoll Movement & Auto Standup (Propels Root + Torso with Space Jump)
+	local lastRnhJumpTime = 0
 	local ragdollConn = RunService.Heartbeat:Connect(function()
 		local char = LocalPlayer.Character
 		if not char then return end
 		local hum = char:FindFirstChildOfClass("Humanoid")
-		local root = (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")) :: BasePart?
-		if not (hum and root and hum.Health > 0) then return end
+		local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local torso = (char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("LowerTorso")) :: BasePart?
+		if not (hum and (root or torso) and hum.Health > 0) then return end
 
-		local isRagdolled = char:GetAttribute("Ragdoll") == true or hum.PlatformStand == true or hum:GetState() == Enum.HumanoidStateType.Ragdoll or hum:GetState() == Enum.HumanoidStateType.Physics
+		local isRagdolled = char:GetAttribute("Ragdoll") == true
+			or char:GetAttribute("Ragdolled") == true
+			or char:FindFirstChild("Ragdoll") ~= nil
+			or char:FindFirstChild("Ragdolled") ~= nil
+			or hum.PlatformStand == true
+			or hum.Sit == true
+			or hum:GetState() == Enum.HumanoidStateType.Ragdoll
+			or hum:GetState() == Enum.HumanoidStateType.Physics
+			or hum:GetState() == Enum.HumanoidStateType.FallingDown
+			or hum:GetState() == Enum.HumanoidStateType.PlatformStanding
 
 		if isRagdolled and RunNHide.MoveInRagdoll then
 			local cam = Workspace.CurrentCamera
 			if cam then
-				local moveVec = Vector3.zero
-				if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVec += cam.CFrame.LookVector end
-				if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVec -= cam.CFrame.LookVector end
-				if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVec -= cam.CFrame.RightVector end
-				if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVec += cam.CFrame.RightVector end
+				local look = cam.CFrame.LookVector
+				local right = cam.CFrame.RightVector
+				local flatLook = Vector3.new(look.X, 0, look.Z)
+				local flatRight = Vector3.new(right.X, 0, right.Z)
 
-				local flatMove = Vector3.new(moveVec.X, 0, moveVec.Z)
-				if flatMove.Magnitude > 0.05 then
-					flatMove = flatMove.Unit
-					local speed = RunNHide.RagdollSpeed or 32
-					root.AssemblyLinearVelocity = Vector3.new(flatMove.X * speed, root.AssemblyLinearVelocity.Y, flatMove.Z * speed)
+				local moveVec = Vector3.zero
+				if UserInputService:IsKeyDown(Enum.KeyCode.W) or UserInputService:IsKeyDown(Enum.KeyCode.Up) then moveVec += flatLook end
+				if UserInputService:IsKeyDown(Enum.KeyCode.S) or UserInputService:IsKeyDown(Enum.KeyCode.Down) then moveVec -= flatLook end
+				if UserInputService:IsKeyDown(Enum.KeyCode.A) or UserInputService:IsKeyDown(Enum.KeyCode.Left) then moveVec -= flatRight end
+				if UserInputService:IsKeyDown(Enum.KeyCode.D) or UserInputService:IsKeyDown(Enum.KeyCode.Right) then moveVec += flatRight end
+
+				local partsToPropel = {}
+				if root then table.insert(partsToPropel, root) end
+				if torso then table.insert(partsToPropel, torso) end
+				for _, p in ipairs(char:GetChildren()) do
+					if p:IsA("BasePart") and (p.Name:find("Torso") or p.Name:find("Leg")) then
+						table.insert(partsToPropel, p)
+					end
 				end
 
-				if RunNHide.RagdollJumpBoost and UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-					if math.abs(root.AssemblyLinearVelocity.Y) < 6 then
-						root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 38, root.AssemblyLinearVelocity.Z)
+				if moveVec.Magnitude > 0.05 then
+					local dir = moveVec.Unit
+					local speed = RunNHide.RagdollSpeed or 36
+					for _, p in ipairs(partsToPropel) do
+						p.AssemblyLinearVelocity = Vector3.new(dir.X * speed, p.AssemblyLinearVelocity.Y, dir.Z * speed)
+					end
+				end
+
+				-- Space to Jump in Ragdoll
+				if UserInputService:IsKeyDown(Enum.KeyCode.Space) and (tick() - lastRnhJumpTime > 0.28) then
+					local mainPart = root or torso
+					if mainPart and math.abs(mainPart.AssemblyLinearVelocity.Y) < 16 then
+						lastRnhJumpTime = tick()
+						for _, p in ipairs(partsToPropel) do
+							p.AssemblyLinearVelocity = Vector3.new(p.AssemblyLinearVelocity.X, 54, p.AssemblyLinearVelocity.Z)
+						end
 					end
 				end
 			end

@@ -235,6 +235,111 @@ window:AddToggle(moveSection, "walk_fling", "Walk Fling (Touch To Fling)", false
 	end
 end)
 
+local ragdollWalkConn: RBXScriptConnection? = nil
+local ragdollJumpConn: RBXScriptConnection? = nil
+local lastRagdollJumpTime = 0
+window:AddToggle(moveSection, "ragdoll_walk_jump", "Ragdoll Walk & Space Jump", false, nil, function(enabled)
+	if enabled then
+		ragdollWalkConn = RunService.Heartbeat:Connect(function()
+			local char = localPlayer.Character
+			if not char then return end
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local torso = (char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("LowerTorso")) :: BasePart?
+			if not (hum and (root or torso) and hum.Health > 0) then return end
+
+			local isRagdolled = char:GetAttribute("Ragdoll") == true
+				or char:GetAttribute("Ragdolled") == true
+				or char:FindFirstChild("Ragdoll") ~= nil
+				or char:FindFirstChild("Ragdolled") ~= nil
+				or hum.PlatformStand == true
+				or hum.Sit == true
+				or hum:GetState() == Enum.HumanoidStateType.Ragdoll
+				or hum:GetState() == Enum.HumanoidStateType.Physics
+				or hum:GetState() == Enum.HumanoidStateType.FallingDown
+				or hum:GetState() == Enum.HumanoidStateType.PlatformStanding
+
+			if isRagdolled then
+				local cam = Workspace.CurrentCamera
+				if cam then
+					local look = cam.CFrame.LookVector
+					local right = cam.CFrame.RightVector
+					local flatLook = Vector3.new(look.X, 0, look.Z)
+					local flatRight = Vector3.new(right.X, 0, right.Z)
+
+					local moveVec = Vector3.zero
+					if UserInputService:IsKeyDown(Enum.KeyCode.W) or UserInputService:IsKeyDown(Enum.KeyCode.Up) then moveVec += flatLook end
+					if UserInputService:IsKeyDown(Enum.KeyCode.S) or UserInputService:IsKeyDown(Enum.KeyCode.Down) then moveVec -= flatLook end
+					if UserInputService:IsKeyDown(Enum.KeyCode.A) or UserInputService:IsKeyDown(Enum.KeyCode.Left) then moveVec -= flatRight end
+					if UserInputService:IsKeyDown(Enum.KeyCode.D) or UserInputService:IsKeyDown(Enum.KeyCode.Right) then moveVec += flatRight end
+
+					local partsToPropel = {}
+					if root then table.insert(partsToPropel, root) end
+					if torso then table.insert(partsToPropel, torso) end
+					for _, p in ipairs(char:GetChildren()) do
+						if p:IsA("BasePart") and (p.Name:find("Torso") or p.Name:find("Leg")) then
+							table.insert(partsToPropel, p)
+						end
+					end
+
+					if moveVec.Magnitude > 0.05 then
+						local dir = moveVec.Unit
+						local speed = 36
+						for _, p in ipairs(partsToPropel) do
+							p.AssemblyLinearVelocity = Vector3.new(dir.X * speed, p.AssemblyLinearVelocity.Y, dir.Z * speed)
+						end
+					end
+
+					if UserInputService:IsKeyDown(Enum.KeyCode.Space) and (tick() - lastRagdollJumpTime > 0.28) then
+						local mainPart = root or torso
+						if mainPart and math.abs(mainPart.AssemblyLinearVelocity.Y) < 16 then
+							lastRagdollJumpTime = tick()
+							for _, p in ipairs(partsToPropel) do
+								p.AssemblyLinearVelocity = Vector3.new(p.AssemblyLinearVelocity.X, 54, p.AssemblyLinearVelocity.Z)
+							end
+						end
+					end
+				end
+			end
+		end)
+
+		ragdollJumpConn = UserInputService.JumpRequest:Connect(function()
+			local char = localPlayer.Character
+			if not char then return end
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local torso = (char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")) :: BasePart?
+			if not (hum and (root or torso) and hum.Health > 0) then return end
+
+			local isRagdolled = char:GetAttribute("Ragdoll") == true
+				or hum.PlatformStand == true
+				or hum.Sit == true
+				or hum:GetState() == Enum.HumanoidStateType.Ragdoll
+				or hum:GetState() == Enum.HumanoidStateType.Physics
+				or hum:GetState() == Enum.HumanoidStateType.FallingDown
+
+			if isRagdolled and (tick() - lastRagdollJumpTime > 0.28) then
+				lastRagdollJumpTime = tick()
+				local parts = { root, torso }
+				for _, p in ipairs(parts) do
+					if p then
+						p.AssemblyLinearVelocity = Vector3.new(p.AssemblyLinearVelocity.X, 54, p.AssemblyLinearVelocity.Z)
+					end
+				end
+			end
+		end)
+	else
+		if ragdollWalkConn then
+			ragdollWalkConn:Disconnect()
+			ragdollWalkConn = nil
+		end
+		if ragdollJumpConn then
+			ragdollJumpConn:Disconnect()
+			ragdollJumpConn = nil
+		end
+	end
+end)
+
 window:AddSlider(moveSection, "Custom Gravity", 0, 196, 196, function(value)
 	Workspace.Gravity = value
 end)

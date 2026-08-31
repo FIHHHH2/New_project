@@ -118,6 +118,10 @@ local playerListWidget = PlayerList.new()
 local chatWidgetInstance = ChatWidget.new()
 local musicTrackerWidget = MusicTracker.new()
 
+_G.__ToggleProjectFihMenu = function()
+	window:Toggle()
+end
+
 local function getGameTabName(): string
 	local placeId = game.PlaceId
 	local nameLower = string.lower(game.Name)

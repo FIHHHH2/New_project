@@ -1,9 +1,12 @@
 --!strict
 --[=[
-    ✦ High-Performance Combat Engine ✦
-    Optimized lag-free Silent Aim (with cached O(1) target resolution),
-    Wallbang redirection, Aim Tracking (Right-Click Hold), Screen-Centered FOV Circle,
-    Trigger Bot, and throttled Hitbox Expander.
+    ✦ High-Performance Combat & Aim Tracking Engine ✦
+    Features:
+    - Post-Camera BindToRenderStep (Enum.RenderPriority.Camera.Value + 1) Aim Tracking
+      (Guarantees camera aim lock is never overwritten by Roblox CameraModule)
+    - Full-screen / FOV adaptive target resolution with transparent-barrier bypass
+    - Cached O(1) Raycast and Mouse metamethod hooks for instant Silent Aim & Wallbang
+    - Trigger Bot and Customizable Hitbox Expander
 ]=]
 
 local Players = game:GetService("Players")
@@ -24,12 +27,13 @@ local Combat = {
 	HitChance = 100,
 	TargetPart = "Head",
 	AimTracking = false,
+	AimMode = "Hold RMB", -- "Hold RMB" or "Always"
 	TrackTeammates = false,
 	TriggerBot = false,
 	TriggerBotDelay = 0.05,
 	FovCircle = false,
-	FovRadius = 120,
-	Smoothing = 0.25,
+	FovRadius = 160,
+	Smoothing = 0.40,
 	ExpandHitboxes = false,
 	HitboxSize = 12,
 	FovColor = Color3.fromRGB(55, 175, 245)
@@ -54,7 +58,6 @@ local originalHitboxSizes: {[BasePart]: Vector3} = {}
 local lastTriggerTime = 0
 local cachedTargetPlayer: Player? = nil
 local cachedTargetPart: BasePart? = nil
-local lastTargetUpdateTime = 0
 
 local function isTeammate(player: Player): boolean
 	if not LocalPlayer.Team then return false end
@@ -66,25 +69,32 @@ local function getScreenCenter(): Vector2
 	return Vector2.new(vp.X / 2, vp.Y / 2)
 end
 
-local function isPartVisible(origin: Vector3, targetPart: BasePart, ignoreList: {Instance}?): boolean
+local function isPartVisible(origin: Vector3, targetPart: BasePart, targetChar: Model): boolean
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = ignoreList or { LocalPlayer.Character, targetPart.Parent }
+	params.FilterDescendantsInstances = { LocalPlayer.Character, targetChar }
 	params.IgnoreWater = true
 
 	local direction = targetPart.Position - origin
 	local result = Workspace:Raycast(origin, direction, params)
-	return result == nil or result.Instance:IsDescendantOf(targetPart.Parent)
+	if not result then return true end
+
+	-- Check if hit object is invisible/non-collidable trigger
+	if not result.Instance.CanCollide and result.Instance.Transparency >= 0.75 then
+		return true
+	end
+
+	return result.Instance:IsDescendantOf(targetChar)
 end
 
 function Combat.getClosestTarget(ignoreWalls: boolean?): (Player?, BasePart?)
 	local screenCenter = getScreenCenter()
 	local closestPlayer: Player? = nil
 	local closestPart: BasePart? = nil
-	local shortestDist = Combat.FovRadius
+	local maxRadius = if Combat.FovCircle then Combat.FovRadius else 1200
+	local shortestDist = maxRadius
 	local checkWall = (ignoreWalls ~= true and not Combat.Wallbang)
 	local camPos = Camera.CFrame.Position
-	local myChar = LocalPlayer.Character
 	
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player == LocalPlayer then continue end
@@ -96,13 +106,15 @@ function Combat.getClosestTarget(ignoreWalls: boolean?): (Player?, BasePart?)
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
 		if not humanoid or humanoid.Health <= 0 then continue end
 		
-		local targetPart = if Combat.TargetPart == "Head" then
-			character:FindFirstChild("Head") :: BasePart?
+		local targetPart: BasePart? = nil
+		if Combat.TargetPart == "Head" then
+			targetPart = character:FindFirstChild("Head") :: BasePart?
 		else
-			(character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")) :: BasePart?
+			targetPart = (character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")) :: BasePart?
+		end
 
 		if not targetPart then
-			targetPart = (character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")) :: BasePart?
+			targetPart = (character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart") or character:FindFirstChildWhichIsA("BasePart")) :: BasePart?
 		end
 		if not targetPart then continue end
 		
@@ -113,7 +125,7 @@ function Combat.getClosestTarget(ignoreWalls: boolean?): (Player?, BasePart?)
 		if dist < shortestDist then
 			local visible = true
 			if checkWall then
-				visible = isPartVisible(camPos, targetPart, {myChar, character})
+				visible = isPartVisible(camPos, targetPart, character)
 			end
 
 			if visible then
@@ -127,7 +139,7 @@ function Combat.getClosestTarget(ignoreWalls: boolean?): (Player?, BasePart?)
 	return closestPlayer, closestPart
 end
 
--- ── Throttled Target Cache Updater (Prevents High-Frequency Frame Spikes) ──
+-- ── 60 FPS Continuous Target Solver ──────────────────────────────────
 RunService.Heartbeat:Connect(function()
 	if not Combat.SilentAim and not Combat.AimTracking then
 		cachedTargetPlayer = nil
@@ -135,11 +147,7 @@ RunService.Heartbeat:Connect(function()
 		return
 	end
 
-	local now = tick()
-	if now - lastTargetUpdateTime >= 0.033 then -- 30 FPS update rate for target solver
-		lastTargetUpdateTime = now
-		cachedTargetPlayer, cachedTargetPart = Combat.getClosestTarget(Combat.Wallbang)
-	end
+	cachedTargetPlayer, cachedTargetPart = Combat.getClosestTarget(Combat.Wallbang)
 end)
 
 -- ── Metamethod Hooks for Silent Aim & Wallbang (Optimized) ───────────
@@ -149,7 +157,6 @@ pcall(function()
 	local checkcall = checkcaller or (getgenv and getgenv().checkcaller)
 
 	if type(hook) == "function" and type(getnamecall) == "function" then
-		-- Fast __namecall hook with O(1) cached target lookup
 		local oldNamecall: any
 		oldNamecall = hook(game, "__namecall", function(self, ...)
 			if not Combat.SilentAim then
@@ -190,7 +197,6 @@ pcall(function()
 			return oldNamecall(self, ...)
 		end)
 
-		-- Fast __index hook for Mouse.Hit and Mouse.Target
 		local oldIndex: any
 		oldIndex = hook(game, "__index", function(self, key)
 			if not Combat.SilentAim then
@@ -215,7 +221,7 @@ pcall(function()
 	end
 end)
 
--- Trigger Bot Check (Raycast under cursor or screen center)
+-- Trigger Bot Check (Raycast under cursor)
 local function checkTriggerBot()
 	if not Combat.TriggerBot then return end
 	local now = tick()
@@ -251,14 +257,12 @@ local function checkTriggerBot()
 	end
 end
 
--- Main RenderStepped Combat Loop (Fast, No Heavy Iteration)
-RunService.RenderStepped:Connect(function()
-	local screenCenter = getScreenCenter()
-	
-	-- FOV Circle Rendering
+-- ── Post-Camera Priority Aim Tracking (Enum.RenderPriority.Camera.Value + 1) ──
+RunService:BindToRenderStep("FihCombatAimTrack", Enum.RenderPriority.Camera.Value + 1, function()
+	-- FOV Circle Position
 	if fovDrawing then
 		if Combat.FovCircle then
-			fovDrawing.Position = screenCenter
+			fovDrawing.Position = getScreenCenter()
 			fovDrawing.Radius = Combat.FovRadius
 			fovDrawing.Color = Combat.FovColor
 			fovDrawing.Visible = true
@@ -266,17 +270,21 @@ RunService.RenderStepped:Connect(function()
 			fovDrawing.Visible = false
 		end
 	end
-	
-	-- Aim Tracking Loop: Only tracks when holding Right Mouse Button (MouseButton2)
-	if Combat.AimTracking and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-		local targetPart = cachedTargetPart
-		if targetPart then
-			local currentCF = Camera.CFrame
-			local targetCF = CFrame.lookAt(currentCF.Position, targetPart.Position)
-			Camera.CFrame = currentCF:Lerp(targetCF, math.clamp(Combat.Smoothing, 0.05, 1))
+
+	-- Aim Tracking Logic
+	if Combat.AimTracking then
+		local shouldTrack = (Combat.AimMode == "Always") or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+		if shouldTrack then
+			local targetPart = cachedTargetPart
+			if targetPart and targetPart.Parent then
+				local currentCF = Camera.CFrame
+				local targetCF = CFrame.lookAt(currentCF.Position, targetPart.Position)
+				local smoothFactor = math.clamp(Combat.Smoothing, 0.05, 1.0)
+				Camera.CFrame = currentCF:Lerp(targetCF, smoothFactor)
+			end
 		end
 	end
-	
+
 	-- Trigger Bot Execution
 	checkTriggerBot()
 end)

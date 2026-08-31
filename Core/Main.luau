@@ -272,8 +272,12 @@ window:AddToggle(aimSection, "target_head", "Target Head (Off = Torso)", true, n
 	Combat.TargetPart = if enabled then "Head" else "Torso"
 end)
 
-window:AddToggle(aimSection, "aim_tracking", "Aim Tracking (Hold RMB)", false, nil, function(enabled)
+window:AddToggle(aimSection, "aim_tracking", "Aim Tracking (Camera Lock)", false, nil, function(enabled)
 	Combat.AimTracking = enabled
+end)
+
+window:AddToggle(aimSection, "aim_always", "Always Lock (Ignore RMB Hold)", false, nil, function(enabled)
+	Combat.AimMode = if enabled then "Always" else "Hold RMB"
 end)
 
 window:AddToggle(aimSection, "track_teammates", "Track Teammates", false, nil, function(enabled)

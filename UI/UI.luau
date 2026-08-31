@@ -7,16 +7,16 @@ local UI = {}
 UI.__index = UI
 
 UI.Theme = {
-	Background = Color3.fromRGB(14, 14, 16),
-	BackgroundTransparency = 0.05,
-	Border = Color3.fromRGB(230, 230, 235),
-	BorderDim = Color3.fromRGB(80, 80, 90),
-	Accent = Color3.fromRGB(240, 60, 60),
+	Background = Color3.fromRGB(13, 13, 15),
+	BackgroundTransparency = 0.02,
+	Border = Color3.fromRGB(235, 235, 240),
+	BorderDim = Color3.fromRGB(75, 75, 85),
+	Accent = Color3.fromRGB(240, 55, 55),
 	AccentText = Color3.fromRGB(255, 255, 255),
 	TextPrimary = Color3.fromRGB(245, 245, 245),
 	TextSecondary = Color3.fromRGB(160, 160, 170),
 	Container = Color3.fromRGB(22, 22, 26),
-	ContainerDark = Color3.fromRGB(16, 16, 19),
+	ContainerDark = Color3.fromRGB(15, 15, 18),
 	HeaderFont = Enum.Font.GothamBold,
 	BodyFont = Enum.Font.GothamMedium,
 	MonoFont = Enum.Font.Code
@@ -45,9 +45,10 @@ function UI.createWindow(titleText: string)
 	-- topbar container
 	local topbar = Instance.new("Frame")
 	topbar.Name = "TopBar"
-	topbar.Size = UDim2.new(1, -12, 0, 28)
-	topbar.Position = UDim2.new(0, 6, 0, 6)
+	topbar.Size = UDim2.new(1, -16, 0, 28)
+	topbar.Position = UDim2.new(0, 8, 0, 8)
 	topbar.BackgroundTransparency = 1
+	topbar.BorderSizePixel = 0
 	topbar.Parent = mainFrame
 
 	-- title box [Project Fih Menu >>>>>]
@@ -80,7 +81,7 @@ function UI.createWindow(titleText: string)
 	local decoBar = Instance.new("Frame")
 	decoBar.Name = "DecoBar"
 	decoBar.Size = UDim2.new(1, -298, 1, 0)
-	decoBar.Position = UDim2.new(0, 226, 0, 0)
+	decoBar.Position = UDim2.new(0, 228, 0, 0)
 	decoBar.BackgroundColor3 = UI.Theme.Container
 	decoBar.BorderSizePixel = 0
 	decoBar.ClipsDescendants = true
@@ -105,7 +106,7 @@ function UI.createWindow(titleText: string)
 	local minButton = Instance.new("TextButton")
 	minButton.Name = "MinButton"
 	minButton.Size = UDim2.new(0, 30, 1, 0)
-	minButton.Position = UDim2.new(1, -64, 0, 0)
+	minButton.Position = UDim2.new(1, -66, 0, 0)
 	minButton.BackgroundColor3 = UI.Theme.Container
 	minButton.BorderSizePixel = 0
 	minButton.Text = "—"
@@ -142,7 +143,7 @@ function UI.createWindow(titleText: string)
 	local topDivider = Instance.new("Frame")
 	topDivider.Name = "TopDivider"
 	topDivider.Size = UDim2.new(1, 0, 0, 2)
-	topDivider.Position = UDim2.new(0, 0, 0, 40)
+	topDivider.Position = UDim2.new(0, 0, 0, 42)
 	topDivider.BackgroundColor3 = UI.Theme.Border
 	topDivider.BorderSizePixel = 0
 	topDivider.Parent = mainFrame
@@ -150,22 +151,31 @@ function UI.createWindow(titleText: string)
 	-- body frame
 	local bodyFrame = Instance.new("Frame")
 	bodyFrame.Name = "BodyFrame"
-	bodyFrame.Size = UDim2.new(1, 0, 1, -58)
-	bodyFrame.Position = UDim2.new(0, 0, 0, 42)
+	bodyFrame.Size = UDim2.new(1, 0, 1, -62)
+	bodyFrame.Position = UDim2.new(0, 0, 0, 44)
 	bodyFrame.BackgroundTransparency = 1
+	bodyFrame.BorderSizePixel = 0
 	bodyFrame.Parent = mainFrame
 
 	-- left sidebar
 	local sidebar = Instance.new("ScrollingFrame")
 	sidebar.Name = "Sidebar"
-	sidebar.Size = UDim2.new(0, 130, 1, -8)
-	sidebar.Position = UDim2.new(0, 6, 0, 6)
+	sidebar.Size = UDim2.new(0, 126, 1, -12)
+	sidebar.Position = UDim2.new(0, 8, 0, 6)
 	sidebar.BackgroundTransparency = 1
-	sidebar.ScrollBarThickness = 2
+	sidebar.BorderSizePixel = 0
+	sidebar.ScrollBarThickness = 0
 	sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
 	sidebar.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	sidebar.ClipsDescendants = true
+	sidebar.ClipsDescendants = false
 	sidebar.Parent = bodyFrame
+
+	local sidePad = Instance.new("UIPadding")
+	sidePad.PaddingLeft = UDim.new(0, 2)
+	sidePad.PaddingRight = UDim.new(0, 2)
+	sidePad.PaddingTop = UDim.new(0, 2)
+	sidePad.PaddingBottom = UDim.new(0, 2)
+	sidePad.Parent = sidebar
 
 	local sideList = Instance.new("UIListLayout")
 	sideList.Padding = UDim.new(0, 6)
@@ -184,25 +194,27 @@ function UI.createWindow(titleText: string)
 	-- right main container
 	local rightMain = Instance.new("Frame")
 	rightMain.Name = "RightMain"
-	rightMain.Size = UDim2.new(1, -150, 1, -6)
-	rightMain.Position = UDim2.new(0, 146, 0, 6)
+	rightMain.Size = UDim2.new(1, -154, 1, -12)
+	rightMain.Position = UDim2.new(0, 150, 0, 6)
 	rightMain.BackgroundTransparency = 1
+	rightMain.BorderSizePixel = 0
 	rightMain.ClipsDescendants = true
 	rightMain.Parent = bodyFrame
 
 	-- subheader bar
 	local subHeader = Instance.new("Frame")
 	subHeader.Name = "SubHeader"
-	subHeader.Size = UDim2.new(1, -6, 0, 26)
+	subHeader.Size = UDim2.new(1, 0, 0, 26)
 	subHeader.Position = UDim2.new(0, 0, 0, 0)
 	subHeader.BackgroundTransparency = 1
+	subHeader.BorderSizePixel = 0
 	subHeader.Parent = rightMain
 
 	-- active tab tag box [ Main ]
 	local activeTagBox = Instance.new("Frame")
 	activeTagBox.Name = "ActiveTagBox"
-	activeTagBox.Size = UDim2.new(0, 110, 1, 0)
-	activeTagBox.Position = UDim2.new(0, 0, 0, 0)
+	activeTagBox.Size = UDim2.new(0, 110, 0, 24)
+	activeTagBox.Position = UDim2.new(0, 2, 0, 1)
 	activeTagBox.BackgroundColor3 = UI.Theme.Container
 	activeTagBox.BorderSizePixel = 0
 	activeTagBox.Parent = subHeader
@@ -226,8 +238,8 @@ function UI.createWindow(titleText: string)
 	-- subheader right utility buttons: [Settings] and [configs]
 	local configsBtn = Instance.new("TextButton")
 	configsBtn.Name = "ConfigsBtn"
-	configsBtn.Size = UDim2.new(0, 70, 1, 0)
-	configsBtn.Position = UDim2.new(1, -70, 0, 0)
+	configsBtn.Size = UDim2.new(0, 72, 0, 24)
+	configsBtn.Position = UDim2.new(1, -76, 0, 1)
 	configsBtn.BackgroundColor3 = UI.Theme.Container
 	configsBtn.BorderSizePixel = 0
 	configsBtn.Text = "configs"
@@ -244,8 +256,8 @@ function UI.createWindow(titleText: string)
 
 	local settingsBtn = Instance.new("TextButton")
 	settingsBtn.Name = "SettingsBtn"
-	settingsBtn.Size = UDim2.new(0, 70, 1, 0)
-	settingsBtn.Position = UDim2.new(1, -146, 0, 0)
+	settingsBtn.Size = UDim2.new(0, 72, 0, 24)
+	settingsBtn.Position = UDim2.new(1, -154, 0, 1)
 	settingsBtn.BackgroundColor3 = UI.Theme.Container
 	settingsBtn.BorderSizePixel = 0
 	settingsBtn.Text = "Settings"
@@ -263,9 +275,10 @@ function UI.createWindow(titleText: string)
 	-- pages container with strict boundary clamping
 	local contentContainer = Instance.new("Frame")
 	contentContainer.Name = "ContentContainer"
-	contentContainer.Size = UDim2.new(1, -4, 1, -34)
+	contentContainer.Size = UDim2.new(1, 0, 1, -32)
 	contentContainer.Position = UDim2.new(0, 0, 0, 32)
 	contentContainer.BackgroundTransparency = 1
+	contentContainer.BorderSizePixel = 0
 	contentContainer.ClipsDescendants = true
 	contentContainer.Parent = rightMain
 
@@ -332,7 +345,7 @@ function UI.createWindow(titleText: string)
 		minimized = not minimized
 		bodyFrame.Visible = not minimized
 		footerBar.Visible = not minimized
-		mainFrame.Size = if minimized then UDim2.new(0, 720, 0, 42) else UDim2.new(0, 720, 0, 480)
+		mainFrame.Size = if minimized then UDim2.new(0, 720, 0, 44) else UDim2.new(0, 720, 0, 480)
 	end)
 
 	closeButton.MouseButton1Click:Connect(function()
@@ -345,7 +358,8 @@ end
 function UI.createBannerCard(parent: GuiObject): Frame
 	local banner = Instance.new("Frame")
 	banner.Name = "PlayerGameBanner"
-	banner.Size = UDim2.new(1, 0, 0, 88)
+	banner.Size = UDim2.new(1, -6, 0, 88)
+	banner.Position = UDim2.new(0, 3, 0, 0)
 	banner.BackgroundColor3 = UI.Theme.Container
 	banner.BorderSizePixel = 0
 	banner.ClipsDescendants = true
@@ -386,6 +400,7 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	rightSide.Size = UDim2.new(1, -92, 1, -8)
 	rightSide.Position = UDim2.new(0, 86, 0, 4)
 	rightSide.BackgroundTransparency = 1
+	rightSide.BorderSizePixel = 0
 	rightSide.ClipsDescendants = true
 	rightSide.Parent = banner
 
@@ -393,6 +408,7 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	local titleRow = Instance.new("Frame")
 	titleRow.Name = "TitleRow"
 	titleRow.Size = UDim2.new(1, 0, 0, 22)
+	titleRow.Position = UDim2.new(0, 0, 0, 0)
 	titleRow.BackgroundColor3 = UI.Theme.ContainerDark
 	titleRow.BorderSizePixel = 0
 	titleRow.ClipsDescendants = true
@@ -429,6 +445,7 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	middleBlock.Size = UDim2.new(1, 0, 1, -26)
 	middleBlock.Position = UDim2.new(0, 0, 0, 26)
 	middleBlock.BackgroundTransparency = 1
+	middleBlock.BorderSizePixel = 0
 	middleBlock.ClipsDescendants = true
 	middleBlock.Parent = rightSide
 
@@ -459,7 +476,9 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	local infoList = Instance.new("Frame")
 	infoList.Name = "InfoList"
 	infoList.Size = UDim2.new(1, -58, 1, 0)
+	infoList.Position = UDim2.new(0, 0, 0, 0)
 	infoList.BackgroundTransparency = 1
+	infoList.BorderSizePixel = 0
 	infoList.ClipsDescendants = true
 	infoList.Parent = middleBlock
 

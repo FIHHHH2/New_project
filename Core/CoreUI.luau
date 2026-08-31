@@ -174,7 +174,9 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 		Page = tabContent,
 		Stroke = tabStroke,
 		Layout = layout,
-		IsHidden = isHiddenFromSidebar or false
+		IsHidden = isHiddenFromSidebar or false,
+		IsVisible = not (isHiddenFromSidebar or false),
+		OnVisibilityChanged = nil
 	}
 	
 	if tabButton then
@@ -193,6 +195,19 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 		tabButton.MouseButton1Click:Connect(function()
 			self:SelectTab(tabObj)
 		end)
+
+		local function handleRightClick()
+			if tabObj.Name == "Main" or tabObj.IsHidden then return end
+			self:SetTabVisibility(tabObj, false)
+			self:Notify("Module Hidden", string.format("'%s' tab hidden. Re-enable in Settings > Game Modules.", tabObj.Name), 3.5)
+		end
+
+		tabButton.MouseButton2Click:Connect(handleRightClick)
+		tabButton.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton2 then
+				handleRightClick()
+			end
+		end)
 	end
 	
 	table.insert(self.Tabs, tabObj)
@@ -202,6 +217,50 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 	end
 	
 	return tabObj
+end
+
+function CoreUI:GetTab(name: string): any
+	for _, tab in ipairs(self.Tabs) do
+		if tab.Name == name then
+			return tab
+		end
+	end
+	return nil
+end
+
+function CoreUI:SetTabVisibility(tabObjOrName: any, visible: boolean)
+	local targetTab = nil
+	if type(tabObjOrName) == "string" then
+		for _, tab in ipairs(self.Tabs) do
+			if tab.Name == tabObjOrName then
+				targetTab = tab
+				break
+			end
+		end
+	elseif type(tabObjOrName) == "table" then
+		targetTab = tabObjOrName
+	end
+
+	if not targetTab then return end
+
+	targetTab.IsVisible = visible
+	if targetTab.Button then
+		targetTab.Button.Visible = visible
+	end
+
+	if not visible and self.ActiveTab == targetTab then
+		-- Fall back to first visible non-hidden tab
+		for _, tab in ipairs(self.Tabs) do
+			if not tab.IsHidden and tab.IsVisible ~= false then
+				self:SelectTab(tab)
+				break
+			end
+		end
+	end
+
+	if targetTab.OnVisibilityChanged then
+		targetTab.OnVisibilityChanged(visible)
+	end
 end
 
 function CoreUI:SelectTab(tabObj)

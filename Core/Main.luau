@@ -574,42 +574,13 @@ end)
 -- ============================================================
 local setLeftCol, setRightCol = window:CreateColumns(settingsTab)
 
--- 1. Module Management (Enable/Disable Main Engine Modules)
-local moduleSection = window:AddSection(setLeftCol, "Module Management")
+-- 1. Game Modules & Tab Visibility (Toggle/Hide game-specific & feature tabs)
+local moduleSection = window:AddSection(setLeftCol, "Game Modules & Tab Visibility")
 
-window:AddToggle(moduleSection, "mod_combat", "Combat Module", true, nil, function(enabled)
-	FeatureManager.setModuleState("combat", enabled)
-	if not enabled then
-		Combat.SilentAim = false
-		Combat.AimTracking = false
-		Combat.TriggerBot = false
-		Combat.ExpandHitboxes = false
-		Combat.resetHitboxes()
-	end
-end)
-
-window:AddToggle(moduleSection, "mod_visuals", "Visuals Module (ESP / Chams)", true, nil, function(enabled)
-	FeatureManager.setModuleState("visuals", enabled)
-	if not enabled then
-		Visuals.Box2D = false
-		Visuals.HealthBar = false
-		Visuals.Tracers = false
-		Visuals.Chams = false
-		Visuals.Skeleton = false
-	end
-end)
-
-window:AddToggle(moduleSection, "mod_movement", "Movement & Exploits Module", true, nil, function(enabled)
-	FeatureManager.setModuleState("movement", enabled)
-	if not enabled then
-		if noclipConn then noclipConn:Disconnect() noclipConn = nil end
-		if infJumpConn then infJumpConn:Disconnect() infJumpConn = nil end
-		if walkFlingConn then walkFlingConn:Disconnect() walkFlingConn = nil end
-	end
-end)
-
-window:AddToggle(moduleSection, "mod_game_utils", "Game Utilities Module", true, nil, function(enabled)
-	FeatureManager.setModuleState("game_utils", enabled)
+-- Game-Specific Module Tab (Run N Hide / Disaster Survival)
+window:AddToggle(moduleSection, "tab_game_module", string.format("%s (Game Tab)", gameTabTitle), true, nil, function(enabled)
+	FeatureManager.setModuleState("game_module", enabled)
+	window:SetTabVisibility(gameTab, enabled)
 	if not enabled then
 		RunNHide.SilentGunAudio = false
 		RunNHide.QuickReload = false
@@ -624,6 +595,50 @@ window:AddToggle(moduleSection, "mod_game_utils", "Game Utilities Module", true,
 	end
 end)
 
+-- Combat Module Tab
+window:AddToggle(moduleSection, "tab_combat_module", "Combat (Aim & Hitboxes)", true, nil, function(enabled)
+	FeatureManager.setModuleState("combat", enabled)
+	window:SetTabVisibility(combatTab, enabled)
+	if not enabled then
+		Combat.SilentAim = false
+		Combat.AimTracking = false
+		Combat.TriggerBot = false
+		Combat.ExpandHitboxes = false
+		Combat.resetHitboxes()
+	end
+end)
+
+-- Visuals Module Tab
+window:AddToggle(moduleSection, "tab_visuals_module", "Visuals (ESP & Chams)", true, nil, function(enabled)
+	FeatureManager.setModuleState("visuals", enabled)
+	window:SetTabVisibility(visualsTab, enabled)
+	if not enabled then
+		Visuals.Box2D = false
+		Visuals.HealthBar = false
+		Visuals.Tracers = false
+		Visuals.Chams = false
+		Visuals.Skeleton = false
+	end
+end)
+
+-- Quick Action Buttons for Tab Visibility
+window:AddButton(moduleSection, string.format("Hide %s Tab", gameTabTitle), function()
+	window:SetTabVisibility(gameTab, false)
+	FeatureManager.setFeatureState("tab_game_module", false)
+	window:Notify("Tab Hidden", string.format("%s tab hidden from sidebar", gameTabTitle), 2.5)
+end)
+
+window:AddButton(moduleSection, "Show All Sidebar Tabs", function()
+	window:SetTabVisibility(gameTab, true)
+	window:SetTabVisibility(combatTab, true)
+	window:SetTabVisibility(visualsTab, true)
+	FeatureManager.setFeatureState("tab_game_module", true)
+	FeatureManager.setFeatureState("tab_combat_module", true)
+	FeatureManager.setFeatureState("tab_visuals_module", true)
+	window:Notify("Tabs Restored", "All sidebar tabs are now visible", 2.5)
+end)
+
+-- Widgets Visibility Controls
 window:AddToggle(moduleSection, "mod_music_tracker", "Music Tracker Widget", true, nil, function(enabled)
 	FeatureManager.setModuleState("music_tracker", enabled)
 	musicTrackerWidget.SetVisible(enabled)
@@ -638,6 +653,28 @@ window:AddToggle(moduleSection, "mod_chat_widget", "Chat Widget", true, nil, fun
 	FeatureManager.setModuleState("chat_widget", enabled)
 	chatWidgetInstance.Frame.Visible = enabled
 end)
+
+-- Hook tab right-click sync to update settings toggles
+gameTab.OnVisibilityChanged = function(vis: boolean)
+	local feat = FeatureManager.getFeature("tab_game_module")
+	if feat and feat.state ~= vis then
+		FeatureManager.setFeatureState("tab_game_module", vis)
+	end
+end
+
+combatTab.OnVisibilityChanged = function(vis: boolean)
+	local feat = FeatureManager.getFeature("tab_combat_module")
+	if feat and feat.state ~= vis then
+		FeatureManager.setFeatureState("tab_combat_module", vis)
+	end
+end
+
+visualsTab.OnVisibilityChanged = function(vis: boolean)
+	local feat = FeatureManager.getFeature("tab_visuals_module")
+	if feat and feat.state ~= vis then
+		FeatureManager.setFeatureState("tab_visuals_module", vis)
+	end
+end
 
 -- 2. Theme & Appearance (Persistent on Leave)
 local themeSection = window:AddSection(setLeftCol, "Theme & Appearance")

@@ -1,8 +1,9 @@
 --!strict
 --[=[
     ✦ Music Tracker UI Widget with Audio Visualizer & Lyrics ✦
-    Features: Song Cover, Song Title & Artist, Lyrics display, Audio Visualizer,
-    Playback controls (Skip, Pause/Play, Go Back), and Local Media Bridge client.
+    Features: Dynamic Song Cover updates on song change, Idle Music Note fallback,
+    Song Title & Artist, Lyrics display, Audio Visualizer, Playback controls,
+    and Local Media Bridge client.
 ]=]
 
 local CoreGui = game:GetService("CoreGui")
@@ -18,6 +19,7 @@ local MusicTracker = {}
 MusicTracker.__index = MusicTracker
 
 local BRIDGE_URL = "http://127.0.0.1:8888"
+local MUSIC_NOTE_ICON = "rbxassetid://7072718362" -- Clean Music Note Icon
 
 -- Built-in demo playlist when external bridge is offline
 local DEMO_TRACKS = {
@@ -181,7 +183,7 @@ function MusicTracker.new()
 	coverImg.Size = UDim2.new(1, -4, 1, -4)
 	coverImg.Position = UDim2.new(0, 2, 0, 2)
 	coverImg.BackgroundTransparency = 1
-	coverImg.Image = "rbxassetid://13470984852"
+	coverImg.Image = MUSIC_NOTE_ICON
 	coverImg.ScaleType = Enum.ScaleType.Fit
 	coverImg.Parent = coverBox
 
@@ -222,7 +224,7 @@ function MusicTracker.new()
 	songTitleLabel.Size = UDim2.new(1, -12, 1, 0)
 	songTitleLabel.Position = UDim2.new(0, 6, 0, 0)
 	songTitleLabel.BackgroundTransparency = 1
-	songTitleLabel.Text = "Starboy — The Weeknd"
+	songTitleLabel.Text = "No Song Playing"
 	songTitleLabel.TextColor3 = UI.Theme.TextPrimary
 	songTitleLabel.Font = UI.Fonts.Header
 	songTitleLabel.TextSize = 11
@@ -254,7 +256,7 @@ function MusicTracker.new()
 	lyricsLabel.Size = UDim2.new(1, -12, 1, 0)
 	lyricsLabel.Position = UDim2.new(0, 6, 0, 0)
 	lyricsLabel.BackgroundTransparency = 1
-	lyricsLabel.Text = "♫ Look what you've done, I'm a starboy"
+	lyricsLabel.Text = "♫ Waiting for audio session..."
 	lyricsLabel.TextColor3 = UI.Theme.TextSecondary
 	lyricsLabel.Font = UI.Fonts.Mono
 	lyricsLabel.TextSize = 10
@@ -368,19 +370,44 @@ function MusicTracker.new()
 	local playBtn = makeCtrlBtn("PlayBtn", "||", 2)
 	local skipBtn = makeCtrlBtn("SkipBtn", ">>", 3)
 
-	-- ── Real-Time Audio Visualizer Loop ──────────────────────────────
-	local isPlaying = true
+	-- ── Real-Time Audio Visualizer & Cover Update Logic ───────────────
+	local isPlaying = false
 	local currentTrackIndex = 1
+	local lastCoverUrl = ""
+	local lastSongTitle = ""
 
-	local function setTrack(t)
-		songTitleLabel.Text = string.format("%s — %s", t.title, t.artist)
-		lyricsLabel.Text = "♫ " .. t.lyrics
-		if t.cover and t.cover ~= "" then
-			coverImg.Image = t.cover
+	local function updateCover(coverUrl: string?, isIdle: boolean)
+		if isIdle or not coverUrl or coverUrl == "" then
+			coverImg.Image = MUSIC_NOTE_ICON
+			coverImg.ImageColor3 = UI.Theme.Accent
+			coverImg.Size = UDim2.new(0, 52, 0, 52)
+			coverImg.Position = UDim2.new(0.5, -26, 0.5, -26)
+		else
+			if lastCoverUrl ~= coverUrl then
+				lastCoverUrl = coverUrl
+				TweenService:Create(coverImg, TweenInfo.new(0.15, Enum.EasingStyle.Quad), { ImageTransparency = 0.5 }):Play()
+				task.delay(0.15, function()
+					coverImg.Image = coverUrl
+					coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
+					coverImg.Size = UDim2.new(1, -4, 1, -4)
+					coverImg.Position = UDim2.new(0, 2, 0, 2)
+					TweenService:Create(coverImg, TweenInfo.new(0.2, Enum.EasingStyle.Quad), { ImageTransparency = 0 }):Play()
+				end)
+			end
 		end
 	end
 
-	setTrack(DEMO_TRACKS[currentTrackIndex])
+	local function setTrack(t)
+		lastSongTitle = t.title
+		songTitleLabel.Text = string.format("%s — %s", t.title, t.artist)
+		lyricsLabel.Text = "♫ " .. t.lyrics
+		isPlaying = true
+		playBtn.Text = "||"
+		updateCover(t.cover, false)
+	end
+
+	-- Start on clean idle state
+	updateCover(nil, true)
 
 	local visualizerConn = RunService.RenderStepped:Connect(function()
 		if not widget.Visible or not isPlaying then
@@ -428,19 +455,37 @@ function MusicTracker.new()
 	-- ── Local Bridge Poller (Spotify / SoundCloud / YouTube) ──────────
 	task.spawn(function()
 		while true do
-			task.wait(1.5)
+			task.wait(1.0)
 			if widget.Visible then
 				pcall(function()
 					local raw = game:HttpGet(BRIDGE_URL .. "/current")
 					if raw and raw ~= "" then
 						local data = HttpService:JSONDecode(raw)
 						if data and data.title then
-							songTitleLabel.Text = string.format("%s — %s", data.title, data.artist or "Unknown")
-							if data.lyrics then lyricsLabel.Text = "♫ " .. data.lyrics end
-							if data.cover then coverImg.Image = data.cover end
-							if data.isPlaying ~= nil then
-								isPlaying = data.isPlaying
-								playBtn.Text = if isPlaying then "||" else ">"
+							local isIdle = (data.title == "No Song Playing" or not data.isPlaying)
+							if data.title ~= lastSongTitle then
+								lastSongTitle = data.title
+								if isIdle then
+									songTitleLabel.Text = "No Song Playing"
+									lyricsLabel.Text = "♫ Waiting for audio session..."
+									isPlaying = false
+									playBtn.Text = ">"
+									updateCover(nil, true)
+								else
+									songTitleLabel.Text = string.format("%s — %s", data.title, data.artist or "Unknown")
+									if data.lyrics then lyricsLabel.Text = "♫ " .. data.lyrics end
+									isPlaying = (data.isPlaying == true)
+									playBtn.Text = if isPlaying then "||" else ">"
+									updateCover(data.cover, false)
+								end
+							else
+								if isIdle then
+									isPlaying = false
+									playBtn.Text = ">"
+								else
+									isPlaying = (data.isPlaying == true)
+									playBtn.Text = if isPlaying then "||" else ">"
+								end
 							end
 						end
 					end

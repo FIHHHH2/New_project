@@ -43,7 +43,7 @@ function ChatWidget.new(): ChatWidgetInstance
 		useLegacyChat = (TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService)
 	end)
 
-	local DEFAULT_W, DEFAULT_H = 260, 220
+	local DEFAULT_W, DEFAULT_H = 340, 260
 	local TOPBAR_H = 28
 	local BOTTOM_H = 28
 
@@ -51,7 +51,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	local widget = Instance.new("Frame")
 	widget.Name = "ChatWidget"
 	widget.Size = UDim2.new(0, DEFAULT_W, 0, DEFAULT_H)
-	widget.Position = UDim2.new(1, -270, 0, 260)
+	widget.Position = UDim2.new(0, 14, 0, 14)
 	widget.BackgroundColor3 = UI.Theme.Background
 	widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	widget.BorderSizePixel = 0
@@ -330,11 +330,14 @@ function ChatWidget.new(): ChatWidgetInstance
 	UserInputService.InputChanged:Connect(function(input)
 		if input == dragInput and dragging then
 			local delta = input.Position - dragStart
-			widget.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+			local newX = math.clamp(startPos.X.Offset + delta.X, 0, vpSize.X - widget.AbsoluteSize.X)
+			local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, vpSize.Y - widget.AbsoluteSize.Y)
+			widget.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
 		end
 	end)
 
-	-- ── Resize Drag ──────────────────────────────────────────────────
+	-- ── Resize Drag (Screen Clamped) ─────────────────────────────────
 	local resizing = false
 	local resizeInput: InputObject? = nil
 	local resizeStart = Vector3.zero
@@ -362,8 +365,11 @@ function ChatWidget.new(): ChatWidgetInstance
 	UserInputService.InputChanged:Connect(function(input)
 		if input == resizeInput and resizing then
 			local delta = input.Position - resizeStart
-			local newW = math.clamp(startSize.X + delta.X, 220, 600)
-			local newH = math.clamp(startSize.Y + delta.Y, 140, 600)
+			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+			local maxW = vpSize.X - widget.AbsolutePosition.X - 10
+			local maxH = vpSize.Y - widget.AbsolutePosition.Y - 10
+			local newW = math.clamp(startSize.X + delta.X, 240, math.max(240, maxW))
+			local newH = math.clamp(startSize.Y + delta.Y, 160, math.max(160, maxH))
 			widget.Size = UDim2.new(0, newW, 0, newH)
 		end
 	end)

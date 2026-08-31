@@ -157,20 +157,24 @@ function PlayerList.new(): PlayerListWidget
 	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	listLayout.Parent = container
 
-	-- ── Smooth Height Scaling ─────────────────────────────────────────
+	-- ── Smooth Height Scaling to Player Count ─────────────────────────
 	local minimized = false
 
 	local function updateWidgetHeight()
 		if minimized then return end
 		local count = #Players:GetPlayers()
-		local contentHeight = count * (ROW_H + ROW_GAP) + 8
-		local targetH = math.clamp(HEADER_H + contentHeight, HEADER_H + 30, MAX_H)
+		local fullNeededHeight = HEADER_H + count * (ROW_H + ROW_GAP) + 8
+		local vpH = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y or 720
+		local posY = math.max(0, widget.AbsolutePosition.Y)
+		local maxAvailableH = math.max(HEADER_H + 40, vpH - posY - 16)
+		local targetH = math.min(fullNeededHeight, maxAvailableH)
+
 		TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Size = UDim2.new(0, widget.AbsoluteSize.X, 0, targetH)
 		}):Play()
 	end
 
-	-- ── Standard Roblox Topbar Drag ──────────────────────────────────
+	-- ── Standard Roblox Topbar Drag (Screen Clamped) ──────────────────
 	local dragging = false
 	local dragInput: InputObject? = nil
 	local dragStart = Vector3.zero
@@ -184,6 +188,7 @@ function PlayerList.new(): PlayerListWidget
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					dragging = false
+					updateWidgetHeight()
 				end
 			end)
 		end
@@ -198,9 +203,16 @@ function PlayerList.new(): PlayerListWidget
 	UserInputService.InputChanged:Connect(function(input)
 		if input == dragInput and dragging then
 			local delta = input.Position - dragStart
-			widget.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+			local newX = math.clamp(startPos.X.Offset + delta.X, 0, vpSize.X - widget.AbsoluteSize.X)
+			local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, vpSize.Y - widget.AbsoluteSize.Y)
+			widget.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
 		end
 	end)
+
+	if workspace.CurrentCamera then
+		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateWidgetHeight)
+	end
 
 	-- ── Button Hover & Click FX ─────────────────────────────────────
 	local function attachBtnFX(btn: TextButton, isClose: boolean?)

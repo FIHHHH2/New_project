@@ -376,11 +376,13 @@ function MusicTracker.new()
 	local lastCoverUrl = ""
 	local lastSongTitle = ""
 	local lastCoverVersion = -1
+	local previousCoverFile: string? = nil
 
-	local function loadRealCoverBinary()
+	local function loadRealCoverBinary(v: number?)
 		local wrf = writefile or (getgenv and getgenv().writefile)
 		local mkf = makefolder or (getgenv and getgenv().makefolder)
 		local isfl = isfolder or (getgenv and getgenv().isfolder)
+		local dlf = delfile or (getgenv and getgenv().delfile)
 		local getAsset = getcustomasset or (getgenv and getgenv().getcustomasset) or getsynasset
 		
 		if type(wrf) == "function" and type(getAsset) == "function" then
@@ -388,16 +390,27 @@ function MusicTracker.new()
 				if type(mkf) == "function" and type(isfl) == "function" and not isfl("FihSuite") then
 					mkf("FihSuite")
 				end
-				local imgBytes = game:HttpGet(BRIDGE_URL .. "/cover.png?nocache=" .. tostring(os.time()))
+				local imgBytes = game:HttpGet(BRIDGE_URL .. "/cover.png?nocache=" .. tostring(os.time()) .. "_" .. tostring(math.random(1000, 9999)))
 				if imgBytes and #imgBytes > 100 then
-					local filename = "FihSuite/current_song_cover.png"
-					wrf(filename, imgBytes)
-					local assetUri = getAsset(filename)
+					-- Unique filename per song change to bypass Roblox internal getcustomasset caching
+					local newFile = string.format("FihSuite/cover_%d_%d.png", os.time(), math.random(100, 999))
+					wrf(newFile, imgBytes)
+					local assetUri = getAsset(newFile)
 					if assetUri and assetUri ~= "" then
-						coverImg.Image = assetUri
-						coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
-						coverImg.Size = UDim2.new(1, -4, 1, -4)
-						coverImg.Position = UDim2.new(0, 2, 0, 2)
+						TweenService:Create(coverImg, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { ImageTransparency = 0.5 }):Play()
+						task.delay(0.12, function()
+							coverImg.Image = assetUri
+							coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
+							coverImg.Size = UDim2.new(1, -4, 1, -4)
+							coverImg.Position = UDim2.new(0, 2, 0, 2)
+							TweenService:Create(coverImg, TweenInfo.new(0.18, Enum.EasingStyle.Quad), { ImageTransparency = 0 }):Play()
+						end)
+
+						-- Clean up old cover file
+						if previousCoverFile and type(dlf) == "function" then
+							pcall(dlf, previousCoverFile)
+						end
+						previousCoverFile = newFile
 					end
 				end
 			end)
@@ -413,21 +426,19 @@ function MusicTracker.new()
 			return
 		end
 
-		-- Download real image bytes from bridge server
-		task.spawn(loadRealCoverBinary)
+		-- Download real image bytes from bridge server with cache-busting
+		task.spawn(function()
+			loadRealCoverBinary(coverVersion)
+		end)
 
 		if coverUrl and coverUrl ~= "" and lastCoverUrl ~= coverUrl then
 			lastCoverUrl = coverUrl
-			TweenService:Create(coverImg, TweenInfo.new(0.15, Enum.EasingStyle.Quad), { ImageTransparency = 0.5 }):Play()
-			task.delay(0.15, function()
-				if coverUrl:find("rbxassetid") then
-					coverImg.Image = coverUrl
-				end
+			if coverUrl:find("rbxassetid") then
+				coverImg.Image = coverUrl
 				coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
 				coverImg.Size = UDim2.new(1, -4, 1, -4)
 				coverImg.Position = UDim2.new(0, 2, 0, 2)
-				TweenService:Create(coverImg, TweenInfo.new(0.2, Enum.EasingStyle.Quad), { ImageTransparency = 0 }):Play()
-			end)
+			end
 		end
 	end
 

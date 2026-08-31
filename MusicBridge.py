@@ -272,11 +272,18 @@ async def fetch_windows_media():
                     # 2. If no native thumbnail, download from iTunes/Deezer/Spotify
                     if not got_native_cover:
                         def download_bg():
-                            global current_cover_bytes
+                            global current_cover_bytes, cover_version_counter
                             img = download_cover_image_bytes(t, a)
-                            if img:
+                            if img and len(img) > 50:
                                 current_cover_bytes = img
+                                cover_version_counter += 1
+                                current_media["coverVersion"] = cover_version_counter
+                                current_media["hasCover"] = True
                         threading.Thread(target=download_bg, daemon=True).start()
+                    else:
+                        cover_version_counter += 1
+                        current_media["coverVersion"] = cover_version_counter
+                        current_media["hasCover"] = True
 
                 current_media["hasCover"] = len(current_cover_bytes) > 0
                 current_media["coverVersion"] = cover_version_counter

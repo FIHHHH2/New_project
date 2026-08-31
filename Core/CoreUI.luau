@@ -710,6 +710,90 @@ function CoreUI:AddButton(section: Frame, name: string, callback: () -> ())
 	end)
 end
 
+function CoreUI:AddTextBox(section: Frame, name: string, placeholder: string, defaultText: string?, onSubmitted: ((string) -> ())?): (TextBox, Frame)
+	local row = Instance.new("Frame")
+	row.Name = name .. "InputRow"
+	row.Size = UDim2.new(1, -4, 0, 48)
+	row.Position = UDim2.new(0, 2, 0, 0)
+	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
+	row.Parent = section
+
+	local titleBox = Instance.new("Frame")
+	titleBox.Name = "TitleBox"
+	titleBox.Size = UDim2.new(1, 0, 0, 20)
+	titleBox.Position = UDim2.new(0, 0, 0, 0)
+	titleBox.BackgroundColor3 = UI.Theme.Container
+	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
+	titleBox.BorderSizePixel = 0
+	titleBox.Parent = row
+	UI.registerThemeElement(titleBox, "Container")
+
+	local titleStroke = Instance.new("UIStroke")
+	titleStroke.Color = UI.Theme.Border
+	titleStroke.Thickness = 1
+	titleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	titleStroke.Parent = titleBox
+	UI.registerThemeElement(titleStroke, "Border")
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(1, -8, 1, 0)
+	titleLabel.Position = UDim2.new(0, 6, 0, 0)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = name
+	titleLabel.TextColor3 = UI.Theme.TextPrimary
+	titleLabel.Font = UI.Fonts.Header
+	titleLabel.TextSize = 10
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.Parent = titleBox
+	UI.registerThemeElement(titleLabel, "TextPrimary")
+
+	local inputFrame = Instance.new("Frame")
+	inputFrame.Name = "InputFrame"
+	inputFrame.Size = UDim2.new(1, 0, 0, 24)
+	inputFrame.Position = UDim2.new(0, 0, 0, 24)
+	inputFrame.BackgroundColor3 = UI.Theme.ContainerDark
+	inputFrame.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	inputFrame.BorderSizePixel = 0
+	inputFrame.Parent = row
+	UI.registerThemeElement(inputFrame, "ContainerDark")
+
+	local inStroke = Instance.new("UIStroke")
+	inStroke.Color = UI.Theme.Border
+	inStroke.Thickness = 1
+	inStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	inStroke.Parent = inputFrame
+	UI.registerThemeElement(inStroke, "Border")
+
+	local box = Instance.new("TextBox")
+	box.Name = "InputBox"
+	box.Size = UDim2.new(1, -12, 1, 0)
+	box.Position = UDim2.new(0, 6, 0, 0)
+	box.BackgroundTransparency = 1
+	box.Text = defaultText or ""
+	box.PlaceholderText = placeholder
+	box.TextColor3 = UI.Theme.TextPrimary
+	box.PlaceholderColor3 = UI.Theme.TextSecondary
+	box.Font = UI.Fonts.Mono
+	box.TextSize = 10
+	box.ClearTextOnFocus = false
+	box.TextXAlignment = Enum.TextXAlignment.Left
+	box.Parent = inputFrame
+	UI.registerThemeElement(box, "TextPrimary")
+
+	box.Focused:Connect(function()
+		TweenService:Create(inStroke, TweenInfo.new(0.12), { Color = UI.Theme.Accent, Thickness = 1.5 }):Play()
+	end)
+	box.FocusLost:Connect(function(enter)
+		TweenService:Create(inStroke, TweenInfo.new(0.12), { Color = UI.Theme.Border, Thickness = 1 }):Play()
+		if enter and onSubmitted then
+			onSubmitted(box.Text)
+		end
+	end)
+
+	return box, row
+end
+
 function CoreUI:Notify(title: string, message: string, duration: number?)
 	Notification.show(title, message, duration)
 end

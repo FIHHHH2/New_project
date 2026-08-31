@@ -90,8 +90,56 @@ UI.Themes = {
 	}
 }
 
-UI.CurrentTheme = UI.Themes.Dark
-UI.Theme = UI.Themes.Dark
+local HttpService = game:GetService("HttpService")
+
+local function ensureThemeFolder(folder: string)
+	local mkf = makefolder or (getgenv and getgenv().makefolder)
+	local isf = isfolder or (getgenv and getgenv().isfolder)
+	if type(mkf) == "function" and type(isf) == "function" then
+		pcall(function()
+			if not isf(folder) then mkf(folder) end
+		end)
+	end
+end
+
+function UI.saveTheme(themeName: string)
+	ensureThemeFolder("FihSuite")
+	local wrf = writefile or (getgenv and getgenv().writefile)
+	if type(wrf) == "function" then
+		pcall(function()
+			wrf("FihSuite/Theme.json", HttpService:JSONEncode({ theme = themeName, timestamp = os.time() }))
+		end)
+	end
+end
+
+function UI.getSavedTheme(): string?
+	local rdf = readfile or (getgenv and getgenv().readfile)
+	local isf = isfile or (getgenv and getgenv().isfile)
+	if type(rdf) == "function" and type(isf) == "function" then
+		local ok, content = pcall(function()
+			if isf("FihSuite/Theme.json") then
+				return rdf("FihSuite/Theme.json")
+			end
+			return nil
+		end)
+		if ok and content then
+			local dOk, decoded = pcall(function() return HttpService:JSONDecode(content) end)
+			if dOk and type(decoded) == "table" and type(decoded.theme) == "string" then
+				return decoded.theme
+			end
+		end
+	end
+	return nil
+end
+
+local savedThemeName = UI.getSavedTheme()
+if savedThemeName and UI.Themes[savedThemeName] then
+	UI.CurrentTheme = UI.Themes[savedThemeName]
+	UI.Theme = UI.Themes[savedThemeName]
+else
+	UI.CurrentTheme = UI.Themes.Dark
+	UI.Theme = UI.Themes.Dark
+end
 
 UI.Fonts = {
 	Header = Enum.Font.GothamBold,
@@ -128,6 +176,7 @@ function UI.setTheme(themeName: string)
 	local targetTheme = UI.Themes[themeName] or UI.Themes.Dark
 	UI.CurrentTheme = targetTheme
 	UI.Theme = targetTheme
+	UI.saveTheme(themeName)
 	
 	local tweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	

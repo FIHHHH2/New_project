@@ -8,6 +8,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
+local UI = require("UI/UI.luau")
 local CoreUI = require("Core/CoreUI.luau")
 local FeatureManager = require("Core/FeatureManager.luau")
 local PlayerList = require("UI/PlayerList.luau")
@@ -42,7 +43,6 @@ local function disableRobloxTopBarApp(disable: boolean)
 		StarterGui:SetCore("TopbarEnabled", not disable)
 	end)
 	pcall(function()
-		local CoreGui = game:GetService("CoreGui")
 		local topBarApp = CoreGui:FindFirstChild("TopBarApp")
 		if topBarApp then
 			for _, child in ipairs(topBarApp:GetChildren()) do
@@ -107,68 +107,35 @@ end)
 
 local function getGameTabName(): string
 	local placeId = game.PlaceId
-	local nameLower = string.lower(game.Name)
-	if game:GetService("ReplicatedStorage"):FindFirstChild("GunSystem") or string.find(nameLower, "run") or string.find(nameLower, "hide") or string.find(nameLower, "demise") then
+	if placeId == 189707 then
+		return "Natural Disaster"
+	elseif placeId == 12901416348 or placeId == 12901416348 or string.find(game.Name:lower(), "run and hide") or string.find(game.Name:lower(), "demise") then
 		return "Run N Hide"
-	elseif placeId == 189707 or string.find(nameLower, "disaster") then
-		return "Disasters"
-	elseif placeId == 286090429 or string.find(nameLower, "arsenal") then
-		return "Arsenal"
-	elseif placeId == 6872265039 or placeId == 6872274481 or string.find(nameLower, "bedwars") then
-		return "BedWars"
-	elseif placeId == 142823291 or string.find(nameLower, "murder") then
-		return "MM2"
 	end
-	
-	local conciseName = "Game"
-	pcall(function()
-		local MarketplaceService = game:GetService("MarketplaceService")
-		local info = MarketplaceService:GetProductInfo(placeId)
-		if info and info.Name then
-			local firstWord = string.split(info.Name, " ")[1]
-			if firstWord and #firstWord <= 10 then
-				conciseName = firstWord
-			end
-		end
-	end)
-	return conciseName
+	return "Run N Hide"
 end
 
 local gameTabTitle = getGameTabName()
 
--- Active sidebar navigation tabs
+-- Create navigation tabs in strict layout order
 local mainTab = window:CreateTab("Main")
-local visualsTab = window:CreateTab("Visuals")
 local combatTab = window:CreateTab("Combat")
 local gameTab = window:CreateTab(gameTabTitle)
+local visualsTab = window:CreateTab("Visuals")
 
--- Dedicated Settings & Configs tabs (opened/closed via subheader buttons)
+-- Create hidden dedicated settings and configs pages
 local settingsTab = window:CreateTab("Settings", true)
 local configsTab = window:CreateTab("Configs", true)
-
-window:BindSettingsTab(settingsTab)
-window:BindConfigsTab(configsTab)
-
--- Initialize Game Engines
-DisasterSurvival.init(function(disasterName)
-	if DisasterSurvival.DisasterTracker then
-		window:Notify("Disaster Warning!", string.format("Detected: %s", disasterName), 4)
-	end
-end)
-
-RunNHide.init(function(title, msg)
-	window:Notify(title, msg, 4)
-end)
+window.SettingsTab = settingsTab
+window.ConfigsTab = configsTab
 
 -- ============================================================
--- MAIN / MENU TAB CONTENT
+-- MAIN TAB CONTENT (PLAYER & MOVEMENT)
 -- ============================================================
-window:AddBanner(mainTab)
-
 local leftCol, rightCol = window:CreateColumns(mainTab)
 
--- LEFT COLUMN: Self Configs
-local selfSection = window:AddSection(leftCol, "Self Configs")
+-- LEFT COLUMN: Self Modifiers
+local selfSection = window:AddSection(leftCol, "Self Modifiers")
 
 window:AddToggle(selfSection, "walkspeed_boost", "WalkSpeed Boost", false, nil, function(enabled)
 	if humanoid then
@@ -451,83 +418,51 @@ if gameTabTitle == "Run N Hide" then
 
 	window:AddToggle(boundsSection, "rnh_anti_void", "Anti-Void Safety Floor", false, nil, function(val)
 		RunNHide.AntiVoidFloor = val
-		RunNHide.updateVoidPlatform()
+		RunNHide.ensureVoidPlatform()
 	end)
 
 	window:AddButton(boundsSection, "Audit & Disable All Bounds Now", function()
 		RunNHide.DisableBarriers = true
 		RunNHide.DisableKillbricks = true
 		local count = RunNHide.scanAndDisableBoundaries()
-		window:Notify("Boundary Audit", string.format("All invisible walls & killbricks purged (%d checked)", count), 3.5)
+		window:Notify("Audit", string.format("Neutralized %d boundaries & killbricks", count), 3.5)
 	end)
 
-	local roleSection = window:AddSection(gameRightCol, "Role Tracker")
+	local staminaSection = window:AddSection(gameRightCol, "Stamina & Mobility")
 
-	window:AddToggle(roleSection, "rnh_role_tracker", "Role Tracker Watcher", false, nil, function(val)
-		RunNHide.RoleTracker = val
+	window:AddToggle(staminaSection, "rnh_inf_stamina", "Infinite Stamina", false, nil, function(val)
+		RunNHide.InfiniteStamina = val
 	end)
 
-	local stamSection = window:AddSection(gameRightCol, "Stamina & Ragdoll Mobility")
+	window:AddToggle(staminaSection, "rnh_fast_regen", "Hyper Fast Stamina Regen", false, nil, function(val)
+		RunNHide.FastRegen = val
+	end)
 
-	window:AddToggle(stamSection, "rnh_move_ragdoll", "Move In Ragdoll (WASD Steer)", true, nil, function(val)
+	window:AddToggle(staminaSection, "rnh_move_ragdoll", "Move In Ragdoll (WASD)", false, nil, function(val)
 		RunNHide.MoveInRagdoll = val
 	end)
 
-	window:AddToggle(stamSection, "rnh_ragdoll_jump", "Ragdoll Jump Boost (Spacebar)", true, nil, function(val)
-		RunNHide.RagdollJumpBoost = val
-	end)
-
-	window:AddToggle(stamSection, "rnh_auto_standup", "Auto Instant Standup", false, nil, function(val)
+	window:AddToggle(staminaSection, "rnh_auto_stand", "Auto Standup (Anti-Knockdown)", false, nil, function(val)
 		RunNHide.AutoStandup = val
 	end)
 
-	window:AddToggle(stamSection, "rnh_inf_stamina", "Infinite Stamina (Zero Drain)", false, nil, function(val)
-		RunNHide.InfiniteStamina = val
-		RunNHide.updateStamina()
-	end)
-
-	window:AddToggle(stamSection, "rnh_fast_regen", "Fast Stamina Recovery", false, nil, function(val)
-		RunNHide.FastRegen = val
-		RunNHide.updateStamina()
-	end)
-
-	window:AddToggle(stamSection, "rnh_speed_boost", "Sprint Speed Multiplier", false, nil, function(val)
-		RunNHide.SpeedBoost = val
-		RunNHide.updateStamina()
-	end)
-
-	window:AddSlider(stamSection, "Ragdoll Move Speed", 16, 120, 32, function(val)
+	window:AddSlider(staminaSection, "Ragdoll Speed", 16, 80, 32, function(val)
 		RunNHide.RagdollSpeed = val
 	end)
 
-	window:AddSlider(stamSection, "Stamina Drain Reduction %", 0, 100, 50, function(val)
-		RunNHide.StaminaReduction = val
-		RunNHide.updateStamina()
+	local grabSection = window:AddSection(gameRightCol, "Item & Role Tracker")
+
+	window:AddToggle(grabSection, "rnh_role_tracker", "Role Tracker & ESP", false, nil, function(val)
+		RunNHide.RoleTracker = val
 	end)
 
-	window:AddSlider(stamSection, "Sprint Speed Factor", 1, 3, 1, function(val)
-		RunNHide.SpeedMultiplier = val
-		RunNHide.updateStamina()
-	end)
-
-	window:AddButton(stamSection, "Force Instant Standup / Recover", function()
-		RunNHide.forceStandup()
-		window:Notify("Ragdoll", "Recovered from ragdoll state", 3)
-	end)
-
-	local grabSection = window:AddSection(gameRightCol, "Weapon Spawns & Arena")
-
-	window:AddToggle(grabSection, "rnh_auto_grab", "Auto-Grab Spawned Weapons", false, nil, function(val)
+	window:AddToggle(grabSection, "rnh_auto_grab", "Auto-Grab Dropped Weapons", false, nil, function(val)
 		RunNHide.AutoGrabWeapons = val
-		if val then
-			local c = RunNHide.grabAllScatteredWeapons()
-			window:Notify("Weapon Grabber", string.format("Auto-grab active (%d prompts checked)", c), 3)
-		end
 	end)
 
-	window:AddButton(grabSection, "Grab All Map Weapons Now", function()
-		local c = RunNHide.grabAllScatteredWeapons()
-		window:Notify("Weapon Grabber", string.format("Grabbed %d weapons from map", c), 3.5)
+	window:AddButton(grabSection, "Grab All Scattered Guns Now", function()
+		local count = RunNHide.grabAllScatteredWeapons()
+		window:Notify("Weapons", string.format("Claimed %d dropped guns", count), 3)
 	end)
 
 	window:AddButton(grabSection, "Teleport to PVP Arena", function()
@@ -616,34 +551,104 @@ window:AddSlider(chamsSection, "Chams Transparency", 0, 100, 50, function(value)
 end)
 
 -- ============================================================
--- SETTINGS TAB CONTENT (THEMES, FPS, RENDERING, AUDIO, ETC)
+-- SETTINGS TAB CONTENT (THEMES, MODULES, FPS, RENDERING, AUDIO)
 -- ============================================================
 local setLeftCol, setRightCol = window:CreateColumns(settingsTab)
 
--- Themes Section (Smooth Transitions: Light, Dark, Translucent Dark, Translucent Light)
+-- 1. Module Management (Enable/Disable Main Engine Modules)
+local moduleSection = window:AddSection(setLeftCol, "Module Management")
+
+window:AddToggle(moduleSection, "mod_combat", "Combat Module", true, nil, function(enabled)
+	FeatureManager.setModuleState("combat", enabled)
+	if not enabled then
+		Combat.SilentAim = false
+		Combat.AimTracking = false
+		Combat.TriggerBot = false
+		Combat.ExpandHitboxes = false
+		Combat.resetHitboxes()
+	end
+end)
+
+window:AddToggle(moduleSection, "mod_visuals", "Visuals Module (ESP / Chams)", true, nil, function(enabled)
+	FeatureManager.setModuleState("visuals", enabled)
+	if not enabled then
+		Visuals.Box2D = false
+		Visuals.HealthBar = false
+		Visuals.Tracers = false
+		Visuals.Chams = false
+		Visuals.Skeleton = false
+	end
+end)
+
+window:AddToggle(moduleSection, "mod_movement", "Movement & Exploits Module", true, nil, function(enabled)
+	FeatureManager.setModuleState("movement", enabled)
+	if not enabled then
+		if noclipConn then noclipConn:Disconnect() noclipConn = nil end
+		if infJumpConn then infJumpConn:Disconnect() infJumpConn = nil end
+		if walkFlingConn then walkFlingConn:Disconnect() walkFlingConn = nil end
+	end
+end)
+
+window:AddToggle(moduleSection, "mod_game_utils", "Game Utilities Module", true, nil, function(enabled)
+	FeatureManager.setModuleState("game_utils", enabled)
+	if not enabled then
+		RunNHide.SilentGunAudio = false
+		RunNHide.QuickReload = false
+		RunNHide.CompleteAuto = false
+		RunNHide.DisableBarriers = false
+		RunNHide.DisableKillbricks = false
+		DisasterSurvival.DisasterTracker = false
+		DisasterSurvival.setNoFallDamage(false)
+		DisasterSurvival.setFlight(false)
+		DisasterSurvival.setAntiFling(false)
+		DisasterSurvival.setFling(false)
+	end
+end)
+
+window:AddToggle(moduleSection, "mod_music_tracker", "Music Tracker Widget", true, nil, function(enabled)
+	FeatureManager.setModuleState("music_tracker", enabled)
+	musicTrackerWidget.SetVisible(enabled)
+end)
+
+window:AddToggle(moduleSection, "mod_player_list", "Player List Widget", true, nil, function(enabled)
+	FeatureManager.setModuleState("player_list", enabled)
+	playerListWidget.Frame.Visible = enabled
+end)
+
+window:AddToggle(moduleSection, "mod_chat_widget", "Chat Widget", true, nil, function(enabled)
+	FeatureManager.setModuleState("chat_widget", enabled)
+	chatWidgetInstance.Frame.Visible = enabled
+end)
+
+-- 2. Theme & Appearance (Persistent on Leave)
 local themeSection = window:AddSection(setLeftCol, "Theme & Appearance")
 
 window:AddButton(themeSection, "Dark Mode", function()
 	window:SetTheme("Dark")
+	window:Notify("Theme", "Saved Dark Mode", 2)
 end)
 
 window:AddButton(themeSection, "Light Mode", function()
 	window:SetTheme("Light")
+	window:Notify("Theme", "Saved Light Mode", 2)
 end)
 
 window:AddButton(themeSection, "Translucent Dark (Acrylic)", function()
 	window:SetTheme("TranslucentDark")
+	window:Notify("Theme", "Saved Acrylic Dark Mode", 2)
 end)
 
 window:AddButton(themeSection, "Translucent Light (Glass)", function()
 	window:SetTheme("TranslucentLight")
+	window:Notify("Theme", "Saved Glass Light Mode", 2)
 end)
 
 window:AddButton(themeSection, "Adaptive (Album Cover)", function()
 	window:SetTheme("Adaptive")
+	window:Notify("Theme", "Saved Adaptive Mode", 2)
 end)
 
--- GUI Visibility & Screen Cleanup Controls
+-- 3. Screen & GUI Cleanup
 local cleanSection = window:AddSection(setLeftCol, "Screen & GUI Optimization")
 
 window:AddToggle(cleanSection, "hide_default_guis", "Hide Game Default GUIs (Topbar & Core)", true, nil, function(enabled)
@@ -672,8 +677,8 @@ window:AddToggle(cleanSection, "hide_game_guis", "Hide Default Game GUIs", false
 	end
 end)
 
--- Performance Settings
-local perfSection = window:AddSection(setLeftCol, "Performance")
+-- 4. Performance Settings
+local perfSection = window:AddSection(setRightCol, "Performance")
 
 local terrain = workspace:FindFirstChildOfClass("Terrain")
 window:AddToggle(perfSection, "fps_boost", "FPS BOOST", false, nil, function(enabled)
@@ -693,7 +698,7 @@ window:AddToggle(perfSection, "fps_uncap", "FPS UNCAP", false, nil, function(ena
 	end
 end)
 
--- Audio Volume Controller (Scales all game audios, excludes VoiceChat)
+-- 5. Audio Volume Controller
 local audioSection = window:AddSection(setRightCol, "Audio Controls")
 
 local currentVolumeScale = 1.0
@@ -724,7 +729,7 @@ game.DescendantAdded:Connect(function(obj)
 	end
 end)
 
--- Rendering Optimization Settings
+-- 6. Rendering Optimization
 local renderSection = window:AddSection(setRightCol, "3D & Texture Rendering")
 
 local meshConn: RBXScriptConnection? = nil
@@ -784,41 +789,178 @@ window:AddToggle(renderSection, "dont_render_decals", "DONT RENDER DECALS", fals
 end)
 
 -- ============================================================
--- CONFIGS TAB CONTENT
+-- DYNAMIC CONFIGS TAB CONTENT (ZERO-DEFAULT PROFILE MANAGER)
 -- ============================================================
 local confLeftCol, confRightCol = window:CreateColumns(configsTab)
 
-local profileSection = window:AddSection(confLeftCol, "Profile Slots")
-window:AddButton(profileSection, "Load Default Profile", function()
-	local ok = FeatureManager.loadConfig("default")
-	window:Notify("Configs", ok and "Loaded Default profile" or "No default config found", 3)
+local profilesSection = window:AddSection(confLeftCol, "Saved Configuration Profiles")
+local configActionsSection = window:AddSection(confRightCol, "Config Actions & Management")
+
+local selectedConfigName: string? = nil
+local currentConfigInputName = ""
+local profileButtonRows: {[string]: Frame} = {}
+
+local configInputBox = window:AddTextBox(configActionsSection, "Profile Name", "e.g. Legit_Main", "", function(text)
+	currentConfigInputName = text
 end)
 
-window:AddButton(profileSection, "Load Legit Profile", function()
-	local ok = FeatureManager.loadConfig("legit")
-	window:Notify("Configs", ok and "Loaded Legit profile" or "No legit profile found", 3)
+local statusNotice = Instance.new("TextLabel")
+statusNotice.Name = "StatusNotice"
+statusNotice.Size = UDim2.new(1, -4, 0, 36)
+statusNotice.BackgroundTransparency = 1
+statusNotice.Text = "No Saved Profiles Found\nCreate a new profile on the right to save."
+statusNotice.TextColor3 = UI.Theme.TextSecondary
+statusNotice.Font = UI.Fonts.Body
+statusNotice.TextSize = 10
+statusNotice.TextWrapped = true
+statusNotice.Parent = profilesSection
+UI.registerThemeElement(statusNotice, "TextSecondary")
+
+local function refreshProfilesList()
+	for _, row in pairs(profileButtonRows) do
+		pcall(function() row:Destroy() end)
+	end
+	table.clear(profileButtonRows)
+
+	local existingConfigs = FeatureManager.listConfigs()
+	if #existingConfigs == 0 then
+		statusNotice.Visible = true
+		statusNotice.Text = "No Saved Profiles Found\nType a name on the right and click Create Config."
+	else
+		statusNotice.Visible = false
+		for _, cfgName in ipairs(existingConfigs) do
+			local pRow = Instance.new("Frame")
+			pRow.Name = cfgName .. "Row"
+			pRow.Size = UDim2.new(1, -4, 0, 26)
+			pRow.Position = UDim2.new(0, 2, 0, 0)
+			pRow.BackgroundColor3 = UI.Theme.Container
+			pRow.BackgroundTransparency = UI.Theme.ContainerTransparency
+			pRow.BorderSizePixel = 0
+			pRow.Parent = profilesSection
+			UI.registerThemeElement(pRow, "Container")
+
+			local pStroke = Instance.new("UIStroke")
+			pStroke.Color = if selectedConfigName == cfgName then UI.Theme.Accent else UI.Theme.Border
+			pStroke.Thickness = if selectedConfigName == cfgName then 1.6 else 1.0
+			pStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			pStroke.Parent = pRow
+			UI.registerThemeElement(pStroke, "Border")
+
+			local pBtn = Instance.new("TextButton")
+			pBtn.Size = UDim2.new(1, 0, 1, 0)
+			pBtn.BackgroundTransparency = 1
+			pBtn.Text = string.format("  [%s] %s", if selectedConfigName == cfgName then "●" else "○", cfgName)
+			pBtn.TextColor3 = if selectedConfigName == cfgName then UI.Theme.Accent else UI.Theme.TextPrimary
+			pBtn.Font = UI.Fonts.Header
+			pBtn.TextSize = 11
+			pBtn.TextXAlignment = Enum.TextXAlignment.Left
+			pBtn.Parent = pRow
+			UI.registerThemeElement(pBtn, "TextPrimary")
+
+			pBtn.MouseButton1Click:Connect(function()
+				selectedConfigName = cfgName
+				configInputBox.Text = cfgName
+				currentConfigInputName = cfgName
+				refreshProfilesList()
+			end)
+
+			profileButtonRows[cfgName] = pRow
+		end
+	end
+end
+
+window:AddButton(configActionsSection, "Create & Save Config", function()
+	local targetName = if currentConfigInputName ~= "" then currentConfigInputName else configInputBox.Text
+	if targetName == "" then
+		window:Notify("Configs", "Please enter a profile name first", 3)
+		return
+	end
+
+	local saved = FeatureManager.saveConfig(targetName)
+	if saved then
+		selectedConfigName = targetName
+		window:Notify("Configs", string.format("Created & saved '%s'", targetName), 3)
+		refreshProfilesList()
+	else
+		window:Notify("Configs", "Failed to write configuration to disk", 3)
+	end
 end)
 
-window:AddButton(profileSection, "Load Rage Profile", function()
-	local ok = FeatureManager.loadConfig("rage")
-	window:Notify("Configs", ok and "Loaded Rage profile" or "No rage profile found", 3)
+window:AddButton(configActionsSection, "Save / Overwrite Selected", function()
+	local targetName = selectedConfigName or (if currentConfigInputName ~= "" then currentConfigInputName else configInputBox.Text)
+	if not targetName or targetName == "" then
+		window:Notify("Configs", "No configuration selected to overwrite", 3)
+		return
+	end
+
+	local saved = FeatureManager.saveConfig(targetName)
+	if saved then
+		window:Notify("Configs", string.format("Saved current settings to '%s'", targetName), 3)
+		refreshProfilesList()
+	else
+		window:Notify("Configs", "Failed to save configuration", 3)
+	end
 end)
 
-local actionSection = window:AddSection(confRightCol, "Config Actions")
-window:AddButton(actionSection, "Save Current Config", function()
-	local ok = FeatureManager.saveConfig("default")
-	window:Notify("Configs", ok and "Saved current settings & keybinds" or "Saved default configuration", 3)
+window:AddButton(configActionsSection, "Load Selected Config", function()
+	if not selectedConfigName or selectedConfigName == "" then
+		window:Notify("Configs", "Select a profile from the left first", 3)
+		return
+	end
+
+	local loaded = FeatureManager.loadConfig(selectedConfigName)
+	if loaded then
+		window:Notify("Configs", string.format("Loaded profile '%s'", selectedConfigName), 3)
+	else
+		window:Notify("Configs", string.format("Failed to load '%s'", selectedConfigName), 3)
+	end
 end)
 
-window:AddButton(actionSection, "Create New Profile", function()
-	local pName = "profile_" .. tostring(os.time())
-	local ok = FeatureManager.saveConfig(pName)
-	window:Notify("Configs", ok and ("Created " .. pName) or "Saved new profile", 3)
+window:AddButton(configActionsSection, "Delete Selected Config", function()
+	if not selectedConfigName or selectedConfigName == "" then
+		window:Notify("Configs", "Select a profile from the left to delete", 3)
+		return
+	end
+
+	local deletedName = selectedConfigName
+	local deleted = FeatureManager.deleteConfig(deletedName)
+	if deleted then
+		selectedConfigName = nil
+		configInputBox.Text = ""
+		currentConfigInputName = ""
+		window:Notify("Configs", string.format("Deleted profile '%s'", deletedName), 3)
+		refreshProfilesList()
+	else
+		window:Notify("Configs", "Failed to delete profile", 3)
+	end
 end)
 
-window:AddButton(actionSection, "Reset All Defaults", function()
-	FeatureManager.saveConfig("default")
-	window:Notify("Configs", "Reset configuration to defaults", 3)
+window:AddButton(configActionsSection, "Refresh Config List", function()
+	refreshProfilesList()
+	window:Notify("Configs", "Config list refreshed", 2)
+end)
+
+-- Initial scan of configs on startup
+task.spawn(refreshProfilesList)
+
+-- Ensure saved theme is applied and saved on leave
+pcall(function()
+	local savedTheme = UI.getSavedTheme()
+	if savedTheme and UI.Themes[savedTheme] then
+		window:SetTheme(savedTheme)
+	end
+end)
+
+pcall(function()
+	game:BindToClose(function()
+		UI.saveTheme(UI.CurrentTheme.Name)
+	end)
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+	if plr == localPlayer then
+		UI.saveTheme(UI.CurrentTheme.Name)
+	end
 end)
 
 -- Explicitly activate default Main tab on load

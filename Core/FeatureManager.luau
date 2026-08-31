@@ -1,4 +1,14 @@
 --!strict
+--[=[
+    ✦ Advanced Feature & Config Management Engine ✦
+    Provides:
+    - Modular Feature, Slider, and Module State registration
+    - Disk-based multi-profile configuration manager (FihSuite/Configs/<name>.json)
+    - Dynamic config file discovery on join (listfiles)
+    - Zero default clutter (clean creation and overwrite workflow)
+    - Keybind listening and execution dispatcher
+]=]
+
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
 
@@ -23,15 +33,24 @@ export type SliderRecord = {
 	onValueChanged: ((number) -> ())?
 }
 
+export type ModuleRecord = {
+	id: string,
+	name: string,
+	enabled: boolean,
+	callback: (boolean) -> (),
+	onStateChanged: ((boolean) -> ())?
+}
+
 local registeredFeatures: {[string]: FeatureRecord} = {}
 local registeredSliders: {[string]: SliderRecord} = {}
+local registeredModules: {[string]: ModuleRecord} = {}
 local keybindMap: {[Enum.KeyCode]: {string}} = {}
 local isListeningForKeybind = false
 local activeKeybindCallback: ((Enum.KeyCode?) -> ())? = nil
 
-local CONFIG_FOLDER = "FihSuite"
-local DEFAULT_CONFIG = "default"
-local savedConfigCache: {[string]: any} = {}
+local ROOT_FOLDER = "FihSuite"
+local CONFIGS_FOLDER = "FihSuite/Configs"
+local activeConfigName: string? = nil
 
 local function rebuildKeybindMap()
 	table.clear(keybindMap)
@@ -45,71 +64,84 @@ local function rebuildKeybindMap()
 	end
 end
 
-local function ensureFolder()
+local function ensureFolders()
 	local mkf = makefolder or (getgenv and getgenv().makefolder)
 	local isf = isfolder or (getgenv and getgenv().isfolder)
 	if type(mkf) == "function" and type(isf) == "function" then
 		pcall(function()
-			if not isf(CONFIG_FOLDER) then
-				mkf(CONFIG_FOLDER)
-			end
+			if not isf(ROOT_FOLDER) then mkf(ROOT_FOLDER) end
+			if not isf(CONFIGS_FOLDER) then mkf(CONFIGS_FOLDER) end
 		end)
 	end
 end
 
+local function sanitizeConfigName(name: string): string
+	local clean = name:gsub("[^%w_%-%s]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+	return if clean ~= "" then clean else "Config_" .. tostring(os.time())
+end
+
+-- ── File System Utilities ─────────────────────────────────────────
+function FeatureManager.listConfigs(): {string}
+	ensureFolders()
+	local configs: {string} = {}
+	local listf = listfiles or (getgenv and getgenv().listfiles)
+	local isf = isfile or (getgenv and getgenv().isfile)
+	if type(listf) == "function" then
+		local ok, files = pcall(function() return listf(CONFIGS_FOLDER) end)
+		if ok and type(files) == "table" then
+			for _, path in ipairs(files) do
+				local fileName = tostring(path):match("([^/\]+)%.json$")
+				if fileName and fileName ~= "" then
+					table.insert(configs, fileName)
+				end
+			end
+		end
+	end
+	table.sort(configs)
+	return configs
+end
+
 local function readConfigFile(name: string): string?
-	ensureFolder()
+	ensureFolders()
 	local rdf = readfile or (getgenv and getgenv().readfile)
 	local isf = isfile or (getgenv and getgenv().isfile)
 	if type(rdf) == "function" and type(isf) == "function" then
-		local path = CONFIG_FOLDER .. "/" .. name .. ".json"
-		local success, content = pcall(function()
-			if isf(path) then
-				return rdf(path)
-			end
+		local path = CONFIGS_FOLDER .. "/" .. name .. ".json"
+		local ok, content = pcall(function()
+			if isf(path) then return rdf(path) end
 			return nil
 		end)
-		if success and content then
-			return content
-		end
+		if ok and content then return content end
 	end
 	return nil
 end
 
 local function writeConfigFile(name: string, data: string): boolean
-	ensureFolder()
+	ensureFolders()
 	local wrf = writefile or (getgenv and getgenv().writefile)
 	if type(wrf) == "function" then
-		local path = CONFIG_FOLDER .. "/" .. name .. ".json"
-		local success = pcall(function()
-			wrf(path, data)
-		end)
-		return success
+		local path = CONFIGS_FOLDER .. "/" .. name .. ".json"
+		local ok = pcall(function() wrf(path, data) end)
+		return ok
 	end
 	return false
 end
 
--- Preload default config cache from disk on startup
-pcall(function()
-	local raw = readConfigFile(DEFAULT_CONFIG)
-	if raw then
-		local decoded = HttpService:JSONDecode(raw)
-		if type(decoded) == "table" then
-			savedConfigCache = decoded
-		end
+local function deleteConfigFile(name: string): boolean
+	ensureFolders()
+	local dlf = delfile or (getgenv and getgenv().delfile)
+	local isf = isfile or (getgenv and getgenv().isfile)
+	if type(dlf) == "function" and type(isf) == "function" then
+		local path = CONFIGS_FOLDER .. "/" .. name .. ".json"
+		local ok = pcall(function()
+			if isf(path) then dlf(path) end
+		end)
+		return ok
 	end
-end)
-
-local saveDebounce = false
-local function scheduleAutoSave()
-	if saveDebounce then return end
-	saveDebounce = true
-	task.delay(0.4, function()
-		saveDebounce = false
-		FeatureManager.saveConfig(DEFAULT_CONFIG)
-	end)
+	return false
 end
 
+-- ── Keybind Listener ──────────────────────────────────────────────
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if isListeningForKeybind and activeKeybindCallback then
 		if input.UserInputType == Enum.UserInputType.Keyboard then
@@ -140,28 +172,13 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
+-- ── Feature & Slider Registration ─────────────────────────────────
 function FeatureManager.register(id: string, name: string, defaultState: boolean, defaultKeybind: Enum.KeyCode?, callback: (boolean) -> ()): FeatureRecord
-	local initialState = defaultState
-	local initialKeybind = defaultKeybind
-
-	-- Check persistent cache on startup
-	if savedConfigCache and savedConfigCache.toggles and savedConfigCache.toggles[id] then
-		local entry = savedConfigCache.toggles[id]
-		if entry.state ~= nil then
-			initialState = entry.state
-		end
-		if entry.keybind then
-			pcall(function()
-				initialKeybind = (Enum.KeyCode :: any)[entry.keybind]
-			end)
-		end
-	end
-
 	local record: FeatureRecord = {
 		id = id,
 		name = name,
-		state = initialState,
-		keybind = initialKeybind,
+		state = defaultState,
+		keybind = defaultKeybind,
 		callback = callback,
 		onKeybindChanged = nil,
 		onStateChanged = nil
@@ -170,7 +187,7 @@ function FeatureManager.register(id: string, name: string, defaultState: boolean
 	rebuildKeybindMap()
 	
 	task.spawn(function()
-		local success, err = pcall(callback, initialState)
+		local success, err = pcall(callback, defaultState)
 		if not success then
 			warn(string.format("[FeatureManager] error initializing feature %s: %s", id, tostring(err)))
 		end
@@ -180,39 +197,48 @@ function FeatureManager.register(id: string, name: string, defaultState: boolean
 end
 
 function FeatureManager.registerSlider(id: string, name: string, defaultValue: number, callback: (number) -> ()): (SliderRecord, number)
-	local initialVal = defaultValue
-	if savedConfigCache and savedConfigCache.sliders and savedConfigCache.sliders[id] ~= nil then
-		initialVal = savedConfigCache.sliders[id]
-	end
-
 	local record: SliderRecord = {
 		id = id,
 		name = name,
-		value = initialVal,
+		value = defaultValue,
 		callback = callback,
 		onValueChanged = nil
 	}
 	registeredSliders[id] = record
 
 	task.spawn(function()
-		local success, err = pcall(callback, initialVal)
+		local success, err = pcall(callback, defaultValue)
 		if not success then
 			warn(string.format("[FeatureManager] error initializing slider %s: %s", id, tostring(err)))
 		end
 	end)
 
-	return record, initialVal
+	return record, defaultValue
+end
+
+function FeatureManager.registerModule(id: string, name: string, defaultEnabled: boolean, callback: (boolean) -> ()): ModuleRecord
+	local record: ModuleRecord = {
+		id = id,
+		name = name,
+		enabled = defaultEnabled,
+		callback = callback,
+		onStateChanged = nil
+	}
+	registeredModules[id] = record
+
+	task.spawn(function()
+		pcall(callback, defaultEnabled)
+	end)
+
+	return record
 end
 
 function FeatureManager.setSliderValue(id: string, value: number)
 	local s = registeredSliders[id]
 	if not s then return end
 	s.value = value
-	if s.onValueChanged then
-		s.onValueChanged(value)
-	end
+	if s.onValueChanged then s.onValueChanged(value) end
 	pcall(s.callback, value)
-	scheduleAutoSave()
 end
 
 function FeatureManager.setFeatureState(id: string, state: boolean)
@@ -221,26 +247,32 @@ function FeatureManager.setFeatureState(id: string, state: boolean)
 	if feat.state == state then return end
 	
 	feat.state = state
-	if feat.onStateChanged then
-		feat.onStateChanged(state)
-	end
+	if feat.onStateChanged then feat.onStateChanged(state) end
 	local success, err = pcall(feat.callback, state)
 	if not success then
 		warn(string.format("[FeatureManager] error toggling feature %s: %s", id, tostring(err)))
 	end
-	scheduleAutoSave()
 end
 
 function FeatureManager.setFeatureKeybind(id: string, keycode: Enum.KeyCode?)
 	local feat = registeredFeatures[id]
 	if not feat then return end
-	
 	feat.keybind = keycode
 	rebuildKeybindMap()
-	if feat.onKeybindChanged then
-		feat.onKeybindChanged(keycode)
-	end
-	scheduleAutoSave()
+	if feat.onKeybindChanged then feat.onKeybindChanged(keycode) end
+end
+
+function FeatureManager.setModuleState(id: string, enabled: boolean)
+	local mod = registeredModules[id]
+	if not mod then return end
+	mod.enabled = enabled
+	if mod.onStateChanged then mod.onStateChanged(enabled) end
+	pcall(mod.callback, enabled)
+end
+
+function FeatureManager.getModuleState(id: string): boolean
+	local mod = registeredModules[id]
+	return if mod then mod.enabled else true
 end
 
 function FeatureManager.promptKeybindCapture(onCaptured: (Enum.KeyCode?) -> ())
@@ -252,12 +284,19 @@ function FeatureManager.getFeature(id: string): FeatureRecord?
 	return registeredFeatures[id]
 end
 
-function FeatureManager.saveConfig(name: string?): boolean
-	local targetName = name or DEFAULT_CONFIG
+function FeatureManager.getActiveConfigName(): string?
+	return activeConfigName
+end
+
+-- ── Config Serialization & Restoration ───────────────────────────
+function FeatureManager.saveConfig(name: string): boolean
+	local cleanName = sanitizeConfigName(name)
 	local exportData = {
+		name = cleanName,
+		timestamp = os.time(),
 		toggles = {},
 		sliders = {},
-		timestamp = os.time()
+		modules = {}
 	}
 
 	for id, feat in pairs(registeredFeatures) do
@@ -271,27 +310,26 @@ function FeatureManager.saveConfig(name: string?): boolean
 		exportData.sliders[id] = slider.value
 	end
 
-	local success, encoded = pcall(function()
-		return HttpService:JSONEncode(exportData)
-	end)
-	if success and encoded then
-		savedConfigCache = exportData
-		return writeConfigFile(targetName, encoded)
+	for id, mod in pairs(registeredModules) do
+		exportData.modules[id] = mod.enabled
+	end
+
+	local ok, encoded = pcall(function() return HttpService:JSONEncode(exportData) end)
+	if ok and encoded then
+		local written = writeConfigFile(cleanName, encoded)
+		if written then activeConfigName = cleanName end
+		return written
 	end
 	return false
 end
 
-function FeatureManager.loadConfig(name: string?): boolean
-	local targetName = name or DEFAULT_CONFIG
-	local raw = readConfigFile(targetName)
+function FeatureManager.loadConfig(name: string): boolean
+	local cleanName = sanitizeConfigName(name)
+	local raw = readConfigFile(cleanName)
 	if not raw then return false end
 
-	local success, decoded = pcall(function()
-		return HttpService:JSONDecode(raw)
-	end)
-	if not success or type(decoded) ~= "table" then return false end
-
-	savedConfigCache = decoded
+	local ok, decoded = pcall(function() return HttpService:JSONDecode(raw) end)
+	if not ok or type(decoded) ~= "table" then return false end
 
 	if decoded.toggles then
 		for id, data in pairs(decoded.toggles) do
@@ -321,7 +359,24 @@ function FeatureManager.loadConfig(name: string?): boolean
 		end
 	end
 
+	if decoded.modules then
+		for id, enabled in pairs(decoded.modules) do
+			local m = registeredModules[id]
+			if m and type(enabled) == "boolean" then
+				FeatureManager.setModuleState(id, enabled)
+			end
+		end
+	end
+
+	activeConfigName = cleanName
 	return true
+end
+
+function FeatureManager.deleteConfig(name: string): boolean
+	local cleanName = sanitizeConfigName(name)
+	local ok = deleteConfigFile(cleanName)
+	if activeConfigName == cleanName then activeConfigName = nil end
+	return ok
 end
 
 return FeatureManager

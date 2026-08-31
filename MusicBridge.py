@@ -4,9 +4,9 @@ Connects Windows Media Session (Spotify, SoundCloud, YouTube, Apple Music)
 and native Windows Audio Engine to the Modular Roblox UI suite at http://127.0.0.1:8888.
 
 Features:
+- Sub-Second Precision Synced Lyrics Engine with Real-Time UTC Timestamp Tracking
 - High-Sensitivity Audio Session Metering with Ultra-Responsive AGC & 16-Band Visualizer Spectrum
 - True HSV/HSL Rich Palette Extractor (Vibrant Adaptive Cover Theme)
-- Multi-source Synced Lyrics engine (LRCLIB, title split heuristics, Lyrics.ovh fallback)
 - Real-time album artwork streamer (/cover.png)
 - Windowless system tray app with "Run on Startup" toggle
 """
@@ -19,6 +19,7 @@ import time
 import math
 import random
 import colorsys
+import datetime
 import asyncio
 import threading
 import winreg
@@ -38,8 +39,8 @@ current_media = {
     "artist": "Waiting for Media...",
     "lyrics": "Play a track on Spotify / SoundCloud / YouTube",
     "isPlaying": False,
-    "position": 0,
-    "duration": 0,
+    "position": 0.0,
+    "duration": 0.0,
     "hasCover": False,
     "coverVersion": 0,
     "audioPeak": 0.0,
@@ -85,7 +86,7 @@ def update_audio_spectrum():
     elif current_media["isPlaying"]:
         peak = 0.40 + 0.30 * math.sin(time.time() * 6)
 
-    # If system is outputting audible sound, flag media as active
+    # If system is outputting sound, mark media active
     if peak > 0.002:
         current_media["isPlaying"] = True
 
@@ -95,7 +96,6 @@ def update_audio_spectrum():
     else:
         max_recent_peak = max(0.0005, max_recent_peak * 0.988)
 
-    # Aggressive non-linear gain boost: power 0.28 makes all audio drive visualizer high
     ratio = min(1.0, peak / max(0.0005, max_recent_peak))
     boosted_peak = math.pow(ratio, 0.28) * 1.85 if ratio > 0 else 0.0
     boosted_peak = max(0.0, min(1.0, boosted_peak))
@@ -111,7 +111,6 @@ def update_audio_spectrum():
     phase += 0.25
     new_spectrum = []
     for i in range(16):
-        # Bass frequencies (0-4) jump high, mids and highs ripple vividly
         bass_mult = 1.65 if i < 5 else (1.35 if i < 10 else 1.10)
         osc = math.sin(phase * (1.3 + i * 0.22) + i * 0.55) * 0.40 + 0.60
         noise = (random.random() - 0.5) * 0.12
@@ -151,21 +150,17 @@ def extract_palette(img_bytes: bytes):
         else:
             h, s, v = best_accent
 
-        # Vibrant Accent: Boost saturation and ensure high-visibility brightness
         accent_s = max(0.75, min(1.0, s * 1.30))
         accent_v = max(0.85, min(1.0, v * 1.25))
         ar, ag, ab = colorsys.hsv_to_rgb(h, accent_s, accent_v)
         accent_rgb = [int(ar * 255), int(ag * 255), int(ab * 255)]
 
-        # Tinted Dark Background
         bgr, bgg, bgb = colorsys.hsv_to_rgb(h, 0.40, 0.08)
         bg_rgb = [max(12, int(bgr * 255)), max(12, int(bgg * 255)), max(16, int(bgb * 255))]
 
-        # Tinted Container Box
         ctr, ctg, ctb = colorsys.hsv_to_rgb(h, 0.35, 0.15)
         container_rgb = [int(ctr * 255), int(ctg * 255), int(ctb * 255)]
 
-        # Tinted Glowing Border
         bdr, bdg, bdb = colorsys.hsv_to_rgb(h, 0.55, 0.50)
         border_rgb = [int(bdr * 255), int(bdg * 255), int(bdb * 255)]
 
@@ -388,7 +383,7 @@ def get_current_lyric_line(title: str, artist: str, position: float, duration: f
 
     return f"{title}"
 
-# ── Windows Media Session Poller ──────────────────────────────────
+# ── Windows Media Session Poller with Real-Time Timestamp Clock ───
 last_song_query = ""
 
 async def fetch_windows_media():
@@ -401,7 +396,6 @@ async def fetch_windows_media():
             return
 
         session = manager.get_current_session()
-        # Fallback: scan all active sessions if current session is None
         if not session:
             sessions = manager.get_sessions()
             if sessions and len(sessions) > 0:
@@ -421,10 +415,23 @@ async def fetch_windows_media():
                 current_media["artist"] = a
                 current_media["isPlaying"] = is_playing
 
-                pos = timeline.position.total_seconds() if timeline and timeline.position else 0
-                dur = timeline.end_time.total_seconds() if timeline and timeline.end_time else 0
-                current_media["position"] = pos
-                current_media["duration"] = dur
+                # Real-time position calculation taking UTC elapsed delta into account
+                pos = 0.0
+                dur = 0.0
+                if timeline:
+                    base_pos = timeline.position.total_seconds() if timeline.position else 0.0
+                    dur = timeline.end_time.total_seconds() if timeline.end_time else 0.0
+                    if is_playing and timeline.last_updated_time:
+                        now_utc = datetime.datetime.now(datetime.timezone.utc)
+                        elapsed = (now_utc - timeline.last_updated_time).total_seconds()
+                        if 0 <= elapsed < 7200:
+                            base_pos += elapsed
+                    pos = base_pos
+                    if dur > 0:
+                        pos = min(pos, dur)
+
+                current_media["position"] = round(pos, 2)
+                current_media["duration"] = round(dur, 2)
 
                 song_query = f"{t}_{a}".lower()
                 if song_query != last_song_query:
@@ -462,6 +469,7 @@ async def fetch_windows_media():
                 current_media["hasCover"] = len(current_cover_bytes) > 0
                 current_media["coverVersion"] = cover_version_counter
 
+                # Fetch real-time synced lyrics for the exact live timestamp
                 current_lyric = get_current_lyric_line(t, a, pos, dur)
                 current_media["lyrics"] = current_lyric
     except Exception:
@@ -546,7 +554,7 @@ def run_media_loop():
             asyncio.run(fetch_windows_media())
         except Exception:
             pass
-        time.sleep(0.5)
+        time.sleep(0.2) # High-precision 5 Hz media timestamp updates
 
 def run_audio_loop():
     while True:

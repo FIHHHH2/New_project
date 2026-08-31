@@ -65,9 +65,21 @@ function PlayerList.new(): PlayerListWidget
 	widget.Parent = screenGui
 	UI.registerThemeElement(widget, "Background")
 
+	local bgGradient = Instance.new("UIGradient")
+	bgGradient.Rotation = 90
+	bgGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 210))
+	})
+	bgGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 0.15)
+	})
+	bgGradient.Parent = widget
+
 	local outerStroke = Instance.new("UIStroke")
 	outerStroke.Color = UI.Theme.Border
-	outerStroke.Thickness = 1.5
+	outerStroke.Thickness = 2
 	outerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	outerStroke.Parent = widget
 	UI.registerThemeElement(outerStroke, "Border")
@@ -79,17 +91,25 @@ function PlayerList.new(): PlayerListWidget
 	-- ── Topbar (Drag Handle) ──────────────────────────────────────────
 	local topbar = Instance.new("Frame")
 	topbar.Name = "TopBar"
-	topbar.Size = UDim2.new(1, 0, 0, HEADER_H)
-	topbar.Position = UDim2.new(0, 0, 0, 0)
+	topbar.Size = UDim2.new(1, -12, 0, HEADER_H)
+	topbar.Position = UDim2.new(0, 6, 0, 6)
 	topbar.BackgroundColor3 = UI.Theme.Container
 	topbar.BackgroundTransparency = UI.Theme.ContainerTransparency
 	topbar.BorderSizePixel = 0
 	topbar.Parent = widget
 	UI.registerThemeElement(topbar, "Container")
 
+	local topGradient = Instance.new("UIGradient")
+	topGradient.Rotation = 45
+	topGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 230))
+	})
+	topGradient.Parent = topbar
+
 	local topStroke = Instance.new("UIStroke")
 	topStroke.Color = UI.Theme.Border
-	topStroke.Thickness = 1.2
+	topStroke.Thickness = 1.5
 	topStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	topStroke.Parent = topbar
 	UI.registerThemeElement(topStroke, "Border")
@@ -154,8 +174,8 @@ function PlayerList.new(): PlayerListWidget
 	-- ── Scrolling Player Container ────────────────────────────────────
 	local container = Instance.new("ScrollingFrame")
 	container.Name = "PlayerListContainer"
-	container.Size = UDim2.new(1, 0, 1, -HEADER_H)
-	container.Position = UDim2.new(0, 0, 0, HEADER_H)
+	container.Size = UDim2.new(1, -12, 1, -(HEADER_H + 12))
+	container.Position = UDim2.new(0, 6, 0, HEADER_H + 8)
 	container.BackgroundTransparency = 1
 	container.BorderSizePixel = 0
 	container.ScrollBarThickness = 3
@@ -346,12 +366,24 @@ function PlayerList.new(): PlayerListWidget
 	popupFrame.Parent = screenGui
 	UI.registerThemeElement(popupFrame, "Background")
 
+	local popupBgGrad = Instance.new("UIGradient")
+	popupBgGrad.Rotation = 90
+	popupBgGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 210))
+	})
+	popupBgGrad.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 0.15)
+	})
+	popupBgGrad.Parent = popupFrame
+
 	local popupStroke = Instance.new("UIStroke")
-	popupStroke.Color = UI.Theme.Accent
-	popupStroke.Thickness = 1.5
+	popupStroke.Color = UI.Theme.Border
+	popupStroke.Thickness = 2
 	popupStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	popupStroke.Parent = popupFrame
-	UI.registerThemeElement(popupStroke, "Accent")
+	UI.registerThemeElement(popupStroke, "Border")
 
 	local popupScale = Instance.new("UIScale")
 	popupScale.Scale = 1.0

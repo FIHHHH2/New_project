@@ -70,9 +70,21 @@ function MusicTracker.new()
 	widget.Parent = screenGui
 	UI.registerThemeElement(widget, "Background")
 
+	local bgGradient = Instance.new("UIGradient")
+	bgGradient.Rotation = 90
+	bgGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 210))
+	})
+	bgGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 0.15)
+	})
+	bgGradient.Parent = widget
+
 	local outerStroke = Instance.new("UIStroke")
 	outerStroke.Color = UI.Theme.Border
-	outerStroke.Thickness = 1.5
+	outerStroke.Thickness = 2
 	outerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	outerStroke.Parent = widget
 	UI.registerThemeElement(outerStroke, "Border")
@@ -84,17 +96,25 @@ function MusicTracker.new()
 	-- ── Topbar (Drag Handle) ──────────────────────────────────────────
 	local topbar = Instance.new("Frame")
 	topbar.Name = "TopBar"
-	topbar.Size = UDim2.new(1, 0, 0, TOPBAR_H)
-	topbar.Position = UDim2.new(0, 0, 0, 0)
+	topbar.Size = UDim2.new(1, -12, 0, TOPBAR_H)
+	topbar.Position = UDim2.new(0, 6, 0, 6)
 	topbar.BackgroundColor3 = UI.Theme.Container
 	topbar.BackgroundTransparency = UI.Theme.ContainerTransparency
 	topbar.BorderSizePixel = 0
 	topbar.Parent = widget
 	UI.registerThemeElement(topbar, "Container")
 
+	local topGradient = Instance.new("UIGradient")
+	topGradient.Rotation = 45
+	topGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 230))
+	})
+	topGradient.Parent = topbar
+
 	local topStroke = Instance.new("UIStroke")
 	topStroke.Color = UI.Theme.Border
-	topStroke.Thickness = 1.2
+	topStroke.Thickness = 1.5
 	topStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	topStroke.Parent = topbar
 	UI.registerThemeElement(topStroke, "Border")
@@ -160,8 +180,8 @@ function MusicTracker.new()
 	-- ── Body Frame ───────────────────────────────────────────────────
 	local body = Instance.new("Frame")
 	body.Name = "Body"
-	body.Size = UDim2.new(1, -12, 1, -34)
-	body.Position = UDim2.new(0, 6, 0, 30)
+	body.Size = UDim2.new(1, -12, 1, -(TOPBAR_H + 16))
+	body.Position = UDim2.new(0, 6, 0, TOPBAR_H + 10)
 	body.BackgroundTransparency = 1
 	body.BorderSizePixel = 0
 	body.Parent = widget
@@ -180,7 +200,7 @@ function MusicTracker.new()
 
 	local coverStroke = Instance.new("UIStroke")
 	coverStroke.Color = UI.Theme.Border
-	coverStroke.Thickness = 1.2
+	coverStroke.Thickness = 1.5
 	coverStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	coverStroke.Parent = coverBox
 	UI.registerThemeElement(coverStroke, "Border")

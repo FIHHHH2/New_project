@@ -1,5 +1,6 @@
 --!strict
 local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
 
 local FeatureManager = {}
 FeatureManager.__index = FeatureManager
@@ -14,10 +15,23 @@ export type FeatureRecord = {
 	onStateChanged: ((boolean) -> ())?
 }
 
+export type SliderRecord = {
+	id: string,
+	name: string,
+	value: number,
+	callback: (number) -> (),
+	onValueChanged: ((number) -> ())?
+}
+
 local registeredFeatures: {[string]: FeatureRecord} = {}
+local registeredSliders: {[string]: SliderRecord} = {}
 local keybindMap: {[Enum.KeyCode]: {string}} = {}
 local isListeningForKeybind = false
 local activeKeybindCallback: ((Enum.KeyCode?) -> ())? = nil
+
+local CONFIG_FOLDER = "FihSuite"
+local DEFAULT_CONFIG = "default"
+local savedConfigCache: {[string]: any} = {}
 
 local function rebuildKeybindMap()
 	table.clear(keybindMap)
@@ -30,42 +44,6 @@ local function rebuildKeybindMap()
 		end
 	end
 end
-
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if isListeningForKeybind and activeKeybindCallback then
-		if input.UserInputType == Enum.UserInputType.Keyboard then
-			local key = input.KeyCode
-			if key == Enum.KeyCode.Escape then
-				activeKeybindCallback(nil)
-			else
-				activeKeybindCallback(key)
-			end
-			isListeningForKeybind = false
-			activeKeybindCallback = nil
-			return
-		end
-	end
-	
-	if gameProcessed then return end
-	
-	if input.UserInputType == Enum.UserInputType.Keyboard then
-		local matching = keybindMap[input.KeyCode]
-		if matching then
-			for _, featId in ipairs(matching) do
-				local feat = registeredFeatures[featId]
-				if feat then
-					FeatureManager.setFeatureState(featId, not feat.state)
-				end
-			end
-		end
-	end
-end)
-
-local HttpService = game:GetService("HttpService")
-
-local CONFIG_FOLDER = "FihSuite"
-local DEFAULT_CONFIG = "default"
-local savedConfigCache: {[string]: any} = {}
 
 local function ensureFolder()
 	local mkf = makefolder or (getgenv and getgenv().makefolder)
@@ -111,7 +89,7 @@ local function writeConfigFile(name: string, data: string): boolean
 	return false
 end
 
--- Preload default config cache
+-- Preload default config cache from disk on startup
 pcall(function()
 	local raw = readConfigFile(DEFAULT_CONFIG)
 	if raw then
@@ -126,11 +104,41 @@ local saveDebounce = false
 local function scheduleAutoSave()
 	if saveDebounce then return end
 	saveDebounce = true
-	task.delay(0.5, function()
+	task.delay(0.4, function()
 		saveDebounce = false
 		FeatureManager.saveConfig(DEFAULT_CONFIG)
 	end)
 end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if isListeningForKeybind and activeKeybindCallback then
+		if input.UserInputType == Enum.UserInputType.Keyboard then
+			local key = input.KeyCode
+			if key == Enum.KeyCode.Escape then
+				activeKeybindCallback(nil)
+			else
+				activeKeybindCallback(key)
+			end
+			isListeningForKeybind = false
+			activeKeybindCallback = nil
+			return
+		end
+	end
+	
+	if gameProcessed then return end
+	
+	if input.UserInputType == Enum.UserInputType.Keyboard then
+		local matching = keybindMap[input.KeyCode]
+		if matching then
+			for _, featId in ipairs(matching) do
+				local feat = registeredFeatures[featId]
+				if feat then
+					FeatureManager.setFeatureState(featId, not feat.state)
+				end
+			end
+		end
+	end
+end)
 
 function FeatureManager.register(id: string, name: string, defaultState: boolean, defaultKeybind: Enum.KeyCode?, callback: (boolean) -> ()): FeatureRecord
 	local initialState = defaultState
@@ -169,6 +177,42 @@ function FeatureManager.register(id: string, name: string, defaultState: boolean
 	end)
 	
 	return record
+end
+
+function FeatureManager.registerSlider(id: string, name: string, defaultValue: number, callback: (number) -> ()): (SliderRecord, number)
+	local initialVal = defaultValue
+	if savedConfigCache and savedConfigCache.sliders and savedConfigCache.sliders[id] ~= nil then
+		initialVal = savedConfigCache.sliders[id]
+	end
+
+	local record: SliderRecord = {
+		id = id,
+		name = name,
+		value = initialVal,
+		callback = callback,
+		onValueChanged = nil
+	}
+	registeredSliders[id] = record
+
+	task.spawn(function()
+		local success, err = pcall(callback, initialVal)
+		if not success then
+			warn(string.format("[FeatureManager] error initializing slider %s: %s", id, tostring(err)))
+		end
+	end)
+
+	return record, initialVal
+end
+
+function FeatureManager.setSliderValue(id: string, value: number)
+	local s = registeredSliders[id]
+	if not s then return end
+	s.value = value
+	if s.onValueChanged then
+		s.onValueChanged(value)
+	end
+	pcall(s.callback, value)
+	scheduleAutoSave()
 end
 
 function FeatureManager.setFeatureState(id: string, state: boolean)
@@ -212,6 +256,7 @@ function FeatureManager.saveConfig(name: string?): boolean
 	local targetName = name or DEFAULT_CONFIG
 	local exportData = {
 		toggles = {},
+		sliders = {},
 		timestamp = os.time()
 	}
 
@@ -220,6 +265,10 @@ function FeatureManager.saveConfig(name: string?): boolean
 			state = feat.state,
 			keybind = if feat.keybind and feat.keybind ~= Enum.KeyCode.Unknown then feat.keybind.Name else nil
 		}
+	end
+
+	for id, slider in pairs(registeredSliders) do
+		exportData.sliders[id] = slider.value
 	end
 
 	local success, encoded = pcall(function()
@@ -262,6 +311,16 @@ function FeatureManager.loadConfig(name: string?): boolean
 			end
 		end
 	end
+
+	if decoded.sliders then
+		for id, val in pairs(decoded.sliders) do
+			local s = registeredSliders[id]
+			if s and type(val) == "number" then
+				FeatureManager.setSliderValue(id, val)
+			end
+		end
+	end
+
 	return true
 end
 

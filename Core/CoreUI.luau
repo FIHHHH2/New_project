@@ -520,6 +520,8 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 end
 
 function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number, default: number, callback: (number) -> ())
+	local sliderRecord, initialValue = FeatureManager.registerSlider(name, name, default, callback)
+
 	local row = Instance.new("Frame")
 	row.Name = name .. "SliderRow"
 	row.Size = UDim2.new(1, -4, 0, 46)
@@ -579,7 +581,7 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	local valLabel = Instance.new("TextLabel")
 	valLabel.Size = UDim2.new(1, 0, 1, 0)
 	valLabel.BackgroundTransparency = 1
-	valLabel.Text = tostring(default)
+	valLabel.Text = tostring(initialValue)
 	valLabel.TextColor3 = UI.Theme.Accent
 	valLabel.Font = UI.Fonts.Mono
 	valLabel.TextSize = 11
@@ -605,7 +607,7 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
-	local initialRatio = math.clamp((default - min) / (max - min), 0, 1)
+	local initialRatio = math.clamp((initialValue - min) / (max - min), 0, 1)
 	fill.Size = UDim2.new(initialRatio, 0, 1, 0)
 	fill.BackgroundColor3 = UI.Theme.Accent
 	fill.BorderSizePixel = 0
@@ -629,7 +631,13 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 		fill.Size = UDim2.new(ratio, 0, 1, 0)
 		valLabel.Text = tostring(val)
 		valLabel.TextColor3 = UI.Theme.Accent
-		callback(val)
+		FeatureManager.setSliderValue(name, val)
+	end
+
+	sliderRecord.onValueChanged = function(newVal: number)
+		local r = math.clamp((newVal - min) / (max - min), 0, 1)
+		fill.Size = UDim2.new(r, 0, 1, 0)
+		valLabel.Text = tostring(newVal)
 	end
 
 	bar.InputBegan:Connect(function(input)

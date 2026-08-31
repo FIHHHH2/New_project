@@ -70,6 +70,14 @@ function CoreUI.new(titleText: string)
 	return self
 end
 
+function CoreUI:SetTheme(themeName: string)
+	UI.setTheme(themeName)
+	-- Reapply active tab accent visual
+	if self.ActiveTab then
+		self:SelectTab(self.ActiveTab)
+	end
+end
+
 function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 	local tabButton: TextButton? = nil
 	local tabStroke: UIStroke? = nil
@@ -80,18 +88,33 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 		tabButton.Size = UDim2.new(1, -4, 0, 30)
 		tabButton.Position = UDim2.new(0, 2, 0, 0)
 		tabButton.BackgroundColor3 = UI.Theme.Container
+		tabButton.BackgroundTransparency = UI.Theme.ContainerTransparency
 		tabButton.BorderSizePixel = 0
 		tabButton.Text = name
 		tabButton.TextColor3 = UI.Theme.TextSecondary
-		tabButton.Font = UI.Theme.HeaderFont
+		tabButton.Font = UI.Fonts.Header
 		tabButton.TextSize = 12
 		tabButton.Parent = self.Sidebar
+		UI.registerThemeElement(tabButton, "Container")
+		UI.registerThemeElement(tabButton, "TextSecondary")
+		
+		-- Active tab gradient overlay
+		local tabGrad = Instance.new("UIGradient")
+		tabGrad.Name = "ActiveGradient"
+		tabGrad.Rotation = 90
+		tabGrad.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(210, 210, 220))
+		})
+		tabGrad.Enabled = false
+		tabGrad.Parent = tabButton
 		
 		tabStroke = Instance.new("UIStroke")
 		tabStroke.Color = UI.Theme.Border
 		tabStroke.Thickness = 1.5
 		tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		tabStroke.Parent = tabButton
+		UI.registerThemeElement(tabStroke, "Border")
 	end
 	
 	local tabContent = Instance.new("ScrollingFrame")
@@ -154,15 +177,21 @@ function CoreUI:SelectTab(tabObj)
 			tab.Page.Visible = true
 			if tab.Button and tab.Stroke then
 				tab.Button.BackgroundColor3 = UI.Theme.Accent
+				tab.Button.BackgroundTransparency = 0
 				tab.Button.TextColor3 = UI.Theme.AccentText
 				tab.Stroke.Color = UI.Theme.Border
+				local grad = tab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
+				if grad then grad.Enabled = true end
 			end
 		else
 			tab.Page.Visible = false
 			if tab.Button and tab.Stroke then
 				tab.Button.BackgroundColor3 = UI.Theme.Container
+				tab.Button.BackgroundTransparency = UI.Theme.ContainerTransparency
 				tab.Button.TextColor3 = UI.Theme.TextSecondary
 				tab.Stroke.Color = UI.Theme.BorderDim
+				local grad = tab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
+				if grad then grad.Enabled = false end
 			end
 		end
 	end
@@ -175,12 +204,14 @@ function CoreUI:SelectTab(tabObj)
 	if self.SettingsBtn and self.SettingsBtn:FindFirstChild("UIStroke") then
 		local isSet = (tabObj == self.SettingsTab)
 		self.SettingsBtn.BackgroundColor3 = if isSet then UI.Theme.Accent else UI.Theme.Container
+		self.SettingsBtn.BackgroundTransparency = if isSet then 0 else UI.Theme.ContainerTransparency
 		self.SettingsBtn.TextColor3 = if isSet then UI.Theme.AccentText else UI.Theme.TextPrimary
 	end
 
 	if self.ConfigsBtn and self.ConfigsBtn:FindFirstChild("UIStroke") then
 		local isConf = (tabObj == self.ConfigsTab)
 		self.ConfigsBtn.BackgroundColor3 = if isConf then UI.Theme.Accent else UI.Theme.Container
+		self.ConfigsBtn.BackgroundTransparency = if isConf then 0 else UI.Theme.ContainerTransparency
 		self.ConfigsBtn.TextColor3 = if isConf then UI.Theme.AccentText else UI.Theme.TextPrimary
 	end
 end
@@ -261,23 +292,35 @@ function CoreUI:AddSection(parent: GuiObject, title: string): Frame
 	headerBox.Size = UDim2.new(1, -4, 0, 24)
 	headerBox.Position = UDim2.new(0, 2, 0, 0)
 	headerBox.BackgroundColor3 = UI.Theme.Container
+	headerBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	headerBox.BorderSizePixel = 0
 	headerBox.Parent = section
+	UI.registerThemeElement(headerBox, "Container")
+
+	local headerGrad = Instance.new("UIGradient")
+	headerGrad.Rotation = 90
+	headerGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 230))
+	})
+	headerGrad.Parent = headerBox
 
 	local headerStroke = Instance.new("UIStroke")
 	headerStroke.Color = UI.Theme.Border
 	headerStroke.Thickness = 1.2
 	headerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	headerStroke.Parent = headerBox
+	UI.registerThemeElement(headerStroke, "Border")
 
 	local headerLabel = Instance.new("TextLabel")
 	headerLabel.Size = UDim2.new(1, 0, 1, 0)
 	headerLabel.BackgroundTransparency = 1
 	headerLabel.Text = title
 	headerLabel.TextColor3 = UI.Theme.TextPrimary
-	headerLabel.Font = UI.Theme.HeaderFont
+	headerLabel.Font = UI.Fonts.Header
 	headerLabel.TextSize = 11
 	headerLabel.Parent = headerBox
+	UI.registerThemeElement(headerLabel, "TextPrimary")
 
 	return section
 end
@@ -301,18 +344,23 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	checkBtn.Size = UDim2.new(0, 24, 0, 24)
 	checkBtn.Position = UDim2.new(0, 0, 0, 0)
 	checkBtn.BackgroundColor3 = if feature.state then UI.Theme.Accent else UI.Theme.Container
+	checkBtn.BackgroundTransparency = if feature.state then 0 else UI.Theme.ContainerTransparency
 	checkBtn.BorderSizePixel = 0
 	checkBtn.Text = if feature.state then "X" else ""
 	checkBtn.TextColor3 = UI.Theme.AccentText
-	checkBtn.Font = UI.Theme.HeaderFont
+	checkBtn.Font = UI.Fonts.Header
 	checkBtn.TextSize = 12
 	checkBtn.Parent = row
+	if not feature.state then
+		UI.registerThemeElement(checkBtn, "Container")
+	end
 
 	local checkStroke = Instance.new("UIStroke")
 	checkStroke.Color = UI.Theme.Border
 	checkStroke.Thickness = 1.2
 	checkStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	checkStroke.Parent = checkBtn
+	UI.registerThemeElement(checkStroke, "Border")
 
 	-- Segment 2: [ Option Name ]
 	local titleBox = Instance.new("TextButton")
@@ -320,15 +368,18 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	titleBox.Size = UDim2.new(1, -90, 0, 24)
 	titleBox.Position = UDim2.new(0, 28, 0, 0)
 	titleBox.BackgroundColor3 = UI.Theme.Container
+	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
 	titleBox.Text = ""
 	titleBox.Parent = row
+	UI.registerThemeElement(titleBox, "Container")
 
 	local titleStroke = Instance.new("UIStroke")
 	titleStroke.Color = UI.Theme.Border
 	titleStroke.Thickness = 1.2
 	titleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	titleStroke.Parent = titleBox
+	UI.registerThemeElement(titleStroke, "Border")
 
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Size = UDim2.new(1, -8, 1, 0)
@@ -336,10 +387,11 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = name
 	titleLabel.TextColor3 = UI.Theme.TextPrimary
-	titleLabel.Font = UI.Theme.BodyFont
+	titleLabel.Font = UI.Fonts.Body
 	titleLabel.TextSize = 11
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.Parent = titleBox
+	UI.registerThemeElement(titleLabel, "TextPrimary")
 
 	-- Segment 3: [ Bind ]
 	local keybindBtn = Instance.new("TextButton")
@@ -347,21 +399,26 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	keybindBtn.Size = UDim2.new(0, 58, 0, 24)
 	keybindBtn.Position = UDim2.new(1, -58, 0, 0)
 	keybindBtn.BackgroundColor3 = UI.Theme.Container
+	keybindBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
 	keybindBtn.BorderSizePixel = 0
 	keybindBtn.Text = if feature.keybind then string.format("[%s]", feature.keybind.Name) else "[None]"
 	keybindBtn.TextColor3 = UI.Theme.TextSecondary
-	keybindBtn.Font = UI.Theme.MonoFont
+	keybindBtn.Font = UI.Fonts.Mono
 	keybindBtn.TextSize = 10
 	keybindBtn.Parent = row
+	UI.registerThemeElement(keybindBtn, "Container")
+	UI.registerThemeElement(keybindBtn, "TextSecondary")
 
 	local bindStroke = Instance.new("UIStroke")
 	bindStroke.Color = UI.Theme.Border
 	bindStroke.Thickness = 1.2
 	bindStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	bindStroke.Parent = keybindBtn
+	UI.registerThemeElement(bindStroke, "Border")
 
 	local function updateToggleVisual(state: boolean)
 		checkBtn.BackgroundColor3 = if state then UI.Theme.Accent else UI.Theme.Container
+		checkBtn.BackgroundTransparency = if state then 0 else UI.Theme.ContainerTransparency
 		checkBtn.Text = if state then "X" else ""
 	end
 
@@ -405,14 +462,17 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	titleBox.Size = UDim2.new(1, -52, 0, 22)
 	titleBox.Position = UDim2.new(0, 0, 0, 0)
 	titleBox.BackgroundColor3 = UI.Theme.Container
+	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
 	titleBox.Parent = row
+	UI.registerThemeElement(titleBox, "Container")
 
 	local titleStroke = Instance.new("UIStroke")
 	titleStroke.Color = UI.Theme.Border
 	titleStroke.Thickness = 1.2
 	titleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	titleStroke.Parent = titleBox
+	UI.registerThemeElement(titleStroke, "Border")
 
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Size = UDim2.new(1, -8, 1, 0)
@@ -420,31 +480,35 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = name
 	titleLabel.TextColor3 = UI.Theme.TextPrimary
-	titleLabel.Font = UI.Theme.BodyFont
+	titleLabel.Font = UI.Fonts.Body
 	titleLabel.TextSize = 11
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.Parent = titleBox
+	UI.registerThemeElement(titleLabel, "TextPrimary")
 
 	local valBox = Instance.new("Frame")
 	valBox.Name = "ValBox"
 	valBox.Size = UDim2.new(0, 48, 0, 22)
 	valBox.Position = UDim2.new(1, -48, 0, 0)
 	valBox.BackgroundColor3 = UI.Theme.Container
+	valBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	valBox.BorderSizePixel = 0
 	valBox.Parent = row
+	UI.registerThemeElement(valBox, "Container")
 
 	local valStroke = Instance.new("UIStroke")
 	valStroke.Color = UI.Theme.Border
 	valStroke.Thickness = 1.2
 	valStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	valStroke.Parent = valBox
+	UI.registerThemeElement(valStroke, "Border")
 
 	local valLabel = Instance.new("TextLabel")
 	valLabel.Size = UDim2.new(1, 0, 1, 0)
 	valLabel.BackgroundTransparency = 1
 	valLabel.Text = tostring(default)
 	valLabel.TextColor3 = UI.Theme.Accent
-	valLabel.Font = UI.Theme.MonoFont
+	valLabel.Font = UI.Fonts.Mono
 	valLabel.TextSize = 11
 	valLabel.Parent = valBox
 
@@ -454,14 +518,17 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	bar.Size = UDim2.new(1, 0, 0, 16)
 	bar.Position = UDim2.new(0, 0, 0, 26)
 	bar.BackgroundColor3 = UI.Theme.ContainerDark
+	bar.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	bar.BorderSizePixel = 0
 	bar.Parent = row
+	UI.registerThemeElement(bar, "ContainerDark")
 
 	local barStroke = Instance.new("UIStroke")
 	barStroke.Color = UI.Theme.Border
 	barStroke.Thickness = 1.2
 	barStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	barStroke.Parent = bar
+	UI.registerThemeElement(barStroke, "Border")
 
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
@@ -470,6 +537,14 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	fill.BackgroundColor3 = UI.Theme.Accent
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
+
+	local fillGrad = Instance.new("UIGradient")
+	fillGrad.Rotation = 90
+	fillGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(210, 210, 210))
+	})
+	fillGrad.Parent = fill
 
 	local sliding = false
 
@@ -515,18 +590,22 @@ function CoreUI:AddButton(section: Frame, name: string, callback: () -> ())
 	btn.Name = "ActionBtn"
 	btn.Size = UDim2.new(1, 0, 1, 0)
 	btn.BackgroundColor3 = UI.Theme.Container
+	btn.BackgroundTransparency = UI.Theme.ContainerTransparency
 	btn.BorderSizePixel = 0
 	btn.Text = string.format("[ %s ]", name)
 	btn.TextColor3 = UI.Theme.TextPrimary
-	btn.Font = UI.Theme.HeaderFont
+	btn.Font = UI.Fonts.Header
 	btn.TextSize = 11
 	btn.Parent = row
+	UI.registerThemeElement(btn, "Container")
+	UI.registerThemeElement(btn, "TextPrimary")
 
 	local btnStroke = Instance.new("UIStroke")
 	btnStroke.Color = UI.Theme.Border
 	btnStroke.Thickness = 1.2
 	btnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	btnStroke.Parent = btn
+	UI.registerThemeElement(btnStroke, "Border")
 
 	btn.MouseButton1Click:Connect(function()
 		btn.BackgroundColor3 = UI.Theme.Accent

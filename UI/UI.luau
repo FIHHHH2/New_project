@@ -1,4 +1,5 @@
 --!strict
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -6,21 +7,134 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local UI = {}
 UI.__index = UI
 
-UI.Theme = {
-	Background = Color3.fromRGB(13, 13, 15),
-	BackgroundTransparency = 0.02,
-	Border = Color3.fromRGB(235, 235, 240),
-	BorderDim = Color3.fromRGB(75, 75, 85),
-	Accent = Color3.fromRGB(240, 55, 55),
-	AccentText = Color3.fromRGB(255, 255, 255),
-	TextPrimary = Color3.fromRGB(245, 245, 245),
-	TextSecondary = Color3.fromRGB(160, 160, 170),
-	Container = Color3.fromRGB(22, 22, 26),
-	ContainerDark = Color3.fromRGB(15, 15, 18),
-	HeaderFont = Enum.Font.GothamBold,
-	BodyFont = Enum.Font.GothamMedium,
-	MonoFont = Enum.Font.Code
+UI.Themes = {
+	Dark = {
+		Name = "Dark",
+		Background = Color3.fromRGB(13, 13, 15),
+		BackgroundTransparency = 0.02,
+		Border = Color3.fromRGB(235, 235, 240),
+		BorderDim = Color3.fromRGB(75, 75, 85),
+		Accent = Color3.fromRGB(240, 55, 55),
+		AccentDark = Color3.fromRGB(180, 35, 35),
+		AccentText = Color3.fromRGB(255, 255, 255),
+		TextPrimary = Color3.fromRGB(245, 245, 245),
+		TextSecondary = Color3.fromRGB(160, 160, 170),
+		Container = Color3.fromRGB(22, 22, 26),
+		ContainerTransparency = 0,
+		ContainerDark = Color3.fromRGB(15, 15, 18),
+		ContainerDarkTransparency = 0
+	},
+	Light = {
+		Name = "Light",
+		Background = Color3.fromRGB(242, 243, 246),
+		BackgroundTransparency = 0.02,
+		Border = Color3.fromRGB(35, 35, 42),
+		BorderDim = Color3.fromRGB(160, 160, 170),
+		Accent = Color3.fromRGB(225, 45, 45),
+		AccentDark = Color3.fromRGB(170, 30, 30),
+		AccentText = Color3.fromRGB(255, 255, 255),
+		TextPrimary = Color3.fromRGB(20, 20, 25),
+		TextSecondary = Color3.fromRGB(85, 85, 95),
+		Container = Color3.fromRGB(255, 255, 255),
+		ContainerTransparency = 0,
+		ContainerDark = Color3.fromRGB(230, 232, 238),
+		ContainerDarkTransparency = 0
+	},
+	TranslucentDark = {
+		Name = "Translucent Dark",
+		Background = Color3.fromRGB(12, 12, 16),
+		BackgroundTransparency = 0.40,
+		Border = Color3.fromRGB(240, 240, 245),
+		BorderDim = Color3.fromRGB(90, 90, 110),
+		Accent = Color3.fromRGB(240, 55, 55),
+		AccentDark = Color3.fromRGB(180, 35, 35),
+		AccentText = Color3.fromRGB(255, 255, 255),
+		TextPrimary = Color3.fromRGB(255, 255, 255),
+		TextSecondary = Color3.fromRGB(180, 180, 195),
+		Container = Color3.fromRGB(24, 24, 32),
+		ContainerTransparency = 0.35,
+		ContainerDark = Color3.fromRGB(14, 14, 20),
+		ContainerDarkTransparency = 0.45
+	},
+	TranslucentLight = {
+		Name = "Translucent Light",
+		Background = Color3.fromRGB(240, 242, 248),
+		BackgroundTransparency = 0.40,
+		Border = Color3.fromRGB(35, 35, 45),
+		BorderDim = Color3.fromRGB(140, 140, 155),
+		Accent = Color3.fromRGB(225, 45, 45),
+		AccentDark = Color3.fromRGB(170, 30, 30),
+		AccentText = Color3.fromRGB(255, 255, 255),
+		TextPrimary = Color3.fromRGB(15, 15, 20),
+		TextSecondary = Color3.fromRGB(75, 75, 90),
+		Container = Color3.fromRGB(255, 255, 255),
+		ContainerTransparency = 0.35,
+		ContainerDark = Color3.fromRGB(225, 228, 236),
+		ContainerDarkTransparency = 0.45
+	}
 }
+
+UI.CurrentTheme = UI.Themes.Dark
+UI.Theme = UI.Themes.Dark
+
+UI.Fonts = {
+	Header = Enum.Font.GothamBold,
+	Body = Enum.Font.GothamMedium,
+	Mono = Enum.Font.Code
+}
+
+-- Theme registration table for smooth animated transitions
+type ThemedElement = {
+	Instance: Instance,
+	PropType: string -- "Background", "Container", "ContainerDark", "Border", "BorderDim", "TextPrimary", "TextSecondary", "Accent"
+}
+
+UI.RegisteredElements = {} :: {ThemedElement}
+
+function UI.registerThemeElement(inst: Instance, propType: string)
+	table.insert(UI.RegisteredElements, { Instance = inst, PropType = propType })
+end
+
+function UI.setTheme(themeName: string)
+	local targetTheme = UI.Themes[themeName] or UI.Themes.Dark
+	UI.CurrentTheme = targetTheme
+	UI.Theme = targetTheme
+	
+	local tweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	
+	for _, entry in ipairs(UI.RegisteredElements) do
+		local inst = entry.Instance
+		if inst and inst.Parent then
+			local pt = entry.PropType
+			if pt == "Background" and inst:IsA("Frame") then
+				TweenService:Create(inst, tweenInfo, {
+					BackgroundColor3 = targetTheme.Background,
+					BackgroundTransparency = targetTheme.BackgroundTransparency
+				}):Play()
+			elseif pt == "Container" and (inst:IsA("Frame") or inst:IsA("TextButton")) then
+				TweenService:Create(inst, tweenInfo, {
+					BackgroundColor3 = targetTheme.Container,
+					BackgroundTransparency = targetTheme.ContainerTransparency
+				}):Play()
+			elseif pt == "ContainerDark" and inst:IsA("Frame") then
+				TweenService:Create(inst, tweenInfo, {
+					BackgroundColor3 = targetTheme.ContainerDark,
+					BackgroundTransparency = targetTheme.ContainerDarkTransparency
+				}):Play()
+			elseif pt == "Border" and inst:IsA("UIStroke") then
+				TweenService:Create(inst, tweenInfo, { Color = targetTheme.Border }):Play()
+			elseif pt == "BorderDim" and inst:IsA("UIStroke") then
+				TweenService:Create(inst, tweenInfo, { Color = targetTheme.BorderDim }):Play()
+			elseif pt == "TextPrimary" and (inst:IsA("TextLabel") or inst:IsA("TextButton")) then
+				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextPrimary }):Play()
+			elseif pt == "TextSecondary" and (inst:IsA("TextLabel") or inst:IsA("TextButton")) then
+				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextSecondary }):Play()
+			elseif pt == "BorderDimText" and inst:IsA("TextLabel") then
+				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.BorderDim }):Play()
+			end
+		end
+	end
+end
 
 function UI.createWindow(titleText: string)
 	local mainFrame = Instance.new("Frame")
@@ -31,12 +145,27 @@ function UI.createWindow(titleText: string)
 	mainFrame.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	mainFrame.BorderSizePixel = 0
 	mainFrame.ClipsDescendants = false
+	UI.registerThemeElement(mainFrame, "Background")
+
+	-- Subtle glass ambient gradient on main window
+	local bgGradient = Instance.new("UIGradient")
+	bgGradient.Rotation = 90
+	bgGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 210))
+	})
+	bgGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 0.15)
+	})
+	bgGradient.Parent = mainFrame
 
 	local outerStroke = Instance.new("UIStroke")
 	outerStroke.Color = UI.Theme.Border
 	outerStroke.Thickness = 2
 	outerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	outerStroke.Parent = mainFrame
+	UI.registerThemeElement(outerStroke, "Border")
 
 	local uiScale = Instance.new("UIScale")
 	uiScale.Scale = 1.0
@@ -57,14 +186,25 @@ function UI.createWindow(titleText: string)
 	titleBox.Size = UDim2.new(0, 220, 1, 0)
 	titleBox.Position = UDim2.new(0, 0, 0, 0)
 	titleBox.BackgroundColor3 = UI.Theme.Container
+	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
 	titleBox.Parent = topbar
+	UI.registerThemeElement(titleBox, "Container")
+
+	local titleGradient = Instance.new("UIGradient")
+	titleGradient.Rotation = 45
+	titleGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 230))
+	})
+	titleGradient.Parent = titleBox
 
 	local titleStroke = Instance.new("UIStroke")
 	titleStroke.Color = UI.Theme.Border
 	titleStroke.Thickness = 1.5
 	titleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	titleStroke.Parent = titleBox
+	UI.registerThemeElement(titleStroke, "Border")
 
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Size = UDim2.new(1, -12, 1, 0)
@@ -72,10 +212,11 @@ function UI.createWindow(titleText: string)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = string.format("%s >>>>>", titleText)
 	titleLabel.TextColor3 = UI.Theme.TextPrimary
-	titleLabel.Font = UI.Theme.HeaderFont
+	titleLabel.Font = UI.Fonts.Header
 	titleLabel.TextSize = 12
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.Parent = titleBox
+	UI.registerThemeElement(titleLabel, "TextPrimary")
 
 	-- center decorative bar [>>>>>>>>>>>>>>>>>>>>>>>>>>>>]
 	local decoBar = Instance.new("Frame")
@@ -83,24 +224,28 @@ function UI.createWindow(titleText: string)
 	decoBar.Size = UDim2.new(1, -298, 1, 0)
 	decoBar.Position = UDim2.new(0, 228, 0, 0)
 	decoBar.BackgroundColor3 = UI.Theme.Container
+	decoBar.BackgroundTransparency = UI.Theme.ContainerTransparency
 	decoBar.BorderSizePixel = 0
 	decoBar.ClipsDescendants = true
 	decoBar.Parent = topbar
+	UI.registerThemeElement(decoBar, "Container")
 
 	local decoStroke = Instance.new("UIStroke")
 	decoStroke.Color = UI.Theme.Border
 	decoStroke.Thickness = 1.5
 	decoStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	decoStroke.Parent = decoBar
+	UI.registerThemeElement(decoStroke, "Border")
 
 	local decoLabel = Instance.new("TextLabel")
 	decoLabel.Size = UDim2.new(1, 0, 1, 0)
 	decoLabel.BackgroundTransparency = 1
 	decoLabel.Text = ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 	decoLabel.TextColor3 = UI.Theme.BorderDim
-	decoLabel.Font = UI.Theme.MonoFont
+	decoLabel.Font = UI.Fonts.Mono
 	decoLabel.TextSize = 12
 	decoLabel.Parent = decoBar
+	UI.registerThemeElement(decoLabel, "BorderDimText")
 
 	-- window control buttons: [-] and [X]
 	local minButton = Instance.new("TextButton")
@@ -108,36 +253,44 @@ function UI.createWindow(titleText: string)
 	minButton.Size = UDim2.new(0, 30, 1, 0)
 	minButton.Position = UDim2.new(1, -66, 0, 0)
 	minButton.BackgroundColor3 = UI.Theme.Container
+	minButton.BackgroundTransparency = UI.Theme.ContainerTransparency
 	minButton.BorderSizePixel = 0
 	minButton.Text = "—"
 	minButton.TextColor3 = UI.Theme.TextPrimary
-	minButton.Font = UI.Theme.HeaderFont
+	minButton.Font = UI.Fonts.Header
 	minButton.TextSize = 13
 	minButton.Parent = topbar
+	UI.registerThemeElement(minButton, "Container")
+	UI.registerThemeElement(minButton, "TextPrimary")
 
 	local minStroke = Instance.new("UIStroke")
 	minStroke.Color = UI.Theme.Border
 	minStroke.Thickness = 1.5
 	minStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	minStroke.Parent = minButton
+	UI.registerThemeElement(minStroke, "Border")
 
 	local closeButton = Instance.new("TextButton")
 	closeButton.Name = "CloseButton"
 	closeButton.Size = UDim2.new(0, 30, 1, 0)
 	closeButton.Position = UDim2.new(1, -30, 0, 0)
 	closeButton.BackgroundColor3 = UI.Theme.Container
+	closeButton.BackgroundTransparency = UI.Theme.ContainerTransparency
 	closeButton.BorderSizePixel = 0
 	closeButton.Text = "X"
 	closeButton.TextColor3 = UI.Theme.TextPrimary
-	closeButton.Font = UI.Theme.HeaderFont
+	closeButton.Font = UI.Fonts.Header
 	closeButton.TextSize = 13
 	closeButton.Parent = topbar
+	UI.registerThemeElement(closeButton, "Container")
+	UI.registerThemeElement(closeButton, "TextPrimary")
 
 	local closeStroke = Instance.new("UIStroke")
 	closeStroke.Color = UI.Theme.Border
 	closeStroke.Thickness = 1.5
 	closeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	closeStroke.Parent = closeButton
+	UI.registerThemeElement(closeStroke, "Border")
 
 	-- horizontal divider under topbar
 	local topDivider = Instance.new("Frame")
@@ -147,6 +300,7 @@ function UI.createWindow(titleText: string)
 	topDivider.BackgroundColor3 = UI.Theme.Border
 	topDivider.BorderSizePixel = 0
 	topDivider.Parent = mainFrame
+	UI.registerThemeElement(topDivider, "Border")
 
 	-- body frame
 	local bodyFrame = Instance.new("Frame")
@@ -190,6 +344,7 @@ function UI.createWindow(titleText: string)
 	vertDivider.BackgroundColor3 = UI.Theme.Border
 	vertDivider.BorderSizePixel = 0
 	vertDivider.Parent = bodyFrame
+	UI.registerThemeElement(vertDivider, "Border")
 
 	-- right main container
 	local rightMain = Instance.new("Frame")
@@ -216,14 +371,17 @@ function UI.createWindow(titleText: string)
 	activeTagBox.Size = UDim2.new(0, 110, 0, 24)
 	activeTagBox.Position = UDim2.new(0, 2, 0, 1)
 	activeTagBox.BackgroundColor3 = UI.Theme.Container
+	activeTagBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	activeTagBox.BorderSizePixel = 0
 	activeTagBox.Parent = subHeader
+	UI.registerThemeElement(activeTagBox, "Container")
 
 	local activeTagStroke = Instance.new("UIStroke")
 	activeTagStroke.Color = UI.Theme.Border
 	activeTagStroke.Thickness = 1.5
 	activeTagStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	activeTagStroke.Parent = activeTagBox
+	UI.registerThemeElement(activeTagStroke, "Border")
 
 	local activeTagLabel = Instance.new("TextLabel")
 	activeTagLabel.Name = "Label"
@@ -231,48 +389,57 @@ function UI.createWindow(titleText: string)
 	activeTagLabel.BackgroundTransparency = 1
 	activeTagLabel.Text = "Main"
 	activeTagLabel.TextColor3 = UI.Theme.TextPrimary
-	activeTagLabel.Font = UI.Theme.HeaderFont
+	activeTagLabel.Font = UI.Fonts.Header
 	activeTagLabel.TextSize = 12
 	activeTagLabel.Parent = activeTagBox
+	UI.registerThemeElement(activeTagLabel, "TextPrimary")
 
-	-- subheader right utility buttons: [Settings] and [configs] (only visible on Menu/Main tab)
+	-- subheader right utility buttons: [Settings] and [configs]
 	local configsBtn = Instance.new("TextButton")
 	configsBtn.Name = "ConfigsBtn"
 	configsBtn.Size = UDim2.new(0, 72, 0, 24)
 	configsBtn.Position = UDim2.new(1, -76, 0, 1)
 	configsBtn.BackgroundColor3 = UI.Theme.Container
+	configsBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
 	configsBtn.BorderSizePixel = 0
 	configsBtn.Text = "configs"
 	configsBtn.TextColor3 = UI.Theme.TextPrimary
-	configsBtn.Font = UI.Theme.HeaderFont
+	configsBtn.Font = UI.Fonts.Header
 	configsBtn.TextSize = 11
 	configsBtn.Visible = true
 	configsBtn.Parent = subHeader
+	UI.registerThemeElement(configsBtn, "Container")
+	UI.registerThemeElement(configsBtn, "TextPrimary")
 
 	local configsStroke = Instance.new("UIStroke")
 	configsStroke.Color = UI.Theme.Border
 	configsStroke.Thickness = 1.5
 	configsStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	configsStroke.Parent = configsBtn
+	UI.registerThemeElement(configsStroke, "Border")
 
 	local settingsBtn = Instance.new("TextButton")
 	settingsBtn.Name = "SettingsBtn"
 	settingsBtn.Size = UDim2.new(0, 72, 0, 24)
 	settingsBtn.Position = UDim2.new(1, -154, 0, 1)
 	settingsBtn.BackgroundColor3 = UI.Theme.Container
+	settingsBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
 	settingsBtn.BorderSizePixel = 0
 	settingsBtn.Text = "Settings"
 	settingsBtn.TextColor3 = UI.Theme.TextPrimary
-	settingsBtn.Font = UI.Theme.HeaderFont
+	settingsBtn.Font = UI.Fonts.Header
 	settingsBtn.TextSize = 11
 	settingsBtn.Visible = true
 	settingsBtn.Parent = subHeader
+	UI.registerThemeElement(settingsBtn, "Container")
+	UI.registerThemeElement(settingsBtn, "TextPrimary")
 
 	local settingsStroke = Instance.new("UIStroke")
 	settingsStroke.Color = UI.Theme.Border
 	settingsStroke.Thickness = 1.5
 	settingsStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	settingsStroke.Parent = settingsBtn
+	UI.registerThemeElement(settingsStroke, "Border")
 
 	-- pages container with strict boundary clamping
 	local contentContainer = Instance.new("Frame")
@@ -290,24 +457,28 @@ function UI.createWindow(titleText: string)
 	footerBar.Size = UDim2.new(1, 0, 0, 14)
 	footerBar.Position = UDim2.new(0, 0, 1, -14)
 	footerBar.BackgroundColor3 = UI.Theme.Background
+	footerBar.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	footerBar.BorderSizePixel = 0
 	footerBar.ClipsDescendants = true
 	footerBar.Parent = mainFrame
+	UI.registerThemeElement(footerBar, "Background")
 
 	local footerStroke = Instance.new("UIStroke")
 	footerStroke.Color = UI.Theme.Border
 	footerStroke.Thickness = 1.5
 	footerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	footerStroke.Parent = footerBar
+	UI.registerThemeElement(footerStroke, "Border")
 
 	local footerHatch = Instance.new("TextLabel")
 	footerHatch.Size = UDim2.new(1, 0, 1, 0)
 	footerHatch.BackgroundTransparency = 1
 	footerHatch.Text = "////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////"
 	footerHatch.TextColor3 = UI.Theme.BorderDim
-	footerHatch.Font = UI.Theme.MonoFont
+	footerHatch.Font = UI.Fonts.Mono
 	footerHatch.TextSize = 11
 	footerHatch.Parent = footerBar
+	UI.registerThemeElement(footerHatch, "BorderDimText")
 
 	-- window dragging
 	local dragging = false
@@ -363,15 +534,30 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	banner.Size = UDim2.new(1, -6, 0, 88)
 	banner.Position = UDim2.new(0, 3, 0, 0)
 	banner.BackgroundColor3 = UI.Theme.Container
+	banner.BackgroundTransparency = UI.Theme.ContainerTransparency
 	banner.BorderSizePixel = 0
 	banner.ClipsDescendants = true
 	banner.Parent = parent
+	UI.registerThemeElement(banner, "Container")
+
+	local bannerGradient = Instance.new("UIGradient")
+	bannerGradient.Rotation = 90
+	bannerGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(215, 215, 225))
+	})
+	bannerGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 0.1)
+	})
+	bannerGradient.Parent = banner
 
 	local bannerStroke = Instance.new("UIStroke")
 	bannerStroke.Color = UI.Theme.Border
 	bannerStroke.Thickness = 1.5
 	bannerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	bannerStroke.Parent = banner
+	UI.registerThemeElement(bannerStroke, "Border")
 
 	-- left player mugshot box
 	local mugshotBox = Instance.new("Frame")
@@ -379,15 +565,18 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	mugshotBox.Size = UDim2.new(0, 78, 1, -8)
 	mugshotBox.Position = UDim2.new(0, 4, 0, 4)
 	mugshotBox.BackgroundColor3 = UI.Theme.ContainerDark
+	mugshotBox.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	mugshotBox.BorderSizePixel = 0
 	mugshotBox.ClipsDescendants = true
 	mugshotBox.Parent = banner
+	UI.registerThemeElement(mugshotBox, "ContainerDark")
 
 	local mugshotStroke = Instance.new("UIStroke")
 	mugshotStroke.Color = UI.Theme.Border
 	mugshotStroke.Thickness = 1.2
 	mugshotStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	mugshotStroke.Parent = mugshotBox
+	UI.registerThemeElement(mugshotStroke, "Border")
 
 	local avatarImg = Instance.new("ImageLabel")
 	avatarImg.Size = UDim2.new(1, -4, 1, -4)
@@ -412,15 +601,18 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	titleRow.Size = UDim2.new(1, 0, 0, 22)
 	titleRow.Position = UDim2.new(0, 0, 0, 0)
 	titleRow.BackgroundColor3 = UI.Theme.ContainerDark
+	titleRow.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	titleRow.BorderSizePixel = 0
 	titleRow.ClipsDescendants = true
 	titleRow.Parent = rightSide
+	UI.registerThemeElement(titleRow, "ContainerDark")
 
 	local titleRowStroke = Instance.new("UIStroke")
 	titleRowStroke.Color = UI.Theme.Border
 	titleRowStroke.Thickness = 1.2
 	titleRowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	titleRowStroke.Parent = titleRow
+	UI.registerThemeElement(titleRowStroke, "Border")
 
 	local gameName = "Roblox Experience"
 	pcall(function()
@@ -436,10 +628,11 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	titleRowLabel.BackgroundTransparency = 1
 	titleRowLabel.Text = string.format("%s   :   %s", Players.LocalPlayer.DisplayName, gameName)
 	titleRowLabel.TextColor3 = UI.Theme.TextPrimary
-	titleRowLabel.Font = UI.Theme.HeaderFont
+	titleRowLabel.Font = UI.Fonts.Header
 	titleRowLabel.TextSize = 11
 	titleRowLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleRowLabel.Parent = titleRow
+	UI.registerThemeElement(titleRowLabel, "TextPrimary")
 
 	-- middle info block + game icon
 	local middleBlock = Instance.new("Frame")
@@ -457,15 +650,18 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	gameIconBox.Size = UDim2.new(0, 52, 1, 0)
 	gameIconBox.Position = UDim2.new(1, -52, 0, 0)
 	gameIconBox.BackgroundColor3 = UI.Theme.ContainerDark
+	gameIconBox.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	gameIconBox.BorderSizePixel = 0
 	gameIconBox.ClipsDescendants = true
 	gameIconBox.Parent = middleBlock
+	UI.registerThemeElement(gameIconBox, "ContainerDark")
 
 	local gameIconStroke = Instance.new("UIStroke")
 	gameIconStroke.Color = UI.Theme.Border
 	gameIconStroke.Thickness = 1.2
 	gameIconStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	gameIconStroke.Parent = gameIconBox
+	UI.registerThemeElement(gameIconStroke, "Border")
 
 	local gameIconImg = Instance.new("ImageLabel")
 	gameIconImg.Size = UDim2.new(1, -4, 1, -4)
@@ -490,15 +686,18 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	infoRow1.Size = UDim2.new(1, 0, 0, 22)
 	infoRow1.Position = UDim2.new(0, 0, 0, 0)
 	infoRow1.BackgroundColor3 = UI.Theme.ContainerDark
+	infoRow1.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	infoRow1.BorderSizePixel = 0
 	infoRow1.ClipsDescendants = true
 	infoRow1.Parent = infoList
+	UI.registerThemeElement(infoRow1, "ContainerDark")
 
 	local row1Stroke = Instance.new("UIStroke")
 	row1Stroke.Color = UI.Theme.Border
 	row1Stroke.Thickness = 1
 	row1Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	row1Stroke.Parent = infoRow1
+	UI.registerThemeElement(row1Stroke, "Border")
 
 	local row1Label = Instance.new("TextLabel")
 	row1Label.Size = UDim2.new(1, -8, 1, 0)
@@ -506,10 +705,11 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	row1Label.BackgroundTransparency = 1
 	row1Label.Text = string.format("User: @%s | UserID: %d", Players.LocalPlayer.Name, Players.LocalPlayer.UserId)
 	row1Label.TextColor3 = UI.Theme.TextSecondary
-	row1Label.Font = UI.Theme.MonoFont
+	row1Label.Font = UI.Fonts.Mono
 	row1Label.TextSize = 10
 	row1Label.TextXAlignment = Enum.TextXAlignment.Left
 	row1Label.Parent = infoRow1
+	UI.registerThemeElement(row1Label, "TextSecondary")
 
 	-- info row 2 [ etc ]
 	local infoRow2 = Instance.new("Frame")
@@ -517,15 +717,18 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	infoRow2.Size = UDim2.new(1, 0, 0, 22)
 	infoRow2.Position = UDim2.new(0, 0, 0, 26)
 	infoRow2.BackgroundColor3 = UI.Theme.ContainerDark
+	infoRow2.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	infoRow2.BorderSizePixel = 0
 	infoRow2.ClipsDescendants = true
 	infoRow2.Parent = infoList
+	UI.registerThemeElement(infoRow2, "ContainerDark")
 
 	local row2Stroke = Instance.new("UIStroke")
 	row2Stroke.Color = UI.Theme.Border
 	row2Stroke.Thickness = 1
 	row2Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	row2Stroke.Parent = infoRow2
+	UI.registerThemeElement(row2Stroke, "Border")
 
 	local row2Label = Instance.new("TextLabel")
 	row2Label.Size = UDim2.new(1, -8, 1, 0)
@@ -533,10 +736,11 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	row2Label.BackgroundTransparency = 1
 	row2Label.Text = string.format("Account Age: %d days | PlaceID: %d", Players.LocalPlayer.AccountAge, game.PlaceId)
 	row2Label.TextColor3 = UI.Theme.TextSecondary
-	row2Label.Font = UI.Theme.MonoFont
+	row2Label.Font = UI.Fonts.Mono
 	row2Label.TextSize = 10
 	row2Label.TextXAlignment = Enum.TextXAlignment.Left
 	row2Label.Parent = infoRow2
+	UI.registerThemeElement(row2Label, "TextSecondary")
 
 	return banner
 end

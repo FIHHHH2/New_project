@@ -105,9 +105,28 @@ window:AddSlider(chamsSection, "Chams Transparency", 0, 100, 50, function(value)
 end)
 
 -- ============================================================
--- SETTINGS TAB CONTENT (FPS, RENDERING, AUDIO, ETC)
+-- SETTINGS TAB CONTENT (THEMES, FPS, RENDERING, AUDIO, ETC)
 -- ============================================================
 local setLeftCol, setRightCol = window:CreateColumns(settingsTab)
+
+-- Themes Section (Smooth Transitions: Light, Dark, Translucent Dark, Translucent Light)
+local themeSection = window:AddSection(setLeftCol, "Theme & Appearance")
+
+window:AddButton(themeSection, "Dark Mode", function()
+	window:SetTheme("Dark")
+end)
+
+window:AddButton(themeSection, "Light Mode", function()
+	window:SetTheme("Light")
+end)
+
+window:AddButton(themeSection, "Translucent Dark (Acrylic)", function()
+	window:SetTheme("TranslucentDark")
+end)
+
+window:AddButton(themeSection, "Translucent Light (Glass)", function()
+	window:SetTheme("TranslucentLight")
+end)
 
 -- Performance Settings
 local perfSection = window:AddSection(setLeftCol, "Performance")
@@ -131,7 +150,7 @@ window:AddToggle(perfSection, "fps_uncap", "FPS UNCAP", false, nil, function(ena
 end)
 
 -- Audio Volume Controller (Scales all game audios, excludes VoiceChat)
-local audioSection = window:AddSection(setLeftCol, "Audio Controls")
+local audioSection = window:AddSection(setRightCol, "Audio Controls")
 
 local currentVolumeScale = 1.0
 local function updateSound(sound: Sound)
@@ -218,13 +237,6 @@ window:AddToggle(renderSection, "dont_render_decals", "DONT RENDER DECALS", fals
 		decalConn:Disconnect()
 		decalConn = nil
 	end
-end)
-
--- Interface Options
-local miscSection = window:AddSection(setRightCol, "Interface & Misc")
-
-window:AddToggle(miscSection, "smooth_animations", "Fast Animations", true, nil, function(enabled)
-	print("[Settings] Fast Animations:", enabled)
 end)
 
 -- ============================================================

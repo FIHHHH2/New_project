@@ -133,6 +133,12 @@ _G.__ToggleProjectFihMenu = function()
 	window:Toggle()
 end
 
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Tab then
+		playerListWidget:Toggle()
+	end
+end)
+
 local function getGameTabName(): string
 	local placeId = game.PlaceId
 	local nameLower = string.lower(game.Name)

@@ -1,17 +1,10 @@
 --!strict
 --[=[
-    ✦ Squared Retro Chat Widget with Integrated Roblox TopBar ✦
-    Features:
-    - Embedded TopBar Pills in the Chat TopBar:
-      ├── Roblox Logo: Opens Roblox Escape Menu (GuiService:SetMenuIsOpen)
-      ├── Hamburger Menu (≡): Toggles Project Fih Menu
-      ├── Voice Chat Mic (🎙): Real-time VoiceChat mute/unmute
-      ├── Hide UI Pill: Toggles visibility of all screen GUIs
-      └── Backpack Pill (🎒): Toggles tool backpack
-    - Chat Header: Avatar thumbnail, @Username, [-] minimize, [X] close
-    - Message Container with single incoming message hook
-    - Quick chat and send message controls
-    - CoreGui auto-disable engine
+    ✦ Squared Retro Chat Widget with Single Header Action Buttons ✦
+    Layout matching user diagram:
+    [ Mugshot ] Chat : @Username   [ ⯎ ] [ ≡ ] [ 🎙 ]     [ - ] [ X ]
+    [ Chat Message Logs Container ]
+    [ Quick Chat ] [ /Text Message Input ] [ Send Msg ]
 ]=]
 
 local Players = game:GetService("Players")
@@ -50,7 +43,7 @@ function ChatWidget.new(): ChatWidgetInstance
 		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	end
 
-	-- Disable default Roblox CoreGuis
+	-- Disable default Roblox CoreGuis cleanly
 	local function disableRobloxCoreGuis()
 		pcall(function()
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
@@ -62,12 +55,6 @@ function ChatWidget.new(): ChatWidgetInstance
 		end)
 	end
 	disableRobloxCoreGuis()
-	task.spawn(function()
-		while true do
-			task.wait(3)
-			disableRobloxCoreGuis()
-		end
-	end)
 
 	-- Detect chat engine
 	local useLegacyChat = false
@@ -75,9 +62,8 @@ function ChatWidget.new(): ChatWidgetInstance
 		useLegacyChat = (TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService)
 	end)
 
-	local DEFAULT_W, DEFAULT_H = 340, 290
-	local PILLS_ROW_H = 36
-	local CHAT_HEADER_H = 26
+	local DEFAULT_W, DEFAULT_H = 340, 260
+	local TOPBAR_H = 28
 	local BOTTOM_H = 28
 
 	-- ── Main Unified Widget Frame ─────────────────────────────────────
@@ -100,100 +86,160 @@ function ChatWidget.new(): ChatWidgetInstance
 	UI.registerThemeElement(outerStroke, "Border")
 
 	-- ============================================================
-	-- ── ROW 1: ROBLOX TOPBAR PILLS CLUSTER (INSIDE CHAT TOPBAR) ──
+	-- ── TOPBAR: HEADER (AVATAR, TITLE, ACTIONS, [-] & [X]) ──────
 	-- ============================================================
-	local topPillsBar = Instance.new("Frame")
-	topPillsBar.Name = "PillsHeader"
-	topPillsBar.Size = UDim2.new(1, -8, 0, PILLS_ROW_H)
-	topPillsBar.Position = UDim2.new(0, 4, 0, 4)
-	topPillsBar.BackgroundTransparency = 1
-	topPillsBar.BorderSizePixel = 0
-	topPillsBar.Parent = widget
+	local topbar = Instance.new("Frame")
+	topbar.Name = "TopBar"
+	topbar.Size = UDim2.new(1, 0, 0, TOPBAR_H)
+	topbar.Position = UDim2.new(0, 0, 0, 0)
+	topbar.BackgroundColor3 = UI.Theme.Container
+	topbar.BackgroundTransparency = UI.Theme.ContainerTransparency
+	topbar.BorderSizePixel = 0
+	topbar.Parent = widget
+	UI.registerThemeElement(topbar, "Container")
 
-	local pillsLayout = Instance.new("UIListLayout")
-	pillsLayout.FillDirection = Enum.FillDirection.Horizontal
-	pillsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-	pillsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	pillsLayout.Padding = UDim.new(0, 6)
-	pillsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	pillsLayout.Parent = topPillsBar
+	local topStroke = Instance.new("UIStroke")
+	topStroke.Color = UI.Theme.Border
+	topStroke.Thickness = 1.2
+	topStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	topStroke.Parent = topbar
+	UI.registerThemeElement(topStroke, "Border")
 
-	-- 1. Roblox Logo Pill
-	local rbxBtn = Instance.new("ImageButton")
-	rbxBtn.Name = "RobloxMenuBtn"
-	rbxBtn.Size = UDim2.new(0, 36, 0, 32)
-	rbxBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-	rbxBtn.BackgroundTransparency = 0.15
-	rbxBtn.BorderSizePixel = 0
+	-- Avatar Thumbnail
+	local mugBox = Instance.new("Frame")
+	mugBox.Size = UDim2.new(0, 22, 0, 22)
+	mugBox.Position = UDim2.new(0, 3, 0, 3)
+	mugBox.BackgroundColor3 = UI.Theme.ContainerDark
+	mugBox.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	mugBox.BorderSizePixel = 0
+	mugBox.Parent = topbar
+	UI.registerThemeElement(mugBox, "ContainerDark")
+
+	local mugStroke = Instance.new("UIStroke")
+	mugStroke.Color = UI.Theme.Border
+	mugStroke.Thickness = 1
+	mugStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	mugStroke.Parent = mugBox
+	UI.registerThemeElement(mugStroke, "Border")
+
+	local mugImg = Instance.new("ImageLabel")
+	mugImg.Size = UDim2.new(1, 0, 1, 0)
+	mugImg.BackgroundTransparency = 1
+	mugImg.Image = Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
+	mugImg.Parent = mugBox
+
+	-- Title: Chat : @Username
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(0, 120, 1, 0)
+	titleLabel.Position = UDim2.new(0, 29, 0, 0)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = string.format("Chat : @%s", Players.LocalPlayer.Name)
+	titleLabel.TextColor3 = UI.Theme.TextPrimary
+	titleLabel.Font = UI.Fonts.Header
+	titleLabel.TextSize = 10
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.Parent = topbar
+	UI.registerThemeElement(titleLabel, "TextPrimary")
+
+	-- ── Center Action Buttons: [ ⯎ ] [ ≡ ] [ 🎙 ] ─────────────────────
+	local actionGroup = Instance.new("Frame")
+	actionGroup.Name = "TopBarActions"
+	actionGroup.Size = UDim2.new(0, 84, 0, 22)
+	actionGroup.Position = UDim2.new(0, 154, 0, 3)
+	actionGroup.BackgroundTransparency = 1
+	actionGroup.BorderSizePixel = 0
+	actionGroup.Parent = topbar
+
+	local actLayout = Instance.new("UIListLayout")
+	actLayout.FillDirection = Enum.FillDirection.Horizontal
+	actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	actLayout.Padding = UDim.new(0, 4)
+	actLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	actLayout.Parent = actionGroup
+
+	local function makeHeaderBtn(name: string, order: number): ImageButton
+		local btn = Instance.new("ImageButton")
+		btn.Name = name
+		btn.Size = UDim2.new(0, 24, 0, 22)
+		btn.BackgroundColor3 = UI.Theme.ContainerDark
+		btn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+		btn.BorderSizePixel = 0
+		btn.LayoutOrder = order
+		btn.Parent = actionGroup
+		UI.registerThemeElement(btn, "ContainerDark")
+
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = UI.Theme.Border
+		stroke.Thickness = 1
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Parent = btn
+		UI.registerThemeElement(stroke, "Border")
+
+		btn.MouseEnter:Connect(function()
+			TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1.6, Color = UI.Theme.Accent }):Play()
+		end)
+		btn.MouseLeave:Connect(function()
+			TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1, Color = UI.Theme.Border }):Play()
+		end)
+
+		return btn
+	end
+
+	-- 1. Roblox Menu Button [ ⯎ ]
+	local rbxBtn = makeHeaderBtn("RobloxLogoBtn", 1)
 	rbxBtn.Image = "rbxassetid://10888371919"
 	rbxBtn.ScaleType = Enum.ScaleType.Fit
-	rbxBtn.LayoutOrder = 1
-	rbxBtn.Parent = topPillsBar
-
-	local rbxCorner = Instance.new("UICorner")
-	rbxCorner.CornerRadius = UDim.new(0, 8)
-	rbxCorner.Parent = rbxBtn
-
-	local rbxStroke = Instance.new("UIStroke")
-	rbxStroke.Color = Color3.fromRGB(60, 60, 70)
-	rbxStroke.Thickness = 1.2
-	rbxStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	rbxStroke.Parent = rbxBtn
-
 	rbxBtn.MouseButton1Click:Connect(function()
 		pcall(function()
 			GuiService:SetMenuIsOpen(true)
 		end)
 	end)
 
-	-- 2. Combined Menu (≡) & Voice Chat Mic Pill
-	local menuVoicePill = Instance.new("Frame")
-	menuVoicePill.Name = "MenuVoicePill"
-	menuVoicePill.Size = UDim2.new(0, 78, 0, 32)
-	menuVoicePill.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-	menuVoicePill.BackgroundTransparency = 0.15
-	menuVoicePill.BorderSizePixel = 0
-	menuVoicePill.LayoutOrder = 2
-	menuVoicePill.Parent = topPillsBar
-
-	local mvCorner = Instance.new("UICorner")
-	mvCorner.CornerRadius = UDim.new(0, 8)
-	mvCorner.Parent = menuVoicePill
-
-	local mvStroke = Instance.new("UIStroke")
-	mvStroke.Color = Color3.fromRGB(60, 60, 70)
-	mvStroke.Thickness = 1.2
-	mvStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	mvStroke.Parent = menuVoicePill
-
+	-- 2. Hamburger Menu Button [ ≡ ]
 	local menuBtn = Instance.new("TextButton")
-	menuBtn.Name = "HamburgerMenuBtn"
-	menuBtn.Size = UDim2.new(0.5, -1, 1, 0)
-	menuBtn.Position = UDim2.new(0, 0, 0, 0)
-	menuBtn.BackgroundTransparency = 1
+	menuBtn.Name = "HamburgerBtn"
+	menuBtn.Size = UDim2.new(0, 24, 0, 22)
+	menuBtn.BackgroundColor3 = UI.Theme.ContainerDark
+	menuBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	menuBtn.BorderSizePixel = 0
 	menuBtn.Text = "≡"
-	menuBtn.TextColor3 = Color3.fromRGB(240, 240, 245)
+	menuBtn.TextColor3 = UI.Theme.TextPrimary
 	menuBtn.Font = Enum.Font.GothamBold
-	menuBtn.TextSize = 18
-	menuBtn.Parent = menuVoicePill
+	menuBtn.TextSize = 16
+	menuBtn.LayoutOrder = 2
+	menuBtn.Parent = actionGroup
+	UI.registerThemeElement(menuBtn, "ContainerDark")
+	UI.registerThemeElement(menuBtn, "TextPrimary")
 
-	local div = Instance.new("Frame")
-	div.Name = "Divider"
-	div.Size = UDim2.new(0, 1, 0.6, 0)
-	div.Position = UDim2.new(0.5, 0, 0.2, 0)
-	div.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-	div.BorderSizePixel = 0
-	div.Parent = menuVoicePill
+	local menuStroke = Instance.new("UIStroke")
+	menuStroke.Color = UI.Theme.Border
+	menuStroke.Thickness = 1
+	menuStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	menuStroke.Parent = menuBtn
+	UI.registerThemeElement(menuStroke, "Border")
 
-	local micBtn = Instance.new("ImageButton")
-	micBtn.Name = "VoiceChatMicBtn"
-	micBtn.Size = UDim2.new(0.5, -1, 1, 0)
-	micBtn.Position = UDim2.new(0.5, 1, 0, 0)
-	micBtn.BackgroundTransparency = 1
+	menuBtn.MouseEnter:Connect(function()
+		TweenService:Create(menuStroke, TweenInfo.new(0.12), { Thickness = 1.6, Color = UI.Theme.Accent }):Play()
+		TweenService:Create(menuBtn, TweenInfo.new(0.12), { TextColor3 = UI.Theme.Accent }):Play()
+	end)
+	menuBtn.MouseLeave:Connect(function()
+		TweenService:Create(menuStroke, TweenInfo.new(0.12), { Thickness = 1, Color = UI.Theme.Border }):Play()
+		TweenService:Create(menuBtn, TweenInfo.new(0.12), { TextColor3 = UI.Theme.TextPrimary }):Play()
+	end)
+
+	menuBtn.MouseButton1Click:Connect(function()
+		if _G.__ToggleProjectFihMenu then
+			_G.__ToggleProjectFihMenu()
+		end
+	end)
+
+	-- 3. Voice Chat Mic Button [ 🎙 ]
+	local micBtn = makeHeaderBtn("VoiceChatMicBtn", 3)
 	micBtn.Image = "rbxassetid://7072720970"
 	micBtn.ImageColor3 = Color3.fromRGB(245, 70, 70)
 	micBtn.ScaleType = Enum.ScaleType.Fit
-	micBtn.Parent = menuVoicePill
 
 	local isMuted = true
 	micBtn.MouseButton1Click:Connect(function()
@@ -210,155 +256,11 @@ function ChatWidget.new(): ChatWidgetInstance
 		end)
 	end)
 
-	menuBtn.MouseButton1Click:Connect(function()
-		if _G.__ToggleProjectFihMenu then
-			_G.__ToggleProjectFihMenu()
-		end
-	end)
-
-	-- 3. [ Hide UI ] Pill Button
-	local hideUiBtn = Instance.new("TextButton")
-	hideUiBtn.Name = "HideUiPill"
-	hideUiBtn.Size = UDim2.new(0, 74, 0, 32)
-	hideUiBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-	hideUiBtn.BackgroundTransparency = 0.15
-	hideUiBtn.BorderSizePixel = 0
-	hideUiBtn.Text = "Hide UI"
-	hideUiBtn.TextColor3 = Color3.fromRGB(240, 240, 245)
-	hideUiBtn.Font = Enum.Font.GothamBold
-	hideUiBtn.TextSize = 11
-	hideUiBtn.LayoutOrder = 3
-	hideUiBtn.Parent = topPillsBar
-
-	local hideCorner = Instance.new("UICorner")
-	hideCorner.CornerRadius = UDim.new(0, 16)
-	hideCorner.Parent = hideUiBtn
-
-	local hideStroke = Instance.new("UIStroke")
-	hideStroke.Color = Color3.fromRGB(60, 60, 70)
-	hideStroke.Thickness = 1.2
-	hideStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	hideStroke.Parent = hideUiBtn
-
-	local allUiHidden = false
-	hideUiBtn.MouseButton1Click:Connect(function()
-		allUiHidden = not allUiHidden
-		hideUiBtn.Text = if allUiHidden then "Show UI" else "Hide UI"
-		hideUiBtn.TextColor3 = if allUiHidden then UI.Theme.Accent else Color3.fromRGB(240, 240, 245)
-		
-		for _, name in ipairs({"ModularEngineGui", "ModularPlayerListGui", "ModularMusicTrackerGui"}) do
-			for _, g in ipairs(CoreGui:GetChildren()) do
-				if g.Name == name then
-					g.Enabled = not allUiHidden
-				end
-			end
-		end
-	end)
-
-	-- 4. [ 🎒 ] Backpack Pill Button
-	local bpBtn = Instance.new("ImageButton")
-	bpBtn.Name = "BackpackPill"
-	bpBtn.Size = UDim2.new(0, 34, 0, 32)
-	bpBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-	bpBtn.BackgroundTransparency = 0.15
-	bpBtn.BorderSizePixel = 0
-	bpBtn.Image = "rbxassetid://7072717697"
-	bpBtn.ImageColor3 = Color3.fromRGB(200, 200, 210)
-	bpBtn.ScaleType = Enum.ScaleType.Fit
-	bpBtn.LayoutOrder = 4
-	bpBtn.Parent = topPillsBar
-
-	local bpCorner = Instance.new("UICorner")
-	bpCorner.CornerRadius = UDim.new(0, 16)
-	bpCorner.Parent = bpBtn
-
-	local bpStroke = Instance.new("UIStroke")
-	bpStroke.Color = Color3.fromRGB(60, 60, 70)
-	bpStroke.Thickness = 1.2
-	bpStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	bpStroke.Parent = bpBtn
-
-	local bpActive = false
-	bpBtn.MouseButton1Click:Connect(function()
-		bpActive = not bpActive
-		pcall(function()
-			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, bpActive)
-		end)
-	end)
-
-	local function addPillHover(btn: GuiButton, stroke: UIStroke)
-		btn.MouseEnter:Connect(function()
-			TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1.8, Color = UI.Theme.Accent }):Play()
-		end)
-		btn.MouseLeave:Connect(function()
-			TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1.2, Color = Color3.fromRGB(60, 60, 70) }):Play()
-		end)
-	end
-
-	addPillHover(rbxBtn, rbxStroke)
-	addPillHover(menuBtn, mvStroke)
-	addPillHover(micBtn, mvStroke)
-	addPillHover(hideUiBtn, hideStroke)
-	addPillHover(bpBtn, bpStroke)
-
-	-- ============================================================
-	-- ── ROW 2: CHAT SUBHEADER (DRAG HANDLE, TITLE, [-] & [X]) ───
-	-- ============================================================
-	local chatHeader = Instance.new("Frame")
-	chatHeader.Name = "ChatHeader"
-	chatHeader.Size = UDim2.new(1, 0, 0, CHAT_HEADER_H)
-	chatHeader.Position = UDim2.new(0, 0, 0, PILLS_ROW_H + 6)
-	chatHeader.BackgroundColor3 = UI.Theme.Container
-	chatHeader.BackgroundTransparency = UI.Theme.ContainerTransparency
-	chatHeader.BorderSizePixel = 0
-	chatHeader.Parent = widget
-	UI.registerThemeElement(chatHeader, "Container")
-
-	local headerStroke = Instance.new("UIStroke")
-	headerStroke.Color = UI.Theme.Border
-	headerStroke.Thickness = 1.2
-	headerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	headerStroke.Parent = chatHeader
-	UI.registerThemeElement(headerStroke, "Border")
-
-	local mugBox = Instance.new("Frame")
-	mugBox.Size = UDim2.new(0, 20, 0, 20)
-	mugBox.Position = UDim2.new(0, 4, 0, 3)
-	mugBox.BackgroundColor3 = UI.Theme.ContainerDark
-	mugBox.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
-	mugBox.BorderSizePixel = 0
-	mugBox.Parent = chatHeader
-	UI.registerThemeElement(mugBox, "ContainerDark")
-
-	local mugStroke = Instance.new("UIStroke")
-	mugStroke.Color = UI.Theme.Border
-	mugStroke.Thickness = 1
-	mugStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	mugStroke.Parent = mugBox
-	UI.registerThemeElement(mugStroke, "Border")
-
-	local mugImg = Instance.new("ImageLabel")
-	mugImg.Size = UDim2.new(1, 0, 1, 0)
-	mugImg.BackgroundTransparency = 1
-	mugImg.Image = Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
-	mugImg.Parent = mugBox
-
-	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(1, -90, 1, 0)
-	titleLabel.Position = UDim2.new(0, 30, 0, 0)
-	titleLabel.BackgroundTransparency = 1
-	titleLabel.Text = string.format("Chat : @%s", Players.LocalPlayer.Name)
-	titleLabel.TextColor3 = UI.Theme.TextPrimary
-	titleLabel.Font = UI.Fonts.Header
-	titleLabel.TextSize = 10
-	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-	titleLabel.Parent = chatHeader
-	UI.registerThemeElement(titleLabel, "TextPrimary")
-
+	-- Right: Minimize [-] & Close [X] Buttons
 	local minBtn = Instance.new("TextButton")
 	minBtn.Name = "MinBtn"
 	minBtn.Size = UDim2.new(0, 20, 0, 18)
-	minBtn.Position = UDim2.new(1, -50, 0, 4)
+	minBtn.Position = UDim2.new(1, -50, 0, 5)
 	minBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	minBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	minBtn.BorderSizePixel = 0
@@ -366,7 +268,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	minBtn.TextColor3 = UI.Theme.TextPrimary
 	minBtn.Font = UI.Fonts.Mono
 	minBtn.TextSize = 13
-	minBtn.Parent = chatHeader
+	minBtn.Parent = topbar
 	UI.registerThemeElement(minBtn, "ContainerDark")
 
 	local minStroke = Instance.new("UIStroke")
@@ -379,7 +281,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.Name = "CloseBtn"
 	closeBtn.Size = UDim2.new(0, 20, 0, 18)
-	closeBtn.Position = UDim2.new(1, -26, 0, 4)
+	closeBtn.Position = UDim2.new(1, -26, 0, 5)
 	closeBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	closeBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	closeBtn.BorderSizePixel = 0
@@ -387,7 +289,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	closeBtn.TextColor3 = UI.Theme.TextPrimary
 	closeBtn.Font = UI.Fonts.Mono
 	closeBtn.TextSize = 11
-	closeBtn.Parent = chatHeader
+	closeBtn.Parent = topbar
 	UI.registerThemeElement(closeBtn, "ContainerDark")
 
 	local closeStroke = Instance.new("UIStroke")
@@ -398,13 +300,12 @@ function ChatWidget.new(): ChatWidgetInstance
 	UI.registerThemeElement(closeStroke, "Border")
 
 	-- ============================================================
-	-- ── ROW 3: MESSAGE CONTAINER ────────────────────────────────
+	-- ── MESSAGE CONTAINER (CHAT LOGS) ───────────────────────────
 	-- ============================================================
-	local startY = PILLS_ROW_H + CHAT_HEADER_H + 12
 	local container = Instance.new("ScrollingFrame")
 	container.Name = "MessageContainer"
-	container.Size = UDim2.new(1, -12, 1, -(startY + BOTTOM_H + 10))
-	container.Position = UDim2.new(0, 6, 0, startY)
+	container.Size = UDim2.new(1, -12, 1, -(TOPBAR_H + BOTTOM_H + 16))
+	container.Position = UDim2.new(0, 6, 0, TOPBAR_H + 6)
 	container.BackgroundColor3 = UI.Theme.Container
 	container.BackgroundTransparency = UI.Theme.ContainerTransparency
 	container.BorderSizePixel = 0
@@ -428,7 +329,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	listLayout.Parent = container
 
 	-- ============================================================
-	-- ── ROW 4: BOTTOM CONTROL BAR ───────────────────────────────
+	-- ── BOTTOM CONTROL BAR (INPUT, QUICK CHAT, SEND MSG) ────────
 	-- ============================================================
 	local bottomBar = Instance.new("Frame")
 	bottomBar.Name = "BottomBar"
@@ -436,6 +337,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	bottomBar.Position = UDim2.new(0, 6, 1, -(BOTTOM_H + 6))
 	bottomBar.BackgroundTransparency = 1
 	bottomBar.BorderSizePixel = 0
+	bottomBar.ZIndex = 5
 	bottomBar.Parent = widget
 
 	local quickBtn = Instance.new("TextButton")
@@ -449,6 +351,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	quickBtn.TextColor3 = UI.Theme.TextPrimary
 	quickBtn.Font = UI.Fonts.Header
 	quickBtn.TextSize = 9
+	quickBtn.ZIndex = 6
 	quickBtn.Parent = bottomBar
 	UI.registerThemeElement(quickBtn, "Container")
 
@@ -466,6 +369,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	inputFrame.BackgroundColor3 = UI.Theme.ContainerDark
 	inputFrame.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	inputFrame.BorderSizePixel = 0
+	inputFrame.ZIndex = 6
 	inputFrame.Parent = bottomBar
 	UI.registerThemeElement(inputFrame, "ContainerDark")
 
@@ -481,13 +385,14 @@ function ChatWidget.new(): ChatWidgetInstance
 	textBox.Position = UDim2.new(0, 4, 0, 0)
 	textBox.BackgroundTransparency = 1
 	textBox.PlaceholderText = "/Text Message"
-	textBox.PlaceholderColor3 = UI.Theme.TextMuted
+	textBox.PlaceholderColor3 = UI.Theme.TextSecondary
 	textBox.Text = ""
 	textBox.TextColor3 = UI.Theme.TextPrimary
 	textBox.Font = UI.Fonts.Body
 	textBox.TextSize = 11
 	textBox.TextXAlignment = Enum.TextXAlignment.Left
 	textBox.ClearTextOnFocus = false
+	textBox.ZIndex = 7
 	textBox.Parent = inputFrame
 	UI.registerThemeElement(textBox, "TextPrimary")
 
@@ -500,13 +405,14 @@ function ChatWidget.new(): ChatWidgetInstance
 	sendBtn.Text = "Send Msg"
 	sendBtn.TextColor3 = UI.Theme.AccentText
 	sendBtn.Font = UI.Fonts.Header
-	sendBtn.TextSize = 9
+	sendBtn.TextSize = 10
+	sendBtn.ZIndex = 7
 	sendBtn.Parent = bottomBar
 	UI.registerThemeElement(sendBtn, "Accent")
 
 	local sendStroke = Instance.new("UIStroke")
 	sendStroke.Color = UI.Theme.Border
-	sendStroke.Thickness = 1
+	sendStroke.Thickness = 1.2
 	sendStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	sendStroke.Parent = sendBtn
 	UI.registerThemeElement(sendStroke, "Border")
@@ -528,7 +434,7 @@ function ChatWidget.new(): ChatWidgetInstance
 		senderLabel.Position = UDim2.new(0, 4, 0, 1)
 		senderLabel.BackgroundTransparency = 1
 		senderLabel.Text = sender .. ":"
-		senderLabel.TextColor3 = if isSystem then UI.Theme.TextMuted else UI.Theme.Accent
+		senderLabel.TextColor3 = if isSystem then UI.Theme.TextSecondary else UI.Theme.Accent
 		senderLabel.Font = UI.Fonts.Header
 		senderLabel.TextSize = 10
 		senderLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -574,7 +480,7 @@ function ChatWidget.new(): ChatWidgetInstance
 		end
 	end
 
-	chatHeader.InputBegan:Connect(startDrag)
+	topbar.InputBegan:Connect(startDrag)
 
 	UserInputService.InputChanged:Connect(function(input)
 		if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
@@ -593,7 +499,7 @@ function ChatWidget.new(): ChatWidgetInstance
 			container.Visible = false
 			bottomBar.Visible = false
 			TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Size = UDim2.new(0, widget.AbsoluteSize.X, 0, PILLS_ROW_H + CHAT_HEADER_H + 10)
+				Size = UDim2.new(0, widget.AbsoluteSize.X, 0, TOPBAR_H)
 			}):Play()
 		else
 			container.Visible = true
@@ -650,10 +556,18 @@ function ChatWidget.new(): ChatWidgetInstance
 	sendBtn.MouseButton1Click:Connect(function() sendMessage(textBox.Text) end)
 	textBox.FocusLost:Connect(function(enter) if enter then sendMessage(textBox.Text) end end)
 
+	-- Slash key opens & focuses chat input
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Slash then
 			widget.Visible = true
+			if minimized then
+				minimized = false
+				container.Visible = true
+				bottomBar.Visible = true
+				widget.Size = UDim2.new(0, widget.AbsoluteSize.X, 0, DEFAULT_H)
+			end
 			task.defer(function()
+				textBox.Text = ""
 				textBox:CaptureFocus()
 			end)
 		end

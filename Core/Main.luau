@@ -77,11 +77,22 @@ task.spawn(purgeMobileGuis)
 
 local pguiRef = localPlayer:FindFirstChild("PlayerGui")
 if pguiRef then
+	-- Create dummy disabled Mobile container if missing to prevent game script WaitForChild infinite yield
+	if not pguiRef:FindFirstChild("Mobile") then
+		local dummy = Instance.new("Folder")
+		dummy.Name = "Mobile"
+		dummy.Parent = pguiRef
+	end
+
 	pguiRef.ChildAdded:Connect(function(child)
-		if child.Name == "TouchGui" or child.Name:lower():find("mobile") or child.Name:lower():find("touchcontrol") then
+		if child.Name == "TouchGui" or child.Name:lower():find("touchcontrol") then
 			task.defer(function()
 				pcall(function() child:Destroy() end)
 			end)
+		elseif child.Name == "Mobile" then
+			if child:IsA("ScreenGui") then
+				child.Enabled = false
+			end
 		end
 	end)
 end

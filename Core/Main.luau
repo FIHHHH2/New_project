@@ -21,9 +21,12 @@ local window = CoreUI.new("Project Fih Menu")
 local mainTab = window:CreateTab("Main")
 local subTab = window:CreateTab("Tab")
 
--- dedicated Settings tab (opened via top right [Settings] button)
+-- dedicated Settings & Configs tabs (opened/closed via top right buttons)
 local settingsTab = window:CreateTab("Settings", true)
-window:BindSettingsButton(settingsTab)
+local configsTab = window:CreateTab("Configs", true)
+
+window:BindSettingsTab(settingsTab)
+window:BindConfigsTab(configsTab)
 
 -- ============================================================
 -- MAIN TAB CONTENT
@@ -98,8 +101,6 @@ end)
 local audioSection = window:AddSection(setLeftCol, "Audio Controls")
 
 local currentVolumeScale = 1.0
-local audioConnections: {RBXScriptConnection} = {}
-
 local function updateSound(sound: Sound)
 	if sound:IsDescendantOf(game:GetService("VoiceChatService")) then return end
 	local base = sound:GetAttribute("OrigVolume")
@@ -119,13 +120,13 @@ window:AddSlider(audioSection, "VOLUME CONTROLLER", 0, 100, 100, function(value)
 	end
 end)
 
-table.insert(audioConnections, game.DescendantAdded:Connect(function(obj)
+game.DescendantAdded:Connect(function(obj)
 	if obj:IsA("Sound") then
 		task.defer(function()
 			updateSound(obj)
 		end)
 	end
-end))
+end)
 
 -- Rendering Optimization Settings
 local renderSection = window:AddSection(setRightCol, "3D & Texture Rendering")
@@ -191,4 +192,35 @@ local miscSection = window:AddSection(setRightCol, "Interface & Misc")
 
 window:AddToggle(miscSection, "smooth_animations", "Fast Animations", true, nil, function(enabled)
 	print("[Settings] Fast Animations:", enabled)
+end)
+
+-- ============================================================
+-- CONFIGS TAB CONTENT
+-- ============================================================
+local confLeftCol, confRightCol = window:CreateColumns(configsTab)
+
+local profileSection = window:AddSection(confLeftCol, "Profile Slots")
+window:AddButton(profileSection, "Load Default Profile", function()
+	print("[Configs] Loaded Default Profile")
+end)
+
+window:AddButton(profileSection, "Load Legit Profile", function()
+	print("[Configs] Loaded Legit Profile")
+end)
+
+window:AddButton(profileSection, "Load Rage Profile", function()
+	print("[Configs] Loaded Rage Profile")
+end)
+
+local actionSection = window:AddSection(confRightCol, "Config Actions")
+window:AddButton(actionSection, "Save Current Config", function()
+	print("[Configs] Saved Current Config")
+end)
+
+window:AddButton(actionSection, "Create New Profile", function()
+	print("[Configs] Created New Profile")
+end)
+
+window:AddButton(actionSection, "Reset All Defaults", function()
+	print("[Configs] Reset All Defaults")
 end)

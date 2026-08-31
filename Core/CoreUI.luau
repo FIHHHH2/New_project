@@ -38,7 +38,34 @@ function CoreUI.new(titleText: string)
 	self.UiScale = uiScale
 	self.Tabs = {}
 	self.ActiveTab = nil
+	self.PreviousTab = nil
 	self.SettingsTab = nil
+	self.ConfigsTab = nil
+	
+	-- Wire toggle click handlers for Settings and Configs
+	if self.SettingsBtn then
+		self.SettingsBtn.MouseButton1Click:Connect(function()
+			if self.SettingsTab then
+				if self.ActiveTab == self.SettingsTab then
+					self:SelectTab(self.PreviousTab or self.Tabs[1])
+				else
+					self:SelectTab(self.SettingsTab)
+				end
+			end
+		end)
+	end
+
+	if self.ConfigsBtn then
+		self.ConfigsBtn.MouseButton1Click:Connect(function()
+			if self.ConfigsTab then
+				if self.ActiveTab == self.ConfigsTab then
+					self:SelectTab(self.PreviousTab or self.Tabs[1])
+				else
+					self:SelectTab(self.ConfigsTab)
+				end
+			end
+		end)
+	end
 	
 	return self
 end
@@ -116,6 +143,12 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 end
 
 function CoreUI:SelectTab(tabObj)
+	if self.ActiveTab and not self.ActiveTab.IsHidden and tabObj.IsHidden then
+		self.PreviousTab = self.ActiveTab
+	elseif not tabObj.IsHidden then
+		self.PreviousTab = nil
+	end
+
 	for _, tab in ipairs(self.Tabs) do
 		if tab == tabObj then
 			tab.Page.Visible = true
@@ -138,25 +171,26 @@ function CoreUI:SelectTab(tabObj)
 		self.ActiveTagLabel.Text = tabObj.Name
 	end
 	
-	-- Settings & configs buttons are ONLY visible on Main / Menu tab
-	local isMenuTab = (tabObj.Name == "Main" or tabObj.Name == "Menu")
-	if self.SettingsBtn then
-		self.SettingsBtn.Visible = isMenuTab
+	-- Keep subheader buttons visible, toggle active highlight styling
+	if self.SettingsBtn and self.SettingsBtn:FindFirstChild("UIStroke") then
+		local isSet = (tabObj == self.SettingsTab)
+		self.SettingsBtn.BackgroundColor3 = if isSet then UI.Theme.Accent else UI.Theme.Container
+		self.SettingsBtn.TextColor3 = if isSet then UI.Theme.AccentText else UI.Theme.TextPrimary
 	end
-	if self.ConfigsBtn then
-		self.ConfigsBtn.Visible = isMenuTab
+
+	if self.ConfigsBtn and self.ConfigsBtn:FindFirstChild("UIStroke") then
+		local isConf = (tabObj == self.ConfigsTab)
+		self.ConfigsBtn.BackgroundColor3 = if isConf then UI.Theme.Accent else UI.Theme.Container
+		self.ConfigsBtn.TextColor3 = if isConf then UI.Theme.AccentText else UI.Theme.TextPrimary
 	end
 end
 
-function CoreUI:BindSettingsButton(settingsTabObj)
+function CoreUI:BindSettingsTab(settingsTabObj)
 	self.SettingsTab = settingsTabObj
-	if self.SettingsBtn then
-		self.SettingsBtn.MouseButton1Click:Connect(function()
-			if self.SettingsTab then
-				self:SelectTab(self.SettingsTab)
-			end
-		end)
-	end
+end
+
+function CoreUI:BindConfigsTab(configsTabObj)
+	self.ConfigsTab = configsTabObj
 end
 
 function CoreUI:AddBanner(tabObj): Frame
@@ -464,6 +498,42 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 		if sliding and input.UserInputType == Enum.UserInputType.MouseMovement then
 			update(input)
 		end
+	end)
+end
+
+function CoreUI:AddButton(section: Frame, name: string, callback: () -> ())
+	local row = Instance.new("Frame")
+	row.Name = name .. "ButtonRow"
+	row.Size = UDim2.new(1, -4, 0, 26)
+	row.Position = UDim2.new(0, 2, 0, 0)
+	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
+	row.ClipsDescendants = false
+	row.Parent = section
+
+	local btn = Instance.new("TextButton")
+	btn.Name = "ActionBtn"
+	btn.Size = UDim2.new(1, 0, 1, 0)
+	btn.BackgroundColor3 = UI.Theme.Container
+	btn.BorderSizePixel = 0
+	btn.Text = string.format("[ %s ]", name)
+	btn.TextColor3 = UI.Theme.TextPrimary
+	btn.Font = UI.Theme.HeaderFont
+	btn.TextSize = 11
+	btn.Parent = row
+
+	local btnStroke = Instance.new("UIStroke")
+	btnStroke.Color = UI.Theme.Border
+	btnStroke.Thickness = 1.2
+	btnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	btnStroke.Parent = btn
+
+	btn.MouseButton1Click:Connect(function()
+		btn.BackgroundColor3 = UI.Theme.Accent
+		task.delay(0.15, function()
+			btn.BackgroundColor3 = UI.Theme.Container
+		end)
+		callback()
 	end)
 end
 

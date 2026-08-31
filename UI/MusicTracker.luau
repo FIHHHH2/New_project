@@ -467,13 +467,13 @@ function MusicTracker.new()
 
 	updateCover(nil, true, nil)
 
-	-- ── Continuous 60+ FPS Spring-Damper Visualizer Physics ───────────
+	-- ── Continuous 60+ FPS Fast Spring-Damper Visualizer Physics ───────
 	local visualizerConn = RunService.RenderStepped:Connect(function(dt: number)
 		local safeDt = math.clamp(dt or 0.016, 0.001, 0.05)
 		local isAudible = isPlaying or (currentAudioPeak > 0.005)
 
 		local targetEnergy = if (widget.Visible and isAudible) then currentAudioPeak else 0.0
-		smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 8.0, 0.04, 0.4)
+		smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 22.0, 0.15, 0.85)
 
 		local t = os.clock()
 		for i = 1, 16 do
@@ -481,16 +481,16 @@ function MusicTracker.new()
 			if not bar then continue end
 
 			if not widget.Visible or smoothedEnergy < 0.002 then
-				currentHeights[i] = math.max(3.0, currentHeights[i] + (3.0 - currentHeights[i]) * math.clamp(safeDt * 7.0, 0.04, 0.3))
+				currentHeights[i] = math.max(3.0, currentHeights[i] + (3.0 - currentHeights[i]) * math.clamp(safeDt * 14.0, 0.10, 0.5))
 				bar.Size = UDim2.new(0, 6, 0, currentHeights[i])
 			else
 				local rawSpec = currentSpectrum[i] or 0.15
-				local waveHarmonic = math.sin(t * 3.6 + i * 0.45) * 0.18 + math.cos(t * 2.2 - i * 0.35) * 0.12 + 0.70
-				local targetHeight = math.clamp(rawSpec * 28.0 * (smoothedEnergy * 1.15 + 0.15) * waveHarmonic + 3.0, 3.0, 34.0)
+				local waveHarmonic = math.sin(t * 7.5 + i * 0.55) * 0.20 + math.cos(t * 4.8 - i * 0.40) * 0.12 + 0.70
+				local targetHeight = math.clamp(rawSpec * 28.0 * (smoothedEnergy * 1.18 + 0.15) * waveHarmonic + 3.0, 3.0, 34.0)
 
-				-- Continuous physical spring acceleration & fluid damping
-				local springForce = (targetHeight - currentHeights[i]) * 32.0
-				local dampingForce = currentVelocities[i] * 11.5
+				-- High-speed physical spring with balanced damping for instant punch
+				local springForce = (targetHeight - currentHeights[i]) * 85.0
+				local dampingForce = currentVelocities[i] * 16.5
 				currentVelocities[i] = currentVelocities[i] + (springForce - dampingForce) * safeDt
 				currentHeights[i] = math.clamp(currentHeights[i] + currentVelocities[i] * safeDt, 3.0, 35.0)
 

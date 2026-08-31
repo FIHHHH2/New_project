@@ -26,6 +26,65 @@ localPlayer.CharacterAdded:Connect(function(char)
 	humanoid = char:WaitForChild("Humanoid", 5) :: Humanoid?
 end)
 
+-- Force PC Desktop Mode and Disable Mobile Touch Interfaces
+pcall(function()
+	local hook = hookmetamethod or (getgenv and getgenv().hookmetamethod)
+	if type(hook) == "function" then
+		local oldIndex: any
+		oldIndex = hook(game, "__index", function(self, key)
+			if not checkcaller() and self == UserInputService then
+				if key == "TouchEnabled" then
+					return false
+				elseif key == "KeyboardEnabled" or key == "MouseEnabled" then
+					return true
+				end
+			end
+			return oldIndex(self, key)
+		end)
+	else
+		local raw = getrawmetatable and getrawmetatable(game)
+		if raw and raw.__index and setreadonly then
+			local old = raw.__index
+			setreadonly(raw, false)
+			raw.__index = function(self, key)
+				if self == UserInputService then
+					if key == "TouchEnabled" then
+						return false
+					elseif key == "KeyboardEnabled" or key == "MouseEnabled" then
+						return true
+					end
+				end
+				return old(self, key)
+			end
+			setreadonly(raw, true)
+		end
+	end
+end)
+
+local function purgeMobileGuis()
+	local pgui = localPlayer:FindFirstChild("PlayerGui")
+	if pgui then
+		for _, child in ipairs(pgui:GetChildren()) do
+			if child.Name == "TouchGui" or child.Name:lower():find("mobile") or child.Name:lower():find("touchcontrol") then
+				pcall(function() child:Destroy() end)
+			end
+		end
+	end
+end
+
+task.spawn(purgeMobileGuis)
+
+local pguiRef = localPlayer:FindFirstChild("PlayerGui")
+if pguiRef then
+	pguiRef.ChildAdded:Connect(function(child)
+		if child.Name == "TouchGui" or child.Name:lower():find("mobile") or child.Name:lower():find("touchcontrol") then
+			task.defer(function()
+				pcall(function() child:Destroy() end)
+			end)
+		end
+	end)
+end
+
 -- Disable overlapping default CoreGui elements that conflict with our widgets
 local coreGuiOverlays = {
 	Enum.CoreGuiType.PlayerList,
@@ -35,6 +94,7 @@ local coreGuiOverlays = {
 	Enum.CoreGuiType.Health,
 }
 local function disableCoreGuis()
+	purgeMobileGuis()
 	for _ = 1, 8 do
 		local ok = true
 		for _, guiType in ipairs(coreGuiOverlays) do

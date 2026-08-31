@@ -126,25 +126,24 @@ def update_audio_spectrum():
         max_recent_peak = max(0.005, max_recent_peak * 0.992)
 
     ratio = min(1.0, peak / max(0.005, max_recent_peak))
-    boosted_peak = math.pow(ratio, 0.60) * 1.15 if ratio > 0 else 0.0
+    boosted_peak = math.pow(ratio, 0.75) * 1.0 if ratio > 0 else 0.0
     boosted_peak = max(0.0, min(1.0, boosted_peak))
 
-    # Fast attack, smooth musical decay
+    # Silky smooth attack and decay
     if boosted_peak > smoothed_peak:
-        smoothed_peak = smoothed_peak * 0.22 + boosted_peak * 0.78
+        smoothed_peak = smoothed_peak * 0.35 + boosted_peak * 0.65
     else:
-        smoothed_peak = smoothed_peak * 0.80 + boosted_peak * 0.20
+        smoothed_peak = smoothed_peak * 0.88 + boosted_peak * 0.12
 
     current_media["audioPeak"] = round(smoothed_peak, 3)
 
-    phase += 0.22
+    phase += 0.12
     new_spectrum = []
     for i in range(16):
-        bass_mult = 1.25 if i < 5 else (1.10 if i < 10 else 0.90)
-        osc = math.sin(phase * (1.25 + i * 0.22) + i * 0.55) * 0.35 + 0.65
-        noise = (random.random() - 0.5) * 0.08
-        val = max(0.05, min(1.0, (smoothed_peak * bass_mult * osc + noise)))
-        band_energy[i] = band_energy[i] * 0.40 + val * 0.60
+        bass_mult = 1.15 if i < 5 else (1.05 if i < 10 else 0.90)
+        osc = math.sin(phase * (0.85 + i * 0.15) + i * 0.45) * 0.20 + 0.80
+        val = max(0.05, min(1.0, (smoothed_peak * bass_mult * osc)))
+        band_energy[i] = band_energy[i] * 0.75 + val * 0.25
         new_spectrum.append(round(band_energy[i], 3))
 
     current_media["spectrum"] = new_spectrum

@@ -457,23 +457,24 @@ function MusicTracker.new()
 
 	updateCover(nil, true, nil)
 
-	-- Natural, musical visualizer animation loop
-	local visualizerConn = RunService.RenderStepped:Connect(function()
+	-- Smooth, musical visualizer animation loop
+	local visualizerConn = RunService.RenderStepped:Connect(function(dt: number)
 		local isAudible = isPlaying or (currentAudioPeak > 0.005)
 		if not widget.Visible or not isAudible then
 			for _, bar in ipairs(visualizerBars) do
-				bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, 3), 0.2)
+				bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, 3), 0.15)
 			end
 			return
 		end
 
 		local t = os.clock()
-		local peakMult = math.clamp(currentAudioPeak * 1.35 + 0.15, 0.25, 1.30)
+		local peakMult = math.clamp(currentAudioPeak * 1.05 + 0.10, 0.15, 1.05)
+		local lerpSpeed = math.clamp((dt or 0.016) * 9.5, 0.10, 0.22)
 		for i, bar in ipairs(visualizerBars) do
-			local specVal = currentSpectrum[i] or 0.18
-			local wave = math.abs(math.sin(t * 11 + i * 0.70)) * 0.32 + 0.68
-			local h = math.clamp(math.floor(specVal * 34 * peakMult * wave + 3), 3, 40)
-			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), 0.38)
+			local specVal = currentSpectrum[i] or 0.12
+			local wave = math.abs(math.sin(t * 4.5 + i * 0.55)) * 0.22 + 0.78
+			local h = math.clamp(math.floor(specVal * 28 * peakMult * wave + 3), 3, 34)
+			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), lerpSpeed)
 		end
 	end)
 

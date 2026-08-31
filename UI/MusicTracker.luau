@@ -1,11 +1,12 @@
 --!strict
 --[=[
-    ✦ Squared Retro Music Tracker Widget with Real Audio EQ & Proportioned Controls ✦
+    ✦ Squared Retro Music Tracker Widget with Continuous Fluid Visualizer Physics ✦
     Features:
+    - Continuous 60+ FPS spring-damper harmonic wave physics (no stepped sizing or stutter)
     - Full-bleed album artwork box (no black borders or padding gaps)
     - Expanded multi-line lyrics container with ample reading space
     - Proportioned, compact square playback controls in correct order: [ « ] [ ❚❚ / ▶ ] [ » ]
-    - Ultra-sensitive 16-band audio visualizer dancing to live media loudness & AGC
+    - Multi-source Synced Lyrics engine & live UTC timestamp tracking
     - Full IgnoreGuiInset dragging and minimize controls
 ]=]
 
@@ -379,8 +380,17 @@ function MusicTracker.new()
 	local lastSongTitle = ""
 	local lastCoverVersion = -1
 	local previousCoverFile: string? = nil
-	local currentSpectrum = { 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2 }
+	local currentSpectrum = { 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15 }
 	local currentAudioPeak = 0.0
+
+	-- Continuous Sub-Pixel Physics States
+	local currentHeights: {number} = {}
+	local currentVelocities: {number} = {}
+	local smoothedEnergy = 0.0
+	for i = 1, 16 do
+		currentHeights[i] = 3.0
+		currentVelocities[i] = 0.0
+	end
 
 	local function loadRealCoverBinary(v: number?)
 		local wrf = writefile or (getgenv and getgenv().writefile)
@@ -457,24 +467,35 @@ function MusicTracker.new()
 
 	updateCover(nil, true, nil)
 
-	-- Smooth, musical visualizer animation loop
+	-- ── Continuous 60+ FPS Spring-Damper Visualizer Physics ───────────
 	local visualizerConn = RunService.RenderStepped:Connect(function(dt: number)
+		local safeDt = math.clamp(dt or 0.016, 0.001, 0.05)
 		local isAudible = isPlaying or (currentAudioPeak > 0.005)
-		if not widget.Visible or not isAudible then
-			for _, bar in ipairs(visualizerBars) do
-				bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, 3), 0.15)
-			end
-			return
-		end
+
+		local targetEnergy = if (widget.Visible and isAudible) then currentAudioPeak else 0.0
+		smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 8.0, 0.04, 0.4)
 
 		local t = os.clock()
-		local peakMult = math.clamp(currentAudioPeak * 1.05 + 0.10, 0.15, 1.05)
-		local lerpSpeed = math.clamp((dt or 0.016) * 9.5, 0.10, 0.22)
-		for i, bar in ipairs(visualizerBars) do
-			local specVal = currentSpectrum[i] or 0.12
-			local wave = math.abs(math.sin(t * 4.5 + i * 0.55)) * 0.22 + 0.78
-			local h = math.clamp(math.floor(specVal * 28 * peakMult * wave + 3), 3, 34)
-			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), lerpSpeed)
+		for i = 1, 16 do
+			local bar = visualizerBars[i]
+			if not bar then continue end
+
+			if not widget.Visible or smoothedEnergy < 0.002 then
+				currentHeights[i] = math.max(3.0, currentHeights[i] + (3.0 - currentHeights[i]) * math.clamp(safeDt * 7.0, 0.04, 0.3))
+				bar.Size = UDim2.new(0, 6, 0, currentHeights[i])
+			else
+				local rawSpec = currentSpectrum[i] or 0.15
+				local waveHarmonic = math.sin(t * 3.6 + i * 0.45) * 0.18 + math.cos(t * 2.2 - i * 0.35) * 0.12 + 0.70
+				local targetHeight = math.clamp(rawSpec * 28.0 * (smoothedEnergy * 1.15 + 0.15) * waveHarmonic + 3.0, 3.0, 34.0)
+
+				-- Continuous physical spring acceleration & fluid damping
+				local springForce = (targetHeight - currentHeights[i]) * 32.0
+				local dampingForce = currentVelocities[i] * 11.5
+				currentVelocities[i] = currentVelocities[i] + (springForce - dampingForce) * safeDt
+				currentHeights[i] = math.clamp(currentHeights[i] + currentVelocities[i] * safeDt, 3.0, 35.0)
+
+				bar.Size = UDim2.new(0, 6, 0, currentHeights[i])
+			end
 		end
 	end)
 

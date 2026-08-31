@@ -321,33 +321,7 @@ end)
 local gameLeftCol, gameRightCol = window:CreateColumns(gameTab)
 
 if gameTabTitle == "Run N Hide" then
-	-- ── LEFT COLUMN: AIM ASSIST & COMBAT ───────────────────────
-	local aimSection = window:AddSection(gameLeftCol, "Aim Assist Engine")
-
-	window:AddToggle(aimSection, "rnh_aim_assist", "Aim Assist (Hold R-Click)", false, nil, function(val)
-		RunNHide.AimAssist = val
-	end)
-
-	window:AddToggle(aimSection, "rnh_aim_fov", "Show Aim Assist FOV", false, nil, function(val)
-		RunNHide.AimAssistFOV = val
-	end)
-
-	window:AddToggle(aimSection, "rnh_aim_wallcheck", "Aim Wallcheck (Visible Only)", true, nil, function(val)
-		RunNHide.AimWallCheck = val
-	end)
-
-	window:AddToggle(aimSection, "rnh_aim_head", "Target Head (Off = Torso)", true, nil, function(val)
-		RunNHide.AimTargetPart = if val then "Head" else "Torso"
-	end)
-
-	window:AddSlider(aimSection, "Aim FOV Radius", 40, 350, 140, function(val)
-		RunNHide.AimRadius = val
-	end)
-
-	window:AddSlider(aimSection, "Aim Smoothing (1=Snap)", 1, 15, 5, function(val)
-		RunNHide.AimSmoothing = val
-	end)
-
+	-- ── LEFT COLUMN: WEAPON MECHANISMS & GUN OPERATIONS ────────
 	local weaponMechSection = window:AddSection(gameLeftCol, "Weapon Mechanisms")
 
 	window:AddToggle(weaponMechSection, "rnh_silent_audio", "Silent Gun Audio (Mute)", true, nil, function(val)

@@ -1,7 +1,7 @@
 --!strict
 --[=[
     ✦ Run and Hide / Demise Engine Advanced Combat & Utility Module ✦
-    Provides Demise Gun Engine, Aim Assist, Role Tracker, Boundary Breaker, Stamina & Ragdoll Mobility.
+    Provides Demise Gun Engine, Role Tracker, Boundary Breaker, Stamina & Ragdoll Mobility.
 ]=]
 
 local Players = game:GetService("Players")
@@ -46,15 +46,6 @@ local RunNHide = {
 	BurstDelay = 0.06,
 	AutoGrabWeapons = false,
 
-	-- Aim Assist
-	AimAssist = false,
-	AimAssistFOV = false,
-	AimRadius = 140,
-	AimSmoothing = 5,
-	AimTargetPart = "Head",
-	AimWallCheck = true,
-	AimKeyHeld = false,
-
 	-- Role Tracker
 	RoleTracker = false,
 	LastKnownRoles = {} :: {[Player]: string},
@@ -66,7 +57,6 @@ local RunNHide = {
 }
 
 local connections: {RBXScriptConnection} = {}
-local drawingObjects: {any} = {}
 local originalConfigs: {[string]: any} = {}
 local originalStamina: any = nil
 
@@ -396,33 +386,6 @@ local function updateVoidSafetyFloor()
 	end
 end
 
--- ── Aim Assist & Role Tracker ─────────────────────────────────────
-local hasDrawing = (type(Drawing) == "table" and type(Drawing.new) == "function")
-local aimFovCircle: any = nil
-if hasDrawing then
-	pcall(function()
-		aimFovCircle = Drawing.new("Circle")
-		aimFovCircle.Thickness = 1.5
-		aimFovCircle.NumSides = 48
-		aimFovCircle.Filled = false
-		aimFovCircle.Transparency = 0.65
-		aimFovCircle.Color = Color3.fromRGB(255, 60, 60)
-		aimFovCircle.Visible = false
-		table.insert(drawingObjects, aimFovCircle)
-	end)
-end
-
-local function isPartVisible(origin: Vector3, targetPart: BasePart, ignoreList: {Instance}?): boolean
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = ignoreList or {LocalPlayer.Character, targetPart.Parent}
-	params.IgnoreWater = true
-
-	local direction = targetPart.Position - origin
-	local result = Workspace:Raycast(origin, direction, params)
-	return result == nil or result.Instance:IsDescendantOf(targetPart.Parent)
-end
-
 function RunNHide.getPlayerRoleCategory(p: Player): (string, Color3)
 	local role = p:GetAttribute("Role")
 	local roleStr = tostring(role or ""):lower()
@@ -440,44 +403,6 @@ function RunNHide.getPlayerRoleCategory(p: Player): (string, Color3)
 		end
 	end
 	return "Bystander", Color3.fromRGB(60, 220, 90)
-end
-
-local function getBestAimTarget(): BasePart?
-	local cam = Workspace.CurrentCamera
-	if not cam then return nil end
-	local vp = cam.ViewportSize
-	local screenCenter = Vector2.new(vp.X / 2, vp.Y / 2)
-	local bestTarget: BasePart? = nil
-	local shortestDist = RunNHide.AimRadius or 140
-
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= LocalPlayer and p.Character then
-			local char = p.Character
-			local hum = char:FindFirstChildOfClass("Humanoid")
-			local targetPart = if RunNHide.AimTargetPart == "Head" then char:FindFirstChild("Head") else (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
-			local part = targetPart :: BasePart?
-
-			if hum and hum.Health > 0 and part then
-				local screenPos, onScreen = cam:WorldToViewportPoint(part.Position)
-				if onScreen then
-					local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-					if screenDist <= (RunNHide.AimRadius or 140) then
-						local canSee = true
-						if RunNHide.AimWallCheck then
-							canSee = isPartVisible(cam.CFrame.Position, part, {LocalPlayer.Character, char})
-						end
-
-						if canSee and screenDist < shortestDist then
-							shortestDist = screenDist
-							bestTarget = part
-						end
-					end
-				end
-			end
-		end
-	end
-
-	return bestTarget
 end
 
 -- ── Weapon Grabber ────────────────────────────────────────────────
@@ -609,31 +534,6 @@ function RunNHide.init(notifyCallback: ((string, string) -> ())?)
 	end)
 	table.insert(connections, boundHeartbeat)
 
-	-- Aim Assist Render Loop
-	local aimConn = RunService.RenderStepped:Connect(function()
-		local cam = Workspace.CurrentCamera
-		if not cam then return end
-		local vp = cam.ViewportSize
-		local screenCenter = Vector2.new(vp.X / 2, vp.Y / 2)
-
-		if aimFovCircle then
-			aimFovCircle.Position = screenCenter
-			aimFovCircle.Radius = RunNHide.AimRadius or 140
-			aimFovCircle.Visible = (RunNHide.AimAssist and RunNHide.AimAssistFOV) == true
-		end
-
-		if RunNHide.AimAssist and (RunNHide.AimKeyHeld or (RunNHide.IsShooting and RunNHide.CompleteAuto)) then
-			local targetPart = getBestAimTarget()
-			if targetPart then
-				local targetCF = CFrame.lookAt(cam.CFrame.Position, targetPart.Position)
-				local smoothness = math.max(1, RunNHide.AimSmoothing or 5)
-				local lerpFactor = math.clamp(1 / smoothness, 0.05, 1)
-				cam.CFrame = cam.CFrame:Lerp(targetCF, lerpFactor)
-			end
-		end
-	end)
-	table.insert(connections, aimConn)
-
 	-- Role Watchdog Loop
 	local roleConn = RunService.Heartbeat:Connect(function()
 		if RunNHide.RoleTracker then
@@ -659,9 +559,7 @@ function RunNHide.init(notifyCallback: ((string, string) -> ())?)
 	local inBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
 
-		if input.UserInputType == Enum.UserInputType.MouseButton2 then
-			RunNHide.AimKeyHeld = true
-		elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			local tool, config = getEquippedGun()
 			if not tool or not config then return end
 
@@ -690,9 +588,7 @@ function RunNHide.init(notifyCallback: ((string, string) -> ())?)
 	table.insert(connections, inBegan)
 
 	local inEnded = UserInputService.InputEnded:Connect(function(input, _)
-		if input.UserInputType == Enum.UserInputType.MouseButton2 then
-			RunNHide.AimKeyHeld = false
-		elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			RunNHide.IsShooting = false
 		end
 	end)
@@ -805,11 +701,6 @@ function RunNHide.cleanup()
 		pcall(function() conn:Disconnect() end)
 	end
 	table.clear(connections)
-
-	for _, d in ipairs(drawingObjects) do
-		pcall(function() d:Remove() end)
-	end
-	table.clear(drawingObjects)
 
 	if RunNHide.VoidSafetyPlat then
 		pcall(function() RunNHide.VoidSafetyPlat:Destroy() end)

@@ -457,9 +457,9 @@ function MusicTracker.new()
 
 	updateCover(nil, true, nil)
 
-	-- Highly sensitive visualizer animation loop
+	-- Natural, musical visualizer animation loop
 	local visualizerConn = RunService.RenderStepped:Connect(function()
-		local isAudible = isPlaying or (currentAudioPeak > 0.002)
+		local isAudible = isPlaying or (currentAudioPeak > 0.005)
 		if not widget.Visible or not isAudible then
 			for _, bar in ipairs(visualizerBars) do
 				bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, 3), 0.2)
@@ -468,12 +468,12 @@ function MusicTracker.new()
 		end
 
 		local t = os.clock()
-		local peakMult = math.clamp(currentAudioPeak * 2.4 + 0.60, 0.7, 2.2)
+		local peakMult = math.clamp(currentAudioPeak * 1.35 + 0.15, 0.25, 1.30)
 		for i, bar in ipairs(visualizerBars) do
-			local specVal = currentSpectrum[i] or 0.35
-			local wave = math.abs(math.sin(t * 14 + i * 0.80)) * 0.45 + 0.55
-			local h = math.clamp(math.floor(specVal * 50 * peakMult * wave + 4), 4, 46)
-			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), 0.55)
+			local specVal = currentSpectrum[i] or 0.18
+			local wave = math.abs(math.sin(t * 11 + i * 0.70)) * 0.32 + 0.68
+			local h = math.clamp(math.floor(specVal * 34 * peakMult * wave + 3), 3, 40)
+			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), 0.38)
 		end
 	end)
 

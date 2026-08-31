@@ -119,32 +119,32 @@ def update_audio_spectrum():
     if peak > 0.001:
         current_media["isPlaying"] = True
 
-    # Ultra-Sensitive Automatic Gain Control
+    # Balanced Musical Automatic Gain Control
     if peak > max_recent_peak:
-        max_recent_peak = max(0.0005, peak)
+        max_recent_peak = max(0.005, peak)
     else:
-        max_recent_peak = max(0.0005, max_recent_peak * 0.988)
+        max_recent_peak = max(0.005, max_recent_peak * 0.992)
 
-    ratio = min(1.0, peak / max(0.0005, max_recent_peak))
-    boosted_peak = math.pow(ratio, 0.28) * 1.95 if ratio > 0 else 0.0
+    ratio = min(1.0, peak / max(0.005, max_recent_peak))
+    boosted_peak = math.pow(ratio, 0.60) * 1.15 if ratio > 0 else 0.0
     boosted_peak = max(0.0, min(1.0, boosted_peak))
 
-    # Fast attack, smooth decay
+    # Fast attack, smooth musical decay
     if boosted_peak > smoothed_peak:
-        smoothed_peak = smoothed_peak * 0.15 + boosted_peak * 0.85
+        smoothed_peak = smoothed_peak * 0.22 + boosted_peak * 0.78
     else:
-        smoothed_peak = smoothed_peak * 0.65 + boosted_peak * 0.35
+        smoothed_peak = smoothed_peak * 0.80 + boosted_peak * 0.20
 
     current_media["audioPeak"] = round(smoothed_peak, 3)
 
-    phase += 0.25
+    phase += 0.22
     new_spectrum = []
     for i in range(16):
-        bass_mult = 1.70 if i < 5 else (1.40 if i < 10 else 1.15)
-        osc = math.sin(phase * (1.3 + i * 0.22) + i * 0.55) * 0.40 + 0.60
-        noise = (random.random() - 0.5) * 0.10
-        val = max(0.20, min(1.0, (smoothed_peak * bass_mult * osc + noise) * 1.35))
-        band_energy[i] = band_energy[i] * 0.22 + val * 0.78
+        bass_mult = 1.25 if i < 5 else (1.10 if i < 10 else 0.90)
+        osc = math.sin(phase * (1.25 + i * 0.22) + i * 0.55) * 0.35 + 0.65
+        noise = (random.random() - 0.5) * 0.08
+        val = max(0.05, min(1.0, (smoothed_peak * bass_mult * osc + noise)))
+        band_energy[i] = band_energy[i] * 0.40 + val * 0.60
         new_spectrum.append(round(band_energy[i], 3))
 
     current_media["spectrum"] = new_spectrum

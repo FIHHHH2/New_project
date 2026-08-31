@@ -2,6 +2,9 @@
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local SoundService = game:GetService("SoundService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local CoreUI = require("Core/CoreUI.luau")
 local FeatureManager = require("Core/FeatureManager.luau")
@@ -18,29 +21,25 @@ end)
 
 local window = CoreUI.new("Project Fih Menu")
 
--- Active sidebar navigation tabs
+-- Active sidebar navigation tabs (No dummy "Tab")
 local mainTab = window:CreateTab("Main")
 local visualsTab = window:CreateTab("Visuals")
-local subTab = window:CreateTab("Tab")
 
--- Dedicated Settings & Configs tabs (opened/closed via top right buttons)
+-- Dedicated Settings & Configs tabs (opened/closed via subheader buttons)
 local settingsTab = window:CreateTab("Settings", true)
 local configsTab = window:CreateTab("Configs", true)
 
 window:BindSettingsTab(settingsTab)
 window:BindConfigsTab(configsTab)
 
--- Track loaded modules to prevent duplicate tabs
-local loadedModules: {[string]: any} = {}
-
 -- ============================================================
--- MAIN TAB CONTENT
+-- MAIN / MENU TAB CONTENT
 -- ============================================================
 window:AddBanner(mainTab)
 
 local leftCol, rightCol = window:CreateColumns(mainTab)
 
--- left column: category "Self Configs"
+-- LEFT COLUMN: Self Configs & Movement
 local selfSection = window:AddSection(leftCol, "Self Configs")
 
 window:AddToggle(selfSection, "walkspeed_boost", "WalkSpeed Boost", false, Enum.KeyCode.V, function(enabled)
@@ -61,39 +60,97 @@ window:AddSlider(selfSection, "Custom Speed", 16, 150, 16, function(value)
 	end
 end)
 
--- right column: category "Modules" (Dynamic Module Loader)
-local moduleSection = window:AddSection(rightCol, "Modules")
+-- Movement Section
+local moveSection = window:AddSection(leftCol, "Movement")
 
-window:AddButton(moduleSection, "Load Combat Module", function()
-	if loadedModules["Combat"] then
-		window:SelectTab(loadedModules["Combat"])
-	else
-		local success, Combat = pcall(function()
-			return require("Modules/Combat.luau")
+local noclipConn: RBXScriptConnection? = nil
+window:AddToggle(moveSection, "noclip_toggle", "Noclip", false, Enum.KeyCode.N, function(enabled)
+	if enabled then
+		noclipConn = RunService.Stepped:Connect(function()
+			if localPlayer.Character then
+				for _, part in ipairs(localPlayer.Character:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = false
+					end
+				end
+			end
 		end)
-		if success and Combat and typeof(Combat.init) == "function" then
-			local tab = Combat.init(window)
-			loadedModules["Combat"] = tab
-		else
-			warn("[Main] Failed to load Combat module:", Combat)
+	elseif noclipConn then
+		noclipConn:Disconnect()
+		noclipConn = nil
+	end
+end)
+
+local infJumpConn: RBXScriptConnection? = nil
+window:AddToggle(moveSection, "inf_jump", "Infinite Jump", false, Enum.KeyCode.Space, function(enabled)
+	if enabled then
+		infJumpConn = UserInputService.JumpRequest:Connect(function()
+			if localPlayer.Character then
+				local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
+				if hum then
+					hum:ChangeState(Enum.HumanoidStateType.Jumping)
+				end
+			end
+		end)
+	elseif infJumpConn then
+		infJumpConn:Disconnect()
+		infJumpConn = nil
+	end
+end)
+
+window:AddSlider(moveSection, "Custom Gravity", 0, 196, 196, function(value)
+	Workspace.Gravity = value
+end)
+
+window:AddSlider(moveSection, "Hip Height Offset", 0, 20, 0, function(value)
+	if localPlayer.Character then
+		local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
+		if hum then
+			hum.HipHeight = value
 		end
 	end
 end)
 
-window:AddButton(moduleSection, "Load Movement Module", function()
-	if loadedModules["Movement"] then
-		window:SelectTab(loadedModules["Movement"])
-	else
-		local success, Movement = pcall(function()
-			return require("Modules/Movement.luau")
-		end)
-		if success and Movement and typeof(Movement.init) == "function" then
-			local tab = Movement.init(window)
-			loadedModules["Movement"] = tab
-		else
-			warn("[Main] Failed to load Movement module:", Movement)
+-- RIGHT COLUMN: Combat
+local combatSection = window:AddSection(rightCol, "Combat")
+
+window:AddToggle(combatSection, "silent_aim", "Silent Aim", false, Enum.KeyCode.Q, function(enabled)
+	print("[Combat] Silent Aim:", enabled)
+end)
+
+window:AddToggle(combatSection, "aimbot_fov", "Show FOV Circle", false, nil, function(enabled)
+	print("[Combat] Show FOV:", enabled)
+end)
+
+window:AddSlider(combatSection, "Aim FOV Radius", 30, 360, 90, function(value)
+	print("[Combat] FOV Radius set to:", value)
+end)
+
+local originalSizes: {[BasePart]: Vector3} = {}
+window:AddToggle(combatSection, "hitbox_expander", "Expand Hitboxes", false, nil, function(enabled)
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= localPlayer and player.Character then
+			local hrp = player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if hrp then
+				if enabled then
+					if not originalSizes[hrp] then
+						originalSizes[hrp] = hrp.Size
+					end
+					hrp.Size = Vector3.new(12, 12, 12)
+					hrp.Transparency = 0.6
+					hrp.CanCollide = false
+				else
+					local orig = originalSizes[hrp] or Vector3.new(2, 2, 1)
+					hrp.Size = orig
+					hrp.Transparency = 1
+				end
+			end
 		end
 	end
+end)
+
+window:AddSlider(combatSection, "Hitbox Size", 2, 25, 12, function(value)
+	print("[Combat] Hitbox Size set to:", value)
 end)
 
 -- ============================================================

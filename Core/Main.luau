@@ -10,6 +10,7 @@ local CoreUI = require("Core/CoreUI.luau")
 local FeatureManager = require("Core/FeatureManager.luau")
 local Visuals = require("Modules/Visuals.luau")
 local Combat = require("Modules/Combat.luau")
+local DisasterSurvival = require("Modules/DisasterSurvival.luau")
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
@@ -26,6 +27,7 @@ local window = CoreUI.new("Project Fih Menu")
 local mainTab = window:CreateTab("Main")
 local visualsTab = window:CreateTab("Visuals")
 local combatTab = window:CreateTab("Combat")
+local gameTab = window:CreateTab("Game")
 
 -- Dedicated Settings & Configs tabs (opened/closed via subheader buttons)
 local settingsTab = window:CreateTab("Settings", true)
@@ -33,6 +35,13 @@ local configsTab = window:CreateTab("Configs", true)
 
 window:BindSettingsTab(settingsTab)
 window:BindConfigsTab(configsTab)
+
+-- Initialize Game Survival Engine
+DisasterSurvival.init(function(disasterName)
+	if DisasterSurvival.DisasterTracker then
+		window:Notify("Disaster Warning!", string.format("Detected: %s", disasterName), 4)
+	end
+end)
 
 -- ============================================================
 -- MAIN / MENU TAB CONTENT
@@ -133,6 +142,10 @@ window:AddToggle(aimSection, "track_teammates", "Track Teammates", false, nil, f
 	Combat.TrackTeammates = enabled
 end)
 
+window:AddToggle(aimSection, "trigger_bot", "Trigger Bot", false, nil, function(enabled)
+	Combat.TriggerBot = enabled
+end)
+
 window:AddToggle(aimSection, "fov_circle", "FOV Circle", false, nil, function(enabled)
 	Combat.FovCircle = enabled
 end)
@@ -157,6 +170,50 @@ end)
 
 window:AddSlider(hitSection, "Hitbox Size", 2, 30, 12, function(value)
 	Combat.HitboxSize = value
+end)
+
+-- ============================================================
+-- GAME TAB CONTENT (NATURAL DISASTER SURVIVAL & UTILITIES)
+-- ============================================================
+local gameLeftCol, gameRightCol = window:CreateColumns(gameTab)
+
+-- Disaster Intelligence
+local disasterSection = window:AddSection(gameLeftCol, "Disaster Intelligence")
+
+window:AddToggle(disasterSection, "disaster_tracker", "Disaster Tracker", false, nil, function(enabled)
+	DisasterSurvival.DisasterTracker = enabled
+	if enabled and DisasterSurvival.CurrentDisaster ~= "None" and DisasterSurvival.CurrentDisaster ~= "" then
+		window:Notify("Current Disaster", DisasterSurvival.CurrentDisaster, 3.5)
+	end
+end)
+
+window:AddButton(disasterSection, "Check Current Disaster", function()
+	local tag = localPlayer.Character and localPlayer.Character:FindFirstChild("SurvivalTag")
+	local cur = if tag and tag:IsA("StringValue") and tag.Value ~= "" then tag.Value else "None (In Lobby)"
+	window:Notify("Disaster Status", cur, 3.5)
+end)
+
+window:AddToggle(disasterSection, "no_fall_damage", "No Fall Damage", false, nil, function(enabled)
+	DisasterSurvival.setNoFallDamage(enabled)
+end)
+
+window:AddToggle(disasterSection, "flight_no_fall", "Flight No Fall Damage", false, nil, function(enabled)
+	DisasterSurvival.setFlight(enabled)
+end)
+
+window:AddSlider(disasterSection, "Flight Speed", 20, 150, 50, function(value)
+	DisasterSurvival.FlightSpeed = value
+end)
+
+-- Physics & Protection
+local physicsSection = window:AddSection(gameRightCol, "Physics & Protection")
+
+window:AddToggle(physicsSection, "anti_fling", "Anti-Fling Protection", false, nil, function(enabled)
+	DisasterSurvival.setAntiFling(enabled)
+end)
+
+window:AddToggle(physicsSection, "player_fling", "Object / Player Fling", false, nil, function(enabled)
+	DisasterSurvival.setFling(enabled)
 end)
 
 -- ============================================================

@@ -64,6 +64,8 @@ local function requireRemote(path: string): any
 			path = "Modules/Combat.luau"
 		elseif path == "Modules/Movement" or path == "Movement" then
 			path = "Modules/Movement.luau"
+		elseif path == "Modules/DisasterSurvival" or path == "DisasterSurvival" then
+			path = "Modules/DisasterSurvival.luau"
 		end
 	end
 
@@ -103,6 +105,8 @@ local function requireRemote(path: string): any
 					return requireRemote("Modules/Combat.luau")
 				elseif name == "Movement" then
 					return requireRemote("Modules/Movement.luau")
+				elseif name == "DisasterSurvival" then
+					return requireRemote("Modules/DisasterSurvival.luau")
 				end
 			end
 			return require(target)
@@ -126,6 +130,9 @@ local Notification = requireRemote("UI/Notification.luau")
 local FeatureManager = requireRemote("Core/FeatureManager.luau")
 local CoreUI = requireRemote("Core/CoreUI.luau")
 local Visuals = requireRemote("Modules/Visuals.luau")
+local Combat = requireRemote("Modules/Combat.luau")
+local Movement = requireRemote("Modules/Movement.luau")
+local DisasterSurvival = requireRemote("Modules/DisasterSurvival.luau")
 
 -- Bootstrap Main Runtime
 local mainSource = fetchSource("Core/Main.luau")
@@ -154,6 +161,12 @@ local customMainEnv = setmetatable({
 				return Animations
 			elseif name == "Visuals" then
 				return Visuals
+			elseif name == "Combat" then
+				return Combat
+			elseif name == "Movement" then
+				return Movement
+			elseif name == "DisasterSurvival" then
+				return DisasterSurvival
 			end
 		end
 		return require(target)

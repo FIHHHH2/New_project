@@ -36,7 +36,7 @@ end
 
 local function repositionCards()
 	for i, card in ipairs(activeCards) do
-		local targetY = -20 - (i * 76)
+		local targetY = -20 - (i * 74)
 		TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Position = UDim2.new(1, -270, 1, targetY)
 		}):Play()
@@ -45,12 +45,12 @@ end
 
 function Notification.show(title: string, message: string, duration: number?)
 	local gui = getNotificationGui()
-	local displayTime = duration or 2.8
+	local displayTime = duration or 3.8
 	
 	local card = Instance.new("Frame")
 	card.Name = "NotificationCard"
 	card.Size = UDim2.new(0, 250, 0, 68)
-	card.Position = UDim2.new(1, 40, 1, -20 - (#activeCards + 1) * 76)
+	card.Position = UDim2.new(1, 40, 1, -20 - (#activeCards + 1) * 74)
 	card.BackgroundColor3 = UI.Theme.Background
 	card.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	card.BorderSizePixel = 0
@@ -139,9 +139,9 @@ function Notification.show(title: string, message: string, duration: number?)
 	repositionCards()
 	
 	-- Slide in from right
-	card.Position = UDim2.new(1, 40, 1, -20 - 76)
+	card.Position = UDim2.new(1, 40, 1, -20 - 74)
 	TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Position = UDim2.new(1, -270, 1, -20 - 76)
+		Position = UDim2.new(1, -270, 1, -20 - 74)
 	}):Play()
 	
 	task.delay(displayTime, function()

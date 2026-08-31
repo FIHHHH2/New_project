@@ -1,11 +1,12 @@
 --!strict
 --[=[
-    ✦ Squared Retro Chat Widget with Seamless RichText Flow & Full-Screen Dragging ✦
+    ✦ Squared Retro Chat Widget with Scaling Grip & Player Profile Action Popup ✦
     Features:
-    - IgnoreGuiInset = true (can be positioned and dragged anywhere on screen including top border)
-    - Seamless RichText chat messages: message flows immediately after player name with zero gaps or truncation
+    - Corner resize grip: smooth scaling from 260x180 to 800x600
+    - Player Name Click: opens sleek Player Profile & Action Popup (Teleport, Spectate, Friend, Block, Report, Copy ID)
+    - Full IgnoreGuiInset dragging
+    - RichText seamless message flow
     - Action Header: [ ⯎ ] Roblox Menu, [ ≡ ] Hamburger Dropdown, [ 🎙 ] VoiceChat Mic Toggle
-    - Quick chat and send message controls
 ]=]
 
 local Players = game:GetService("Players")
@@ -38,7 +39,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	screenGui.Name = "ModularChatGui"
 	screenGui.ResetOnSpawn = false
 	screenGui.DisplayOrder = 500
-	screenGui.IgnoreGuiInset = true -- Allows moving anywhere on screen including top CoreGui area
+	screenGui.IgnoreGuiInset = true
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	pcall(function() screenGui.Parent = CoreGui end)
 	if not screenGui.Parent then
@@ -543,27 +544,282 @@ function ChatWidget.new(): ChatWidgetInstance
 	sendStroke.Parent = sendBtn
 	UI.registerThemeElement(sendStroke, "Border")
 
-	-- ── Message Line Constructor (Seamless RichText Flow) ─────────────
+	-- ============================================================
+	-- ── CORNER RESIZE GRIP (SCALE CHATBAR ANY SIZE) ─────────────
+	-- ============================================================
+	local resizeGrip = Instance.new("TextButton")
+	resizeGrip.Name = "ResizeGrip"
+	resizeGrip.Size = UDim2.new(0, 14, 0, 14)
+	resizeGrip.Position = UDim2.new(1, -14, 1, -14)
+	resizeGrip.BackgroundTransparency = 1
+	resizeGrip.Text = "///"
+	resizeGrip.TextColor3 = UI.Theme.BorderDim
+	resizeGrip.Font = UI.Fonts.Mono
+	resizeGrip.TextSize = 9
+	resizeGrip.ZIndex = 20
+	resizeGrip.Parent = widget
+	UI.registerThemeElement(resizeGrip, "BorderDimText")
+
+	local isResizing = false
+	local resizeStart = Vector2.zero
+	local sizeStart = Vector2.zero
+
+	resizeGrip.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			isResizing = true
+			resizeStart = Vector2.new(input.Position.X, input.Position.Y)
+			sizeStart = Vector2.new(widget.AbsoluteSize.X, widget.AbsoluteSize.Y)
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					isResizing = false
+				end
+			end)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if isResizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = Vector2.new(input.Position.X, input.Position.Y) - resizeStart
+			local newW = math.clamp(sizeStart.X + delta.X, 260, 800)
+			local newH = math.clamp(sizeStart.Y + delta.Y, 180, 600)
+			widget.Size = UDim2.new(0, newW, 0, newH)
+		end
+	end)
+
+	-- ============================================================
+	-- ── PLAYER ACTION CONTEXT MENU POPUP ────────────────────────
+	-- ============================================================
+	local profilePopup = Instance.new("Frame")
+	profilePopup.Name = "PlayerProfilePopup"
+	profilePopup.Size = UDim2.new(0, 190, 0, 240)
+	profilePopup.Position = UDim2.new(0, 20, 0, 35)
+	profilePopup.BackgroundColor3 = UI.Theme.Background
+	profilePopup.BackgroundTransparency = 0.02
+	profilePopup.BorderSizePixel = 0
+	profilePopup.Visible = false
+	profilePopup.ZIndex = 80
+	profilePopup.Parent = screenGui
+	UI.registerThemeElement(profilePopup, "Background")
+
+	local popStroke = Instance.new("UIStroke")
+	popStroke.Color = UI.Theme.Border
+	popStroke.Thickness = 1.5
+	popStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	popStroke.Parent = profilePopup
+	UI.registerThemeElement(popStroke, "Border")
+
+	local popHeader = Instance.new("Frame")
+	popHeader.Size = UDim2.new(1, 0, 0, 48)
+	popHeader.BackgroundColor3 = UI.Theme.Container
+	popHeader.BackgroundTransparency = UI.Theme.ContainerTransparency
+	popHeader.BorderSizePixel = 0
+	popHeader.ZIndex = 81
+	popHeader.Parent = profilePopup
+	UI.registerThemeElement(popHeader, "Container")
+
+	local popHeadStroke = Instance.new("UIStroke")
+	popHeadStroke.Color = UI.Theme.Border
+	popHeadStroke.Thickness = 1
+	popHeadStroke.Parent = popHeader
+	UI.registerThemeElement(popHeadStroke, "Border")
+
+	local popAvatar = Instance.new("ImageLabel")
+	popAvatar.Size = UDim2.new(0, 36, 0, 36)
+	popAvatar.Position = UDim2.new(0, 6, 0, 6)
+	popAvatar.BackgroundTransparency = 1
+	popAvatar.ZIndex = 82
+	popAvatar.Parent = popHeader
+
+	local popTitle = Instance.new("TextLabel")
+	popTitle.Size = UDim2.new(1, -50, 0, 18)
+	popTitle.Position = UDim2.new(0, 46, 0, 6)
+	popTitle.BackgroundTransparency = 1
+	popTitle.Text = "Player"
+	popTitle.TextColor3 = UI.Theme.TextPrimary
+	popTitle.Font = UI.Fonts.Header
+	popTitle.TextSize = 11
+	popTitle.TextXAlignment = Enum.TextXAlignment.Left
+	popTitle.ZIndex = 82
+	popTitle.Parent = popHeader
+	UI.registerThemeElement(popTitle, "TextPrimary")
+
+	local popUser = Instance.new("TextLabel")
+	popUser.Size = UDim2.new(1, -50, 0, 14)
+	popUser.Position = UDim2.new(0, 46, 0, 24)
+	popUser.BackgroundTransparency = 1
+	popUser.Text = "@Username"
+	popUser.TextColor3 = UI.Theme.TextSecondary
+	popUser.Font = UI.Fonts.Mono
+	popUser.TextSize = 9
+	popUser.TextXAlignment = Enum.TextXAlignment.Left
+	popUser.ZIndex = 82
+	popUser.Parent = popHeader
+	UI.registerThemeElement(popUser, "TextSecondary")
+
+	local popClose = Instance.new("TextButton")
+	popClose.Size = UDim2.new(0, 18, 0, 18)
+	popClose.Position = UDim2.new(1, -22, 0, 6)
+	popClose.BackgroundTransparency = 1
+	popClose.Text = "X"
+	popClose.TextColor3 = UI.Theme.TextPrimary
+	popClose.Font = UI.Fonts.Mono
+	popClose.TextSize = 10
+	popClose.ZIndex = 83
+	popClose.Parent = popHeader
+
+	popClose.MouseButton1Click:Connect(function()
+		profilePopup.Visible = false
+	end)
+
+	local popBtnsFrame = Instance.new("Frame")
+	popBtnsFrame.Size = UDim2.new(1, -8, 1, -54)
+	popBtnsFrame.Position = UDim2.new(0, 4, 0, 52)
+	popBtnsFrame.BackgroundTransparency = 1
+	popBtnsFrame.ZIndex = 81
+	popBtnsFrame.Parent = profilePopup
+
+	local popLayout = Instance.new("UIListLayout")
+	popLayout.Padding = UDim.new(0, 3)
+	popLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	popLayout.Parent = popBtnsFrame
+
+	local activeSelectedPlayer: Player? = nil
+	local function createPopAction(text: string, order: number, onClick: (Player) -> ())
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(1, 0, 0, 22)
+		btn.BackgroundColor3 = UI.Theme.ContainerDark
+		btn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+		btn.BorderSizePixel = 0
+		btn.Text = "  " .. text
+		btn.TextColor3 = UI.Theme.TextPrimary
+		btn.Font = UI.Fonts.Body
+		btn.TextSize = 10
+		btn.TextXAlignment = Enum.TextXAlignment.Left
+		btn.LayoutOrder = order
+		btn.ZIndex = 82
+		btn.Parent = popBtnsFrame
+		UI.registerThemeElement(btn, "ContainerDark")
+		UI.registerThemeElement(btn, "TextPrimary")
+
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = UI.Theme.Border
+		stroke.Thickness = 0.8
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Parent = btn
+		UI.registerThemeElement(stroke, "Border")
+
+		btn.MouseEnter:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundColor3 = UI.Theme.Accent, TextColor3 = UI.Theme.AccentText }):Play()
+		end)
+		btn.MouseLeave:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundColor3 = UI.Theme.ContainerDark, TextColor3 = UI.Theme.TextPrimary }):Play()
+		end)
+
+		btn.MouseButton1Click:Connect(function()
+			if activeSelectedPlayer then
+				onClick(activeSelectedPlayer)
+			end
+			profilePopup.Visible = false
+		end)
+	end
+
+	createPopAction("Teleport To", 1, function(target)
+		local myChar = Players.LocalPlayer.Character
+		local tChar = target.Character
+		if myChar and tChar and myChar:FindFirstChild("HumanoidRootPart") and tChar:FindFirstChild("HumanoidRootPart") then
+			myChar.HumanoidRootPart.CFrame = tChar.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+		end
+	end)
+
+	local isSpying = false
+	createPopAction("Spectate / Spy", 2, function(target)
+		isSpying = not isSpying
+		local cam = workspace.CurrentCamera
+		if isSpying and target.Character and target.Character:FindFirstChildOfClass("Humanoid") then
+			cam.CameraSubject = target.Character:FindFirstChildOfClass("Humanoid")
+		else
+			if Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+				cam.CameraSubject = Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+			end
+			isSpying = false
+		end
+	end)
+
+	createPopAction("Add Friend", 3, function(target)
+		pcall(function()
+			StarterGui:SetCore("PromptSendFriendRequest", target)
+		end)
+	end)
+
+	createPopAction("Block Player", 4, function(target)
+		pcall(function()
+			StarterGui:SetCore("PromptBlockPlayer", target)
+		end)
+	end)
+
+	createPopAction("Report Player", 5, function(target)
+		pcall(function()
+			StarterGui:SetCore("PromptReportPlayer", target)
+		end)
+	end)
+
+	createPopAction("Copy Username", 6, function(target)
+		local setclip = setclipboard or (getgenv and getgenv().setclipboard) or toclipboard
+		if type(setclip) == "function" then
+			setclip(target.Name)
+		end
+	end)
+
+	local function openPlayerProfile(player: Player, clickPos: Vector2)
+		activeSelectedPlayer = player
+		popTitle.Text = player.DisplayName
+		popUser.Text = "@" .. player.Name
+		popAvatar.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
+		
+		local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+		local x = math.clamp(clickPos.X, 10, vp.X - 200)
+		local y = math.clamp(clickPos.Y, 10, vp.Y - 250)
+		profilePopup.Position = UDim2.new(0, x, 0, y)
+		profilePopup.Visible = true
+	end
+
+	-- ── Message Line Constructor (Seamless RichText Flow + Profile Hook) ──
 	local function addMessage(sender: string, text: string)
 		local isSystem = (sender == "System")
-		local msgLabel = Instance.new("TextLabel")
-		msgLabel.Name = "MessageLine"
-		msgLabel.Size = UDim2.new(1, -8, 0, 0)
-		msgLabel.Position = UDim2.new(0, 4, 0, 0)
-		msgLabel.AutomaticSize = Enum.AutomaticSize.Y
-		msgLabel.BackgroundTransparency = 1
-		msgLabel.RichText = true
-		msgLabel.TextWrapped = true
-		msgLabel.Font = UI.Fonts.Body
-		msgLabel.TextSize = 11
-		msgLabel.TextXAlignment = Enum.TextXAlignment.Left
-		msgLabel.TextColor3 = UI.Theme.TextPrimary
-		msgLabel.Parent = container
+		local targetPlayer: Player? = nil
+		if not isSystem then
+			for _, p in ipairs(Players:GetPlayers()) do
+				if p.Name == sender or p.DisplayName == sender then
+					targetPlayer = p
+					break
+				end
+			end
+		end
+
+		local msgBtn = Instance.new("TextButton")
+		msgBtn.Name = "MessageLine"
+		msgBtn.Size = UDim2.new(1, -8, 0, 0)
+		msgBtn.AutomaticSize = Enum.AutomaticSize.Y
+		msgBtn.BackgroundTransparency = 1
+		msgBtn.RichText = true
+		msgBtn.TextWrapped = true
+		msgBtn.Font = UI.Fonts.Body
+		msgBtn.TextSize = 11
+		msgBtn.TextXAlignment = Enum.TextXAlignment.Left
+		msgBtn.TextColor3 = UI.Theme.TextPrimary
+		msgBtn.Parent = container
 
 		local senderHex = if isSystem then "#A0A0AA" else "#37AFF5"
 		local cleanName = sender:gsub("<", "&lt;"):gsub(">", "&gt;")
 		local cleanMsg = text:gsub("<", "&lt;"):gsub(">", "&gt;")
-		msgLabel.Text = string.format("<font color='%s'><b>%s:</b></font> %s", senderHex, cleanName, cleanMsg)
+		msgBtn.Text = string.format("<font color='%s'><b>%s:</b></font> %s", senderHex, cleanName, cleanMsg)
+
+		if targetPlayer then
+			msgBtn.MouseButton1Click:Connect(function()
+				local mousePos = UserInputService:GetMouseLocation()
+				openPlayerProfile(targetPlayer :: Player, mousePos)
+			end)
+		end
 
 		task.defer(function()
 			container.CanvasPosition = Vector2.new(0, math.max(0, container.AbsoluteCanvasSize.Y - container.AbsoluteWindowSize.Y))
@@ -608,12 +864,14 @@ function ChatWidget.new(): ChatWidgetInstance
 		if minimized then
 			container.Visible = false
 			bottomBar.Visible = false
+			resizeGrip.Visible = false
 			TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				Size = UDim2.new(0, widget.AbsoluteSize.X, 0, TOPBAR_H)
 			}):Play()
 		else
 			container.Visible = true
 			bottomBar.Visible = true
+			resizeGrip.Visible = true
 			TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				Size = UDim2.new(0, widget.AbsoluteSize.X, 0, DEFAULT_H)
 			}):Play()
@@ -675,6 +933,7 @@ function ChatWidget.new(): ChatWidgetInstance
 				minimized = false
 				container.Visible = true
 				bottomBar.Visible = true
+				resizeGrip.Visible = true
 				widget.Size = UDim2.new(0, widget.AbsoluteSize.X, 0, DEFAULT_H)
 			end
 			task.defer(function()

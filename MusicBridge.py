@@ -4,8 +4,8 @@ Connects Windows Media Session (Spotify, SoundCloud, YouTube, Apple Music)
 to the Modular Roblox UI suite at http://127.0.0.1:8888.
 
 Features:
-- Live Album Cover Art binary fetcher & streamer (/cover.png) from Windows Media Session, iTunes, Deezer, and Spotify
-- LRCLIB Synchronized Lyrics fetcher (real-time timestamp matching)
+- Multi-source Synced Lyrics engine (LRCLIB, title split heuristics, Lyrics.ovh fallback)
+- Real-time album artwork streamer (/cover.png)
 - Windowless system tray app with "Run on Startup" toggle
 """
 
@@ -18,7 +18,6 @@ import threading
 import winreg
 import urllib.request
 import urllib.parse
-import hashlib
 import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import pystray
@@ -75,7 +74,7 @@ def set_startup(enable: bool):
 # ── Online Album Cover Art Fetcher (iTunes / Deezer / Web) ─────────
 def download_cover_image_bytes(title: str, artist: str) -> bytes:
     global cover_version_counter
-    clean_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*', '', title).strip()
+    clean_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*|prod\..*', '', title, flags=re.IGNORECASE).strip()
     cache_key = f"{clean_title}_{artist}".lower()
     if cache_key in cover_cache:
         return cover_cache[cache_key]
@@ -83,39 +82,40 @@ def download_cover_image_bytes(title: str, artist: str) -> bytes:
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     # 1. Try iTunes Search API
-    try:
-        q = urllib.parse.quote(f"{clean_title} {artist}".strip())
-        url = f"https://itunes.apple.com/search?term={q}&entity=song&limit=1"
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=4.0) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            if data.get("resultCount", 0) > 0:
-                art_url = data["results"][0].get("artworkUrl100", "")
-                if art_url:
-                    high_res = art_url.replace("100x100bb", "600x600bb")
-                    img_req = urllib.request.Request(high_res, headers=headers)
-                    with urllib.request.urlopen(img_req, timeout=5.0) as img_resp:
-                        img_bytes = img_resp.read()
-                        if len(img_bytes) > 200:
-                            cover_cache[cache_key] = img_bytes
-                            cover_version_counter += 1
-                            return img_bytes
-    except Exception:
-        pass
+    for q_str in [f"{clean_title} {artist}".strip(), clean_title]:
+        try:
+            q = urllib.parse.quote(q_str)
+            url = f"https://itunes.apple.com/search?term={q}&entity=song&limit=1"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data.get("resultCount", 0) > 0:
+                    art_url = data["results"][0].get("artworkUrl100", "")
+                    if art_url:
+                        high_res = art_url.replace("100x100bb", "600x600bb")
+                        img_req = urllib.request.Request(high_res, headers=headers)
+                        with urllib.request.urlopen(img_req, timeout=4.0) as img_resp:
+                            img_bytes = img_resp.read()
+                            if len(img_bytes) > 200:
+                                cover_cache[cache_key] = img_bytes
+                                cover_version_counter += 1
+                                return img_bytes
+        except Exception:
+            pass
 
     # 2. Try Deezer Search API (Fallback)
     try:
         q = urllib.parse.quote(f"{clean_title} {artist}".strip())
         url = f"https://api.deezer.com/search?q={q}&limit=1"
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=4.0) as resp:
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             if data.get("data") and len(data["data"]) > 0:
                 album = data["data"][0].get("album", {})
                 art_url = album.get("cover_xl") or album.get("cover_big") or album.get("cover_medium")
                 if art_url:
                     img_req = urllib.request.Request(art_url, headers=headers)
-                    with urllib.request.urlopen(img_req, timeout=5.0) as img_resp:
+                    with urllib.request.urlopen(img_req, timeout=4.0) as img_resp:
                         img_bytes = img_resp.read()
                         if len(img_bytes) > 200:
                             cover_cache[cache_key] = img_bytes
@@ -126,7 +126,7 @@ def download_cover_image_bytes(title: str, artist: str) -> bytes:
 
     return b""
 
-# ── Synchronized Lyrics Fetcher (LRCLIB) ───────────────────────────
+# ── Multi-Source Synchronized Lyrics Engine ─────────────────────────
 def parse_lrc(lrc_text: str):
     lines = []
     for line in lrc_text.splitlines():
@@ -142,52 +142,89 @@ def parse_lrc(lrc_text: str):
     return lines
 
 def fetch_synced_lyrics(title: str, artist: str, duration: float):
-    clean_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*', '', title).strip()
+    clean_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*|prod\..*', '', title, flags=re.IGNORECASE).strip()
     cache_key = f"{clean_title}_{artist}".lower()
     if cache_key in lyrics_cache:
         return lyrics_cache[cache_key]
 
     headers = {"User-Agent": "Mozilla/5.0"}
+    
+    # Check if title is in format "Artist - Track" (common in Soundcloud/YouTube)
+    extracted_artist, extracted_title = artist, clean_title
+    if " - " in title:
+        parts = title.split(" - ", 1)
+        extracted_artist = parts[0].strip()
+        extracted_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*', '', parts[1], flags=re.IGNORECASE).strip()
+
+    search_queries = [
+        (extracted_artist, extracted_title),
+        (artist, clean_title),
+        ("", extracted_title),
+        ("", clean_title)
+    ]
+
+    # 1. LRCLIB Exact & Search Endpoints
+    for a_name, t_name in search_queries:
+        if not t_name: continue
+        try:
+            if a_name:
+                q_t = urllib.parse.quote(t_name)
+                q_a = urllib.parse.quote(a_name)
+                url = f"https://lrclib.net/api/get?artist_name={q_a}&track_name={q_t}"
+                if duration > 0:
+                    url += f"&duration={int(duration)}"
+                req = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(req, timeout=3.0) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    if data.get("syncedLyrics"):
+                        parsed = parse_lrc(data["syncedLyrics"])
+                        if len(parsed) > 0:
+                            lyrics_cache[cache_key] = {"type": "synced", "lines": parsed}
+                            return lyrics_cache[cache_key]
+                    elif data.get("plainLyrics"):
+                        plain_lines = [l.strip() for l in data["plainLyrics"].splitlines() if l.strip()]
+                        if len(plain_lines) > 0:
+                            lyrics_cache[cache_key] = {"type": "plain", "lines": plain_lines}
+                            return lyrics_cache[cache_key]
+        except Exception:
+            pass
+
+        # LRCLIB Search fallback
+        try:
+            q = urllib.parse.quote(f"{t_name} {a_name}".strip())
+            url = f"https://lrclib.net/api/search?q={q}"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                results = json.loads(resp.read().decode("utf-8"))
+                if results and isinstance(results, list) and len(results) > 0:
+                    for item in results[:3]:
+                        if item.get("syncedLyrics"):
+                            parsed = parse_lrc(item["syncedLyrics"])
+                            if len(parsed) > 0:
+                                lyrics_cache[cache_key] = {"type": "synced", "lines": parsed}
+                                return lyrics_cache[cache_key]
+                        elif item.get("plainLyrics"):
+                            plain_lines = [l.strip() for l in item["plainLyrics"].splitlines() if l.strip()]
+                            if len(plain_lines) > 0:
+                                lyrics_cache[cache_key] = {"type": "plain", "lines": plain_lines}
+                                return lyrics_cache[cache_key]
+        except Exception:
+            pass
+
+    # 2. Lyrics.ovh Fallback
     try:
-        q_title = urllib.parse.quote(clean_title)
-        q_artist = urllib.parse.quote(artist)
-        url = f"https://lrclib.net/api/get?artist_name={q_artist}&track_name={q_title}"
-        if duration > 0:
-            url += f"&duration={int(duration)}"
-
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3.5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            synced = data.get("syncedLyrics")
-            if synced:
-                parsed = parse_lrc(synced)
-                lyrics_cache[cache_key] = {"type": "synced", "lines": parsed}
-                return lyrics_cache[cache_key]
-
-            plain = data.get("plainLyrics")
-            if plain:
-                plain_lines = [l.strip() for l in plain.splitlines() if l.strip()]
-                lyrics_cache[cache_key] = {"type": "plain", "lines": plain_lines}
-                return lyrics_cache[cache_key]
-    except Exception:
-        pass
-
-    try:
-        q = urllib.parse.quote(f"{clean_title} {artist}".strip())
-        url = f"https://lrclib.net/api/search?q={q}"
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3.5) as resp:
-            results = json.loads(resp.read().decode("utf-8"))
-            if results and isinstance(results, list) and len(results) > 0:
-                first = results[0]
-                if first.get("syncedLyrics"):
-                    parsed = parse_lrc(first["syncedLyrics"])
-                    lyrics_cache[cache_key] = {"type": "synced", "lines": parsed}
-                    return lyrics_cache[cache_key]
-                elif first.get("plainLyrics"):
-                    plain_lines = [l.strip() for l in first["plainLyrics"].splitlines() if l.strip()]
-                    lyrics_cache[cache_key] = {"type": "plain", "lines": plain_lines}
-                    return lyrics_cache[cache_key]
+        if extracted_artist and extracted_title:
+            q_a = urllib.parse.quote(extracted_artist)
+            q_t = urllib.parse.quote(extracted_title)
+            url = f"https://api.lyrics.ovh/v1/{q_a}/{q_t}"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data.get("lyrics"):
+                    plain_lines = [l.strip() for l in data["lyrics"].splitlines() if l.strip()]
+                    if len(plain_lines) > 0:
+                        lyrics_cache[cache_key] = {"type": "plain", "lines": plain_lines}
+                        return lyrics_cache[cache_key]
     except Exception:
         pass
 
@@ -197,7 +234,7 @@ def fetch_synced_lyrics(title: str, artist: str, duration: float):
 def get_current_lyric_line(title: str, artist: str, position: float, duration: float) -> str:
     lyrics_obj = fetch_synced_lyrics(title, artist, duration)
     if not lyrics_obj:
-        return f"Listening to: {title}"
+        return f"{title}"
 
     if lyrics_obj["type"] == "synced":
         lines = lyrics_obj["lines"]
@@ -207,7 +244,7 @@ def get_current_lyric_line(title: str, artist: str, position: float, duration: f
                 active_text = text
             else:
                 break
-        return active_text if active_text else lines[0][1] if lines else f"Listening to: {title}"
+        return active_text if active_text else (lines[0][1] if lines else title)
 
     elif lyrics_obj["type"] == "plain":
         lines = lyrics_obj["lines"]
@@ -216,13 +253,13 @@ def get_current_lyric_line(title: str, artist: str, position: float, duration: f
             idx = max(0, min(len(lines) - 1, idx))
             return lines[idx]
 
-    return f"Listening to: {title}"
+    return f"{title}"
 
 # ── Windows Media Session Poller ──────────────────────────────────
 last_song_query = ""
 
 async def fetch_windows_media():
-    global current_cover_bytes, last_song_query
+    global current_cover_bytes, last_song_query, cover_version_counter
     try:
         from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionManager as SessionManager
         from winrt.windows.storage.streams import DataReader
@@ -265,6 +302,9 @@ async def fetch_windows_media():
                             reader.read_bytes(buf)
                             if len(buf) > 100:
                                 current_cover_bytes = bytes(buf)
+                                cover_version_counter += 1
+                                current_media["coverVersion"] = cover_version_counter
+                                current_media["hasCover"] = True
                                 got_native_cover = True
                         except Exception:
                             pass
@@ -280,10 +320,6 @@ async def fetch_windows_media():
                                 current_media["coverVersion"] = cover_version_counter
                                 current_media["hasCover"] = True
                         threading.Thread(target=download_bg, daemon=True).start()
-                    else:
-                        cover_version_counter += 1
-                        current_media["coverVersion"] = cover_version_counter
-                        current_media["hasCover"] = True
 
                 current_media["hasCover"] = len(current_cover_bytes) > 0
                 current_media["coverVersion"] = cover_version_counter
@@ -347,15 +383,15 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
 
-        if path == "/current":
+        if path.startswith("/current"):
             self.wfile.write(json.dumps(current_media).encode("utf-8"))
-        elif path == "/toggle":
+        elif path.startswith("/toggle"):
             asyncio.run(send_media_control("toggle"))
             self.wfile.write(b'{"status":"toggled"}')
-        elif path == "/skip":
+        elif path.startswith("/skip"):
             asyncio.run(send_media_control("skip"))
             self.wfile.write(b'{"status":"skipped"}')
-        elif path == "/prev":
+        elif path.startswith("/prev"):
             asyncio.run(send_media_control("prev"))
             self.wfile.write(b'{"status":"previous"}')
         else:

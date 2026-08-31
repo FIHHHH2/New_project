@@ -195,55 +195,97 @@ end
 
 function CoreUI:SelectTab(tabObj)
 	if not tabObj then return end
+	if self.ActiveTab == tabObj then return end
 
-	if self.ActiveTab and not self.ActiveTab.IsHidden and tabObj.IsHidden then
-		self.PreviousTab = self.ActiveTab
+	local oldTab = self.ActiveTab
+
+	if oldTab and not oldTab.IsHidden and tabObj.IsHidden then
+		self.PreviousTab = oldTab
 	elseif not tabObj.IsHidden then
 		self.PreviousTab = nil
 	end
 
-	for _, tab in ipairs(self.Tabs) do
-		if tab == tabObj then
-			tab.Page.Position = UDim2.new(0, 10, 0, 0)
-			tab.Page.Visible = true
-			TweenService:Create(tab.Page, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Position = UDim2.new(0, 0, 0, 0)
-			}):Play()
+	-- 1. Animate Outgoing Tab Page (Smoothly moves out of the way)
+	if oldTab and oldTab.Page then
+		local exitTween = TweenService:Create(oldTab.Page, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Position = UDim2.new(0, -22, 0, 0)
+		})
+		exitTween:Play()
+		task.delay(0.16, function()
+			if self.ActiveTab ~= oldTab then
+				oldTab.Page.Visible = false
+				oldTab.Page.Position = UDim2.new(0, 0, 0, 0)
+			end
+		end)
 
-			if tab.Button and tab.Stroke then
-				TweenService:Create(tab.Button, TweenInfo.new(0.15), {
-					BackgroundColor3 = UI.Theme.Accent,
-					BackgroundTransparency = 0,
-					TextColor3 = UI.Theme.AccentText
-				}):Play()
-				TweenService:Create(tab.Stroke, TweenInfo.new(0.15), { Color = UI.Theme.Border }):Play()
-				local grad = tab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
-				if grad then grad.Enabled = true end
-			end
-		else
-			tab.Page.Visible = false
-			tab.Page.Position = UDim2.new(0, 0, 0, 0)
-			if tab.Button and tab.Stroke then
-				TweenService:Create(tab.Button, TweenInfo.new(0.15), {
-					BackgroundColor3 = UI.Theme.Container,
-					BackgroundTransparency = UI.Theme.ContainerTransparency,
-					TextColor3 = UI.Theme.TextSecondary
-				}):Play()
-				TweenService:Create(tab.Stroke, TweenInfo.new(0.15), { Color = UI.Theme.BorderDim }):Play()
-				local grad = tab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
-				if grad then grad.Enabled = false end
-			end
+		if oldTab.Button and oldTab.Stroke then
+			TweenService:Create(oldTab.Button, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+				Size = UDim2.new(1, -6, 0, 29),
+				Position = UDim2.new(0, 3, 0, 0),
+				BackgroundColor3 = UI.Theme.Container,
+				BackgroundTransparency = UI.Theme.ContainerTransparency,
+				TextColor3 = UI.Theme.TextSecondary
+			}):Play()
+			TweenService:Create(oldTab.Stroke, TweenInfo.new(0.2), { Color = UI.Theme.BorderDim, Thickness = 1.0 }):Play()
+			local grad = oldTab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
+			if grad then grad.Enabled = false end
 		end
 	end
+
+	-- 2. Animate Incoming Tab Page (Springs in with physical momentum & ripple bounce)
+	tabObj.Page.Visible = true
+	tabObj.Page.Position = UDim2.new(0, 24, 0, 0)
+	local enterTween = TweenService:Create(tabObj.Page, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Position = UDim2.new(0, 0, 0, 0)
+	})
+	enterTween:Play()
+
+	-- 3. Animate Tab Button Spring & Ripple
+	if tabObj.Button and tabObj.Stroke then
+		tabObj.Button.Size = UDim2.new(1, -8, 0, 27)
+		TweenService:Create(tabObj.Button, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Size = UDim2.new(1, -2, 0, 31),
+			Position = UDim2.new(0, 1, 0, 0),
+			BackgroundColor3 = UI.Theme.Accent,
+			BackgroundTransparency = 0,
+			TextColor3 = UI.Theme.AccentText
+		}):Play()
+		TweenService:Create(tabObj.Stroke, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Color = UI.Theme.Border,
+			Thickness = 1.6
+		}):Play()
+		local grad = tabObj.Button:FindFirstChild("ActiveGradient") :: UIGradient?
+		if grad then grad.Enabled = true end
+	end
+
+	-- 4. Cascaded Domino Ripple for Elements inside Incoming Tab Page
+	local elementsToAnimate: {GuiObject} = {}
+	for _, child in ipairs(tabObj.Page:GetChildren()) do
+		if child:IsA("Frame") and child.Name ~= "ActiveGradient" then
+			table.insert(elementsToAnimate, child)
+		end
+	end
+
+	for idx, element in ipairs(elementsToAnimate) do
+		element.Position = UDim2.new(0, 12, 0, 0)
+		task.delay((idx - 1) * 0.03, function()
+			if self.ActiveTab == tabObj and element and element.Parent then
+				TweenService:Create(element, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+					Position = UDim2.new(0, 0, 0, 0)
+				}):Play()
+			end
+		end)
+	end
+
 	self.ActiveTab = tabObj
 	if self.ActiveTagLabel then
 		self.ActiveTagLabel.Text = tabObj.Name
 	end
-	
+
 	-- Subheader buttons active state
 	if self.SettingsBtn and self.SettingsBtn:FindFirstChild("UIStroke") then
 		local isSet = (tabObj == self.SettingsTab)
-		TweenService:Create(self.SettingsBtn, TweenInfo.new(0.15), {
+		TweenService:Create(self.SettingsBtn, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 			BackgroundColor3 = if isSet then UI.Theme.Accent else UI.Theme.Container,
 			BackgroundTransparency = if isSet then 0 else UI.Theme.ContainerTransparency,
 			TextColor3 = if isSet then UI.Theme.AccentText else UI.Theme.TextPrimary
@@ -252,7 +294,7 @@ function CoreUI:SelectTab(tabObj)
 
 	if self.ConfigsBtn and self.ConfigsBtn:FindFirstChild("UIStroke") then
 		local isConf = (tabObj == self.ConfigsTab)
-		TweenService:Create(self.ConfigsBtn, TweenInfo.new(0.15), {
+		TweenService:Create(self.ConfigsBtn, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 			BackgroundColor3 = if isConf then UI.Theme.Accent else UI.Theme.Container,
 			BackgroundTransparency = if isConf then 0 else UI.Theme.ContainerTransparency,
 			TextColor3 = if isConf then UI.Theme.AccentText else UI.Theme.TextPrimary

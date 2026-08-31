@@ -9,6 +9,7 @@ local Workspace = game:GetService("Workspace")
 local CoreUI = require("Core/CoreUI.luau")
 local FeatureManager = require("Core/FeatureManager.luau")
 local Visuals = require("Modules/Visuals.luau")
+local Combat = require("Modules/Combat.luau")
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
@@ -21,9 +22,10 @@ end)
 
 local window = CoreUI.new("Project Fih Menu")
 
--- Active sidebar navigation tabs (No dummy "Tab")
+-- Active sidebar navigation tabs
 local mainTab = window:CreateTab("Main")
 local visualsTab = window:CreateTab("Visuals")
+local combatTab = window:CreateTab("Combat")
 
 -- Dedicated Settings & Configs tabs (opened/closed via subheader buttons)
 local settingsTab = window:CreateTab("Settings", true)
@@ -39,7 +41,7 @@ window:AddBanner(mainTab)
 
 local leftCol, rightCol = window:CreateColumns(mainTab)
 
--- LEFT COLUMN: Self Configs & Movement (Keybinds default to nil)
+-- LEFT COLUMN: Self Configs
 local selfSection = window:AddSection(leftCol, "Self Configs")
 
 window:AddToggle(selfSection, "walkspeed_boost", "WalkSpeed Boost", false, nil, function(enabled)
@@ -60,8 +62,8 @@ window:AddSlider(selfSection, "Custom Speed", 16, 150, 16, function(value)
 	end
 end)
 
--- Movement Section
-local moveSection = window:AddSection(leftCol, "Movement")
+-- RIGHT COLUMN: Movement
+local moveSection = window:AddSection(rightCol, "Movement")
 
 local noclipConn: RBXScriptConnection? = nil
 window:AddToggle(moveSection, "noclip_toggle", "Noclip", false, nil, function(enabled)
@@ -111,46 +113,50 @@ window:AddSlider(moveSection, "Hip Height Offset", 0, 20, 0, function(value)
 	end
 end)
 
--- RIGHT COLUMN: Combat (Keybinds default to nil)
-local combatSection = window:AddSection(rightCol, "Combat")
+-- ============================================================
+-- COMBAT TAB CONTENT
+-- ============================================================
+local combatLeftCol, combatRightCol = window:CreateColumns(combatTab)
 
-window:AddToggle(combatSection, "silent_aim", "Silent Aim", false, nil, function(enabled)
-	print("[Combat] Silent Aim:", enabled)
+-- Aim Assistance & Tracking
+local aimSection = window:AddSection(combatLeftCol, "Aim Assistance")
+
+window:AddToggle(aimSection, "silent_aim", "Silent Aim", false, nil, function(enabled)
+	Combat.SilentAim = enabled
 end)
 
-window:AddToggle(combatSection, "aimbot_fov", "Show FOV Circle", false, nil, function(enabled)
-	print("[Combat] Show FOV:", enabled)
+window:AddToggle(aimSection, "aim_tracking", "Aim Tracking", false, nil, function(enabled)
+	Combat.AimTracking = enabled
 end)
 
-window:AddSlider(combatSection, "Aim FOV Radius", 30, 360, 90, function(value)
-	print("[Combat] FOV Radius set to:", value)
+window:AddToggle(aimSection, "track_teammates", "Track Teammates", false, nil, function(enabled)
+	Combat.TrackTeammates = enabled
 end)
 
-local originalSizes: {[BasePart]: Vector3} = {}
-window:AddToggle(combatSection, "hitbox_expander", "Expand Hitboxes", false, nil, function(enabled)
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= localPlayer and player.Character then
-			local hrp = player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-			if hrp then
-				if enabled then
-					if not originalSizes[hrp] then
-						originalSizes[hrp] = hrp.Size
-					end
-					hrp.Size = Vector3.new(12, 12, 12)
-					hrp.Transparency = 0.6
-					hrp.CanCollide = false
-				else
-					local orig = originalSizes[hrp] or Vector3.new(2, 2, 1)
-					hrp.Size = orig
-					hrp.Transparency = 1
-				end
-			end
-		end
+window:AddToggle(aimSection, "fov_circle", "FOV Circle", false, nil, function(enabled)
+	Combat.FovCircle = enabled
+end)
+
+window:AddSlider(aimSection, "FOV Radius", 30, 360, 120, function(value)
+	Combat.FovRadius = value
+end)
+
+window:AddSlider(aimSection, "Aim Smoothing", 5, 100, 25, function(value)
+	Combat.Smoothing = value / 100
+end)
+
+-- Hitboxes & Range
+local hitSection = window:AddSection(combatRightCol, "Hitbox Modifiers")
+
+window:AddToggle(hitSection, "expand_hitboxes", "Expand Hitbox's", false, nil, function(enabled)
+	Combat.ExpandHitboxes = enabled
+	if not enabled then
+		Combat.resetHitboxes()
 	end
 end)
 
-window:AddSlider(combatSection, "Hitbox Size", 2, 25, 12, function(value)
-	print("[Combat] Hitbox Size set to:", value)
+window:AddSlider(hitSection, "Hitbox Size", 2, 30, 12, function(value)
+	Combat.HitboxSize = value
 end)
 
 -- ============================================================

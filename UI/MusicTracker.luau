@@ -457,14 +457,17 @@ function MusicTracker.new()
 	local visualizerConn = RunService.RenderStepped:Connect(function()
 		if not widget.Visible or not isPlaying then
 			for _, bar in ipairs(visualizerBars) do
-				bar.Size = UDim2.new(0, 6, 0, 3)
+				bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, 3), 0.2)
 			end
 			return
 		end
 
+		local t = os.clock()
+		local peakMult = math.clamp(currentAudioPeak * 1.5, 0.4, 1.25)
 		for i, bar in ipairs(visualizerBars) do
-			local specVal = currentSpectrum[i] or 0.05
-			local h = math.clamp(math.floor(specVal * 32), 3, 34)
+			local specVal = currentSpectrum[i] or 0.15
+			local wave = math.abs(math.sin(t * 11 + i * 0.7)) * 0.35 + 0.65
+			local h = math.clamp(math.floor(specVal * 28 * peakMult * wave + 3), 3, 34)
 			bar.Size = bar.Size:Lerp(UDim2.new(0, 6, 0, h), 0.35)
 		end
 	end)
@@ -497,7 +500,7 @@ function MusicTracker.new()
 	-- ── Local Bridge Poller (Audio Spectrum, Lyrics, Adaptive Theme) ─
 	task.spawn(function()
 		while true do
-			task.wait(0.2)
+			task.wait(0.1)
 			if widget.Visible then
 				pcall(function()
 					local raw = game:HttpGet(BRIDGE_URL .. "/current")

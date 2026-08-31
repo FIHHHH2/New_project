@@ -4,7 +4,7 @@ Connects Windows Media Session (Spotify, SoundCloud, YouTube, Apple Music)
 and native Windows Audio Engine to the Modular Roblox UI suite at http://127.0.0.1:8888.
 
 Features:
-- Real-Time Windows Audio Session Peak Metering & 16-Band Visualizer Spectrum
+- Real-Time Windows Audio Session Peak Metering with Automatic Gain Control (AGC) & 16-Band Visualizer Spectrum
 - Dynamic Album Artwork Color Palette Extraction (Adaptive Cover Theme)
 - Multi-source Synced Lyrics engine (LRCLIB, title split heuristics, Lyrics.ovh fallback)
 - Real-time album artwork streamer (/cover.png)
@@ -56,7 +56,7 @@ cover_cache = {}
 lyrics_cache = {}
 cover_version_counter = 1
 
-# ── Windows Audio Peak Meter Setup ──────────────────────────────────
+# ── Windows Audio Peak Meter Setup with Automatic Gain Control ──────
 audio_meter = None
 try:
     from pycaw.pycaw import AudioUtilities, IAudioMeterInformation
@@ -69,11 +69,12 @@ except Exception:
     audio_meter = None
 
 smoothed_peak = 0.0
+max_recent_peak = 0.05
 band_energy = [0.05] * 16
 phase = 0.0
 
 def update_audio_spectrum():
-    global smoothed_peak, band_energy, phase
+    global smoothed_peak, max_recent_peak, band_energy, phase
     peak = 0.0
     if audio_meter:
         try:
@@ -81,27 +82,35 @@ def update_audio_spectrum():
         except Exception:
             peak = 0.0
     elif current_media["isPlaying"]:
-        # Fallback dynamic simulation if audio meter is uninitialized
-        peak = 0.4 + 0.3 * math.sin(time.time() * 4)
+        peak = 0.35 + 0.25 * math.sin(time.time() * 5)
 
-    # Smooth peak with attack and decay
-    if peak > smoothed_peak:
-        smoothed_peak = smoothed_peak * 0.3 + peak * 0.7
+    # Automatic Gain Control (AGC): Tracks dynamic range so quiet songs still trigger visualizer
+    if peak > max_recent_peak:
+        max_recent_peak = max(0.005, peak)
     else:
-        smoothed_peak = smoothed_peak * 0.85 + peak * 0.15
+        max_recent_peak = max(0.005, max_recent_peak * 0.992)
+
+    # Normalize peak and apply square-root perceptual curve
+    norm_peak = min(1.0, peak / max(0.005, max_recent_peak))
+    curved_peak = math.sqrt(norm_peak) if norm_peak > 0 else 0.0
+
+    # Fast attack, smooth decay
+    if curved_peak > smoothed_peak:
+        smoothed_peak = smoothed_peak * 0.25 + curved_peak * 0.75
+    else:
+        smoothed_peak = smoothed_peak * 0.75 + curved_peak * 0.25
 
     current_media["audioPeak"] = round(smoothed_peak, 3)
 
-    phase += 0.15
+    phase += 0.2
     new_spectrum = []
     for i in range(16):
-        # Frequency weighting: bass (lower indices) has higher amplitude
-        freq_factor = 1.2 - (i / 20.0)
-        osc = math.sin(phase * (1.0 + i * 0.3) + i * 0.5) * 0.25 + 0.75
-        noise = (random.random() - 0.5) * 0.15
-        val = math.clamp(smoothed_peak * freq_factor * osc + noise, 0.02, 1.0) if hasattr(math, 'clamp') else max(0.02, min(1.0, smoothed_peak * freq_factor * osc + noise))
-        # Decay interpolation
-        band_energy[i] = band_energy[i] * 0.6 + val * 0.4
+        # Bass frequencies (0-4) bounce higher and punchier
+        bass_boost = 1.35 if i < 5 else (1.1 if i < 10 else 0.85)
+        osc = math.sin(phase * (1.2 + i * 0.25) + i * 0.6) * 0.35 + 0.65
+        noise = (random.random() - 0.5) * 0.1
+        val = max(0.05, min(1.0, (smoothed_peak * bass_boost * osc + noise)))
+        band_energy[i] = band_energy[i] * 0.35 + val * 0.65
         new_spectrum.append(round(band_energy[i], 3))
 
     current_media["spectrum"] = new_spectrum
@@ -128,7 +137,6 @@ def extract_palette(img_bytes: bytes):
             mx, mn = max(r, g, b), min(r, g, b)
             sat = (mx - mn) / max(1, mx)
             bright = mx / 255.0
-            # Prefer vibrant, non-black, non-white colors for accent
             if bright < 0.15 or bright > 0.95 or sat < 0.1:
                 return -1
             return sat * 1.5 + (c[0] / 2304.0)
@@ -136,13 +144,11 @@ def extract_palette(img_bytes: bytes):
         scored = sorted(colors, key=score_color, reverse=True)
         accent_rgb = list(scored[0][1]) if (scored and score_color(scored[0]) > 0) else list(colors[0][1])
 
-        # Boost saturation/brightness if too dim
         mx = max(accent_rgb)
         if mx < 110:
             scale = 140 / max(1, mx)
             accent_rgb = [min(255, int(c * scale)) for c in accent_rgb]
 
-        # Background from dominant color darkened
         dom_rgb = list(sorted(colors, key=lambda x: x[0], reverse=True)[0][1])
         bg_rgb = [max(12, min(32, int(c * 0.22))) for c in dom_rgb]
         container_rgb = [min(55, int(c * 1.5 + 8)) for c in bg_rgb]
@@ -530,7 +536,7 @@ def run_audio_loop():
             update_audio_spectrum()
         except Exception:
             pass
-        time.sleep(0.033) # 30 FPS audio spectrum polling
+        time.sleep(0.033)
 
 # ── System Tray Icon & Menu ────────────────────────────────────────
 def create_tray_icon():

@@ -15,7 +15,8 @@ local function cleanSource(str: string): string
 end
 
 local function fetchSource(path: string): string
-	local url = BASE_URL .. path .. "?t=" .. tostring(os.time())
+	local nonce = tostring(os.time()) .. "_" .. tostring(math.random(10000, 99999))
+	local url = BASE_URL .. path .. "?v=" .. nonce
 	local success, content = pcall(function()
 		return game:HttpGet(url)
 	end)

@@ -61,12 +61,99 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
+local HttpService = game:GetService("HttpService")
+
+local CONFIG_FOLDER = "FihSuite"
+local DEFAULT_CONFIG = "default"
+local savedConfigCache: {[string]: any} = {}
+
+local function ensureFolder()
+	local mkf = makefolder or (getgenv and getgenv().makefolder)
+	local isf = isfolder or (getgenv and getgenv().isfolder)
+	if type(mkf) == "function" and type(isf) == "function" then
+		pcall(function()
+			if not isf(CONFIG_FOLDER) then
+				mkf(CONFIG_FOLDER)
+			end
+		end)
+	end
+end
+
+local function readConfigFile(name: string): string?
+	ensureFolder()
+	local rdf = readfile or (getgenv and getgenv().readfile)
+	local isf = isfile or (getgenv and getgenv().isfile)
+	if type(rdf) == "function" and type(isf) == "function" then
+		local path = CONFIG_FOLDER .. "/" .. name .. ".json"
+		local success, content = pcall(function()
+			if isf(path) then
+				return rdf(path)
+			end
+			return nil
+		end)
+		if success and content then
+			return content
+		end
+	end
+	return nil
+end
+
+local function writeConfigFile(name: string, data: string): boolean
+	ensureFolder()
+	local wrf = writefile or (getgenv and getgenv().writefile)
+	if type(wrf) == "function" then
+		local path = CONFIG_FOLDER .. "/" .. name .. ".json"
+		local success = pcall(function()
+			wrf(path, data)
+		end)
+		return success
+	end
+	return false
+end
+
+-- Preload default config cache
+pcall(function()
+	local raw = readConfigFile(DEFAULT_CONFIG)
+	if raw then
+		local decoded = HttpService:JSONDecode(raw)
+		if type(decoded) == "table" then
+			savedConfigCache = decoded
+		end
+	end
+end)
+
+local saveDebounce = false
+local function scheduleAutoSave()
+	if saveDebounce then return end
+	saveDebounce = true
+	task.delay(0.5, function()
+		saveDebounce = false
+		FeatureManager.saveConfig(DEFAULT_CONFIG)
+	end)
+end
+
 function FeatureManager.register(id: string, name: string, defaultState: boolean, defaultKeybind: Enum.KeyCode?, callback: (boolean) -> ()): FeatureRecord
+	local initialState = defaultState
+	local initialKeybind = defaultKeybind
+
+	-- Check persistent cache on startup
+	if savedConfigCache and savedConfigCache.toggles and savedConfigCache.toggles[id] then
+		local entry = savedConfigCache.toggles[id]
+		if entry.state ~= nil then
+			initialState = entry.state
+		end
+		if entry.keybind then
+			pcall(function()
+				initialKeybind = (Enum.KeyCode :: any)[entry.keybind]
+			end)
+		end
+	end
+
 	local record: FeatureRecord = {
 		id = id,
 		name = name,
-		state = defaultState,
-		keybind = defaultKeybind,
+		state = initialState,
+		keybind = initialKeybind,
 		callback = callback,
 		onKeybindChanged = nil,
 		onStateChanged = nil
@@ -75,7 +162,7 @@ function FeatureManager.register(id: string, name: string, defaultState: boolean
 	rebuildKeybindMap()
 	
 	task.spawn(function()
-		local success, err = pcall(callback, defaultState)
+		local success, err = pcall(callback, initialState)
 		if not success then
 			warn(string.format("[FeatureManager] error initializing feature %s: %s", id, tostring(err)))
 		end
@@ -97,6 +184,7 @@ function FeatureManager.setFeatureState(id: string, state: boolean)
 	if not success then
 		warn(string.format("[FeatureManager] error toggling feature %s: %s", id, tostring(err)))
 	end
+	scheduleAutoSave()
 end
 
 function FeatureManager.setFeatureKeybind(id: string, keycode: Enum.KeyCode?)
@@ -108,6 +196,7 @@ function FeatureManager.setFeatureKeybind(id: string, keycode: Enum.KeyCode?)
 	if feat.onKeybindChanged then
 		feat.onKeybindChanged(keycode)
 	end
+	scheduleAutoSave()
 end
 
 function FeatureManager.promptKeybindCapture(onCaptured: (Enum.KeyCode?) -> ())
@@ -117,6 +206,63 @@ end
 
 function FeatureManager.getFeature(id: string): FeatureRecord?
 	return registeredFeatures[id]
+end
+
+function FeatureManager.saveConfig(name: string?): boolean
+	local targetName = name or DEFAULT_CONFIG
+	local exportData = {
+		toggles = {},
+		timestamp = os.time()
+	}
+
+	for id, feat in pairs(registeredFeatures) do
+		exportData.toggles[id] = {
+			state = feat.state,
+			keybind = if feat.keybind and feat.keybind ~= Enum.KeyCode.Unknown then feat.keybind.Name else nil
+		}
+	end
+
+	local success, encoded = pcall(function()
+		return HttpService:JSONEncode(exportData)
+	end)
+	if success and encoded then
+		savedConfigCache = exportData
+		return writeConfigFile(targetName, encoded)
+	end
+	return false
+end
+
+function FeatureManager.loadConfig(name: string?): boolean
+	local targetName = name or DEFAULT_CONFIG
+	local raw = readConfigFile(targetName)
+	if not raw then return false end
+
+	local success, decoded = pcall(function()
+		return HttpService:JSONDecode(raw)
+	end)
+	if not success or type(decoded) ~= "table" then return false end
+
+	savedConfigCache = decoded
+
+	if decoded.toggles then
+		for id, data in pairs(decoded.toggles) do
+			local feat = registeredFeatures[id]
+			if feat then
+				if data.state ~= nil and feat.state ~= data.state then
+					FeatureManager.setFeatureState(id, data.state)
+				end
+				if data.keybind then
+					pcall(function()
+						local key = (Enum.KeyCode :: any)[data.keybind]
+						FeatureManager.setFeatureKeybind(id, key)
+					end)
+				elseif data.keybind == nil and feat.keybind ~= nil then
+					FeatureManager.setFeatureKeybind(id, nil)
+				end
+			end
+		end
+	end
+	return true
 end
 
 return FeatureManager

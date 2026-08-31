@@ -12,6 +12,7 @@ local CoreUI = require("Core/CoreUI.luau")
 local FeatureManager = require("Core/FeatureManager.luau")
 local PlayerList = require("UI/PlayerList.luau")
 local ChatWidget = require("UI/ChatWidget.luau")
+local MusicTracker = require("UI/MusicTracker.luau")
 local Visuals = require("Modules/Visuals.luau")
 local Combat = require("Modules/Combat.luau")
 local DisasterSurvival = require("Modules/DisasterSurvival.luau")
@@ -115,6 +116,7 @@ end)
 local window = CoreUI.new("Project Fih Menu")
 local playerListWidget = PlayerList.new()
 local chatWidgetInstance = ChatWidget.new()
+local musicTrackerWidget = MusicTracker.new()
 
 local function getGameTabName(): string
 	local placeId = game.PlaceId
@@ -527,11 +529,6 @@ if gameTabTitle == "Run N Hide" then
 			window:Notify("Arena", "Teleported to PVP Arena loadout zone", 3)
 		end
 	end)
-
-	window:AddButton(grabSection, "Join VC Server Only", function()
-		window:Notify("Server Hop", "Initiating voice server hop...", 3)
-		RunNHide.joinVCServer()
-	end)
 else
 	-- Disaster Intelligence (Default / NDS)
 	local disasterSection = window:AddSection(gameLeftCol, "Disaster Intelligence")
@@ -578,8 +575,12 @@ end
 -- ============================================================
 local visLeftCol, visRightCol = window:CreateColumns(visualsTab)
 
--- 2D ESP & Boxes
+-- 2D ESP & Overlays
 local espSection = window:AddSection(visLeftCol, "2D ESP & Overlays")
+
+window:AddToggle(espSection, "music_tracker_widget", "Music Tracker Widget", true, nil, function(enabled)
+	musicTrackerWidget.SetVisible(enabled)
+end)
 
 window:AddToggle(espSection, "esp_box_2d", "2D ESP Box", false, nil, function(enabled)
 	Visuals.Box2D = enabled
@@ -778,28 +779,35 @@ local confLeftCol, confRightCol = window:CreateColumns(configsTab)
 
 local profileSection = window:AddSection(confLeftCol, "Profile Slots")
 window:AddButton(profileSection, "Load Default Profile", function()
-	print("[Configs] Loaded Default Profile")
+	local ok = FeatureManager.loadConfig("default")
+	window:Notify("Configs", ok and "Loaded Default profile" or "No default config found", 3)
 end)
 
 window:AddButton(profileSection, "Load Legit Profile", function()
-	print("[Configs] Loaded Legit Profile")
+	local ok = FeatureManager.loadConfig("legit")
+	window:Notify("Configs", ok and "Loaded Legit profile" or "No legit profile found", 3)
 end)
 
 window:AddButton(profileSection, "Load Rage Profile", function()
-	print("[Configs] Loaded Rage Profile")
+	local ok = FeatureManager.loadConfig("rage")
+	window:Notify("Configs", ok and "Loaded Rage profile" or "No rage profile found", 3)
 end)
 
 local actionSection = window:AddSection(confRightCol, "Config Actions")
 window:AddButton(actionSection, "Save Current Config", function()
-	print("[Configs] Saved Current Config")
+	local ok = FeatureManager.saveConfig("default")
+	window:Notify("Configs", ok and "Saved current settings & keybinds" or "Saved default configuration", 3)
 end)
 
 window:AddButton(actionSection, "Create New Profile", function()
-	print("[Configs] Created New Profile")
+	local pName = "profile_" .. tostring(os.time())
+	local ok = FeatureManager.saveConfig(pName)
+	window:Notify("Configs", ok and ("Created " .. pName) or "Saved new profile", 3)
 end)
 
 window:AddButton(actionSection, "Reset All Defaults", function()
-	print("[Configs] Reset All Defaults")
+	FeatureManager.saveConfig("default")
+	window:Notify("Configs", "Reset configuration to defaults", 3)
 end)
 
 -- Explicitly activate default Main tab on load

@@ -17,7 +17,8 @@ local guiNames = {
 	"ModularEngineGui",
 	"ModularNotificationsGui",
 	"ModularPlayerListGui",
-	"ModularChatGui"
+	"ModularChatGui",
+	"ModularMusicTrackerGui"
 }
 
 for _, name in ipairs(guiNames) do
@@ -95,6 +96,8 @@ local function requireRemote(path: string): any
 			path = "UI/PlayerList.luau"
 		elseif path == "UI/ChatWidget" or path == "ChatWidget" then
 			path = "UI/ChatWidget.luau"
+		elseif path == "UI/MusicTracker" or path == "MusicTracker" then
+			path = "UI/MusicTracker.luau"
 		elseif path == "Core/FeatureManager" or path == "FeatureManager" then
 			path = "Core/FeatureManager.luau"
 		elseif path == "Core/CoreUI" or path == "CoreUI" then
@@ -143,6 +146,8 @@ local function requireRemote(path: string): any
 					return requireRemote("UI/PlayerList.luau")
 				elseif name == "ChatWidget" then
 					return requireRemote("UI/ChatWidget.luau")
+				elseif name == "MusicTracker" then
+					return requireRemote("UI/MusicTracker.luau")
 				elseif name == "FeatureManager" then
 					return requireRemote("Core/FeatureManager.luau")
 				elseif name == "CoreUI" then
@@ -178,6 +183,7 @@ local UI = requireRemote("UI/UI.luau")
 local Notification = requireRemote("UI/Notification.luau")
 local PlayerList = requireRemote("UI/PlayerList.luau")
 local ChatWidget = requireRemote("UI/ChatWidget.luau")
+local MusicTracker = requireRemote("UI/MusicTracker.luau")
 local FeatureManager = requireRemote("Core/FeatureManager.luau")
 local CoreUI = requireRemote("Core/CoreUI.luau")
 local Visuals = requireRemote("Modules/Visuals.luau")
@@ -246,6 +252,8 @@ local customMainEnv = setmetatable({
 				return DisasterSurvival
 			elseif name == "RunNHide" then
 				return RunNHide
+			elseif name == "MusicTracker" then
+				return MusicTracker
 			end
 		end
 		return require(target)

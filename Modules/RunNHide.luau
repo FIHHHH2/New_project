@@ -21,8 +21,8 @@ local RunNHide = {
 	SpeedBoost = false,
 	SpeedMultiplier = 1.0,
 	MoveInRagdoll = false,
-	RagdollSpeed = 32,
-	RagdollJumpBoost = false,
+	RagdollSpeed = 36,
+	RagdollJumpBoost = true,
 	AutoStandup = false,
 
 	-- Boundary & Barrier Breaker
@@ -61,10 +61,10 @@ local originalConfigs: {[string]: any} = {}
 local originalStamina: any = nil
 
 -- Resolve Demise Gun System & Movement Modules
-local Guns = nil
-local Packets = nil
-local Config = nil
-local Muzzle = nil
+local Guns: any = nil
+local Packets: any = nil
+local Config: any = nil
+local Muzzle: any = nil
 
 local function resolveDemiseModules()
 	pcall(function()
@@ -76,15 +76,15 @@ local function resolveDemiseModules()
 		local configModule = modulesFolder and modulesFolder:FindFirstChild("Data") and modulesFolder.Data:FindFirstChild("Config")
 		local muzzleLib = gunSystemFolder and gunSystemFolder:FindFirstChild("Libraries") and gunSystemFolder.Libraries:FindFirstChild("Muzzle")
 
-		if gunsDataModule then Guns = require(gunsDataModule) end
-		if packetsModule then Packets = require(packetsModule) end
-		if configModule then Config = require(configModule) end
-		if muzzleLib then Muzzle = require(muzzleLib) end
+		if gunsDataModule and not Guns then Guns = require(gunsDataModule) end
+		if packetsModule and not Packets then Packets = require(packetsModule) end
+		if configModule and not Config then Config = require(configModule) end
+		if muzzleLib and not Muzzle then Muzzle = require(muzzleLib) end
 	end)
 
 	if Guns and type(Guns) == "table" then
 		for gunName, config in pairs(Guns) do
-			if type(config) == "table" then
+			if type(config) == "table" and not originalConfigs[gunName] then
 				originalConfigs[gunName] = {
 					FireMode    = config.FireMode,
 					FireRate    = config.FireRate,
@@ -98,7 +98,7 @@ local function resolveDemiseModules()
 		end
 	end
 
-	if Config and Config.Stamina then
+	if Config and Config.Stamina and not originalStamina then
 		originalStamina = {
 			Max        = Config.Stamina.Max,
 			DrainRate  = Config.Stamina.DrainRate,
@@ -111,11 +111,16 @@ end
 resolveDemiseModules()
 
 local function getEquippedGun(): (Tool?, any)
+	resolveDemiseModules()
 	local char = LocalPlayer.Character
-	if not char or not Guns then return nil, nil end
+	if not char then return nil, nil end
 	for _, child in ipairs(char:GetChildren()) do
-		if child:IsA("Tool") and Guns[child.Name] then
-			return child, Guns[child.Name]
+		if child:IsA("Tool") then
+			if Guns and Guns[child.Name] then
+				return child, Guns[child.Name]
+			else
+				return child, { MaxAmmo = 30, FireRate = 0.1, FireMode = "Auto" }
+			end
 		end
 	end
 	return nil, nil
@@ -123,10 +128,10 @@ end
 
 local function refreshEquippedGun()
 	local char = LocalPlayer.Character
-	if not char or not Guns then return end
+	if not char then return end
 	local tool: Tool? = nil
 	for _, child in ipairs(char:GetChildren()) do
-		if child:IsA("Tool") and Guns[child.Name] then
+		if child:IsA("Tool") then
 			tool = child
 			break
 		end
@@ -142,6 +147,7 @@ local function refreshEquippedGun()
 end
 
 local function updateWeaponConfigs(skipRefresh: boolean?)
+	resolveDemiseModules()
 	if not Guns then return end
 	for gunName, config in pairs(Guns) do
 		local original = originalConfigs[gunName]
@@ -205,6 +211,7 @@ local function updateWeaponConfigs(skipRefresh: boolean?)
 end
 
 local function applyStaminaState()
+	resolveDemiseModules()
 	local char = LocalPlayer.Character
 	if char then
 		if RunNHide.InfiniteStamina then
@@ -248,20 +255,29 @@ end
 
 -- Fast Reload and Auto-Chamber triggers
 local function executeQuickReload(tool: Tool?)
+	resolveDemiseModules()
 	if not tool or not tool.Parent or not Packets then return end
-	if Packets.GunReload then Packets.GunReload:Fire({ Tool = tool }) end
-	task.wait(0.08)
-	if Packets.GunChamber then Packets.GunChamber:Fire({ Tool = tool }) end
+	pcall(function()
+		if Packets.GunReload then Packets.GunReload:Fire({ Tool = tool }) end
+	end)
+	task.wait(0.06)
+	pcall(function()
+		if Packets.GunChamber then Packets.GunChamber:Fire({ Tool = tool }) end
+	end)
 end
 
 local function executeAutoChamber(tool: Tool?)
+	resolveDemiseModules()
 	if not tool or not tool.Parent or not Packets then return end
-	if not tool:GetAttribute("Chambered") and Packets.GunChamber then
-		Packets.GunChamber:Fire({ Tool = tool })
-	end
+	pcall(function()
+		if not tool:GetAttribute("Chambered") and Packets.GunChamber then
+			Packets.GunChamber:Fire({ Tool = tool })
+		end
+	end)
 end
 
 local function fireSingleRound(tool: Tool, config: any): boolean
+	resolveDemiseModules()
 	if not tool or tool.Parent ~= LocalPlayer.Character or not Packets then return false end
 	local cam = Workspace.CurrentCamera
 	if not cam then return false end
@@ -277,16 +293,18 @@ local function fireSingleRound(tool: Tool, config: any): boolean
 
 	if not tool:GetAttribute("Chambered") then
 		executeAutoChamber(tool)
-		task.wait(0.05)
+		task.wait(0.04)
 	end
 
-	if Packets.GunFireHit then
-		Packets.GunFireHit:Fire({
-			Tool = tool,
-			Origin = cam.CFrame.Position,
-			Direction = cam.CFrame.LookVector
-		})
-	end
+	pcall(function()
+		if Packets.GunFireHit then
+			Packets.GunFireHit:Fire({
+				Tool = tool,
+				Origin = cam.CFrame.Position,
+				Direction = cam.CFrame.LookVector
+			})
+		end
+	end)
 
 	if Muzzle then
 		pcall(function()
@@ -413,13 +431,13 @@ function RunNHide.grabAllScatteredWeapons(): number
 		if d:IsA("ProximityPrompt") then
 			local pName = (d.Parent and d.Parent.Name or ""):lower()
 			local gName = (d.Parent and d.Parent.Parent and d.Parent.Parent.Name or ""):lower()
-			if pName:find("spawn") or pName:find("weapon") or pName:find("pickup") or gName:find("scattered") or gName:find("weapon") then
+			if pName:find("spawn") or pName:find("weapon") or pName:find("pickup") or gName:find("scattered") or gName:find("weapon") or pName:find("gun") then
 				d.MaxActivationDistance = 99999
 				d.HoldDuration = 0
 				d.RequiresLineOfSight = false
 				local fireprompt = (getgenv and getgenv().fireproximityprompt) or fireproximityprompt
 				if type(fireprompt) == "function" then
-					fireprompt(d)
+					pcall(function() fireprompt(d) end)
 					count += 1
 				else
 					local char = LocalPlayer.Character
@@ -429,9 +447,11 @@ function RunNHide.grabAllScatteredWeapons(): number
 						local origCF = root.CFrame
 						root.CFrame = part.CFrame * CFrame.new(0, 1, 0)
 						task.wait(0.04)
-						d:InputHoldBegin()
-						task.wait(0.02)
-						d:InputHoldEnd()
+						pcall(function()
+							d:InputHoldBegin()
+							task.wait(0.02)
+							d:InputHoldEnd()
+						end)
 						task.wait(0.04)
 						root.CFrame = origCF
 						count += 1
@@ -443,29 +463,10 @@ function RunNHide.grabAllScatteredWeapons(): number
 	return count
 end
 
--- ── Initialize Core Module Loop ───────────────────────────────────
-function RunNHide.init(notifyCallback: ((string, string) -> ())?)
+function RunNHide.init()
 	if RunNHide.IsActive then return end
 	RunNHide.IsActive = true
-
 	resolveDemiseModules()
-
-	-- Stamina Heartbeat Watcher
-	local stamConn = RunService.Heartbeat:Connect(function()
-		if RunNHide.InfiniteStamina or RunNHide.StaminaReduction > 0 or RunNHide.SpeedBoost then
-			local char = LocalPlayer.Character
-			if char then
-				if RunNHide.InfiniteStamina and char:GetAttribute("StamDrainMult") ~= 0 then
-					char:SetAttribute("StamDrainMult", 0)
-					char:SetAttribute("StamMult", 10)
-				end
-				if RunNHide.SpeedBoost and char:GetAttribute("SpeedMult") ~= RunNHide.SpeedMultiplier then
-					char:SetAttribute("SpeedMult", RunNHide.SpeedMultiplier)
-				end
-			end
-		end
-	end)
-	table.insert(connections, stamConn)
 
 	-- Ragdoll Movement & Auto Standup (Propels Root + Torso with Space Jump)
 	local lastRnhJumpTime = 0
@@ -628,7 +629,7 @@ function RunNHide.init(notifyCallback: ((string, string) -> ())?)
 
 	-- Tool Trackers for chambering & quick reload
 	local function trackTool(tool: Instance)
-		if not tool:IsA("Tool") or not Guns or not Guns[tool.Name] then return end
+		if not tool:IsA("Tool") then return end
 
 		local chConn = tool:GetAttributeChangedSignal("Chambered"):Connect(function()
 			if (RunNHide.AutoChamber or RunNHide.QuickReload) and tool.Parent == LocalPlayer.Character and not tool:GetAttribute("Chambered") then
@@ -681,7 +682,7 @@ function RunNHide.updateStamina()
 end
 
 function RunNHide.updateVoidPlatform()
-	updateVoidSafetyFloor()
+	RunNHide.updateVoidSafetyFloor()
 end
 
 function RunNHide.forceStandup()
@@ -694,7 +695,7 @@ function RunNHide.forceStandup()
 			hum:ChangeState(Enum.HumanoidStateType.GettingUp)
 		end
 		if Packets and Packets.RagdollToggle then
-			Packets.RagdollToggle:Fire({ Mode = false })
+			pcall(function() Packets.RagdollToggle:Fire({ Mode = false }) end)
 		end
 	end
 end

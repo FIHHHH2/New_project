@@ -239,6 +239,35 @@ window:AddToggle(moveSection, "inf_jump", "Infinite Jump", false, nil, function(
 	end
 end)
 
+local walkFlingConn: RBXScriptConnection? = nil
+window:AddToggle(moveSection, "walk_fling", "Walk Fling (Touch To Fling)", false, nil, function(enabled)
+	if enabled then
+		walkFlingConn = RunService.Heartbeat:Connect(function()
+			local char = localPlayer.Character
+			if not char then return end
+			local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if not (hrp and hum and hum.Health > 0) then return end
+
+			hrp.AssemblyAngularVelocity = Vector3.new(0, 10000000, 0)
+			local vel = hrp.AssemblyLinearVelocity
+			hrp.AssemblyLinearVelocity = Vector3.new(vel.X, math.clamp(vel.Y, -100, 100), vel.Z)
+		end)
+	else
+		if walkFlingConn then
+			walkFlingConn:Disconnect()
+			walkFlingConn = nil
+		end
+		local char = localPlayer.Character
+		if char then
+			local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if hrp then
+				hrp.AssemblyAngularVelocity = Vector3.zero
+			end
+		end
+	end
+end)
+
 window:AddSlider(moveSection, "Custom Gravity", 0, 196, 196, function(value)
 	Workspace.Gravity = value
 end)

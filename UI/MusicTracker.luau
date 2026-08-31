@@ -22,7 +22,9 @@ local UI = require("UI/UI.luau")
 local MusicTracker = {}
 MusicTracker.__index = MusicTracker
 
-local BRIDGE_URL = "http://127.0.0.1:8888"
+local LOCAL_BRIDGE_URL = "http://127.0.0.1:8888"
+local REMOTE_TUNNEL_URL = "https://steering-liberal-bucks-arrived.trycloudflare.com"
+local BRIDGE_URL = LOCAL_BRIDGE_URL
 local MUSIC_NOTE_ICON = "rbxassetid://10888371919"
 
 local DEMO_TRACKS = {
@@ -528,14 +530,24 @@ function MusicTracker.new()
 		end)
 	end)
 
-	-- ── Local Bridge Poller (Audio Spectrum, Lyrics, Adaptive Theme) ─
+	-- ── Local Bridge & Cloudflare Tunnel Poller (Audio Spectrum, Lyrics, Adaptive Theme) ─
 	task.spawn(function()
+		local failCount = 0
 		while true do
 			task.wait(0.04)
 			if widget.Visible then
-				pcall(function()
-					local raw = game:HttpGet(BRIDGE_URL .. "/current")
-					if raw and raw ~= "" then
+				local ok, raw = pcall(function()
+					return game:HttpGet(BRIDGE_URL .. "/current")
+				end)
+				if not ok or not raw or raw == "" then
+					failCount += 1
+					if failCount >= 5 then
+						BRIDGE_URL = if BRIDGE_URL == LOCAL_BRIDGE_URL then REMOTE_TUNNEL_URL else LOCAL_BRIDGE_URL
+						failCount = 0
+					end
+				else
+					failCount = 0
+					pcall(function()
 						local data = HttpService:JSONDecode(raw)
 						if data and data.title then
 							if data.spectrum and typeof(data.spectrum) == "table" then

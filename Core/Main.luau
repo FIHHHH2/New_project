@@ -488,3 +488,6 @@ end)
 window:AddButton(actionSection, "Reset All Defaults", function()
 	print("[Configs] Reset All Defaults")
 end)
+
+-- Explicitly activate default Main tab on load
+window:SelectTab(mainTab)

@@ -174,12 +174,6 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 				TweenService:Create(tabButton, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container, TextColor3 = UI.Theme.TextSecondary }):Play()
 			end
 		end)
-		tabButton.MouseButton1Down:Connect(function()
-			TweenService:Create(tabButton, TweenInfo.new(0.08), { Size = UDim2.new(1, -6, 0, 28) }):Play()
-		end)
-		tabButton.MouseButton1Up:Connect(function()
-			TweenService:Create(tabButton, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(1, -4, 0, 30) }):Play()
-		end)
 		tabButton.MouseButton1Click:Connect(function()
 			self:SelectTab(tabObj)
 		end)
@@ -195,6 +189,8 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 end
 
 function CoreUI:SelectTab(tabObj)
+	if not tabObj then return end
+
 	if self.ActiveTab and not self.ActiveTab.IsHidden and tabObj.IsHidden then
 		self.PreviousTab = self.ActiveTab
 	elseif not tabObj.IsHidden then
@@ -203,11 +199,8 @@ function CoreUI:SelectTab(tabObj)
 
 	for _, tab in ipairs(self.Tabs) do
 		if tab == tabObj then
-			tab.Page.Position = UDim2.new(0, 0, 0, 8)
+			tab.Page.Position = UDim2.new(0, 0, 0, 0)
 			tab.Page.Visible = true
-			TweenService:Create(tab.Page, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Position = UDim2.new(0, 0, 0, 0)
-			}):Play()
 
 			if tab.Button and tab.Stroke then
 				TweenService:Create(tab.Button, TweenInfo.new(0.15), {
@@ -238,7 +231,7 @@ function CoreUI:SelectTab(tabObj)
 		self.ActiveTagLabel.Text = tabObj.Name
 	end
 	
-	-- Keep subheader buttons visible, toggle active highlight styling
+	-- Subheader buttons active state
 	if self.SettingsBtn and self.SettingsBtn:FindFirstChild("UIStroke") then
 		local isSet = (tabObj == self.SettingsTab)
 		TweenService:Create(self.SettingsBtn, TweenInfo.new(0.15), {
@@ -463,18 +456,12 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 		checkBtn.Text = if state then "X" else ""
 	end
 
-	-- Hover & Click animations on toggle components
+	-- Hover animations on toggle components
 	titleBox.MouseEnter:Connect(function()
 		TweenService:Create(titleStroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
 	end)
 	titleBox.MouseLeave:Connect(function()
 		TweenService:Create(titleStroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
-	end)
-	titleBox.MouseButton1Down:Connect(function()
-		TweenService:Create(titleBox, TweenInfo.new(0.08), { Size = UDim2.new(1, -92, 0, 22) }):Play()
-	end)
-	titleBox.MouseButton1Up:Connect(function()
-		TweenService:Create(titleBox, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(1, -90, 0, 24) }):Play()
 	end)
 
 	checkBtn.MouseEnter:Connect(function()
@@ -483,24 +470,12 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	checkBtn.MouseLeave:Connect(function()
 		TweenService:Create(checkStroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
 	end)
-	checkBtn.MouseButton1Down:Connect(function()
-		TweenService:Create(checkBtn, TweenInfo.new(0.08), { Size = UDim2.new(0, 22, 0, 22) }):Play()
-	end)
-	checkBtn.MouseButton1Up:Connect(function()
-		TweenService:Create(checkBtn, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(0, 24, 0, 24) }):Play()
-	end)
 
 	keybindBtn.MouseEnter:Connect(function()
 		TweenService:Create(bindStroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
 	end)
 	keybindBtn.MouseLeave:Connect(function()
 		TweenService:Create(bindStroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
-	end)
-	keybindBtn.MouseButton1Down:Connect(function()
-		TweenService:Create(keybindBtn, TweenInfo.new(0.08), { Size = UDim2.new(0, 56, 0, 22) }):Play()
-	end)
-	keybindBtn.MouseButton1Up:Connect(function()
-		TweenService:Create(keybindBtn, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(0, 58, 0, 24) }):Play()
 	end)
 
 	-- Synchronize visual state when toggled via keyboard keybind or external call
@@ -699,7 +674,7 @@ function CoreUI:AddButton(section: Frame, name: string, callback: () -> ())
 	btnStroke.Parent = btn
 	UI.registerThemeElement(btnStroke, "Border")
 
-	-- Hover & Click squish animations
+	-- Hover animations
 	btn.MouseEnter:Connect(function()
 		TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
 		TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark }):Play()
@@ -707,12 +682,6 @@ function CoreUI:AddButton(section: Frame, name: string, callback: () -> ())
 	btn.MouseLeave:Connect(function()
 		TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
 		TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container }):Play()
-	end)
-	btn.MouseButton1Down:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.08), { Size = UDim2.new(1, -4, 1, -2) }):Play()
-	end)
-	btn.MouseButton1Up:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(1, 0, 1, 0) }):Play()
 	end)
 
 	btn.MouseButton1Click:Connect(function()

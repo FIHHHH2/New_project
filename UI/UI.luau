@@ -526,12 +526,6 @@ function UI.createWindow(titleText: string)
 			end
 			TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container, TextColor3 = UI.Theme.TextPrimary }):Play()
 		end)
-		btn.MouseButton1Down:Connect(function()
-			TweenService:Create(btn, TweenInfo.new(0.08), { Size = UDim2.new(btn.Size.X.Scale, btn.Size.X.Offset, btn.Size.Y.Scale, btn.Size.Y.Offset - 2) }):Play()
-		end)
-		btn.MouseButton1Up:Connect(function()
-			TweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(btn.Size.X.Scale, btn.Size.X.Offset, btn.Size.Y.Scale, btn.Size.Y.Offset + 2) }):Play()
-		end)
 	end
 
 	attachBtnFX(minButton, false)

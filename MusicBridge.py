@@ -4,7 +4,7 @@ Connects Windows Media Session (Spotify, SoundCloud, YouTube, Apple Music)
 to the Modular Roblox UI suite at http://127.0.0.1:8888.
 
 Features:
-- Live iTunes & Deezer High-Res Album Cover Art fetcher for Spotify/SoundCloud/Apple Music/YouTube
+- Live Album Cover Art binary fetcher & streamer (/cover.png) from Windows Media Session, iTunes, Deezer, and Spotify
 - LRCLIB Synchronized Lyrics fetcher (real-time timestamp matching)
 - Windowless system tray app with "Run on Startup" toggle
 """
@@ -18,6 +18,7 @@ import threading
 import winreg
 import urllib.request
 import urllib.parse
+import hashlib
 import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import pystray
@@ -30,16 +31,18 @@ PORT = 8888
 current_media = {
     "title": "No Song Playing",
     "artist": "Waiting for Media...",
-    "cover": "rbxassetid://7072718362",
     "lyrics": "Play a track on Spotify / SoundCloud / YouTube",
     "isPlaying": False,
     "position": 0,
-    "duration": 0
+    "duration": 0,
+    "hasCover": False,
+    "coverVersion": 0
 }
 
-# Cache for cover art and parsed lyrics
+current_cover_bytes = b""
 cover_cache = {}
 lyrics_cache = {}
+cover_version_counter = 1
 
 def is_startup_enabled() -> bool:
     try:
@@ -69,28 +72,34 @@ def set_startup(enable: bool):
     except Exception:
         pass
 
-# ── Online Album Cover Art Fetcher (iTunes / Deezer) ───────────────
-def fetch_online_cover_art(title: str, artist: str) -> str:
+# ── Online Album Cover Art Fetcher (iTunes / Deezer / Web) ─────────
+def download_cover_image_bytes(title: str, artist: str) -> bytes:
+    global cover_version_counter
     clean_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*', '', title).strip()
     cache_key = f"{clean_title}_{artist}".lower()
     if cache_key in cover_cache:
         return cover_cache[cache_key]
 
-    headers = {"User-Agent": "Mozilla/5.0"}
-    
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+
     # 1. Try iTunes Search API
     try:
         q = urllib.parse.quote(f"{clean_title} {artist}".strip())
         url = f"https://itunes.apple.com/search?term={q}&entity=song&limit=1"
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3.5) as resp:
+        with urllib.request.urlopen(req, timeout=4.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             if data.get("resultCount", 0) > 0:
-                art = data["results"][0].get("artworkUrl100", "")
-                if art:
-                    high_res = art.replace("100x100bb", "600x600bb")
-                    cover_cache[cache_key] = high_res
-                    return high_res
+                art_url = data["results"][0].get("artworkUrl100", "")
+                if art_url:
+                    high_res = art_url.replace("100x100bb", "600x600bb")
+                    img_req = urllib.request.Request(high_res, headers=headers)
+                    with urllib.request.urlopen(img_req, timeout=5.0) as img_resp:
+                        img_bytes = img_resp.read()
+                        if len(img_bytes) > 200:
+                            cover_cache[cache_key] = img_bytes
+                            cover_version_counter += 1
+                            return img_bytes
     except Exception:
         pass
 
@@ -99,19 +108,23 @@ def fetch_online_cover_art(title: str, artist: str) -> str:
         q = urllib.parse.quote(f"{clean_title} {artist}".strip())
         url = f"https://api.deezer.com/search?q={q}&limit=1"
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3.5) as resp:
+        with urllib.request.urlopen(req, timeout=4.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             if data.get("data") and len(data["data"]) > 0:
                 album = data["data"][0].get("album", {})
-                art = album.get("cover_xl") or album.get("cover_big") or album.get("cover_medium")
-                if art:
-                    cover_cache[cache_key] = art
-                    return art
+                art_url = album.get("cover_xl") or album.get("cover_big") or album.get("cover_medium")
+                if art_url:
+                    img_req = urllib.request.Request(art_url, headers=headers)
+                    with urllib.request.urlopen(img_req, timeout=5.0) as img_resp:
+                        img_bytes = img_resp.read()
+                        if len(img_bytes) > 200:
+                            cover_cache[cache_key] = img_bytes
+                            cover_version_counter += 1
+                            return img_bytes
     except Exception:
         pass
 
-    cover_cache[cache_key] = "rbxassetid://7072718362"
-    return "rbxassetid://7072718362"
+    return b""
 
 # ── Synchronized Lyrics Fetcher (LRCLIB) ───────────────────────────
 def parse_lrc(lrc_text: str):
@@ -159,7 +172,6 @@ def fetch_synced_lyrics(title: str, artist: str, duration: float):
     except Exception:
         pass
 
-    # Search endpoint fallback
     try:
         q = urllib.parse.quote(f"{clean_title} {artist}".strip())
         url = f"https://lrclib.net/api/search?q={q}"
@@ -207,12 +219,13 @@ def get_current_lyric_line(title: str, artist: str, position: float, duration: f
     return f"Listening to: {title}"
 
 # ── Windows Media Session Poller ──────────────────────────────────
-last_fetched_title = ""
+last_song_query = ""
 
 async def fetch_windows_media():
-    global last_fetched_title
+    global current_cover_bytes, last_song_query
     try:
         from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionManager as SessionManager
+        from winrt.windows.storage.streams import DataReader
         manager = await SessionManager.request_async()
         if not manager:
             return
@@ -237,9 +250,36 @@ async def fetch_windows_media():
                 current_media["position"] = pos
                 current_media["duration"] = dur
 
-                # Fetch Cover Art asynchronously
-                cover_url = fetch_online_cover_art(t, a)
-                current_media["cover"] = cover_url
+                # Check if song changed
+                song_query = f"{t}_{a}".lower()
+                if song_query != last_song_query:
+                    last_song_query = song_query
+                    # 1. Try to read native media session thumbnail
+                    got_native_cover = False
+                    if media_props.thumbnail:
+                        try:
+                            stream = await media_props.thumbnail.open_read_async()
+                            reader = DataReader(stream.get_input_stream_at(0))
+                            await reader.load_async(stream.size)
+                            buf = bytearray(stream.size)
+                            reader.read_bytes(buf)
+                            if len(buf) > 100:
+                                current_cover_bytes = bytes(buf)
+                                got_native_cover = True
+                        except Exception:
+                            pass
+
+                    # 2. If no native thumbnail, download from iTunes/Deezer/Spotify
+                    if not got_native_cover:
+                        def download_bg():
+                            global current_cover_bytes
+                            img = download_cover_image_bytes(t, a)
+                            if img:
+                                current_cover_bytes = img
+                        threading.Thread(target=download_bg, daemon=True).start()
+
+                current_media["hasCover"] = len(current_cover_bytes) > 0
+                current_media["coverVersion"] = cover_version_counter
 
                 # Get Synchronized Real-Time Lyrics
                 current_lyric = get_current_lyric_line(t, a, pos, dur)
@@ -247,9 +287,10 @@ async def fetch_windows_media():
         else:
             current_media["title"] = "No Song Playing"
             current_media["artist"] = "Idle"
-            current_media["cover"] = "rbxassetid://7072718362"
             current_media["lyrics"] = "Waiting for audio session..."
             current_media["isPlaying"] = False
+            current_media["hasCover"] = False
+            current_cover_bytes = b""
     except Exception:
         pass
 
@@ -276,12 +317,29 @@ class BridgeHandler(BaseHTTPRequestHandler):
         return
 
     def do_GET(self):
+        path = self.path.lower()
+
+        if path.startswith("/cover.png") or path.startswith("/cover"):
+            if current_cover_bytes and len(current_cover_bytes) > 50:
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", str(len(current_cover_bytes)))
+                self.end_headers()
+                self.wfile.write(current_cover_bytes)
+                return
+            else:
+                self.send_response(404)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(b"No cover available")
+                return
+
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
 
-        path = self.path.lower()
         if path == "/current":
             self.wfile.write(json.dumps(current_media).encode("utf-8"))
         elif path == "/toggle":
@@ -306,7 +364,7 @@ def run_media_loop():
             asyncio.run(fetch_windows_media())
         except Exception:
             pass
-        time.sleep(0.6)
+        time.sleep(0.5)
 
 # ── System Tray Icon & Menu ────────────────────────────────────────
 def create_tray_icon():

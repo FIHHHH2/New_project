@@ -375,25 +375,59 @@ function MusicTracker.new()
 	local currentTrackIndex = 1
 	local lastCoverUrl = ""
 	local lastSongTitle = ""
+	local lastCoverVersion = -1
 
-	local function updateCover(coverUrl: string?, isIdle: boolean)
-		if isIdle or not coverUrl or coverUrl == "" then
+	local function loadRealCoverBinary()
+		local wrf = writefile or (getgenv and getgenv().writefile)
+		local mkf = makefolder or (getgenv and getgenv().makefolder)
+		local isfl = isfolder or (getgenv and getgenv().isfolder)
+		local getAsset = getcustomasset or (getgenv and getgenv().getcustomasset) or getsynasset
+		
+		if type(wrf) == "function" and type(getAsset) == "function" then
+			pcall(function()
+				if type(mkf) == "function" and type(isfl) == "function" and not isfl("FihSuite") then
+					mkf("FihSuite")
+				end
+				local imgBytes = game:HttpGet(BRIDGE_URL .. "/cover.png?nocache=" .. tostring(os.time()))
+				if imgBytes and #imgBytes > 100 then
+					local filename = "FihSuite/current_song_cover.png"
+					wrf(filename, imgBytes)
+					local assetUri = getAsset(filename)
+					if assetUri and assetUri ~= "" then
+						coverImg.Image = assetUri
+						coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
+						coverImg.Size = UDim2.new(1, -4, 1, -4)
+						coverImg.Position = UDim2.new(0, 2, 0, 2)
+					end
+				end
+			end)
+		end
+	end
+
+	local function updateCover(coverUrl: string?, isIdle: boolean, coverVersion: number?)
+		if isIdle then
 			coverImg.Image = MUSIC_NOTE_ICON
 			coverImg.ImageColor3 = UI.Theme.Accent
 			coverImg.Size = UDim2.new(0, 52, 0, 52)
 			coverImg.Position = UDim2.new(0.5, -26, 0.5, -26)
-		else
-			if lastCoverUrl ~= coverUrl then
-				lastCoverUrl = coverUrl
-				TweenService:Create(coverImg, TweenInfo.new(0.15, Enum.EasingStyle.Quad), { ImageTransparency = 0.5 }):Play()
-				task.delay(0.15, function()
+			return
+		end
+
+		-- Download real image bytes from bridge server
+		task.spawn(loadRealCoverBinary)
+
+		if coverUrl and coverUrl ~= "" and lastCoverUrl ~= coverUrl then
+			lastCoverUrl = coverUrl
+			TweenService:Create(coverImg, TweenInfo.new(0.15, Enum.EasingStyle.Quad), { ImageTransparency = 0.5 }):Play()
+			task.delay(0.15, function()
+				if coverUrl:find("rbxassetid") then
 					coverImg.Image = coverUrl
-					coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
-					coverImg.Size = UDim2.new(1, -4, 1, -4)
-					coverImg.Position = UDim2.new(0, 2, 0, 2)
-					TweenService:Create(coverImg, TweenInfo.new(0.2, Enum.EasingStyle.Quad), { ImageTransparency = 0 }):Play()
-				end)
-			end
+				end
+				coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
+				coverImg.Size = UDim2.new(1, -4, 1, -4)
+				coverImg.Position = UDim2.new(0, 2, 0, 2)
+				TweenService:Create(coverImg, TweenInfo.new(0.2, Enum.EasingStyle.Quad), { ImageTransparency = 0 }):Play()
+			end)
 		end
 	end
 
@@ -403,11 +437,11 @@ function MusicTracker.new()
 		lyricsLabel.Text = "♫ " .. t.lyrics
 		isPlaying = true
 		playBtn.Text = "||"
-		updateCover(t.cover, false)
+		updateCover(t.cover, false, nil)
 	end
 
 	-- Start on clean idle state
-	updateCover(nil, true)
+	updateCover(nil, true, nil)
 
 	local visualizerConn = RunService.RenderStepped:Connect(function()
 		if not widget.Visible or not isPlaying then
@@ -463,20 +497,22 @@ function MusicTracker.new()
 						local data = HttpService:JSONDecode(raw)
 						if data and data.title then
 							local isIdle = (data.title == "No Song Playing" or not data.isPlaying)
-							if data.title ~= lastSongTitle then
+							local coverVersion = data.coverVersion or 0
+							if data.title ~= lastSongTitle or coverVersion ~= lastCoverVersion then
 								lastSongTitle = data.title
+								lastCoverVersion = coverVersion
 								if isIdle then
 									songTitleLabel.Text = "No Song Playing"
 									lyricsLabel.Text = "♫ Waiting for audio session..."
 									isPlaying = false
 									playBtn.Text = ">"
-									updateCover(nil, true)
+									updateCover(nil, true, coverVersion)
 								else
 									songTitleLabel.Text = string.format("%s — %s", data.title, data.artist or "Unknown")
 									if data.lyrics then lyricsLabel.Text = "♫ " .. data.lyrics end
 									isPlaying = (data.isPlaying == true)
 									playBtn.Text = if isPlaying then "||" else ">"
-									updateCover(data.cover, false)
+									updateCover(data.cover, false, coverVersion)
 								end
 							else
 								if isIdle then
@@ -485,6 +521,7 @@ function MusicTracker.new()
 								else
 									isPlaying = (data.isPlaying == true)
 									playBtn.Text = if isPlaying then "||" else ">"
+									if data.lyrics then lyricsLabel.Text = "♫ " .. data.lyrics end
 								end
 							end
 						end

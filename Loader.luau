@@ -4,7 +4,22 @@
     Fetches and resolves all modular sub-packages dynamically over HTTP.
 ]=]
 
-local BASE_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/"
+local HttpService = game:GetService("HttpService")
+
+-- Dynamically resolve latest commit SHA to bypass any CDN edge cache delays
+local REPO_OWNER = "FIHHHH2"
+local REPO_NAME = "New_project"
+local branchOrSha = "main"
+
+pcall(function()
+	local commitJson = game:HttpGet(string.format("https://api.github.com/repos/%s/%s/commits/main", REPO_OWNER, REPO_NAME))
+	local data = HttpService:JSONDecode(commitJson)
+	if data and data.sha then
+		branchOrSha = data.sha
+	end
+end)
+
+local BASE_URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/", REPO_OWNER, REPO_NAME, branchOrSha)
 
 local function cleanSource(str: string): string
 	local b1, b2, b3 = string.byte(str, 1, 3)
@@ -15,8 +30,7 @@ local function cleanSource(str: string): string
 end
 
 local function fetchSource(path: string): string
-	local nonce = tostring(os.time()) .. "_" .. tostring(math.random(10000, 99999))
-	local url = BASE_URL .. path .. "?v=" .. nonce
+	local url = BASE_URL .. path
 	local success, content = pcall(function()
 		return game:HttpGet(url)
 	end)

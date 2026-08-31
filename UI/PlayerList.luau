@@ -202,19 +202,54 @@ function PlayerList.new(): PlayerListWidget
 		end
 	end)
 
+	-- ── Button Hover & Click FX ─────────────────────────────────────
+	local function attachBtnFX(btn: TextButton, isClose: boolean?)
+		local stroke = btn:FindFirstChildWhichIsA("UIStroke")
+		btn.MouseEnter:Connect(function()
+			if stroke then TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play() end
+			local hoverCol = if isClose then Color3.fromRGB(220, 60, 60) else UI.Theme.Accent
+			TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = hoverCol, TextColor3 = Color3.fromRGB(255, 255, 255) }):Play()
+		end)
+		btn.MouseLeave:Connect(function()
+			if stroke then TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1 }):Play() end
+			TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark, TextColor3 = UI.Theme.TextPrimary }):Play()
+		end)
+		btn.MouseButton1Down:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.08), { Size = UDim2.new(0, 18, 0, 16) }):Play()
+		end)
+		btn.MouseButton1Up:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(0, 20, 0, 18) }):Play()
+		end)
+	end
+
+	attachBtnFX(minBtn, false)
+	attachBtnFX(closeBtn, true)
+
 	-- ── Minimize / Close ─────────────────────────────────────────────
 	minBtn.MouseButton1Click:Connect(function()
 		minimized = not minimized
-		container.Visible = not minimized
 		if minimized then
-			TweenService:Create(widget, TweenInfo.new(0.2), { Size = UDim2.new(0, widget.AbsoluteSize.X, 0, HEADER_H) }):Play()
+			container.Visible = false
+			TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Size = UDim2.new(0, widget.AbsoluteSize.X, 0, HEADER_H)
+			}):Play()
 		else
+			container.Visible = true
 			updateWidgetHeight()
 		end
 	end)
 
 	closeBtn.MouseButton1Click:Connect(function()
-		widget.Visible = false
+		local closeTween = TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Size = UDim2.new(0, widget.AbsoluteSize.X * 0.9, 0, 0),
+			BackgroundTransparency = 1
+		})
+		closeTween:Play()
+		closeTween.Completed:Connect(function()
+			widget.Visible = false
+			widget.Size = UDim2.new(0, 260, 0, HEADER_H + 40)
+			widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
+		end)
 	end)
 
 	-- ── Incremental Animated Player Rows ─────────────────────────────

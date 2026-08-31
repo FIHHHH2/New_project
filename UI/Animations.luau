@@ -1,4 +1,9 @@
 --!strict
+--[=[
+    ✦ Animation Suite for Modular Retro UI ✦
+    High-performance TweenService helpers for tabs, hovers, clicks, minimizations, and entry animations.
+]=]
+
 local TweenService = game:GetService("TweenService")
 
 local Animations = {}
@@ -21,20 +26,61 @@ function Animations.tween(instance: Instance, properties: {[string]: any}, confi
 	return tween
 end
 
-function Animations.bindHover(button: GuiButton, hoverProps: {[string]: any}, defaultProps: {[string]: any}, config: AnimationConfig?)
+-- Attach hover & click feedback to any GuiButton
+function Animations.attachButtonEffects(button: GuiButton, getNormalBg: (() -> Color3)?, getHoverBg: (() -> Color3)?, getActiveBg: (() -> Color3)?)
+	local stroke = button:FindFirstChildWhichIsA("UIStroke")
+	local originalScale = 1.0
+
 	button.MouseEnter:Connect(function()
-		Animations.tween(button, hoverProps, config)
+		if stroke then
+			Animations.tween(stroke, { Thickness = 1.8 }, { duration = 0.12 })
+		end
+		if getHoverBg then
+			Animations.tween(button, { BackgroundColor3 = getHoverBg() }, { duration = 0.12 })
+		end
 	end)
+
 	button.MouseLeave:Connect(function()
-		Animations.tween(button, defaultProps, config)
+		if stroke then
+			Animations.tween(stroke, { Thickness = 1.2 }, { duration = 0.12 })
+		end
+		if getNormalBg then
+			Animations.tween(button, { BackgroundColor3 = getNormalBg() }, { duration = 0.12 })
+		end
+	end)
+
+	button.MouseButton1Down:Connect(function()
+		Animations.tween(button, { Size = UDim2.new(button.Size.X.Scale, button.Size.X.Offset, button.Size.Y.Scale, button.Size.Y.Offset - 2) }, { duration = 0.08 })
+	end)
+
+	button.MouseButton1Up:Connect(function()
+		Animations.tween(button, { Size = UDim2.new(button.Size.X.Scale, button.Size.X.Offset, button.Size.Y.Scale, button.Size.Y.Offset + 2) }, { duration = 0.12, easingStyle = Enum.EasingStyle.Back })
 	end)
 end
 
-function Animations.fadeToggle(indicator: GuiObject, state: boolean, activeColor: Color3, inactiveColor: Color3, config: AnimationConfig?)
-	local targetColor = if state then activeColor else inactiveColor
-	Animations.tween(indicator, {
-		BackgroundColor3 = targetColor
-	}, config or { duration = 0.12 })
+-- Close GUI with smooth scale/fade collapse
+function Animations.closeWindow(frame: GuiObject, onComplete: (() -> ())?)
+	local originalSize = frame.Size
+	local tween = Animations.tween(frame, {
+		Size = UDim2.new(0, frame.AbsoluteSize.X * 0.9, 0, 0),
+		BackgroundTransparency = 1
+	}, { duration = 0.2, easingStyle = Enum.EasingStyle.Quad, easingDirection = Enum.EasingDirection.In })
+	
+	tween.Completed:Connect(function()
+		frame.Visible = false
+		frame.Size = originalSize
+		frame.BackgroundTransparency = 0
+		if onComplete then onComplete() end
+	end)
+end
+
+-- Open GUI with smooth unfold
+function Animations.openWindow(frame: GuiObject, targetSize: UDim2)
+	frame.Size = UDim2.new(0, targetSize.X.Offset, 0, 0)
+	frame.Visible = true
+	Animations.tween(frame, {
+		Size = targetSize
+	}, { duration = 0.25, easingStyle = Enum.EasingStyle.Quad, easingDirection = Enum.EasingDirection.Out })
 end
 
 return Animations

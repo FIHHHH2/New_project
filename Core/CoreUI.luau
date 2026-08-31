@@ -162,6 +162,24 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 	}
 	
 	if tabButton then
+		tabButton.MouseEnter:Connect(function()
+			if self.ActiveTab ~= tabObj then
+				if tabStroke then TweenService:Create(tabStroke, TweenInfo.new(0.12), { Thickness = 2 }):Play() end
+				TweenService:Create(tabButton, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark, TextColor3 = UI.Theme.TextPrimary }):Play()
+			end
+		end)
+		tabButton.MouseLeave:Connect(function()
+			if self.ActiveTab ~= tabObj then
+				if tabStroke then TweenService:Create(tabStroke, TweenInfo.new(0.12), { Thickness = 1.5 }):Play() end
+				TweenService:Create(tabButton, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container, TextColor3 = UI.Theme.TextSecondary }):Play()
+			end
+		end)
+		tabButton.MouseButton1Down:Connect(function()
+			TweenService:Create(tabButton, TweenInfo.new(0.08), { Size = UDim2.new(1, -6, 0, 28) }):Play()
+		end)
+		tabButton.MouseButton1Up:Connect(function()
+			TweenService:Create(tabButton, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(1, -4, 0, 30) }):Play()
+		end)
 		tabButton.MouseButton1Click:Connect(function()
 			self:SelectTab(tabObj)
 		end)
@@ -185,22 +203,31 @@ function CoreUI:SelectTab(tabObj)
 
 	for _, tab in ipairs(self.Tabs) do
 		if tab == tabObj then
+			tab.Page.Position = UDim2.new(0, 0, 0, 8)
 			tab.Page.Visible = true
+			TweenService:Create(tab.Page, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0, 0, 0, 0)
+			}):Play()
+
 			if tab.Button and tab.Stroke then
-				tab.Button.BackgroundColor3 = UI.Theme.Accent
-				tab.Button.BackgroundTransparency = 0
-				tab.Button.TextColor3 = UI.Theme.AccentText
-				tab.Stroke.Color = UI.Theme.Border
+				TweenService:Create(tab.Button, TweenInfo.new(0.15), {
+					BackgroundColor3 = UI.Theme.Accent,
+					BackgroundTransparency = 0,
+					TextColor3 = UI.Theme.AccentText
+				}):Play()
+				TweenService:Create(tab.Stroke, TweenInfo.new(0.15), { Color = UI.Theme.Border }):Play()
 				local grad = tab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
 				if grad then grad.Enabled = true end
 			end
 		else
 			tab.Page.Visible = false
 			if tab.Button and tab.Stroke then
-				tab.Button.BackgroundColor3 = UI.Theme.Container
-				tab.Button.BackgroundTransparency = UI.Theme.ContainerTransparency
-				tab.Button.TextColor3 = UI.Theme.TextSecondary
-				tab.Stroke.Color = UI.Theme.BorderDim
+				TweenService:Create(tab.Button, TweenInfo.new(0.15), {
+					BackgroundColor3 = UI.Theme.Container,
+					BackgroundTransparency = UI.Theme.ContainerTransparency,
+					TextColor3 = UI.Theme.TextSecondary
+				}):Play()
+				TweenService:Create(tab.Stroke, TweenInfo.new(0.15), { Color = UI.Theme.BorderDim }):Play()
 				local grad = tab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
 				if grad then grad.Enabled = false end
 			end
@@ -214,16 +241,20 @@ function CoreUI:SelectTab(tabObj)
 	-- Keep subheader buttons visible, toggle active highlight styling
 	if self.SettingsBtn and self.SettingsBtn:FindFirstChild("UIStroke") then
 		local isSet = (tabObj == self.SettingsTab)
-		self.SettingsBtn.BackgroundColor3 = if isSet then UI.Theme.Accent else UI.Theme.Container
-		self.SettingsBtn.BackgroundTransparency = if isSet then 0 else UI.Theme.ContainerTransparency
-		self.SettingsBtn.TextColor3 = if isSet then UI.Theme.AccentText else UI.Theme.TextPrimary
+		TweenService:Create(self.SettingsBtn, TweenInfo.new(0.15), {
+			BackgroundColor3 = if isSet then UI.Theme.Accent else UI.Theme.Container,
+			BackgroundTransparency = if isSet then 0 else UI.Theme.ContainerTransparency,
+			TextColor3 = if isSet then UI.Theme.AccentText else UI.Theme.TextPrimary
+		}):Play()
 	end
 
 	if self.ConfigsBtn and self.ConfigsBtn:FindFirstChild("UIStroke") then
 		local isConf = (tabObj == self.ConfigsTab)
-		self.ConfigsBtn.BackgroundColor3 = if isConf then UI.Theme.Accent else UI.Theme.Container
-		self.ConfigsBtn.BackgroundTransparency = if isConf then 0 else UI.Theme.ContainerTransparency
-		self.ConfigsBtn.TextColor3 = if isConf then UI.Theme.AccentText else UI.Theme.TextPrimary
+		TweenService:Create(self.ConfigsBtn, TweenInfo.new(0.15), {
+			BackgroundColor3 = if isConf then UI.Theme.Accent else UI.Theme.Container,
+			BackgroundTransparency = if isConf then 0 else UI.Theme.ContainerTransparency,
+			TextColor3 = if isConf then UI.Theme.AccentText else UI.Theme.TextPrimary
+		}):Play()
 	end
 end
 
@@ -425,10 +456,52 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	UI.registerThemeElement(bindStroke, "Border")
 
 	local function updateToggleVisual(state: boolean)
-		checkBtn.BackgroundColor3 = if state then UI.Theme.Accent else UI.Theme.Container
-		checkBtn.BackgroundTransparency = if state then 0 else UI.Theme.ContainerTransparency
+		TweenService:Create(checkBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
+			BackgroundColor3 = if state then UI.Theme.Accent else UI.Theme.Container,
+			BackgroundTransparency = if state then 0 else UI.Theme.ContainerTransparency
+		}):Play()
 		checkBtn.Text = if state then "X" else ""
 	end
+
+	-- Hover & Click animations on toggle components
+	titleBox.MouseEnter:Connect(function()
+		TweenService:Create(titleStroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
+	end)
+	titleBox.MouseLeave:Connect(function()
+		TweenService:Create(titleStroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
+	end)
+	titleBox.MouseButton1Down:Connect(function()
+		TweenService:Create(titleBox, TweenInfo.new(0.08), { Size = UDim2.new(1, -92, 0, 22) }):Play()
+	end)
+	titleBox.MouseButton1Up:Connect(function()
+		TweenService:Create(titleBox, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(1, -90, 0, 24) }):Play()
+	end)
+
+	checkBtn.MouseEnter:Connect(function()
+		TweenService:Create(checkStroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
+	end)
+	checkBtn.MouseLeave:Connect(function()
+		TweenService:Create(checkStroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
+	end)
+	checkBtn.MouseButton1Down:Connect(function()
+		TweenService:Create(checkBtn, TweenInfo.new(0.08), { Size = UDim2.new(0, 22, 0, 22) }):Play()
+	end)
+	checkBtn.MouseButton1Up:Connect(function()
+		TweenService:Create(checkBtn, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(0, 24, 0, 24) }):Play()
+	end)
+
+	keybindBtn.MouseEnter:Connect(function()
+		TweenService:Create(bindStroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
+	end)
+	keybindBtn.MouseLeave:Connect(function()
+		TweenService:Create(bindStroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
+	end)
+	keybindBtn.MouseButton1Down:Connect(function()
+		TweenService:Create(keybindBtn, TweenInfo.new(0.08), { Size = UDim2.new(0, 56, 0, 22) }):Play()
+	end)
+	keybindBtn.MouseButton1Up:Connect(function()
+		TweenService:Create(keybindBtn, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(0, 58, 0, 24) }):Play()
+	end)
 
 	-- Synchronize visual state when toggled via keyboard keybind or external call
 	feature.onStateChanged = function(newState: boolean)
@@ -626,12 +699,26 @@ function CoreUI:AddButton(section: Frame, name: string, callback: () -> ())
 	btnStroke.Parent = btn
 	UI.registerThemeElement(btnStroke, "Border")
 
+	-- Hover & Click squish animations
+	btn.MouseEnter:Connect(function()
+		TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
+		TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark }):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
+		TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container }):Play()
+	end)
+	btn.MouseButton1Down:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.08), { Size = UDim2.new(1, -4, 1, -2) }):Play()
+	end)
+	btn.MouseButton1Up:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(1, 0, 1, 0) }):Play()
+	end)
+
 	btn.MouseButton1Click:Connect(function()
-		btn.BackgroundColor3 = UI.Theme.Accent
-		btn.TextColor3 = UI.Theme.AccentText
+		TweenService:Create(btn, TweenInfo.new(0.08), { BackgroundColor3 = UI.Theme.Accent, TextColor3 = UI.Theme.AccentText }):Play()
 		task.delay(0.15, function()
-			btn.BackgroundColor3 = UI.Theme.Container
-			btn.TextColor3 = UI.Theme.TextPrimary
+			TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = UI.Theme.Container, TextColor3 = UI.Theme.TextPrimary }):Play()
 		end)
 		callback()
 	end)

@@ -510,16 +510,64 @@ function UI.createWindow(titleText: string)
 		end
 	end)
 
+	-- Button Hover & Click animations
+	local function attachBtnFX(btn: TextButton, isClose: boolean?)
+		local stroke = btn:FindFirstChildWhichIsA("UIStroke")
+		btn.MouseEnter:Connect(function()
+			if stroke then
+				TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 2 }):Play()
+			end
+			local hoverCol = if isClose then Color3.fromRGB(220, 60, 60) else UI.Theme.Accent
+			TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = hoverCol, TextColor3 = Color3.fromRGB(255, 255, 255) }):Play()
+		end)
+		btn.MouseLeave:Connect(function()
+			if stroke then
+				TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1.5 }):Play()
+			end
+			TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container, TextColor3 = UI.Theme.TextPrimary }):Play()
+		end)
+		btn.MouseButton1Down:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.08), { Size = UDim2.new(btn.Size.X.Scale, btn.Size.X.Offset, btn.Size.Y.Scale, btn.Size.Y.Offset - 2) }):Play()
+		end)
+		btn.MouseButton1Up:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(btn.Size.X.Scale, btn.Size.X.Offset, btn.Size.Y.Scale, btn.Size.Y.Offset + 2) }):Play()
+		end)
+	end
+
+	attachBtnFX(minButton, false)
+	attachBtnFX(closeButton, true)
+	attachBtnFX(settingsBtn, false)
+	attachBtnFX(configsBtn, false)
+
 	local minimized = false
 	minButton.MouseButton1Click:Connect(function()
 		minimized = not minimized
-		bodyFrame.Visible = not minimized
-		footerBar.Visible = not minimized
-		mainFrame.Size = if minimized then UDim2.new(0, 720, 0, 44) else UDim2.new(0, 720, 0, 480)
+		if minimized then
+			bodyFrame.Visible = false
+			footerBar.Visible = false
+			TweenService:Create(mainFrame, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Size = UDim2.new(0, 720, 0, 44)
+			}):Play()
+		else
+			bodyFrame.Visible = true
+			footerBar.Visible = true
+			TweenService:Create(mainFrame, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Size = UDim2.new(0, 720, 0, 480)
+			}):Play()
+		end
 	end)
 
 	closeButton.MouseButton1Click:Connect(function()
-		mainFrame.Visible = false
+		local closeTween = TweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Size = UDim2.new(0, 720 * 0.9, 0, 0),
+			BackgroundTransparency = 1
+		})
+		closeTween:Play()
+		closeTween.Completed:Connect(function()
+			mainFrame.Visible = false
+			mainFrame.Size = UDim2.new(0, 720, 0, 480)
+			mainFrame.BackgroundTransparency = UI.Theme.BackgroundTransparency
+		end)
 	end)
 
 	return mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale

@@ -368,20 +368,65 @@ function ChatWidget.new(): ChatWidgetInstance
 		end
 	end)
 
+	-- ── Button Hover & Click FX ─────────────────────────────────────
+	local function attachBtnFX(btn: TextButton, isClose: boolean?, isAccent: boolean?)
+		local stroke = btn:FindFirstChildWhichIsA("UIStroke")
+		btn.MouseEnter:Connect(function()
+			if stroke then TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play() end
+			local hoverCol = if isClose then Color3.fromRGB(220, 60, 60) elseif isAccent then UI.Theme.AccentDark else UI.Theme.Accent
+			TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = hoverCol, TextColor3 = Color3.fromRGB(255, 255, 255) }):Play()
+		end)
+		btn.MouseLeave:Connect(function()
+			if stroke then TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1 }):Play() end
+			local defaultCol = if isAccent then UI.Theme.Accent else UI.Theme.ContainerDark
+			local defaultTextCol = if isAccent then UI.Theme.AccentText else UI.Theme.TextPrimary
+			TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = defaultCol, TextColor3 = defaultTextCol }):Play()
+		end)
+		btn.MouseButton1Down:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.08), { Size = UDim2.new(btn.Size.X.Scale, btn.Size.X.Offset, btn.Size.Y.Scale, btn.Size.Y.Offset - 2) }):Play()
+		end)
+		btn.MouseButton1Up:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Size = UDim2.new(btn.Size.X.Scale, btn.Size.X.Offset, btn.Size.Y.Scale, btn.Size.Y.Offset + 2) }):Play()
+		end)
+	end
+
+	attachBtnFX(minBtn, false, false)
+	attachBtnFX(closeBtn, true, false)
+	attachBtnFX(quickBtn, false, false)
+	attachBtnFX(sendBtn, false, true)
+
 	-- ── Minimize / Close ─────────────────────────────────────────────
 	local minimized = false
 	minBtn.MouseButton1Click:Connect(function()
 		minimized = not minimized
-		container.Visible = not minimized
-		bottomBar.Visible = not minimized
-		resizeHandle.Visible = not minimized
-		TweenService:Create(widget, TweenInfo.new(0.18), {
-			Size = if minimized then UDim2.new(0, widget.AbsoluteSize.X, 0, TOPBAR_H) else UDim2.new(0, widget.AbsoluteSize.X, 0, DEFAULT_H)
-		}):Play()
+		if minimized then
+			container.Visible = false
+			bottomBar.Visible = false
+			resizeHandle.Visible = false
+			TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Size = UDim2.new(0, widget.AbsoluteSize.X, 0, TOPBAR_H)
+			}):Play()
+		else
+			container.Visible = true
+			bottomBar.Visible = true
+			resizeHandle.Visible = true
+			TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Size = UDim2.new(0, widget.AbsoluteSize.X, 0, DEFAULT_H)
+			}):Play()
+		end
 	end)
 
 	closeBtn.MouseButton1Click:Connect(function()
-		widget.Visible = false
+		local closeTween = TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Size = UDim2.new(0, widget.AbsoluteSize.X * 0.9, 0, 0),
+			BackgroundTransparency = 1
+		})
+		closeTween:Play()
+		closeTween.Completed:Connect(function()
+			widget.Visible = false
+			widget.Size = UDim2.new(0, DEFAULT_W, 0, DEFAULT_H)
+			widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
+		end)
 	end)
 
 	-- ── Message Row Renderer (DisplayName : Message) ─────────────────
@@ -395,6 +440,7 @@ function ChatWidget.new(): ChatWidgetInstance
 		row.AutomaticSize = Enum.AutomaticSize.Y
 		row.BackgroundTransparency = 1
 		row.BorderSizePixel = 0
+		row.Position = UDim2.new(0, 0, 0, 4)
 		row.Parent = container
 
 		-- Sender name
@@ -428,6 +474,11 @@ function ChatWidget.new(): ChatWidgetInstance
 		textLabel.TextYAlignment = Enum.TextYAlignment.Top
 		textLabel.Parent = row
 		UI.registerThemeElement(textLabel, "TextPrimary")
+
+		-- Smooth entry animation
+		TweenService:Create(row, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0, 0, 0, 0)
+		}):Play()
 
 		task.defer(function()
 			container.CanvasPosition = Vector2.new(0, 999999)

@@ -154,17 +154,29 @@ type ThemedElement = {
 	PropType: string
 }
 
--- Weak-keyed registry: keys are Instances, values are propType string.
+-- Weak-keyed registry: keys are Instances, values are sets of propType strings.
+-- Supports registering multiple property types on the same Instance (e.g. Container Background AND TextPrimary TextColor).
 -- Allows destroyed GUI instances to be garbage-collected without leaking memory.
-UI.RegisteredElements = setmetatable({}, { __mode = "k" }) :: {[Instance]: string}
+UI.RegisteredElements = setmetatable({}, { __mode = "k" }) :: {[Instance]: {[string]: boolean}}
 
 function UI.registerThemeElement(inst: Instance, propType: string)
 	if not inst then return end
-	UI.RegisteredElements[inst] = propType
+	local propMap = UI.RegisteredElements[inst]
+	if not propMap then
+		propMap = {}
+		UI.RegisteredElements[inst] = propMap
+	end
+	propMap[propType] = true
 end
 
-function UI.unregisterThemeElement(inst: Instance)
-	if inst then
+function UI.unregisterThemeElement(inst: Instance, propType: string?)
+	if not inst then return end
+	if propType then
+		local propMap = UI.RegisteredElements[inst]
+		if propMap then
+			propMap[propType] = nil
+		end
+	else
 		UI.RegisteredElements[inst] = nil
 	end
 end
@@ -205,48 +217,50 @@ function UI.setTheme(themeName: string)
 	
 	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	
-	for inst, pt in pairs(UI.RegisteredElements) do
+	for inst, propMap in pairs(UI.RegisteredElements) do
 		if inst and inst.Parent then
-			if pt == "Background" and inst:IsA("GuiObject") then
-				TweenService:Create(inst, tweenInfo, {
-					BackgroundColor3 = targetTheme.Background,
-					BackgroundTransparency = targetTheme.BackgroundTransparency
-				}):Play()
-			elseif pt == "Container" and inst:IsA("GuiObject") then
-				TweenService:Create(inst, tweenInfo, {
-					BackgroundColor3 = targetTheme.Container,
-					BackgroundTransparency = targetTheme.ContainerTransparency
-				}):Play()
-			elseif pt == "ContainerDark" and inst:IsA("GuiObject") then
-				TweenService:Create(inst, tweenInfo, {
-					BackgroundColor3 = targetTheme.ContainerDark,
-					BackgroundTransparency = targetTheme.ContainerDarkTransparency
-				}):Play()
-			elseif pt == "Accent" and inst:IsA("GuiObject") then
-				TweenService:Create(inst, tweenInfo, {
-					BackgroundColor3 = targetTheme.Accent
-				}):Play()
-			elseif pt == "Border" and inst:IsA("UIStroke") then
-				TweenService:Create(inst, tweenInfo, { Color = targetTheme.Border }):Play()
-			elseif pt == "BorderDim" and inst:IsA("UIStroke") then
-				TweenService:Create(inst, tweenInfo, { Color = targetTheme.BorderDim }):Play()
-			elseif pt == "TextPrimary" then
-				if inst:IsA("TextLabel") or inst:IsA("TextButton") then
-					TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextPrimary }):Play()
-				elseif inst:IsA("TextBox") then
+			for pt in pairs(propMap) do
+				if pt == "Background" and inst:IsA("GuiObject") then
 					TweenService:Create(inst, tweenInfo, {
-						TextColor3 = targetTheme.TextPrimary,
-						PlaceholderColor3 = targetTheme.TextSecondary
+						BackgroundColor3 = targetTheme.Background,
+						BackgroundTransparency = targetTheme.BackgroundTransparency
 					}):Play()
+				elseif pt == "Container" and inst:IsA("GuiObject") then
+					TweenService:Create(inst, tweenInfo, {
+						BackgroundColor3 = targetTheme.Container,
+						BackgroundTransparency = targetTheme.ContainerTransparency
+					}):Play()
+				elseif pt == "ContainerDark" and inst:IsA("GuiObject") then
+					TweenService:Create(inst, tweenInfo, {
+						BackgroundColor3 = targetTheme.ContainerDark,
+						BackgroundTransparency = targetTheme.ContainerDarkTransparency
+					}):Play()
+				elseif pt == "Accent" and inst:IsA("GuiObject") then
+					TweenService:Create(inst, tweenInfo, {
+						BackgroundColor3 = targetTheme.Accent
+					}):Play()
+				elseif pt == "Border" and inst:IsA("UIStroke") then
+					TweenService:Create(inst, tweenInfo, { Color = targetTheme.Border }):Play()
+				elseif pt == "BorderDim" and inst:IsA("UIStroke") then
+					TweenService:Create(inst, tweenInfo, { Color = targetTheme.BorderDim }):Play()
+				elseif pt == "TextPrimary" then
+					if inst:IsA("TextLabel") or inst:IsA("TextButton") then
+						TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextPrimary }):Play()
+					elseif inst:IsA("TextBox") then
+						TweenService:Create(inst, tweenInfo, {
+							TextColor3 = targetTheme.TextPrimary,
+							PlaceholderColor3 = targetTheme.TextSecondary
+						}):Play()
+					end
+				elseif pt == "TextSecondary" then
+					if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+						TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextSecondary }):Play()
+					end
+				elseif pt == "AccentText" and (inst:IsA("TextLabel") or inst:IsA("TextButton")) then
+					TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.AccentText }):Play()
+				elseif pt == "BorderDimText" and inst:IsA("TextLabel") then
+					TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.BorderDim }):Play()
 				end
-			elseif pt == "TextSecondary" then
-				if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
-					TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextSecondary }):Play()
-				end
-			elseif pt == "AccentText" and (inst:IsA("TextLabel") or inst:IsA("TextButton")) then
-				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.AccentText }):Play()
-			elseif pt == "BorderDimText" and inst:IsA("TextLabel") then
-				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.BorderDim }):Play()
 			end
 		else
 			UI.RegisteredElements[inst] = nil

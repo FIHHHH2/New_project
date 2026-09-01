@@ -412,6 +412,18 @@ pcall(function()
 					end
 				end
 			end
+			elseif (method == "ScreenPointToRay" or method == "ViewportPointToRay") and self == Camera then
+				local target = cachedTargetPart
+				if target and target.Parent and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
+					local callingScript = if type(getcalling) == "function" then getcalling() else nil
+					if not isCameraOrCoreScript(callingScript) then
+						local targetVel = target.AssemblyLinearVelocity or Vector3.zero
+						local predictedPos = target.Position + (targetVel * 0.035)
+						local camPos = Camera.CFrame.Position
+						local dir = (predictedPos - camPos).Unit * 1000
+						return Ray.new(camPos, dir)
+					end
+				end
 
 			return oldNamecall(self, ...)
 		end)

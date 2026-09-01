@@ -128,7 +128,9 @@ local function installBulletHook()
 			origFireBullet = bh.FireBullet
 
 			bh.FireBullet = function(p10, origin, direction, velocity, tool, player, tracerColor, fakeBullet)
-				if SeekerVsHider.SilentAim and player == LocalPlayer then
+				local isLocal = (player == LocalPlayer or player == nil or player == LocalPlayer.Character or player == LocalPlayer.Name or (p10 == LocalPlayer.Character))
+
+				if SeekerVsHider.SilentAim and isLocal then
 					local roll = math.random(1, 100)
 					if roll <= SeekerVsHider.HitChance then
 						local targetPlayer, targetPart, predictedPos = getTargetCandidate()
@@ -136,12 +138,16 @@ local function installBulletHook()
 							-- Redirect bullet trajectory vector directly to target
 							local newDir = (predictedPos - origin).Unit
 							direction = newDir
+							if typeof(velocity) == "Vector3" then
+								local spd = velocity.Magnitude
+								velocity = newDir * (if spd > 10 then spd else 1000)
+							end
 						end
 					end
 				end
 
 				-- Weapon Config Overrides
-				if SeekerVsHider.NoBulletDrop and typeof(velocity) == "Vector3" then
+				if SeekerVsHider.NoBulletDrop then
 					pcall(function()
 						local fastCastBehavior = debug.getupvalue and debug.getupvalue(origFireBullet, 1)
 						if fastCastBehavior and typeof(fastCastBehavior) == "table" then

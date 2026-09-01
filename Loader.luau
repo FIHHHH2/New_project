@@ -5714,15 +5714,7 @@ local PRIMARY_EXACT_NAMES: {[string]: boolean} = {
 
 local function isPrimaryCurrency(name: string, val: any): boolean
 	local lower = name:lower()
-	if PRIMARY_EXACT_NAMES[lower] then
-		return true
-	end
-	for kw in pairs(PRIMARY_EXACT_NAMES) do
-		if string.find(lower, "^" .. kw) or string.find(lower, kw .. "$") then
-			return true
-		end
-	end
-	return false
+	return PRIMARY_EXACT_NAMES[lower] == true
 end
 
 local function formatNum(strVal: string): string

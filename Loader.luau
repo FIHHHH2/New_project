@@ -10541,16 +10541,24 @@ end
 
 function IceTycoon.fillWaterNow(): boolean
 	local hrp = getHrp()
-	if not hrp then return false end
 
-	ensureWaterToolEquipped()
+	-- 1. Direct IntValue manipulation (Instant & Zero Movement)
+	local pump = Workspace:FindFirstChild("Tycoon") and Workspace.Tycoon:FindFirstChild("Essentials") and Workspace.Tycoon.Essentials:FindFirstChild("Pump")
+	if pump then
+		local amt = pump:FindFirstChild("Amount") :: IntValue?
+		local max = pump:FindFirstChild("Max") :: IntValue?
+		local targetMax = (max and max.Value) or 20
+		if amt and amt:IsA("IntValue") then
+			amt.Value = targetMax
+		end
+	end
 
+	-- 2. Server-side remote prompt confirmation (Zero Movement)
 	local scoopPrompt = findActiveScoopPrompt()
 	local fillPrompt = findPumpFillPrompt()
 	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
 
-	if scoopPrompt and fillPrompt then
-		-- Extend activation distance so prompts fire remotely with ZERO character movement
+	if scoopPrompt and fillPrompt and type(fpp) == "function" then
 		scoopPrompt.MaxActivationDistance = 999999
 		scoopPrompt.RequiresLineOfSight = false
 		scoopPrompt.HoldDuration = 0
@@ -10559,29 +10567,16 @@ function IceTycoon.fillWaterNow(): boolean
 		fillPrompt.RequiresLineOfSight = false
 		fillPrompt.HoldDuration = 0
 
-		-- 1. Instant remote scoop (fills cup to full)
-		for _ = 1, 6 do
-			if type(fpp) == "function" then
+		task.spawn(function()
+			pcall(function()
 				fpp(scoopPrompt, 1, true)
-			else
-				pcall(function() scoopPrompt:InputHoldBegin() task.wait(0.01) scoopPrompt:InputHoldEnd() end)
-			end
-			task.wait(0.02)
-		end
-
-		task.wait(0.03)
-
-		-- 2. Instant remote deposit into tycoon pump tank
-		if type(fpp) == "function" then
-			fpp(fillPrompt, 1, true)
-		else
-			pcall(function() fillPrompt:InputHoldBegin() task.wait(0.01) fillPrompt:InputHoldEnd() end)
-		end
-
-		return true
+				task.wait(0.01)
+				fpp(fillPrompt, 1, true)
+			end)
+		end)
 	end
 
-	return false
+	return true
 end
 
 function IceTycoon.setAutoFillWater(enabled: boolean)
@@ -10590,11 +10585,14 @@ function IceTycoon.setAutoFillWater(enabled: boolean)
 		task.spawn(function()
 			while IceTycoon.AutoFillWater do
 				local pump = Workspace:FindFirstChild("Tycoon") and Workspace.Tycoon:FindFirstChild("Essentials") and Workspace.Tycoon.Essentials:FindFirstChild("Pump")
-				local amt = pump and pump:FindFirstChild("Amount") and (pump.Amount :: any).Value or 0
-				local max = pump and pump:FindFirstChild("Max") and (pump.Max :: any).Value or 20
-
-				if amt < max then
-					IceTycoon.fillWaterNow()
+				if pump then
+					local amt = pump:FindFirstChild("Amount") :: IntValue?
+					local max = pump:FindFirstChild("Max") :: IntValue?
+					local targetMax = (max and max.Value) or 20
+					if amt and amt:IsA("IntValue") and amt.Value < targetMax then
+						amt.Value = targetMax
+						IceTycoon.fillWaterNow()
+					end
 				end
 				task.wait(0.5)
 			end

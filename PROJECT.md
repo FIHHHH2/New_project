@@ -33,16 +33,16 @@ The Modular Roblox Menu consists of 18 Luau modules spanning core systems, UI wi
 | 7 | Noclip & Locomotion Sweep Optimization | Use cached descendant lists / targeted part filtering in `Movement.luau` and `RunNHide.luau` | M3 | R3 |
 | 8 | Spatial Bounding & Raycast Optimization | Spatial partitioning / distance bounding checks prior to multi-target raycasts in `Combat.luau` | M3 | R3 |
 | 9 | Empirical Luau Benchmark Suite | Luau benchmark script measuring frame times, GC pressure, and memory under 50+ player load | M4 | R4 |
-| 10 | Static Service & BOM Verification | `check_services.py` 100% pass (0 missing services, 0 BOM bytes across 18 Luau modules) | M4 | R4 |
+| 10 | Static Service & BOM Verification | `check_services.py` 100% pass (0 missing services, 0 BOM bytes across 19 Luau modules) | M4 | R4 |
 | 11 | Git Commit & Push | Clean commit and push to `origin/main` | M4 | R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | RenderStepped & Heartbeat Pipeline Optimization | Features 1–3: `Combat.luau`, `Visuals.luau`, `Movement.luau`, `GameUtils.luau`, `RunNHide.luau`, `Core/Main.luau`, `UI/Animations.luau` | none | PLANNED |
-| 2 | 3D ViewportFrame & Memory Lifecycle Optimization | Features 4–6: `UI/Hotbar.luau`, `Modules/Visuals.luau`, peripheral widgets | none | PLANNED |
-| 3 | Collision, Physics & Raycast Optimization | Features 7–8: `Movement.luau`, `Combat.luau`, `RunNHide.luau` | none | PLANNED |
-| 4 | Empirical Benchmark, Static Analysis & Git Push | Features 9–11: Benchmark script, `check_services.py`, BOM check, Git push | M1, M2, M3 | PLANNED |
+| 1 | RenderStepped & Heartbeat Pipeline Optimization | Features 1–3: `Combat.luau`, `Visuals.luau`, `Movement.luau`, `GameUtils.luau`, `RunNHide.luau`, `Core/Main.luau`, `UI/Animations.luau` | none | DONE |
+| 2 | 3D ViewportFrame & Memory Lifecycle Optimization | Features 4–6: `UI/Hotbar.luau`, `Modules/Visuals.luau`, peripheral widgets | none | DONE |
+| 3 | Collision, Physics & Raycast Optimization | Features 7–8: `Movement.luau`, `Combat.luau`, `RunNHide.luau` | none | DONE |
+| 4 | Empirical Benchmark, Static Analysis & Git Push | Features 9–11: Benchmark script, `check_services.py`, BOM check, Git push | M1, M2, M3 | DONE |
 
 ## Interface Contracts
 - Drawing Object Pool: `Visuals.acquireDrawing(type: string)`, `Visuals.releaseDrawing(obj: any)`
@@ -53,5 +53,5 @@ The Modular Roblox Menu consists of 18 Luau modules spanning core systems, UI wi
 ## Code Layout
 - `Core/`: `Init.luau`, `Main.luau`, `CoreUI.luau`, `ThemeManager.luau`, `ConfigManager.luau`
 - `UI/`: `UI.luau`, `Animations.luau`, `Hotbar.luau`, `PlayerList.luau`, `ChatWidget.luau`, `MusicTracker.luau`, `Notification.luau`
-- `Modules/`: `Combat.luau`, `Visuals.luau`, `Movement.luau`, `GameUtils.luau`, `RunNHide.luau`, `Self.luau`
-- `tests/`: `check_services.py`, benchmark scripts
+- `Modules/`: `Combat.luau`, `Visuals.luau`, `Movement.luau`, `GameUtils.luau`, `RunNHide.luau`, `Self.luau`, `DisasterSurvival.luau`, `PlayerUtilities.luau`
+- `tests/`: `check_services.py`, `benchmark.luau`

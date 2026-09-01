@@ -1,14 +1,16 @@
-﻿# Progress — worker_visuals
+# Progress — worker_visuals
 
-Last visited: 2026-08-31T23:36:30Z
+Last visited: 2026-09-01T00:37:30Z
 
-- [x] Initialized workspace and briefing
-- [x] Inspect existing Modules/Visuals.luau and Core/Main.luau
-- [x] Run check_services.py baseline
-- [x] Implement ESP Box Outlines (Square Thickness = 3.5, Black)
-- [x] Implement Tracers Origin Selector (Bottom, Center, Mouse)
-- [x] Implement Distance Tags (Drawing Text, below bounding box)
-- [x] Implement Customizable Chams Colors (Fill & Outline)
-- [x] Update Core/Main.luau Visuals sub-tabs/controls
-- [x] Verify with check_services.py & UTF-8 BOM check
-- [x] Generate handoff.md and report to parent
+- [x] Initialized workspace, dispatch, and briefing
+- [x] Inspected survey analysis and original request
+- [x] Implemented module-scope constant `BONE_PAIRS` table (eliminating per-frame table allocations)
+- [x] Implemented centralized `DrawingPool` with `acquireDrawing` & `releaseDrawing` lifecycle
+- [x] Implemented Distance Tag string formatting delta threshold (`pv.LastDistance`, `>= 1` stud)
+- [x] Implemented player character part caching (`Humanoid`, `RootPart`, `Head`, `Torso`, `BoneMap`) via `CharacterAdded`/`CharacterRemoving`
+- [x] Implemented per-frame `Camera.ViewportSize`, `screenCenter`, `screenBottom`, and `mousePos` caching
+- [x] Implemented master early-return gate in `RenderStepped` when all visuals are off
+- [x] Implemented `Visuals.cleanup()` for active elements, pooled drawings, and connections
+- [x] Verified static integrity via `python check_services.py` (0 missing services, 0 BOM across all 18 files)
+- [x] Generated `changes.md` and `handoff.md`
+- [x] Reported completion to parent

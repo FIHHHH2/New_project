@@ -119,3 +119,45 @@ Ensure all peripheral widgets (`PlayerList`, `ChatWidget`, `MusicTracker`, `Noti
 - [ ] Git commit and push succeeds on `main`.
 - [ ] Live execution via Roblox MCP loads with 0 compile errors.
 
+## Follow-up — 2026-08-31T17:30:52Z
+
+Rework and profile the Modular Roblox Menu codebase to eliminate high-frequency lag spikes, optimize RenderStepped/Heartbeat pipelines, throttle heavy instance traversals, and prevent memory leaks.
+
+Working directory: A:\Potassium\Modular-Roblox-Menu
+Integrity mode: development
+Requested team: 5 agents (1 architecture/performance lead, 4 optimization and refactor coders)
+
+## Requirements
+
+### R1. RenderStepped & Heartbeat Pipeline Optimization
+Audit and refactor all per-frame event connections across Combat, Visuals, Movement, and Game Modules:
+- Eliminate redundant per-frame table allocations, string formatting, and deep hierarchy traversals in `RenderStepped` loops.
+- Cache player references, character parts, screen positions, and viewport dimensions with invalidation timestamps instead of recalculating every frame.
+- Throttle non-critical calculations (such as distant ESP distance sorting, disaster tag lookups, and inventory scanning) to fixed tick rates (10–20 Hz) rather than uncapped 60+ Hz render loops.
+
+### R2. 3D ViewportFrame & Memory Lifecycle Optimization
+Optimize tool 3D model viewport generation and instance lifecycle in `UI/Hotbar.luau` and peripheral widgets:
+- Prevent duplicate `Clone()` instantiation loops when inventory items haven't changed by introducing a hash/reference dirty-check cache.
+- Explicitly clean up orphaned ViewportFrame Cameras, Cloned BaseParts, and tween connections to avoid client memory bloat.
+- Pool or reuse drawing objects in `Modules/Visuals.luau` (Boxes, Lines, Text) when players join/leave rather than creating and destroying objects per step.
+
+### R3. Collision, Physics & Raycast Optimization
+Streamline physics and raycasting routines across `Movement.luau`, `Combat.luau`, and `RunNHide.luau`:
+- Optimize Noclip and WalkFling loops to use cached descendant lists or targeted part filtering instead of full workspace/character sweeps on every `Stepped` tick.
+- Implement spatial partitioning or distance bounding checks before firing expensive multi-target raycasts in AimAssistance and Wallbang penetration checks.
+
+### R4. Integrity & Verification Benchmark
+Ensure 100% functionality preservation without stubs, missing Roblox services, or UTF-8 BOM encoding issues, validated against an empirical performance benchmark script measuring frame times and memory allocations.
+
+## Acceptance Criteria
+
+### Performance & Frame Times
+- [ ] Per-frame execution budget in `Visuals.luau` (ESP, Tracers, Chams) maintains steady 60+ FPS with 0 micro-stutters during heavy player density.
+- [ ] Hotbar and Backpack inventory update routines dirty-check tools and avoid redundant `ViewportFrame` re-cloning cycles.
+- [ ] Noclip and locomotion loops eliminate repeated deep descendant tree iterations on every physics step.
+
+### Stability & Code Integrity
+- [ ] `check_services.py` verifies 0 missing Roblox services across all 18 Luau modules.
+- [ ] 0 UTF-8 BOM encoding bytes across all `.luau` files.
+- [ ] All features (Combat, Visuals, Movement, Game Utils, Hotbar, Music Tracker, Chat, Configs) retain full functionality with zero behavioral regressions.
+- [ ] Git commit and push succeeds cleanly on `main`.

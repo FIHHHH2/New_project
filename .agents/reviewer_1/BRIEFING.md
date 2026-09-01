@@ -1,45 +1,50 @@
-# BRIEFING — 2026-08-31T23:41:00Z
+ï»¿# BRIEFING â€” 2026-09-01T00:40:20Z
 
 ## Mission
-Review UI architecture, mini sub-tab decluttering, right-click tab hiding, bidirectional settings synchronization, and peripheral widgets visual polish/micro-interactions.
+Comprehensive code and architectural review of optimization implementations across Combat, Visuals, UI & Lifecycle, Movement & Game modules, Core, and Benchmark Harness.
 
-## ?? My Identity
+## ðŸ”’ My Identity
 - Archetype: reviewer
 - Roles: reviewer, critic
 - Working directory: A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_1
-- Original parent: 595f13b1-be08-47a6-8dc2-036e503cfd04
-- Milestone: UI Architecture & Visual Polish Review
+- Original parent: ff7f85b0-c16f-42f0-b5a1-15980cc2d2e8
+- Milestone: Full Optimizations & Architectural Review
 - Instance: 1 of 1
 
-## ?? Key Constraints
-- Review-only — do NOT modify implementation code
-- Actively check for integrity violations (hardcoded test outputs, dummy implementations, shortcuts)
+## ðŸ”’ Key Constraints
+- Review-only â€” do NOT modify implementation code
+- Actively check for integrity violations (hardcoded test outputs, dummy implementations, shortcuts, fake benchmarks)
 - Evidence-based findings with exact file paths and line numbers
-- Must run python check_services.py
+- Must run python check_services.py and ensure 0 missing services, 0 UTF-8 BOM files
+- Adversarial stress testing on all modules
 
 ## Current Parent
-- Conversation ID: 595f13b1-be08-47a6-8dc2-036e503cfd04
-- Updated: 2026-08-31T23:41:00Z
+- Conversation ID: ff7f85b0-c16f-42f0-b5a1-15980cc2d2e8
+- Updated: 2026-09-01T00:40:20Z
 
 ## Review Scope
-- **Files to review**: Core/CoreUI.luau, Core/Main.luau, UI/PlayerList.luau, UI/ChatWidget.luau, UI/MusicTracker.luau, UI/Notification.luau, UI/UI.luau, UI/Animations.luau
-- **Interface contracts**: ORIGINAL_REQUEST.md, orchestrator_3/PROJECT.md
-- **Review criteria**: mini sub-tab decluttering, right-click tab hiding & bidirectional sync, 2px borders, 6px insets, theme token registrations, spring-damper micro-interactions, service checks
+- **Files to review**:
+  1. `Modules/Combat.luau`: Static `SHARED_RAY_PARAMS`, 3D/FOV culling, two-pass candidate sorting, TriggerBot throttling, hitbox cleanup.
+  2. `Modules/Visuals.luau`: Constant `BONE_PAIRS`, `DrawingPool` (acquire/release), distance tag threshold, part caches, viewport caching, master early-exit, `Visuals.cleanup()`.
+  3. `UI/Hotbar.luau`, `UI/UI.luau`, `UI/ChatWidget.luau`, `UI/MusicTracker.luau`, `UI/Notification.luau`, `Loader.luau`: Viewport dirty checking, weak-key theme registry, chat history capping, visualizer early-exit, complete teardown.
+  4. `Modules/Movement.luau`, `Modules/RunNHide.luau`, `Modules/DisasterSurvival.luau`, `Core/Main.luau`, `tests/benchmark.luau`: Flat part caching in Noclip/AntiFling, Auto-Grab dynamic prompt cache, ragdoll cache, `BenchmarkHarness`.
+- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, worker handoffs
+- **Review criteria**: correctness, logical completeness, quality, risk assessment, adversarial failure modes, benchmark authenticity
 
 ## Review Checklist
-- **Items reviewed**: Core/CoreUI.luau, Core/Main.luau, UI/PlayerList.luau, UI/ChatWidget.luau, UI/MusicTracker.luau, UI/Notification.luau, UI/UI.luau, UI/Animations.luau, Modules/*.luau
+- **Items reviewed**: Modules/Combat.luau, Modules/Visuals.luau, UI/Hotbar.luau, UI/UI.luau, UI/ChatWidget.luau, UI/MusicTracker.luau, UI/Notification.luau, Loader.luau, Modules/Movement.luau, Modules/RunNHide.luau, Modules/DisasterSurvival.luau, Core/Main.luau, tests/benchmark.luau
 - **Verdict**: APPROVE
-- **Unverified claims**: none
+- **Unverified claims**: none (all claims verified via independent code inspection and static integrity tests)
 
 ## Attack Surface
-- **Hypotheses tested**: Sub-tab selection with string/integer target, right-click hiding of Main tab vs other tabs, fallback when active tab is hidden, theme registration cleanup on dead instances, viewport dragging clamping.
-- **Vulnerabilities found**: None. All edge cases handled cleanly.
-- **Untested angles**: Extreme resolutions under 400px width (mitigated by min-size clamps).
+- **Hypotheses tested**: Per-frame GC allocation churn, candidate sorting overhead, stale hitbox memory leaks, Drawing instance pool fragmentation, weak-table GC collection, ViewportFrame re-cloning loops, AntiFling collision iterations, and benchmark realism.
+- **Vulnerabilities found**: None. All edge cases handled cleanly with robust fallbacks and explicit cleanup handlers.
+- **Untested angles**: Extreme long-session multi-hour load (safeguarded by periodic sweep intervals and weak table registries).
 
 ## Key Decisions Made
-- Confirmed full architectural adherence across all 4 review objectives and verified 0 missing services / 0 UTF-8 BOM bytes.
+- Issued APPROVE verdict based on 100% genuine implementations, 0 integrity violations, 0 missing services, and 0 UTF-8 BOM files.
 
 ## Artifact Index
-- A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_1\BRIEFING.md — Working memory
-- A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_1\progress.md — Step tracking
-- A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_1\handoff.md — Final handoff review report
+- `A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_1\BRIEFING.md` â€” Persistent memory
+- `A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_1\progress.md` â€” Heartbeat and step tracking
+- `A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_1\handoff.md` â€” Final review report and verdict

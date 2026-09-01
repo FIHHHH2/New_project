@@ -1,11 +1,15 @@
-# Progress Log
+﻿# Progress — Reviewer 1
 
-Last visited: 2026-08-31T23:41:00Z
+Last visited: 2026-09-01T00:40:20Z
 
-- [x] Initialized DISPATCH.md, BRIEFING.md, and progress.md
-- [x] Read ORIGINAL_REQUEST.md and orchestrator_3/PROJECT.md
+## Status
+- [x] Initialized BRIEFING.md and DISPATCH.md
+- [x] Read worker handoff reports and lead survey
 - [x] Run python check_services.py (0 missing services, 0 UTF-8 BOM files)
-- [x] Review Core/CoreUI.luau and Core/Main.luau (mini sub-tab decluttering, right-click tab hiding, bidirectional settings sync)
-- [x] Review UI/PlayerList.luau, UI/ChatWidget.luau, UI/MusicTracker.luau, UI/Notification.luau (borders, insets, theme tokens, spring-damper)
-- [x] Perform adversarial stress-testing / integrity checks
-- [x] Compile handoff.md and send completion message
+- [x] Inspect Modules/Combat.luau (SHARED_RAY_PARAMS, two-pass solver, throttled TriggerBot, hitbox cleanup)
+- [x] Inspect Modules/Visuals.luau (BONE_PAIRS, DrawingPool, distance threshold, part caching, cleanup)
+- [x] Inspect UI files & Loader.luau (dirty-checking Viewports, weak theme registry, chat history cap, visualizer early-exit, teardown)
+- [x] Inspect Movement, Game modules, Core/Main.luau & tests/benchmark.luau (flat BasePart caches, dynamic prompt cache, ragdoll cache, dt flight, BenchmarkHarness)
+- [x] Adversarial stress-testing & Integrity checks (0 integrity violations, complete implementations)
+- [x] Write handoff.md report and verdict (APPROVE)
+- [x] Send message to parent

@@ -1,38 +1,48 @@
-# BRIEFING — 2026-08-31T23:36:00Z
+# BRIEFING — 2026-08-31T17:36:48Z
 
 ## Mission
-Refine Combat.luau and Core/Main.luau with FOV Circle Color customizer, TriggerBot delay slider, and Wallbang bidirectional raycast thickness tolerance.
+Eliminate per-frame raycast allocations, implement spatial two-pass target solver, throttle TriggerBot, and fix hitbox memory leaks in Combat.luau.
 
 ## 🔒 My Identity
 - Archetype: worker_combat
 - Roles: implementer, qa, specialist
 - Working directory: A:\Potassium\Modular-Roblox-Menu\.agents\worker_combat
-- Original parent: 595f13b1-be08-47a6-8dc2-036e503cfd04
-- Milestone: M4
+- Original parent: ff7f85b0-c16f-42f0-b5a1-15980cc2d2e8
+- Milestone: M1, M3
 
 ## 🔒 Key Constraints
-- Minimal changes to Combat.luau and Core/Main.luau
-- 0 missing services in check_services.py
-- 0 UTF-8 BOM bytes
-- Complete, genuine implementation of bidirectional raycasting wallbang thickness tolerance
+- Exclusive file ownership: A:\Potassium\Modular-Roblox-Menu\Modules\Combat.luau
+- No UTF-8 BOM encoding bytes
+- 0 missing services via python check_services.py
+- Do not cheat: genuine implementation, no dummy stubs
 
 ## Current Parent
-- Conversation ID: 595f13b1-be08-47a6-8dc2-036e503cfd04
-- Updated: 2026-08-31T23:36:00Z
+- Conversation ID: ff7f85b0-c16f-42f0-b5a1-15980cc2d2e8
+- Updated: 2026-08-31T17:36:48Z
 
 ## Task Summary
-- FOV Color customizer: Combat.FovColor (Color3) dynamically updating Drawing.new(Circle) Color, RGB sliders and presets in Main.luau
-- TriggerBot delay slider: Combat.TriggerBotDelay (0.00s-0.50s) with task.wait(Combat.TriggerBotDelay) in firing loop
-- Wallbang thickness tolerance: Bidirectional raycasting (entry & exit points, thickness measurement, configurable slider 0-20 studs, default 5)
+- **What to build**: Optimize Combat.luau: eliminate per-frame RaycastParams allocations, add spatial 3D bounding & FOV checks, implement two-pass target solver (Pass 1: filter and sort by 2D distance; Pass 2: raycast only closest candidate(s)), throttle TriggerBot and reuse RaycastParams, clear originalHitboxSizes on player/character removing.
+- **Success criteria**: 0 missing services, 0 BOM, clean syntax, optimized raycasting and memory lifecycle.
+- **Interface contracts**: PROJECT.md
+- **Code layout**: Modules/Combat.luau
 
 ## Change Tracker
-- Files modified:
-  - Modules/Combat.luau: Added Combat.WallbangThickness, Combat.setFovColor, Combat.setTriggerBotDelay, Combat.setWallbangThickness, Combat.checkWallbangPenetration bidirectional raycast, updated getClosestTarget and Raycast hook, integrated TriggerBotDelay in checkTriggerBot.
-  - Core/Main.luau: Added Wallbang Thickness slider, TriggerBot Delay slider, and FOV Circle Appearance section (RGB sliders + presets).
-- Build status: PASS
-- Pending issues: None
+- **Files modified**: `A:\Potassium\Modular-Roblox-Menu\Modules\Combat.luau` — Refactored with static RaycastParams, two-pass target solver, spatial bounding, throttled TriggerBot, and lifecycle cleanup for Hitbox Expander.
+- **Build status**: check_services.py PASS (0 missing services, 0 BOM)
+- **Pending issues**: none
 
 ## Quality Status
-- Build/test result: PASS (check_services.py: 0 missing services, 0 BOM)
-- Lint status: Clean
-- Tests added/modified: Python verification suite passed
+- **Build/test result**: check_services.py PASS
+- **Lint status**: clean
+- **Tests added/modified**: check_services.py validation
+
+## Key Decisions Made
+- Used module-level `SHARED_RAY_PARAMS` and `SHARED_TRIGGER_PARAMS` with `table.clear()` reused filter arrays.
+- Implemented two-pass target solver: pass 1 fast 3D distance and 2D viewport projection with sorting; pass 2 raycasting only closest candidate(s).
+- TriggerBot throttled to ~30 Hz and reusing static RaycastParams.
+- Hooked `Players.PlayerRemoving`, `player.CharacterRemoving`, and orphaned sweeps to clear `originalHitboxSizes` entries.
+
+## Artifact Index
+- `A:\Potassium\Modular-Roblox-Menu\Modules\Combat.luau` — Target implementation
+- `A:\Potassium\Modular-Roblox-Menu\.agents\worker_combat\changes.md` — Detailed change log
+- `A:\Potassium\Modular-Roblox-Menu\.agents\worker_combat\handoff.md` — Final handoff report

@@ -1027,44 +1027,22 @@ function IceTycoon.setFastGenerators(enabled: boolean)
 	local tycoon = Workspace:FindFirstChild("Tycoon") or Workspace
 	local partsFolder = tycoon:FindFirstChild("Parts")
 
-	local function boostOre(part: Instance)
+	-- Downward dropper chute propulsion: shoot newly spawned items directly onto conveyor below
+	local function boostOreDownChute(part: Instance)
 		pcall(function()
 			if part:IsA("BasePart") and not part.Anchored then
-				local colPart = getCollectorPart()
-				if colPart and colPart:IsA("BasePart") then
-					local diff = colPart.Position - part.Position
-					if diff.Magnitude > 1.0 then
-						part.AssemblyLinearVelocity = diff.Unit * IceTycoon.GeneratorSpeed
-					end
-				end
+				part.CustomPhysicalProperties = PhysicalProperties.new(0.5, 0.0, 0.0, 100, 100)
+				part.AssemblyLinearVelocity = Vector3.new(0, -math.abs(IceTycoon.GeneratorSpeed), 0)
 			end
 		end)
 	end
 
 	if partsFolder then
-		partsAddedConn = partsFolder.ChildAdded:Connect(boostOre)
+		partsAddedConn = partsFolder.ChildAdded:Connect(boostOreDownChute)
 		for _, child in ipairs(partsFolder:GetChildren()) do
-			boostOre(child)
+			boostOreDownChute(child)
 		end
 	end
-
-	generatorConn = RunService.Heartbeat:Connect(function()
-		pcall(function()
-			local colPart = getCollectorPart()
-			if not colPart or not colPart:IsA("BasePart") then return end
-			local colPos = colPart.Position
-
-			local targetFolder = partsFolder or tycoon
-			for _, desc in ipairs(targetFolder:GetChildren()) do
-				if desc:IsA("BasePart") and not desc.Anchored and desc ~= colPart then
-					local diff = colPos - desc.Position
-					if diff.Magnitude > 1.5 and diff.Magnitude < 250 then
-						desc.AssemblyLinearVelocity = diff.Unit * IceTycoon.GeneratorSpeed
-					end
-				end
-			end
-		end)
-	end)
 end
 
 function IceTycoon.setOreMagnet(enabled: boolean)
@@ -1079,17 +1057,72 @@ function IceTycoon.setOreMagnet(enabled: boolean)
 
 	oreMagnetConn = RunService.Heartbeat:Connect(function()
 		pcall(function()
-			local colPart = getCollectorPart()
-			if not colPart or not colPart:IsA("BasePart") then return end
-			local colPos = colPart.Position
-
 			local tycoon = Workspace:FindFirstChild("Tycoon") or Workspace
-			for _, desc in ipairs(tycoon:GetDescendants()) do
-				if desc:IsA("BasePart") and (desc.Name:lower():find("ore") or desc.Name:lower():find("drop") or desc.Name == "Ice" or desc.Name == "Crystal") then
-					if not desc.Anchored and desc ~= colPart then
-						local diff = colPos - desc.Position
-						if diff.Magnitude < 160 and diff.Magnitude > 1.5 then
-							desc.AssemblyLinearVelocity = diff.Unit * 60
+			local partsFolder = tycoon:FindFirstChild("Parts")
+			local targetFolder = partsFolder or tycoon
+			local colPart = getCollectorPart()
+
+			for _, ore in ipairs(targetFolder:GetChildren()) do
+				if ore:IsA("BasePart") and not ore.Anchored and (ore.Name:lower():find("ore") or ore.Name:lower():find("drop") or ore.Name == "Ice" or ore.Name == "Crystal") then
+					local orePos = ore.Position
+
+					-- 1. Underground in collector room: pull directly into collector hitbox
+					if colPart and orePos.Z < -550 and orePos.Y < 25 then
+						local diff = colPart.Position - orePos
+						if diff.Magnitude > 1.0 then
+							ore.AssemblyLinearVelocity = diff.Unit * 50
+						end
+					else
+						-- 2. Surface conveyors: find nearest conveyor and pull strictly along belt axis with center-locking
+						local nearestConv: BasePart? = nil
+						local nearestDist = math.huge
+
+						for conv, origVel in pairs(cachedConveyors) do
+							if conv and conv.Parent then
+								local cp = conv.Position
+								local cs = conv.Size
+								local halfX = cs.X / 2 + 6.0
+								local halfZ = cs.Z / 2 + 6.0
+								if math.abs(orePos.X - cp.X) <= halfX and math.abs(orePos.Z - cp.Z) <= halfZ then
+									local d = (orePos - cp).Magnitude
+									if d < nearestDist then
+										nearestDist = d
+										nearestConv = conv
+									end
+								end
+							end
+						end
+
+						if nearestConv then
+							local origVel = cachedConveyors[nearestConv]
+							local cp = nearestConv.Position
+							local cs = nearestConv.Size
+
+							if origVel and origVel.Magnitude > 0.1 then
+								local dir = origVel.Unit
+								local targetSpeed = math.max(IceTycoon.ConveyorSpeed, 65)
+
+								-- Zero-bounce & ultra-slick glide
+								ore.CustomPhysicalProperties = PhysicalProperties.new(0.5, 0.0, 0.0, 100, 100)
+
+								if math.abs(dir.X) > 0.7 then
+									-- X belt: pull forward along X, gently guide Z to belt centerline
+									local zCorrection = math.clamp((cp.Z - orePos.Z) * 6.0, -15, 15)
+									ore.AssemblyLinearVelocity = Vector3.new(
+										dir.X * targetSpeed,
+										math.clamp(ore.AssemblyLinearVelocity.Y, -30, 1),
+										zCorrection
+									)
+								elseif math.abs(dir.Z) > 0.7 then
+									-- Z belt: pull forward along Z, gently guide X to belt centerline
+									local xCorrection = math.clamp((cp.X - orePos.X) * 6.0, -15, 15)
+									ore.AssemblyLinearVelocity = Vector3.new(
+										xCorrection,
+										math.clamp(ore.AssemblyLinearVelocity.Y, -30, 1),
+										dir.Z * targetSpeed
+									)
+								end
+							end
 						end
 					end
 				end

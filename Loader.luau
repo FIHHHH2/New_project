@@ -5769,7 +5769,7 @@ local function getAllPlayerStats(player: Player): { Primaries: {StatItem}, Other
 	if ls then
 		for _, v in ipairs(ls:GetChildren()) do
 			if v:IsA("ValueBase") then
-				add(v.Name, (v :: any).Value, true)
+				add(v.Name, (v :: any).Value)
 			end
 		end
 	end

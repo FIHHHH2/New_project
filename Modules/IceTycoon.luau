@@ -122,9 +122,30 @@ function IceTycoon.setAutoCollect(enabled: boolean)
 end
 
 -- ── 2. Player Currency & Tycoon Button Auto-Buy ──────────────────────
+local function parseFormattedCoins(text: string?): number
+	if not text or text == "" then return 0 end
+	local clean = string.gsub(text, "[%$%,%+%s]", "")
+	local numStr, suffix = string.match(clean, "^([%d%.]+)([KkMmBbTt]?)$")
+	if not numStr then
+		numStr = string.match(clean, "([%d%.]+)")
+	end
+	local n = tonumber(numStr) or 0
+	suffix = string.upper(suffix or "")
+	if suffix == "K" then
+		return n * 1000
+	elseif suffix == "M" then
+		return n * 1000000
+	elseif suffix == "B" then
+		return n * 1000000000
+	elseif suffix == "T" then
+		return n * 1000000000000
+	end
+	return n
+end
+
 local function getPlayerCoins(): number
-	-- 1. Try PlayerData remote
 	local coins = 0
+	-- 1. Try PlayerData remote
 	pcall(function()
 		local getPlayerData = ReplicatedStorage:FindFirstChild("GetPlayerData")
 		if getPlayerData and getPlayerData:IsA("RemoteFunction") then
@@ -136,15 +157,35 @@ local function getPlayerCoins(): number
 	end)
 	if coins > 0 then return coins end
 
-	-- 2. Try Coin TextLabel in PlayerGui
+	-- 2. Try leaderstats
+	pcall(function()
+		local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+		if leaderstats then
+			for _, v in ipairs(leaderstats:GetChildren()) do
+				if v:IsA("IntValue") or v:IsA("NumberValue") then
+					local n = v.Name:lower()
+					if n:find("coin") or n:find("cash") or n:find("money") or n:find("ice") then
+						coins = math.max(coins, v.Value)
+					end
+				end
+			end
+		end
+	end)
+	if coins > 0 then return coins end
+
+	-- 3. Try Coin TextLabel in PlayerGui with K/M/B/+ suffix parsing
 	pcall(function()
 		local pgui = LocalPlayer:FindFirstChild("PlayerGui")
-		if pgui and pgui:FindFirstChild("ScreenGui") then
-			local coinLabel = pgui.ScreenGui:FindFirstChild("Coin")
-			local txtLabel = coinLabel and coinLabel:FindFirstChild("TextLabel") :: TextLabel?
-			if txtLabel and txtLabel.Text ~= "" then
-				local clean = txtLabel.Text:gsub("%$", ""):gsub(",", "")
-				coins = tonumber(clean) or 0
+		if pgui then
+			for _, sc in ipairs(pgui:GetChildren()) do
+				for _, desc in ipairs(sc:GetDescendants()) do
+					if desc:IsA("TextLabel") and (desc.Name:lower():find("coin") or desc.Name:lower():find("cash") or desc.Parent.Name:lower():find("coin") or desc.Parent.Name:lower():find("cash")) then
+						local parsed = parseFormattedCoins(desc.Text)
+						if parsed > 0 then
+							coins = math.max(coins, parsed)
+						end
+					end
+				end
 			end
 		end
 	end)
@@ -174,19 +215,29 @@ end
 
 local function getButtonPriority(btn: Instance): number
 	local name = string.lower(btn.Name)
-	-- Priority 1: Direct Money/Ore Multipliers (Droppers, Upgraders, Saws, Factory, Generators)
-	if name:find("dropper") or name:find("upgrader") or name:find("saw") or name:find("generator") or name:find("collector") or name:find("gemthing") or name:find("gemreceiver") then
+	-- Priority 1 (100): Direct Money/Ore Multipliers & Advanced Machinery
+	if name:find("dropper") or name:find("upgrader") or name:find("saw") or name:find("generator")
+		or name:find("collector") or name:find("cutter") or name:find("purifier") or name:find("freezer")
+		or name:find("coolant") or name:find("presser") or name:find("buttonpresser") or name:find("gemthing")
+		or name:find("gemreceiver") or name:find("refinery") or name:find("extractor") then
 		return 100
-	-- Priority 2: Production Infrastructures (Conveyors, Pumps, Farms, Domes, Wells)
-	elseif name:find("conveyor") or name:find("pump") or name:find("farm") or name:find("dome") or name:find("speed") or name:find("multiplier") then
+	-- Priority 2 (90): Farm Production & Agricultural Money Generators
+	elseif name:find("growth") or name:find("flower") or name:find("farmupgrade") or name:find("farmer")
+		or name:find("plant") or name:find("crop") or name:find("harvester") or name:find("autofarmer") then
+		return 90
+	-- Priority 3 (80): Production Infrastructure, Floors & Belts (Prerequisites to unlock machinery)
+	elseif name:find("floor") or name:find("conveyor") or name:find("labconveyor") or name:find("pump")
+		or name:find("well") or name:find("speed") or name:find("multiplier") or name:find("dome")
+		or name:find("farm") then
 		return 80
-	-- Priority 3: Gameplay & Rebirth unlocks (Rebirth, Troops, Units, Keys, Levers)
-	elseif name:find("rebirth") or name:find("troop") or name:find("unit") or name:find("key") then
+	-- Priority 4 (60): Rebirths & Troop Infrastructure
+	elseif name:find("rebirth") or name:find("troop") or name:find("unit") or name:find("key")
+		or name:find("gate") or name:find("vault") then
 		return 60
-	-- Priority 4: Structural access (Doors, Ladders, Bridges, Vaults)
-	elseif name:find("door") or name:find("ladder") or name:find("bridge") or name:find("vault") then
+	-- Priority 5 (40): Access & Movement
+	elseif name:find("door") or name:find("ladder") or name:find("bridge") or name:find("stairs") then
 		return 40
-	-- Priority 5 (Lowest): Cosmetic / Decorative (Walls, Roofs, Windows, Lights, Decor, Signs)
+	-- Priority 6 (10, Lowest): Cosmetic & Structural Decoration
 	else
 		return 10
 	end

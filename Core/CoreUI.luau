@@ -379,6 +379,10 @@ function CoreUI:SelectTab(tabObj)
 		self.ConfigsBtn.BackgroundTransparency = if isConf then 0 else UI.Theme.ContainerTransparency
 		self.ConfigsBtn.TextColor3 = if isConf then UI.Theme.AccentText else UI.Theme.TextPrimary
 	end
+
+	if tabObj.OnSelected then
+		pcall(tabObj.OnSelected)
+	end
 end
 
 function CoreUI:BindSettingsTab(settingsTabObj)

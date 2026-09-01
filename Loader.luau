@@ -6167,37 +6167,29 @@ function CoreUI:SelectTab(tabObj)
 		self.PreviousTab = nil
 	end
 
-	-- 1. Animate Outgoing Tab Page (Smoothly moves out of the way)
-	if oldTab and oldTab.Page then
-		local exitTween = TweenService:Create(oldTab.Page, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Position = UDim2.new(0, -22, 0, 0)
-		})
-		exitTween:Play()
-		task.delay(0.16, function()
-			if self.ActiveTab ~= oldTab then
-				oldTab.Page.Visible = false
-				oldTab.Page.Position = UDim2.new(0, 0, 0, 0)
+	-- 1. Hide and reset all inactive tab pages immediately
+	for _, tab in ipairs(self.Tabs) do
+		if tab ~= tabObj and tab.Page then
+			tab.Page.Visible = false
+			tab.Page.Position = UDim2.new(0, 0, 0, 0)
+			if tab.Button and tab.Stroke then
+				tab.Button.Size = UDim2.new(1, -6, 0, 29)
+				tab.Button.Position = UDim2.new(0, 3, 0, 0)
+				tab.Button.BackgroundColor3 = UI.Theme.Container
+				tab.Button.BackgroundTransparency = UI.Theme.ContainerTransparency
+				tab.Button.TextColor3 = UI.Theme.TextSecondary
+				tab.Stroke.Color = UI.Theme.BorderDim
+				tab.Stroke.Thickness = 1.0
+				local grad = tab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
+				if grad then grad.Enabled = false end
 			end
-		end)
-
-		if oldTab.Button and oldTab.Stroke then
-			TweenService:Create(oldTab.Button, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-				Size = UDim2.new(1, -6, 0, 29),
-				Position = UDim2.new(0, 3, 0, 0),
-				BackgroundColor3 = UI.Theme.Container,
-				BackgroundTransparency = UI.Theme.ContainerTransparency,
-				TextColor3 = UI.Theme.TextSecondary
-			}):Play()
-			TweenService:Create(oldTab.Stroke, TweenInfo.new(0.2), { Color = UI.Theme.BorderDim, Thickness = 1.0 }):Play()
-			local grad = oldTab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
-			if grad then grad.Enabled = false end
 		end
 	end
 
-	-- 2. Animate Incoming Tab Page (Springs in with physical momentum & ripple bounce)
+	-- 2. Animate Incoming Tab Page
 	tabObj.Page.Visible = true
-	tabObj.Page.Position = UDim2.new(0, 24, 0, 0)
-	local enterTween = TweenService:Create(tabObj.Page, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+	tabObj.Page.Position = UDim2.new(0, 16, 0, 0)
+	local enterTween = TweenService:Create(tabObj.Page, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Position = UDim2.new(0, 0, 0, 0)
 	})
 	enterTween:Play()

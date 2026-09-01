@@ -585,7 +585,13 @@ def run_media_loop():
             pass
         time.sleep(0.2)
 
-        time.sleep(0.012)
+def run_audio_loop():
+    while True:
+        try:
+            update_audio_spectrum()
+        except Exception:
+            pass
+        time.sleep(0.016)
 
 # ── System Tray Icon & Menu ────────────────────────────────────────
 def create_tray_icon():

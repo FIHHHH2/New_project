@@ -14,6 +14,24 @@ local Animations = require("UI/Animations.luau")
 local FeatureManager = require("Core/FeatureManager.luau")
 local Notification = require("UI/Notification.luau")
 
+local function safeParentGui(gui: ScreenGui)
+	local targetParent = nil
+	if type(gethui) == "function" then
+		pcall(function() targetParent = gethui() end)
+	end
+	if not targetParent and CoreGui then
+		pcall(function() targetParent = CoreGui end)
+	end
+	if not targetParent and Players.LocalPlayer then
+		targetParent = Players.LocalPlayer:FindFirstChild("PlayerGui") or Players.LocalPlayer:WaitForChild("PlayerGui", 5)
+	end
+	
+	pcall(function() gui.Parent = targetParent end)
+	if not gui.Parent and Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then
+		gui.Parent = Players.LocalPlayer.PlayerGui
+	end
+end
+
 local CoreUI = {}
 CoreUI.__index = CoreUI
 
@@ -26,12 +44,7 @@ function CoreUI.new(titleText: string)
 	screenGui.IgnoreGuiInset = true
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	
-	pcall(function()
-		screenGui.Parent = CoreGui
-	end)
-	if not screenGui.Parent then
-		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-	end
+	safeParentGui(screenGui)
 	
 	local mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale = UI.createWindow(titleText)
 	mainFrame.Parent = screenGui

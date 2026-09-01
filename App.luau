@@ -15733,8 +15733,6 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     local weaponConfigConn: RBXScriptConnection? = nil
     local barrierWatcherConn: RBXScriptConnection? = nil
     local glassLoopThread: thread? = nil
-    local cachedWeaponStats: {any} = {}
-    local lastGcScan = 0
     
     -- ── 1. Target Acquisition & Trajectory Solver ─────────────────────────
     local function getScreenCenter(): Vector2
@@ -15872,56 +15870,70 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	hookInstalled = true
     end
     
-    -- ── 3. Zero-Allocation Weapon Stats Overclocker (Cached Tables) ───────
-    local function scanWeaponStats()
-    	if tick() - lastGcScan < 2.0 and #cachedWeaponStats > 0 then return end
-    	lastGcScan = tick()
-    	if type(getgc) == "function" then
-    		pcall(function()
-    			for _, obj in ipairs(getgc(true)) do
-    				if type(obj) == "table" then
-    					local hasRecoil = rawget(obj, "recoil") ~= nil
-    					local hasSpread = rawget(obj, "spread") ~= nil
-    					local hasFireRate = rawget(obj, "fireRate") ~= nil or rawget(obj, "rpm") ~= nil
-    					local hasAmmo = rawget(obj, "startAmmoPool") ~= nil or rawget(obj, "magazineCapacity") ~= nil
-    					if (hasRecoil or hasSpread or hasFireRate or hasAmmo) and not table.find(cachedWeaponStats, obj) then
-    						table.insert(cachedWeaponStats, obj)
+    -- ── 3. Direct ModuleScript Weapon Overclocker (0ms GC Footprint) ───────
+    local function modifyWeaponModule(mod: Instance)
+    	if not mod:IsA("ModuleScript") then return end
+    	pcall(function()
+    		local ok, data = pcall(require, mod)
+    		if ok and type(data) == "table" then
+    			if rawget(data, "recoil") ~= nil or rawget(data, "spread") ~= nil or rawget(data, "fireRate") ~= nil or rawget(data, "startAmmoPool") ~= nil or rawget(data, "kickUp") ~= nil then
+    				if SeekerVsHider.NoSpread then
+    					rawset(data, "spread", 0)
+    					rawset(data, "minSpread", 0)
+    					rawset(data, "maxSpread", 0)
+    				end
+    				if SeekerVsHider.NoRecoil then
+    					rawset(data, "recoil", 0)
+    					rawset(data, "kickUp", 0)
+    					rawset(data, "kickRight", 0)
+    					rawset(data, "maxPushback", 0)
+    					rawset(data, "cameraShake", 0)
+    				end
+    				if SeekerVsHider.FullAuto then
+    					rawset(data, "fireMode", 2)
+    					rawset(data, "auto", true)
+    				end
+    				if SeekerVsHider.NoBulletDrop then
+    					rawset(data, "bulletDrop", false)
+    				end
+    				if SeekerVsHider.FastFireRate then
+    					local rate = rawget(data, "fireRate")
+    					if type(rate) == "number" and rate < 1200 then
+    						rawset(data, "fireRate", math.floor(rate * SeekerVsHider.FireRateMultiplier))
     					end
     				end
+    				rawset(data, "autoChamber", true)
     			end
-    		end)
-    	end
+    		end
+    	end)
     end
     
     function SeekerVsHider.applyWeaponConfigs()
-    	scanWeaponStats()
-    
-    	for _, obj in ipairs(cachedWeaponStats) do
-    		if SeekerVsHider.NoSpread then
-    			rawset(obj, "spread", 0)
-    			rawset(obj, "minSpread", 0)
-    			rawset(obj, "maxSpread", 0)
-    		end
-    		if SeekerVsHider.NoRecoil then
-    			rawset(obj, "recoil", 0)
-    			rawset(obj, "kickUp", 0)
-    			rawset(obj, "kickRight", 0)
-    			rawset(obj, "maxPushback", 0)
-    		end
-    		if SeekerVsHider.FullAuto then
-    			rawset(obj, "fireMode", 2)
-    			rawset(obj, "auto", true)
-    		end
-    		if SeekerVsHider.NoBulletDrop then
-    			rawset(obj, "bulletDrop", false)
-    		end
-    		if SeekerVsHider.FastFireRate then
-    			local rate = rawget(obj, "fireRate")
-    			if type(rate) == "number" and rate < 1200 then
-    				rawset(obj, "fireRate", math.floor(rate * SeekerVsHider.FireRateMultiplier))
+    	local sphAssets = ReplicatedStorage:FindFirstChild("SPH_Assets")
+    	if sphAssets then
+    		for _, item in ipairs(sphAssets:GetDescendants()) do
+    			if item:IsA("ModuleScript") then
+    				modifyWeaponModule(item)
     			end
     		end
-    		rawset(obj, "autoChamber", true)
+    	end
+    
+    	local char = LocalPlayer.Character
+    	if char then
+    		for _, item in ipairs(char:GetDescendants()) do
+    			if item:IsA("ModuleScript") then
+    				modifyWeaponModule(item)
+    			end
+    		end
+    	end
+    
+    	local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    	if bp then
+    		for _, item in ipairs(bp:GetDescendants()) do
+    			if item:IsA("ModuleScript") then
+    				modifyWeaponModule(item)
+    			end
+    		end
     	end
     
     	-- Modify SPH_Assets.GameConfig

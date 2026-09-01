@@ -23,38 +23,59 @@ local LocalPlayer = Players.LocalPlayer
 local LeaderstatsWidget = {}
 LeaderstatsWidget.__index = LeaderstatsWidget
 
-local PRIMARY_KEYWORDS = {
-	"coin", "cash", "money", "crystal", "water", "tank",
-	"point", "ruby", "diamond", "rebirth", "level", "lvl", "kill", "win",
-	"score", "token", "credit", "energy", "star", "shard", "xp", "exp",
-	"bounty", "rank", "prestige", "timeplayed"
-}
-
-local EXCLUDE_KEYWORDS = {
-	"holding", "secret", "has", "unlock", "spook", "battle",
-	"hotel", "cursed", "button", "chest", "tool", "trophy"
+local PRIMARY_EXACT_NAMES: {[string]: boolean} = {
+	["coins"] = true,
+	["coin"] = true,
+	["cash"] = true,
+	["money"] = true,
+	["crystals"] = true,
+	["crystal"] = true,
+	["gems"] = true,
+	["gem"] = true,
+	["water"] = true,
+	["tankwater"] = true,
+	["points"] = true,
+	["point"] = true,
+	["rubies"] = true,
+	["ruby"] = true,
+	["diamonds"] = true,
+	["diamond"] = true,
+	["rebirths"] = true,
+	["rebirth"] = true,
+	["level"] = true,
+	["lvl"] = true,
+	["kills"] = true,
+	["kill"] = true,
+	["wins"] = true,
+	["win"] = true,
+	["score"] = true,
+	["tokens"] = true,
+	["token"] = true,
+	["credits"] = true,
+	["credit"] = true,
+	["energy"] = true,
+	["stars"] = true,
+	["star"] = true,
+	["shards"] = true,
+	["shard"] = true,
+	["xp"] = true,
+	["exp"] = true,
+	["bounty"] = true,
+	["rank"] = true,
+	["prestige"] = true,
+	["timeplayed"] = true
 }
 
 local function isPrimaryCurrency(name: string, val: any): boolean
 	local lower = name:lower()
-
-	for _, ex in ipairs(EXCLUDE_KEYWORDS) do
-		if string.find(lower, ex) then
-			return false
-		end
+	if PRIMARY_EXACT_NAMES[lower] then
+		return true
 	end
-
-	for _, kw in ipairs(PRIMARY_KEYWORDS) do
-		if string.find(lower, kw) then
+	for kw in pairs(PRIMARY_EXACT_NAMES) do
+		if string.find(lower, "^" .. kw) or string.find(lower, kw .. "$") then
 			return true
 		end
 	end
-
-	-- If it is a clean number without flag prefixes
-	if tonumber(val) ~= nil and #name <= 10 and not string.find(lower, "%d$") then
-		return true
-	end
-
 	return false
 end
 

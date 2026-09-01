@@ -401,70 +401,53 @@ function DisasterSurvival.setCarDriving(enabled: boolean)
 end
 
 
--- ── Loose Object Drag ─────────────────────────────────────────────
--- Controls: LMB hold on part = grab and drag.  Release LMB = drop.
--- Hover: cyan Highlight via Mouse.Target (engine-level, pixel-perfect).
--- Drag: direct AssemblyLinearVelocity push each frame — no BodyPosition,
---       no ownership transfer needed, grab is instant, regrab works fine.
-local dragMouse:     Mouse        = LocalPlayer:GetMouse()
-local dragTarget:    BasePart?    = nil
-local hoverTarget:   BasePart?    = nil
-local hoverHL:       Highlight?   = nil
-local grabHL:        Highlight?   = nil
-local dragHoverConn: RBXScriptConnection? = nil
-local dragEndConn:   RBXScriptConnection? = nil
-local dragDepth      = 60
-
--- Track parts whose CanCollide we suppressed during drag so we can restore them
-local dragSuppressedParts: {[BasePart]: boolean} = {}
+-- ── Loose Object Drag (Constraint & Client Physics Vulnerability) ───
+-- Controls: LMB hold = grab & drag. Release LMB = drop.
+--           Mouse Wheel = pull closer / push farther away.
+-- Hover: Cyan Highlight on target.
+-- Grab: Orange Highlight on target.
+-- Vulnerability Mechanics:
+-- 1. NoCollisionConstraint injected between character parts and dragged parts to prevent self-damage without dropping through the floor.
+-- 2. AlignPosition + AlignOrientation physics constraints attached client-side to enforce physics network simulation.
+-- 3. Direct velocity & CFrame sync on RenderStepped to ensure zero latency and instant responsiveness.
+local dragMouse:         Mouse = LocalPlayer:GetMouse()
+local dragTarget:        BasePart? = nil
+local dragAttachment:    Attachment? = nil
+local dragAlignPos:      AlignPosition? = nil
+local dragAlignOrient:   AlignOrientation? = nil
+local dragNoCollisions:  {NoCollisionConstraint} = {}
+local hoverTarget:       BasePart? = nil
+local hoverHL:           Highlight? = nil
+local grabHL:            Highlight? = nil
+local dragHoverConn:     RBXScriptConnection? = nil
+local dragWheelConn:     RBXScriptConnection? = nil
+local dragInputConn:     RBXScriptConnection? = nil
+local dragEndConn:       RBXScriptConnection? = nil
+local dragDepth:         number = 30
+local DRAG_MAX_RANGE:    number = 150
 
 local function clearHover()
-    if hoverHL and hoverHL.Parent then hoverHL:Destroy() end
-    hoverHL     = nil
+    if hoverHL and hoverHL.Parent then
+        pcall(function() hoverHL:Destroy() end)
+    end
+    hoverHL = nil
     hoverTarget = nil
 end
 
-local function suppressDragCollision(part: BasePart)
-    -- Collect the root model (or the part itself) and disable collision on all BaseParts
-    local root: Instance = part
-    if part.Parent and part.Parent:IsA("Model") then
-        root = part.Parent
-    end
-    table.clear(dragSuppressedParts)
-    for _, inst in ipairs(root:GetDescendants()) do
-        if inst:IsA("BasePart") then
-            local bp = inst :: BasePart
-            dragSuppressedParts[bp] = bp.CanCollide
-            bp.CanCollide = false
-        end
-    end
-    -- Also suppress the part itself
-    dragSuppressedParts[part] = part.CanCollide
-    part.CanCollide = false
-end
-
-local function restoreDragCollision()
-    for bp, original in pairs(dragSuppressedParts) do
-        if bp and bp.Parent then
-            pcall(function() bp.CanCollide = original end)
-        end
-    end
-    table.clear(dragSuppressedParts)
-end
-
-local function clearDragTarget()
-    -- Zero velocity so part doesn't keep flying after release
-    if dragTarget and dragTarget.Parent then
-        pcall(function() dragTarget.AssemblyLinearVelocity = Vector3.zero end)
-    end
-    restoreDragCollision()
-    if grabHL and grabHL.Parent then grabHL:Destroy() end
-    dragTarget = nil
-    grabHL     = nil
-    if dragEndConn then dragEndConn:Disconnect() dragEndConn = nil end
+local function makeHighlight(parent: Instance, fill: Color3, outline: Color3, fillTrans: number): Highlight
+    local hl = Instance.new("Highlight")
+    hl.FillColor = fill
+    hl.OutlineColor = outline
+    hl.FillTransparency = fillTrans
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Adornee = parent
+    hl.Parent = parent
+    return hl
 end
 
 local function isDraggable(part: BasePart): boolean
+    if not part or not part:IsA("BasePart") then return false end
     if part.Anchored or part.Locked then return false end
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr.Character and part:IsDescendantOf(plr.Character) then return false end
@@ -472,28 +455,124 @@ local function isDraggable(part: BasePart): boolean
     return part:IsDescendantOf(Workspace)
 end
 
-local function makeHighlight(parent: BasePart, fill: Color3, outline: Color3, fillTrans: number): Highlight
-    local hl = Instance.new("Highlight")
-    hl.FillColor           = fill
-    hl.OutlineColor        = outline
-    hl.FillTransparency    = fillTrans
-    hl.OutlineTransparency = 0
-    hl.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Adornee             = parent
-    hl.Parent              = parent
-    return hl
+local function getTargetFromMouse(): BasePart?
+    local char = LocalPlayer.Character
+    local ray = Camera:ScreenPointToRay(dragMouse.X, dragMouse.Y)
+    local params = RaycastParams.new()
+    if char then
+        params.FilterDescendantsInstances = {char}
+    end
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.IgnoreWater = true
+
+    local res = Workspace:Raycast(ray.Origin, ray.Direction * DRAG_MAX_RANGE, params)
+    if res and res.Instance and res.Instance:IsA("BasePart") and isDraggable(res.Instance) then
+        return res.Instance
+    end
+
+    local fallback = dragMouse.Target
+    if fallback and fallback:IsA("BasePart") and isDraggable(fallback) then
+        return fallback
+    end
+
+    return nil
+end
+
+local function clearDragTarget()
+    if dragAlignPos and dragAlignPos.Parent then
+        pcall(function() dragAlignPos:Destroy() end)
+    end
+    dragAlignPos = nil
+
+    if dragAlignOrient and dragAlignOrient.Parent then
+        pcall(function() dragAlignOrient:Destroy() end)
+    end
+    dragAlignOrient = nil
+
+    if dragAttachment and dragAttachment.Parent then
+        pcall(function() dragAttachment:Destroy() end)
+    end
+    dragAttachment = nil
+
+    for _, ncc in ipairs(dragNoCollisions) do
+        if ncc and ncc.Parent then
+            pcall(function() ncc:Destroy() end)
+        end
+    end
+    table.clear(dragNoCollisions)
+
+    if dragTarget and dragTarget.Parent then
+        pcall(function()
+            dragTarget.AssemblyLinearVelocity = Vector3.zero
+            dragTarget.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+
+    if grabHL and grabHL.Parent then
+        pcall(function() grabHL:Destroy() end)
+    end
+    grabHL = nil
+    dragTarget = nil
+
+    if dragEndConn then
+        dragEndConn:Disconnect()
+        dragEndConn = nil
+    end
 end
 
 local function grabObject(part: BasePart)
     clearDragTarget()
     clearHover()
+
     dragTarget = part
-    -- Disable collision on the object so it can't physically throw the player
-    suppressDragCollision(part)
-    -- Lock depth at grab distance so part stays at same Z while dragging
-    dragDepth = math.clamp((part.Position - Camera.CFrame.Position).Magnitude, 4, 150)
-    grabHL = makeHighlight(part, Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 200, 50), 0.28)
-    -- One-shot release listener
+    local camPos = Camera.CFrame.Position
+    dragDepth = math.clamp((part.Position - camPos).Magnitude, 5, DRAG_MAX_RANGE)
+
+    -- Inject NoCollisionConstraints against local player to prevent physics collision death
+    local char = LocalPlayer.Character
+    if char then
+        for _, cPart in ipairs(char:GetDescendants()) do
+            if cPart:IsA("BasePart") then
+                local ncc = Instance.new("NoCollisionConstraint")
+                ncc.Part0 = cPart
+                ncc.Part1 = part
+                ncc.Parent = part
+                table.insert(dragNoCollisions, ncc)
+            end
+        end
+    end
+
+    -- Physics Authority: Attachment & AlignPosition / AlignOrientation
+    local att = Instance.new("Attachment")
+    att.Name = "ModularDragAttachment"
+    att.Position = Vector3.zero
+    att.Parent = part
+    dragAttachment = att
+
+    local ap = Instance.new("AlignPosition")
+    ap.Name = "ModularDragAlignPos"
+    ap.Mode = Enum.PositionAlignmentMode.OneAttachment
+    ap.Attachment0 = att
+    ap.MaxForce = 1e8
+    ap.MaxVelocity = 350
+    ap.Responsiveness = 100
+    ap.Position = part.Position
+    ap.Parent = part
+    dragAlignPos = ap
+
+    local ao = Instance.new("AlignOrientation")
+    ao.Name = "ModularDragAlignOrient"
+    ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
+    ao.Attachment0 = att
+    ao.MaxTorque = 1e8
+    ao.Responsiveness = 100
+    ao.CFrame = part.CFrame
+    ao.Parent = part
+    dragAlignOrient = ao
+
+    grabHL = makeHighlight(part, Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 220, 80), 0.25)
+
+    -- Release on MouseButton1 up
     dragEndConn = UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             clearDragTarget()
@@ -501,40 +580,38 @@ local function grabObject(part: BasePart)
     end)
 end
 
-
 function DisasterSurvival.setObjectDrag(enabled: boolean)
     DisasterSurvival.ObjectDrag = enabled
     if enabled then
-        -- RenderStepped: hover via Mouse.Target + velocity push while dragging
+        -- RenderStepped: Update drag position & hover detection
         dragHoverConn = RunService.RenderStepped:Connect(function()
-            if dragTarget then
-                -- Part may have been destroyed mid-drag
-                if not dragTarget.Parent then clearDragTarget() return end
+            if dragTarget and dragTarget.Parent then
+                local ray = Camera:ScreenPointToRay(dragMouse.X, dragMouse.Y)
+                local targetPos = Camera.CFrame.Position + (ray.Direction * dragDepth)
 
-                -- Target world position along camera ray at locked depth
-                local ray       = Camera:ScreenPointToRay(dragMouse.X, dragMouse.Y)
-                local targetPos = Camera.CFrame.Position + ray.Direction * dragDepth
-                local diff      = targetPos - dragTarget.Position
-                local dist      = diff.Magnitude
+                if dragAlignPos and dragAlignPos.Parent then
+                    dragAlignPos.Position = targetPos
+                end
 
-                -- Spring-damper velocity: proportional to distance, damps at close range
-                local speed = math.clamp(dist * 14, 0, 100)
                 pcall(function()
-                    dragTarget.AssemblyLinearVelocity = if dist > 0.05
-                        then diff.Unit * speed
-                        else Vector3.zero
+                    local currentPos = dragTarget.Position
+                    local delta = targetPos - currentPos
+                    local dist = delta.Magnitude
+                    local velocity = if dist > 0.1 then delta.Unit * math.clamp(dist * 20, 0, 200) else Vector3.zero
+                    dragTarget.AssemblyLinearVelocity = velocity
+                    dragTarget.CFrame = dragTarget.CFrame:Lerp(CFrame.new(targetPos) * dragTarget.CFrame.Rotation, 0.45)
                 end)
             else
-                -- Hover: Mouse.Target is engine-resolved, always pixel-accurate
-                local target = dragMouse.Target
-                if target and target:IsA("BasePart") and isDraggable(target) then
+                if dragTarget and not dragTarget.Parent then
+                    clearDragTarget()
+                end
+
+                local target = getTargetFromMouse()
+                if target then
                     if hoverTarget ~= target then
                         clearHover()
                         hoverTarget = target
-                        hoverHL = makeHighlight(target,
-                            Color3.fromRGB(0, 220, 255),
-                            Color3.fromRGB(255, 255, 255),
-                            0.52)
+                        hoverHL = makeHighlight(target, Color3.fromRGB(0, 220, 255), Color3.fromRGB(255, 255, 255), 0.5)
                     end
                 else
                     clearHover()
@@ -542,12 +619,23 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
             end
         end)
 
-        -- LMB down = grab whatever is currently highlighted
+        -- Mouse wheel to adjust depth
+        dragWheelConn = UserInputService.InputChanged:Connect(function(input, gp)
+            if gp then return end
+            if input.UserInputType == Enum.UserInputType.MouseWheel then
+                if dragTarget then
+                    dragDepth = math.clamp(dragDepth + (input.Position.Z * 4), 4, DRAG_MAX_RANGE)
+                end
+            end
+        end)
+
+        -- LMB down: Grab hovered object
         dragInputConn = UserInputService.InputBegan:Connect(function(input, gp)
             if gp then return end
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                if hoverTarget and hoverTarget.Parent then
-                    grabObject(hoverTarget)
+                local target = hoverTarget or getTargetFromMouse()
+                if target and target.Parent then
+                    grabObject(target)
                 end
             end
         end)
@@ -555,6 +643,7 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
         clearDragTarget()
         clearHover()
         if dragHoverConn then dragHoverConn:Disconnect() dragHoverConn = nil end
+        if dragWheelConn then dragWheelConn:Disconnect() dragWheelConn = nil end
         if dragInputConn then dragInputConn:Disconnect() dragInputConn = nil end
     end
 end
@@ -591,6 +680,7 @@ function DisasterSurvival.cleanup()
     dc(antiKillConn)   antiKillConn = nil
     dc(carDriveConn)   carDriveConn = nil
     dc(dragHoverConn)  dragHoverConn = nil
+    dc(dragWheelConn)  dragWheelConn = nil
     dc(dragInputConn)  dragInputConn = nil
     dc(dragEndConn)    dragEndConn   = nil
     dc(playerAddedConn) playerAddedConn = nil

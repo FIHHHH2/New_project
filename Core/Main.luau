@@ -1260,6 +1260,19 @@ elseif gameTabTitle == "Ice Tycoon" then
 		end
 	end)
 
+	local convSection = window:AddSection(autoLeftCol, "Conveyors & Factory Speed")
+	window:AddToggle(convSection, "ice_fast_conveyors", "Fast Conveyors (Speed Boost)", false, nil, function(enabled)
+		IceTycoon.setFastConveyors(enabled)
+	end)
+
+	window:AddSlider(convSection, "Conveyor Speed", 15, 120, 65, function(value)
+		IceTycoon.setConveyorSpeed(value)
+	end)
+
+	window:AddToggle(convSection, "ice_ore_magnet", "Ore Vacuum / Magnet to Collector", false, nil, function(enabled)
+		IceTycoon.setOreMagnet(enabled)
+	end)
+
 	local buySection = window:AddSection(autoRightCol, "Button Purchases")
 	window:AddToggle(buySection, "ice_auto_buy", "Auto-Buy Affordable Buttons", false, nil, function(enabled)
 		IceTycoon.setAutoBuy(enabled)

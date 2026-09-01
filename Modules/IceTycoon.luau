@@ -28,6 +28,9 @@ local IceTycoon = {
 	AntiJumpscare = false,
 	NoLavaDamage = false,
 	FastMine = false,
+	FastConveyors = false,
+	ConveyorSpeed = 65,
+	OreMagnet = false,
 }
 
 local collectConn: RBXScriptConnection? = nil
@@ -810,6 +813,116 @@ function IceTycoon.getTeleportLocations(): {string}
 	return list
 end
 
+
+-- ── Fast Conveyors & Ore Accelerator ─────────────────────────────
+local conveyorConn: RBXScriptConnection? = nil
+local oreMagnetConn: RBXScriptConnection? = nil
+local cachedConveyors: {[BasePart]: Vector3} = {}
+
+local function scanConveyors()
+	local tycoon = Workspace:FindFirstChild("Tycoon") or Workspace
+	for _, desc in ipairs(tycoon:GetDescendants()) do
+		if desc:IsA("BasePart") and desc.Name:lower():find("conveyor") then
+			if not cachedConveyors[desc] then
+				local vel = desc.AssemblyLinearVelocity
+				if vel.Magnitude > 0.1 then
+					cachedConveyors[desc] = vel
+				else
+					local oldVel = desc.Velocity
+					if oldVel.Magnitude > 0.1 then
+						cachedConveyors[desc] = oldVel
+					end
+				end
+			end
+		end
+	end
+end
+
+function IceTycoon.setConveyorSpeed(speed: number)
+	IceTycoon.ConveyorSpeed = speed
+	if IceTycoon.FastConveyors then
+		for part, origVel in pairs(cachedConveyors) do
+			if part and part.Parent then
+				local dir = if origVel.Magnitude > 0.1 then origVel.Unit else Vector3.new(1, 0, 0)
+				part.AssemblyLinearVelocity = dir * speed
+				part.Velocity = dir * speed
+			end
+		end
+	end
+end
+
+function IceTycoon.setFastConveyors(enabled: boolean)
+	IceTycoon.FastConveyors = enabled
+
+	if conveyorConn then
+		conveyorConn:Disconnect()
+		conveyorConn = nil
+	end
+
+	if not enabled then
+		-- Restore original conveyor speeds
+		for part, origVel in pairs(cachedConveyors) do
+			if part and part.Parent then
+				pcall(function()
+					part.AssemblyLinearVelocity = origVel
+					part.Velocity = origVel
+				end)
+			end
+		end
+		table.clear(cachedConveyors)
+		return
+	end
+
+	scanConveyors()
+
+	local lastScan = 0
+	conveyorConn = RunService.Heartbeat:Connect(function()
+		local now = os.clock()
+		if now - lastScan > 2.0 then
+			lastScan = now
+			scanConveyors()
+		end
+
+		local targetSpeed = IceTycoon.ConveyorSpeed
+		for part, origVel in pairs(cachedConveyors) do
+			if part and part.Parent then
+				local dir = if origVel.Magnitude > 0.1 then origVel.Unit else Vector3.new(1, 0, 0)
+				part.AssemblyLinearVelocity = dir * targetSpeed
+				part.Velocity = dir * targetSpeed
+			end
+		end
+	end)
+end
+
+function IceTycoon.setOreMagnet(enabled: boolean)
+	IceTycoon.OreMagnet = enabled
+
+	if oreMagnetConn then
+		oreMagnetConn:Disconnect()
+		oreMagnetConn = nil
+	end
+
+	if not enabled then return end
+
+	oreMagnetConn = RunService.Heartbeat:Connect(function()
+		local collector = findCollector()
+		if not collector then return end
+		local colPos = collector.Position
+
+		local tycoon = Workspace:FindFirstChild("Tycoon") or Workspace
+		for _, desc in ipairs(tycoon:GetDescendants()) do
+			if desc:IsA("BasePart") and (desc.Name:lower():find("ore") or desc.Name:lower():find("drop") or desc.Name:lower():find("gem")) then
+				if not desc.Anchored and desc ~= collector then
+					local diff = colPos - desc.Position
+					if diff.Magnitude < 120 and diff.Magnitude > 1.5 then
+						desc.AssemblyLinearVelocity = diff.Unit * 45
+					end
+				end
+			end
+		end
+	end)
+end
+
 -- ── Cleanup ─────────────────────────────────────────────────────────
 function IceTycoon.cleanup()
 	IceTycoon.AutoCollect = false
@@ -819,6 +932,8 @@ function IceTycoon.cleanup()
 	IceTycoon.AntiFreeze = false
 	IceTycoon.AntiJumpscare = false
 	IceTycoon.NoLavaDamage = false
+	IceTycoon.setFastConveyors(false)
+	IceTycoon.setOreMagnet(false)
 
 	if collectConn then collectConn:Disconnect() collectConn = nil end
 	if buyConn then buyConn:Disconnect() buyConn = nil end

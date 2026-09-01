@@ -339,8 +339,16 @@ end
 
 function IceTycoon.fillWaterNow(): boolean
 	local hrp = getHrp()
+	if not hrp then return false end
 
-	-- 1. Direct IntValue manipulation (Instant & Zero Movement)
+	ensureWaterToolEquipped()
+
+	local scoopPrompt, scoopPart = findActiveScoopPrompt()
+	local fillPrompt = findPumpFillPrompt()
+	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
+	local camera = Workspace.CurrentCamera
+
+	-- Direct value assignment
 	local pump = Workspace:FindFirstChild("Tycoon") and Workspace.Tycoon:FindFirstChild("Essentials") and Workspace.Tycoon.Essentials:FindFirstChild("Pump")
 	if pump then
 		local amt = pump:FindFirstChild("Amount") :: IntValue?
@@ -351,27 +359,43 @@ function IceTycoon.fillWaterNow(): boolean
 		end
 	end
 
-	-- 2. Server-side remote prompt confirmation (Zero Movement)
-	local scoopPrompt = findActiveScoopPrompt()
-	local fillPrompt = findPumpFillPrompt()
-	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
-
-	if scoopPrompt and fillPrompt and type(fpp) == "function" then
-		scoopPrompt.MaxActivationDistance = 999999
-		scoopPrompt.RequiresLineOfSight = false
+	-- Instant camera-frozen sweep to register on server
+	if scoopPrompt and fillPrompt and scoopPart and hrp and camera then
 		scoopPrompt.HoldDuration = 0
-
-		fillPrompt.MaxActivationDistance = 999999
-		fillPrompt.RequiresLineOfSight = false
 		fillPrompt.HoldDuration = 0
 
-		task.spawn(function()
-			pcall(function()
+		local origCF = hrp.CFrame
+		local origCamCF = camera.CFrame
+		local camType = camera.CameraType
+
+		-- Freeze camera so player screen does not jump
+		camera.CameraType = Enum.CameraType.Scriptable
+		camera.CFrame = origCamCF
+
+		-- 1. Scoop water (0.07s)
+		hrp.CFrame = scoopPart.CFrame * CFrame.new(0, 3, 0)
+		task.wait(0.07)
+		if type(fpp) == "function" then
+			for _ = 1, 6 do
 				fpp(scoopPrompt, 1, true)
 				task.wait(0.01)
-				fpp(fillPrompt, 1, true)
-			end)
-		end)
+			end
+		end
+
+		-- 2. Deposit into pump (0.07s)
+		hrp.CFrame = CFrame.new(-81.4, 4.2, -87.5) * CFrame.Angles(0, math.rad(180), 0)
+		task.wait(0.07)
+		if type(fpp) == "function" then
+			fpp(fillPrompt, 1, true)
+		end
+		task.wait(0.04)
+
+		-- 3. Restore player position and camera
+		hrp.CFrame = origCF
+		camera.CameraType = camType
+		camera.CFrame = origCamCF
+
+		return true
 	end
 
 	return true
@@ -387,12 +411,11 @@ function IceTycoon.setAutoFillWater(enabled: boolean)
 					local amt = pump:FindFirstChild("Amount") :: IntValue?
 					local max = pump:FindFirstChild("Max") :: IntValue?
 					local targetMax = (max and max.Value) or 20
-					if amt and amt:IsA("IntValue") and amt.Value < targetMax then
-						amt.Value = targetMax
+					if amt and amt:IsA("IntValue") and amt.Value < (targetMax - 4) then
 						IceTycoon.fillWaterNow()
 					end
 				end
-				task.wait(0.5)
+				task.wait(1.0)
 			end
 		end)
 	end

@@ -274,41 +274,109 @@ function IceTycoon.claimAllTools(): number
 end
 
 -- ── 4. Water Tank & Well Auto-Fill ───────────────────────────────────
-function IceTycoon.fillWaterNow(): boolean
-	local hrp = getHrp()
-	if not hrp then return false end
+local function ensureWaterToolEquipped(): Tool?
+	local char = LocalPlayer.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not char or not hum then return nil end
 
-	local map = Workspace:FindFirstChild("Map")
-	if map then
-		local wellHitbox = map:FindFirstChild("WellHitbox") or map:FindFirstChild("WaterHitbox")
-		if wellHitbox and wellHitbox:IsA("BasePart") then
-			touchPart(wellHitbox :: BasePart)
-			return true
-		end
+	local tool = char:FindFirstChildOfClass("Tool")
+	if tool and (string.find(tool.Name:lower(), "cup") or string.find(tool.Name:lower(), "spoon") or string.find(tool.Name:lower(), "bucket")) then
+		return tool
+	end
 
-		local waters = map:FindFirstChild("Waters")
-		if waters then
-			for _, w in ipairs(waters:GetChildren()) do
-				local part = w:FindFirstChildOfClass("BasePart") or (w:IsA("BasePart") and w)
-				if part then
-					touchPart(part :: BasePart)
-					return true
-				end
+	local backpack = LocalPlayer:FindFirstChild("Backpack")
+	if backpack then
+		for _, t in ipairs(backpack:GetChildren()) do
+			if t:IsA("Tool") and (string.find(t.Name:lower(), "cup") or string.find(t.Name:lower(), "spoon") or string.find(t.Name:lower(), "bucket")) then
+				hum:EquipTool(t)
+				return t
 			end
 		end
 	end
 
-	-- Check proximity prompts
-	for _, prompt in ipairs(Workspace:GetDescendants()) do
-		if prompt:IsA("ProximityPrompt") and (string.find(prompt.ActionText:lower(), "fill") or string.find(prompt.ActionText:lower(), "water")) then
-			prompt.HoldDuration = 0
-			pcall(function()
-				prompt:InputHoldBegin()
-				task.wait(0.05)
-				prompt:InputHoldEnd()
-			end)
-			return true
+	return nil
+end
+
+local function findActiveScoopPrompt(): (ProximityPrompt?, BasePart?)
+	local map = Workspace:FindFirstChild("Map")
+	if not map then return nil, nil end
+
+	-- 1. Waters folder
+	local waters = map:FindFirstChild("Waters")
+	if waters then
+		for _, w in ipairs(waters:GetChildren()) do
+			local p = w:FindFirstChildWhichIsA("ProximityPrompt", true)
+			if p and p.Enabled and p.ActionText == "Scoop" and p.Parent and p.Parent:IsA("BasePart") then
+				return p, p.Parent :: BasePart
+			end
 		end
+	end
+
+	-- 2. WaterPedestal in Troops
+	local troops = map:FindFirstChild("Troops")
+	local wp = troops and troops:FindFirstChild("WaterPedestal")
+	if wp then
+		local p = wp:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if p and p.Enabled and p.Parent and p.Parent:IsA("BasePart") then
+			return p, p.Parent :: BasePart
+		end
+	end
+
+	return nil, nil
+end
+
+local function findPumpFillPrompt(): (ProximityPrompt?, BasePart?)
+	local tycoon = Workspace:FindFirstChild("Tycoon")
+	local pump = tycoon and tycoon:FindFirstChild("Essentials") and tycoon.Essentials:FindFirstChild("Pump")
+	if pump then
+		local p = pump:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if p and p.ActionText == "Fill" and p.Parent and p.Parent:IsA("BasePart") then
+			return p, p.Parent :: BasePart
+		end
+	end
+	return nil, nil
+end
+
+function IceTycoon.fillWaterNow(): boolean
+	local hrp = getHrp()
+	if not hrp then return false end
+
+	ensureWaterToolEquipped()
+
+	local scoopPrompt, scoopPart = findActiveScoopPrompt()
+	local fillPrompt, fillPart = findPumpFillPrompt()
+	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
+
+	if scoopPrompt and scoopPart and fillPrompt and fillPart then
+		local origCF = hrp.CFrame
+
+		-- 1. Warp to water scoop spot and scoop water
+		hrp.CFrame = scoopPart.CFrame * CFrame.new(0, 2.5, 2)
+		task.wait(0.12)
+		for _ = 1, 6 do
+			scoopPrompt.HoldDuration = 0
+			if type(fpp) == "function" then
+				fpp(scoopPrompt, 1, true)
+			else
+				pcall(function() scoopPrompt:InputHoldBegin() task.wait(0.04) scoopPrompt:InputHoldEnd() end)
+			end
+			task.wait(0.08)
+		end
+
+		-- 2. Warp to Tycoon Pump Tank and deposit scooped water
+		hrp.CFrame = fillPart.CFrame * CFrame.new(0, 2.5, 2)
+		task.wait(0.12)
+		fillPrompt.HoldDuration = 0
+		if type(fpp) == "function" then
+			fpp(fillPrompt, 1, true)
+		else
+			pcall(function() fillPrompt:InputHoldBegin() task.wait(0.04) fillPrompt:InputHoldEnd() end)
+		end
+		task.wait(0.15)
+
+		-- 3. Restore original position
+		hrp.CFrame = origCF
+		return true
 	end
 
 	return false
@@ -319,8 +387,14 @@ function IceTycoon.setAutoFillWater(enabled: boolean)
 	if enabled then
 		task.spawn(function()
 			while IceTycoon.AutoFillWater do
-				IceTycoon.fillWaterNow()
-				task.wait(2.0)
+				local pump = Workspace:FindFirstChild("Tycoon") and Workspace.Tycoon:FindFirstChild("Essentials") and Workspace.Tycoon.Essentials:FindFirstChild("Pump")
+				local amt = pump and pump:FindFirstChild("Amount") and (pump.Amount :: any).Value or 0
+				local max = pump and pump:FindFirstChild("Max") and (pump.Max :: any).Value or 20
+
+				if amt < max then
+					IceTycoon.fillWaterNow()
+				end
+				task.wait(1.5)
 			end
 		end)
 	end

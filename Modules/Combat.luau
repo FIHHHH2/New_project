@@ -411,7 +411,6 @@ pcall(function()
 						return oldNamecall(self, newRay, select(2, ...))
 					end
 				end
-			end
 			elseif (method == "ScreenPointToRay" or method == "ViewportPointToRay") and self == Camera then
 				local target = cachedTargetPart
 				if target and target.Parent and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
@@ -424,6 +423,7 @@ pcall(function()
 						return Ray.new(camPos, dir)
 					end
 				end
+			end
 
 			return oldNamecall(self, ...)
 		end)

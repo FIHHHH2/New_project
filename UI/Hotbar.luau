@@ -1281,7 +1281,68 @@ function Hotbar.new(): HotbarWidget
 		end)
 	end
 
+	-- ── 11. Multi-Stage Death & Respawn Inventory Reconciler ──────────
+	local function reconcileFullInventory()
+		local char = LocalPlayer.Character
+		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+
+		-- 1. Purge destroyed, unparented, or orphaned dead tools
+		for i = 1, NUM_SLOTS do
+			local t = assignedSlots[i]
+			if t and (not t.Parent or not t:IsDescendantOf(game) or (t.Parent ~= char and t.Parent ~= bp)) then
+				assignedSlots[i] = nil
+			end
+		end
+
+		-- 2. Clear invalid cache entries
+		for k, c in pairs(slotCaches) do
+			if not c.Tool or not c.Tool.Parent or not c.Tool:IsDescendantOf(game) or (c.Tool.Parent ~= char and c.Tool.Parent ~= bp) then
+				slotCaches[k] = nil
+			end
+		end
+
+		-- 3. Scan all valid tools in new character & backpack
+		local allTools = getAllTools()
+		for _, tool in ipairs(allTools) do
+			hookToolNameChange(tool)
+			local alreadyAssigned = false
+			for i = 1, NUM_SLOTS do
+				if assignedSlots[i] == tool then
+					alreadyAssigned = true
+					break
+				end
+			end
+			if not alreadyAssigned then
+				for i = 1, NUM_SLOTS do
+					if not assignedSlots[i] then
+						assignedSlots[i] = tool
+						break
+					end
+				end
+			end
+		end
+
+		updateHotbarVisuals()
+		if isBackpackOpen then
+			updateBackpackGrid()
+		end
+	end
+
 	local function bindCharEvents(char: Model)
+		local hum = char:WaitForChild("Humanoid", 4) :: Humanoid?
+		if hum then
+			table.insert(activeConnections, hum.Died:Connect(function()
+				-- Immediately unequip and purge character tools upon death
+				for i = 1, NUM_SLOTS do
+					local t = assignedSlots[i]
+					if t and t.Parent == char then
+						assignedSlots[i] = nil
+					end
+				end
+				updateSlotHighlightsOnly()
+			end))
+		end
+
 		for _, item in ipairs(char:GetChildren()) do
 			if item:IsA("Tool") then
 				hookToolNameChange(item)
@@ -1289,6 +1350,12 @@ function Hotbar.new(): HotbarWidget
 		end
 		table.insert(activeConnections, char.ChildAdded:Connect(onToolAdded))
 		table.insert(activeConnections, char.ChildRemoved:Connect(onToolRemoved))
+
+		-- Staggered reconciliation passes to capture late-replicating inventory items
+		task.defer(reconcileFullInventory)
+		task.delay(0.15, reconcileFullInventory)
+		task.delay(0.40, reconcileFullInventory)
+		task.delay(0.85, reconcileFullInventory)
 	end
 
 	if LocalPlayer.Character then bindCharEvents(LocalPlayer.Character) end
@@ -1302,12 +1369,15 @@ function Hotbar.new(): HotbarWidget
 		end
 		table.insert(activeConnections, bp.ChildAdded:Connect(onToolAdded))
 		table.insert(activeConnections, bp.ChildRemoved:Connect(onToolRemoved))
+		task.defer(reconcileFullInventory)
 	end
 
 	local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
 	if bp then bindBpEvents(bp) end
 	table.insert(activeConnections, LocalPlayer.ChildAdded:Connect(function(child)
-		if child:IsA("Backpack") then bindBpEvents(child :: Backpack) end
+		if child:IsA("Backpack") then
+			bindBpEvents(child :: Backpack)
+		end
 	end))
 
 	_G.__ModularHotbar_Cleanup = function()

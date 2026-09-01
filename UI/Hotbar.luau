@@ -4,6 +4,7 @@
     Features:
     - Fluid Drag-to-Move / Drag-to-Swap toolbar objects with live drop target highlights
     - Instantaneous O(1) zero-lag tool equipping & unequipping (<0.01ms)
+    - Full hot-reload event disconnection (_G.__ModularHotbar_Cleanup)
     - Permanent 3D ViewportFrame caching (zero model re-cloning on equip/unequip)
     - Smart hierarchy filter (moving tools between Backpack and Character never rebuilds viewports)
     - Dedicated retro [ ≡ INV ] hamburger button to toggle Backpack Inventory
@@ -172,6 +173,14 @@ local function renderToolViewportCached(
 end
 
 function Hotbar.new(): HotbarWidget
+	-- Disconnect previous instance connections to prevent ghost listener collisions
+	if _G.__ModularHotbar_Cleanup then
+		pcall(_G.__ModularHotbar_Cleanup)
+		_G.__ModularHotbar_Cleanup = nil
+	end
+
+	local activeConnections: {RBXScriptConnection} = {}
+
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ModularHotbarGui"
 	screenGui.ResetOnSpawn = false
@@ -889,7 +898,7 @@ function Hotbar.new(): HotbarWidget
 		end
 	end
 
-	UserInputService.InputChanged:Connect(function(input)
+	table.insert(activeConnections, UserInputService.InputChanged:Connect(function(input)
 		if isDraggingActive and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local mousePos = UserInputService:GetMouseLocation()
 			dragGhost.Position = UDim2.new(0, mousePos.X - 26, 0, mousePos.Y - 26)
@@ -913,13 +922,13 @@ function Hotbar.new(): HotbarWidget
 				end
 			end
 		end
-	end)
+	end))
 
-	UserInputService.InputEnded:Connect(function(input)
+	table.insert(activeConnections, UserInputService.InputEnded:Connect(function(input)
 		if isDraggingActive and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
 			finishDragging(UserInputService:GetMouseLocation())
 		end
-	end)
+	end))
 
 	-- ── 8. Create Slots in Hotbar HUD ─────────────────────────────────
 	for i = 1, NUM_SLOTS do
@@ -979,13 +988,13 @@ function Hotbar.new(): HotbarWidget
 
 		-- Slot Dragging & Clicking
 		local slotPressPos = Vector2.zero
-		slotBtn.InputBegan:Connect(function(input)
+		table.insert(activeConnections, slotBtn.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				slotPressPos = UserInputService:GetMouseLocation()
 			end
-		end)
+		end))
 
-		slotBtn.InputChanged:Connect(function(input)
+		table.insert(activeConnections, slotBtn.InputChanged:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 				if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and not isDraggingActive then
 					local curTool = assignedSlots[i]
@@ -997,9 +1006,9 @@ function Hotbar.new(): HotbarWidget
 					end
 				end
 			end
-		end)
+		end))
 
-		slotBtn.MouseButton1Click:Connect(function()
+		table.insert(activeConnections, slotBtn.MouseButton1Click:Connect(function()
 			if not justFinishedDrag and not isDraggingActive then
 				local tool = assignedSlots[i]
 				if tool then
@@ -1007,7 +1016,7 @@ function Hotbar.new(): HotbarWidget
 					equipOrToggleTool(tool)
 				end
 			end
-		end)
+		end))
 
 		slotFrames[i] = slotBtn
 	end
@@ -1083,27 +1092,27 @@ function Hotbar.new(): HotbarWidget
 	invTextLabel.Parent = invBtn
 	UI.registerThemeElement(invTextLabel, "Accent")
 
-	invBtn.MouseButton1Click:Connect(function()
+	table.insert(activeConnections, invBtn.MouseButton1Click:Connect(function()
 		if not justFinishedDrag then
 			Animations.buttonClickPop(invBtn)
 			toggleBackpack()
 		end
-	end)
+	end))
 
 	-- ── 10. Search Filter & Events ────────────────────────────────────
-	searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+	table.insert(activeConnections, searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 		filterQuery = searchBox.Text
 		updateBackpackGrid()
-	end)
+	end))
 
-	bpCloseBtn.MouseButton1Click:Connect(function()
+	table.insert(activeConnections, bpCloseBtn.MouseButton1Click:Connect(function()
 		Animations.buttonClickPop(bpCloseBtn)
 		isBackpackOpen = false
 		bpWindow.Visible = false
-	end)
+	end))
 
 	-- Keybinds for 1-0 hotbar selection and ` for inventory
-	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	table.insert(activeConnections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
 		if input.UserInputType == Enum.UserInputType.Keyboard then
 			for slotNum, key in ipairs(KEYCODES) do
@@ -1127,7 +1136,7 @@ function Hotbar.new(): HotbarWidget
 				toggleBackpack()
 			end
 		end
-	end)
+	end))
 
 	-- Smart Event Handling: only update highlights on equip/unequip, only refresh grid on real inventory changes
 	local function handleToolMove(tool: Instance)
@@ -1143,23 +1152,30 @@ function Hotbar.new(): HotbarWidget
 	end
 
 	local function bindCharEvents(char: Model)
-		char.ChildAdded:Connect(handleToolMove)
-		char.ChildRemoved:Connect(handleToolMove)
+		table.insert(activeConnections, char.ChildAdded:Connect(handleToolMove))
+		table.insert(activeConnections, char.ChildRemoved:Connect(handleToolMove))
 	end
 
 	if LocalPlayer.Character then bindCharEvents(LocalPlayer.Character) end
-	LocalPlayer.CharacterAdded:Connect(bindCharEvents)
+	table.insert(activeConnections, LocalPlayer.CharacterAdded:Connect(bindCharEvents))
 
 	local function bindBpEvents(bp: Backpack)
-		bp.ChildAdded:Connect(handleToolMove)
-		bp.ChildRemoved:Connect(handleToolMove)
+		table.insert(activeConnections, bp.ChildAdded:Connect(handleToolMove))
+		table.insert(activeConnections, bp.ChildRemoved:Connect(handleToolMove))
 	end
 
 	local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
 	if bp then bindBpEvents(bp) end
-	LocalPlayer.ChildAdded:Connect(function(child)
+	table.insert(activeConnections, LocalPlayer.ChildAdded:Connect(function(child)
 		if child:IsA("Backpack") then bindBpEvents(child :: Backpack) end
-	end)
+	end))
+
+	_G.__ModularHotbar_Cleanup = function()
+		for _, conn in ipairs(activeConnections) do
+			pcall(function() conn:Disconnect() end)
+		end
+		table.clear(activeConnections)
+	end
 
 	-- Initial render
 	task.spawn(function()

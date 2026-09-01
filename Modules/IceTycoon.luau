@@ -945,15 +945,15 @@ function IceTycoon.setFastConveyors(enabled: boolean)
 			end
 		end
 
-		-- Anti-Flyoff Track Lock: keep all ores centered on conveyor track
+		-- Frictionless Ultra-Fast Conveyor Propulsion & Anti-Stuck Engine
 		local tycoon = Workspace:FindFirstChild("Tycoon") or Workspace
 		local partsFolder = tycoon:FindFirstChild("Parts")
 		if partsFolder then
 			for _, ore in ipairs(partsFolder:GetChildren()) do
 				if ore:IsA("BasePart") and not ore.Anchored then
 					pcall(function()
-						-- Zero-bounce & high friction grip
-						ore.CustomPhysicalProperties = PhysicalProperties.new(1.0, 2.0, 0.0, 100, 0)
+						-- Zero friction and high density for ultra-slick ice movement with no drag
+						ore.CustomPhysicalProperties = PhysicalProperties.new(0.5, 0.0, 0.0, 100, 100)
 
 						local orePos = ore.Position
 						local nearestConv: BasePart? = nil
@@ -963,8 +963,8 @@ function IceTycoon.setFastConveyors(enabled: boolean)
 							if conv and conv.Parent then
 								local cp = conv.Position
 								local cs = conv.Size
-								local halfX = cs.X / 2 + 3.0
-								local halfZ = cs.Z / 2 + 3.0
+								local halfX = cs.X / 2 + 5.0
+								local halfZ = cs.Z / 2 + 5.0
 								if math.abs(orePos.X - cp.X) <= halfX and math.abs(orePos.Z - cp.Z) <= halfZ then
 									local dist = (orePos - cp).Magnitude
 									if dist < nearestDist then
@@ -976,34 +976,30 @@ function IceTycoon.setFastConveyors(enabled: boolean)
 						end
 
 						if nearestConv then
-							local cp = nearestConv.Position
-							local cs = nearestConv.Size
 							local origVel = cachedConveyors[nearestConv]
 							if origVel and origVel.Magnitude > 0.1 then
 								local dir = origVel.Unit
-								-- X-axis conveyor: clamp Z
-								if math.abs(dir.X) > 0.7 then
-									local clampedZ = math.clamp(orePos.Z, cp.Z - cs.Z * 0.35, cp.Z + cs.Z * 0.35)
-									local targetY = cp.Y + cs.Y / 2 + ore.Size.Y / 2
-									if math.abs(orePos.Z - clampedZ) > 0.2 then
-										ore.CFrame = CFrame.new(orePos.X, math.max(orePos.Y, targetY), clampedZ)
-									end
-									ore.AssemblyLinearVelocity = Vector3.new(dir.X * targetSpeed, math.min(ore.AssemblyLinearVelocity.Y, 0), 0)
-								-- Z-axis conveyor: clamp X
-								elseif math.abs(dir.Z) > 0.7 then
-									local clampedX = math.clamp(orePos.X, cp.X - cs.X * 0.35, cp.X + cs.X * 0.35)
-									local targetY = cp.Y + cs.Y / 2 + ore.Size.Y / 2
-									if math.abs(orePos.X - clampedX) > 0.2 then
-										ore.CFrame = CFrame.new(clampedX, math.max(orePos.Y, targetY), orePos.Z)
-									end
-									ore.AssemblyLinearVelocity = Vector3.new(0, math.min(ore.AssemblyLinearVelocity.Y, 0), dir.Z * targetSpeed)
-								end
+								local curY = ore.AssemblyLinearVelocity.Y
+								-- Apply continuous frictionless forward velocity along the belt vector
+								ore.AssemblyLinearVelocity = Vector3.new(
+									dir.X * targetSpeed,
+									math.clamp(curY, -35, 1),
+									dir.Z * targetSpeed
+								)
+								ore.Velocity = ore.AssemblyLinearVelocity
 							end
 						else
-							-- Fail-safe catch if ore fell below conveyor track
+							-- Anti-stuck or fallen ore: propel towards collector or drop chute
 							local colPart = getCollectorPart()
-							if colPart and colPart:IsA("BasePart") and orePos.Y < 2.5 then
-								ore.CFrame = colPart.CFrame * CFrame.new(0, 0.5, 0)
+							if colPart and colPart:IsA("BasePart") then
+								if orePos.Y < 3.0 or ore.AssemblyLinearVelocity.Magnitude < 3.0 then
+									local diff = colPart.Position - orePos
+									if diff.Magnitude > 1.5 then
+										ore.AssemblyLinearVelocity = diff.Unit * targetSpeed
+									else
+										ore.CFrame = colPart.CFrame * CFrame.new(0, 0.5, 0)
+									end
+								end
 							end
 						end
 					end)

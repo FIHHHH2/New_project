@@ -16748,45 +16748,6 @@ Modules["Core/Main.luau"] = function()
     	leaderstatsWidget.SetVisible(enabled)
     end)
     
-    -- Universal Game Module Switcher (Open ANY module in ANY game)
-    local gameHubSection = window:AddSection(utilLeftCol, "Game Modules Hub (Universal)")
-    
-    window:AddButton(gameHubSection, "Open Seeker vs Hider Suite", function()
-    	window:SetTabVisibility(svhTab, true)
-    	window:SelectTab(svhTab)
-    	window:Notify("Modules", "Opened Seeker vs Hider Suite", 2)
-    end)
-    
-    window:AddButton(gameHubSection, "Open Restaurant Tycoon Suite", function()
-    	window:SetTabVisibility(restTab, true)
-    	window:SelectTab(restTab)
-    	window:Notify("Modules", "Opened Restaurant Tycoon Suite", 2)
-    end)
-    
-    window:AddButton(gameHubSection, "Open Lucky Blocks Suite", function()
-    	window:SetTabVisibility(luckyTab, true)
-    	window:SelectTab(luckyTab)
-    	window:Notify("Modules", "Opened Lucky Blocks Suite", 2)
-    end)
-    
-    window:AddButton(gameHubSection, "Open Ice Tycoon Suite", function()
-    	window:SetTabVisibility(iceTab, true)
-    	window:SelectTab(iceTab)
-    	window:Notify("Modules", "Opened Ice Tycoon Suite", 2)
-    end)
-    
-    window:AddButton(gameHubSection, "Open Run N Hide Suite", function()
-    	window:SetTabVisibility(rnhTab, true)
-    	window:SelectTab(rnhTab)
-    	window:Notify("Modules", "Opened Run N Hide Suite", 2)
-    end)
-    
-    window:AddButton(gameHubSection, "Open Natural Disaster Suite", function()
-    	window:SetTabVisibility(disTab, true)
-    	window:SelectTab(disTab)
-    	window:Notify("Modules", "Opened Natural Disaster Suite", 2)
-    end)
-    
     -- Left Column: Server & Session Utilities
     local serverSection = window:AddSection(utilLeftCol, "Server & Session Utilities")
     

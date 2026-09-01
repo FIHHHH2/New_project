@@ -6551,7 +6551,9 @@ function LeaderstatsWidget.new()
 	self.Widget = widget
 	self.ScreenGui = screenGui
 	self.Dock = autoDockNextToPlayerList
-	self.SetVisible = function(vis: boolean)
+	self.SetVisible = function(selfOrVal: any, maybeVal: any)
+		local vis = if typeof(selfOrVal) == "boolean" then selfOrVal else maybeVal
+		if typeof(vis) ~= "boolean" then vis = true end
 		widget.Visible = vis
 		if vis then
 			pcall(autoDockNextToPlayerList)

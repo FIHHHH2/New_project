@@ -5631,12 +5631,13 @@ function Hotbar.new(): HotbarWidget
 	invIconLabel.Size = UDim2.new(1, 0, 0, 20)
 	invIconLabel.Position = UDim2.new(0, 0, 0.5, -12)
 	invIconLabel.BackgroundTransparency = 1
-	invIconLabel.Text = "🎒"
+	invIconLabel.Text = "≡"
 	invIconLabel.TextColor3 = UI.Theme.TextPrimary
 	invIconLabel.Font = UI.Fonts.Header
 	invIconLabel.TextSize = 16
 	invIconLabel.ZIndex = 10
 	invIconLabel.Parent = invBtn
+	UI.registerThemeElement(invIconLabel, "TextPrimary")
 
 	local invTextLabel = Instance.new("TextLabel")
 	invTextLabel.Size = UDim2.new(1, 0, 0, 12)

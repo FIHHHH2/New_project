@@ -717,24 +717,23 @@ function MusicTracker.new()
 								currentSpectrum = data.spectrum
 							end
 							if data.audioPeak then
-								currentAudioPeak = data.audioPeak
-							end
-							if data.theme and typeof(data.theme) == "table" then
-								local t = data.theme
-								if t.accent and t.bg and t.container then
-									local acc = Color3.fromRGB(t.accent[1], t.accent[2], t.accent[3])
-									local bg = Color3.fromRGB(t.bg[1], t.bg[2], t.bg[3])
-									local ct = Color3.fromRGB(t.container[1], t.container[2], t.container[3])
-									local bd = t.border and Color3.fromRGB(t.border[1], t.border[2], t.border[3]) or nil
-									UI.applyAdaptiveTheme(acc, bg, ct, bd)
-								end
-							end
-
 							local isIdle = (data.title == "No Song Playing" and not data.isPlaying and currentAudioPeak <= 0.005)
 							local coverVersion = data.coverVersion or 0
 							if data.title ~= lastSongTitle or coverVersion ~= lastCoverVersion then
 								lastSongTitle = data.title
 								lastCoverVersion = coverVersion
+
+								if data.theme and typeof(data.theme) == "table" then
+									local t = data.theme
+									if t.accent and t.bg and t.container then
+										local acc = Color3.fromRGB(t.accent[1], t.accent[2], t.accent[3])
+										local bg = Color3.fromRGB(t.bg[1], t.bg[2], t.bg[3])
+										local ct = Color3.fromRGB(t.container[1], t.container[2], t.container[3])
+										local bd = t.border and Color3.fromRGB(t.border[1], t.border[2], t.border[3]) or nil
+										UI.applyAdaptiveTheme(acc, bg, ct, bd)
+									end
+								end
+
 								if isIdle then
 									songTitleLabel.Text = "No Song Playing"
 									lyricsLabel.Text = "♫ Waiting for audio session..."

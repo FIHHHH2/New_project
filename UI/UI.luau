@@ -76,19 +76,19 @@ UI.Themes = {
 	},
 	Adaptive = {
 		Name = "Adaptive",
-		Background = Color3.fromRGB(18, 18, 22),
-		BackgroundTransparency = 0.02,
+		Background = Color3.fromRGB(16, 16, 22),
+		BackgroundTransparency = 0.35,
 		Border = Color3.fromRGB(240, 240, 250),
-		BorderDim = Color3.fromRGB(80, 80, 95),
+		BorderDim = Color3.fromRGB(90, 90, 110),
 		Accent = Color3.fromRGB(55, 175, 245),
 		AccentDark = Color3.fromRGB(30, 120, 200),
 		AccentText = Color3.fromRGB(255, 255, 255),
-		TextPrimary = Color3.fromRGB(245, 245, 245),
-		TextSecondary = Color3.fromRGB(165, 165, 175),
-		Container = Color3.fromRGB(26, 26, 32),
-		ContainerTransparency = 0,
-		ContainerDark = Color3.fromRGB(18, 18, 22),
-		ContainerDarkTransparency = 0
+		TextPrimary = Color3.fromRGB(250, 250, 255),
+		TextSecondary = Color3.fromRGB(175, 175, 190),
+		Container = Color3.fromRGB(24, 24, 32),
+		ContainerTransparency = 0.30,
+		ContainerDark = Color3.fromRGB(14, 14, 20),
+		ContainerDarkTransparency = 0.40
 	}
 }
 
@@ -195,13 +195,25 @@ function UI.cleanupRegistry()
 	end
 end
 
+local lastAdaptiveAccent: Color3? = nil
+local lastAdaptiveBg: Color3? = nil
+
 function UI.applyAdaptiveTheme(accentCol: Color3, bgCol: Color3, containerCol: Color3, borderCol: Color3?)
+	if lastAdaptiveAccent == accentCol and lastAdaptiveBg == bgCol then
+		return
+	end
+	lastAdaptiveAccent = accentCol
+	lastAdaptiveBg = bgCol
+
 	local ad = UI.Themes.Adaptive
 	ad.Accent = accentCol
 	ad.AccentDark = Color3.fromRGB(math.floor(accentCol.R * 255 * 0.7), math.floor(accentCol.G * 255 * 0.7), math.floor(accentCol.B * 255 * 0.7))
 	ad.Background = bgCol
+	ad.BackgroundTransparency = 0.35
 	ad.Container = containerCol
+	ad.ContainerTransparency = 0.30
 	ad.ContainerDark = bgCol
+	ad.ContainerDarkTransparency = 0.40
 	ad.Border = borderCol or Color3.fromRGB(240, 240, 250)
 
 	if UI.CurrentTheme.Name == "Adaptive" then

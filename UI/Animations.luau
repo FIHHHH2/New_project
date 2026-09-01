@@ -44,6 +44,32 @@ function Animations.buttonClickPop(guiObject: GuiObject)
 	tween:Play()
 end
 
+-- Tactile button hover scale push
+function Animations.buttonHoverPush(guiObject: GuiObject)
+	local uiScale = guiObject:FindFirstChildWhichIsA("UIScale")
+	if not uiScale then
+		uiScale = Instance.new("UIScale")
+		uiScale.Scale = 1.0
+		uiScale.Parent = guiObject
+	end
+
+	guiObject.MouseEnter:Connect(function()
+		if uiScale then
+			TweenService:Create(uiScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Scale = 1.04
+			}):Play()
+		end
+	end)
+
+	guiObject.MouseLeave:Connect(function()
+		if uiScale then
+			TweenService:Create(uiScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Scale = 1.0
+			}):Play()
+		end
+	end)
+end
+
 -- Spring pop scale for checkmarks, badges, icons, and value labels (0.0 -> 1.15 -> 1.0 Back.Out)
 function Animations.popScale(guiObject: GuiObject, startScale: number?, peakScale: number?, endScale: number?, duration: number?): Tween
 	local targetStart = if startScale ~= nil then startScale else 0.0

@@ -29,6 +29,7 @@ local IceTycoon = require("Modules/IceTycoon.luau")
 local PlayerUtilities = require("Modules/PlayerUtilities.luau")
 local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
+local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character
@@ -182,6 +183,7 @@ local playerListWidget = PlayerList.new()
 local chatWidgetInstance = ChatWidget.new()
 local musicTrackerWidget = MusicTracker.new()
 local hotbarWidget = Hotbar.new()
+local leaderstatsWidget = LeaderstatsWidget.new()
 
 _G.__ToggleProjectFihBackpack = function()
 	if hotbarWidget then
@@ -727,6 +729,10 @@ end)
 
 window:AddToggle(statsSection, "auto_refresh_currencies", "Auto-Refresh Monitor (2.5s)", true, nil, function(enabled)
 	autoUpdateCurrencies = enabled
+end)
+
+window:AddToggle(statsSection, "show_leaderstats_hud", "Show On-Screen Stats HUD Widget", true, nil, function(enabled)
+	leaderstatsWidget.SetVisible(enabled)
 end)
 
 -- Left Column: Server & Session Utilities
@@ -1322,6 +1328,10 @@ window:AddToggle(tracerSection, "music_tracker_widget", "Music Tracker Widget", 
 	musicTrackerWidget.SetVisible(enabled)
 end)
 
+window:AddToggle(tracerSection, "hud_leaderstats_widget", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
+	leaderstatsWidget.SetVisible(enabled)
+end)
+
 -- ── VISUALS SUB-TAB 2: 3D CHAMS & SKELETONS ──────────────────
 local chmLeftCol, chmRightCol = window:CreateColumns(chamsSubTab)
 
@@ -1520,6 +1530,11 @@ end)
 window:AddToggle(widgetSection, "mod_custom_hotbar", "Custom Hotbar & Backpack HUD", true, nil, function(enabled)
 	FeatureManager.setModuleState("custom_hotbar", enabled)
 	hotbarWidget.SetVisible(enabled)
+end)
+
+window:AddToggle(widgetSection, "mod_leaderstats_widget", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
+	FeatureManager.setModuleState("leaderstats_widget", enabled)
+	leaderstatsWidget.SetVisible(enabled)
 end)
 
 -- Hook tab right-click sync to update settings toggles

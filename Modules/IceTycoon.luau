@@ -29,7 +29,9 @@ local IceTycoon = {
 	NoLavaDamage = false,
 	FastMine = false,
 	FastConveyors = false,
-	ConveyorSpeed = 65,
+	ConveyorSpeed = 75,
+	FastGenerators = false,
+	GeneratorSpeed = 120,
 	OreMagnet = false,
 }
 
@@ -894,6 +896,62 @@ function IceTycoon.setFastConveyors(enabled: boolean)
 	end)
 end
 
+local generatorConn: RBXScriptConnection? = nil
+local partsAddedConn: RBXScriptConnection? = nil
+
+function IceTycoon.setGeneratorSpeed(speed: number)
+	IceTycoon.GeneratorSpeed = speed
+end
+
+function IceTycoon.setFastGenerators(enabled: boolean)
+	IceTycoon.FastGenerators = enabled
+
+	if generatorConn then generatorConn:Disconnect() generatorConn = nil end
+	if partsAddedConn then partsAddedConn:Disconnect() partsAddedConn = nil end
+
+	if not enabled then return end
+
+	local tycoon = Workspace:FindFirstChild("Tycoon") or Workspace
+	local partsFolder = tycoon:FindFirstChild("Parts")
+
+	local function boostOre(part: Instance)
+		if part:IsA("BasePart") and not part.Anchored then
+			local collector = findCollector()
+			local colPart = collector and (collector:FindFirstChild("Main") or collector:FindFirstChildOfClass("BasePart") or collector)
+			if colPart and colPart:IsA("BasePart") then
+				local diff = colPart.Position - part.Position
+				if diff.Magnitude > 1.0 then
+					part.AssemblyLinearVelocity = diff.Unit * IceTycoon.GeneratorSpeed
+				end
+			end
+		end
+	end
+
+	if partsFolder then
+		partsAddedConn = partsFolder.ChildAdded:Connect(boostOre)
+		for _, child in ipairs(partsFolder:GetChildren()) do
+			boostOre(child)
+		end
+	end
+
+	generatorConn = RunService.Heartbeat:Connect(function()
+		local collector = findCollector()
+		local colPart = collector and (collector:FindFirstChild("Main") or collector:FindFirstChildOfClass("BasePart") or collector)
+		if not colPart or not colPart:IsA("BasePart") then return end
+		local colPos = colPart.Position
+
+		local targetFolder = partsFolder or tycoon
+		for _, desc in ipairs(targetFolder:GetChildren()) do
+			if desc:IsA("BasePart") and not desc.Anchored and desc ~= colPart then
+				local diff = colPos - desc.Position
+				if diff.Magnitude > 1.5 and diff.Magnitude < 250 then
+					desc.AssemblyLinearVelocity = diff.Unit * IceTycoon.GeneratorSpeed
+				end
+			end
+		end
+	end)
+end
+
 function IceTycoon.setOreMagnet(enabled: boolean)
 	IceTycoon.OreMagnet = enabled
 
@@ -911,11 +969,11 @@ function IceTycoon.setOreMagnet(enabled: boolean)
 
 		local tycoon = Workspace:FindFirstChild("Tycoon") or Workspace
 		for _, desc in ipairs(tycoon:GetDescendants()) do
-			if desc:IsA("BasePart") and (desc.Name:lower():find("ore") or desc.Name:lower():find("drop") or desc.Name:lower():find("gem")) then
+			if desc:IsA("BasePart") and (desc.Name:lower():find("ore") or desc.Name:lower():find("drop") or desc.Name == "Ice" or desc.Name == "Crystal") then
 				if not desc.Anchored and desc ~= collector then
 					local diff = colPos - desc.Position
-					if diff.Magnitude < 120 and diff.Magnitude > 1.5 then
-						desc.AssemblyLinearVelocity = diff.Unit * 45
+					if diff.Magnitude < 160 and diff.Magnitude > 1.5 then
+						desc.AssemblyLinearVelocity = diff.Unit * 60
 					end
 				end
 			end
@@ -933,6 +991,7 @@ function IceTycoon.cleanup()
 	IceTycoon.AntiJumpscare = false
 	IceTycoon.NoLavaDamage = false
 	IceTycoon.setFastConveyors(false)
+	IceTycoon.setFastGenerators(false)
 	IceTycoon.setOreMagnet(false)
 
 	if collectConn then collectConn:Disconnect() collectConn = nil end

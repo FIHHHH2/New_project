@@ -1260,13 +1260,21 @@ elseif gameTabTitle == "Ice Tycoon" then
 		end
 	end)
 
-	local convSection = window:AddSection(autoLeftCol, "Conveyors & Factory Speed")
+	local convSection = window:AddSection(autoLeftCol, "Conveyors & Generators")
 	window:AddToggle(convSection, "ice_fast_conveyors", "Fast Conveyors (Speed Boost)", false, nil, function(enabled)
 		IceTycoon.setFastConveyors(enabled)
 	end)
 
-	window:AddSlider(convSection, "Conveyor Speed", 15, 120, 65, function(value)
+	window:AddSlider(convSection, "Conveyor Speed", 15, 250, 75, function(value)
 		IceTycoon.setConveyorSpeed(value)
+	end)
+
+	window:AddToggle(convSection, "ice_fast_generators", "Turbo Generators & Droppers", false, nil, function(enabled)
+		IceTycoon.setFastGenerators(enabled)
+	end)
+
+	window:AddSlider(convSection, "Generator Dropper Velocity", 30, 300, 120, function(value)
+		IceTycoon.setGeneratorSpeed(value)
 	end)
 
 	window:AddToggle(convSection, "ice_ore_magnet", "Ore Vacuum / Magnet to Collector", false, nil, function(enabled)

@@ -10,40 +10,65 @@
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 
+-- ── EXHAUSTIVE MULTI-EXECUTION PURGE & CLEANUP ───────────────────────
 if _G.__ModularSuite_Cleanup then
 	pcall(_G.__ModularSuite_Cleanup)
 	_G.__ModularSuite_Cleanup = nil
 end
 
-local guiNames = {
-	"ModularEngineGui",
-	"ModularNotificationsGui",
-	"ModularPlayerListGui",
-	"ModularChatGui",
-	"ModularMusicTrackerGui",
-	"ModularHotbarGui",
-	"ModularLeaderstatsGui",
-	"ModularHealthGui"
-}
-
-for _, name in ipairs(guiNames) do
-	local g = CoreGui:FindFirstChild(name)
-	if g then g:Destroy() end
-	if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then
-		local pg = Players.LocalPlayer.PlayerGui:FindFirstChild(name)
-		if pg then pg:Destroy() end
-	end
+local function purgeModularInstances(container: Instance?)
+	if not container then return end
+	pcall(function()
+		for _, desc in ipairs(container:GetDescendants()) do
+			if desc:IsA("ScreenGui") or desc:IsA("BillboardGui") or desc:IsA("SurfaceGui") or desc:IsA("Highlight") then
+				local name = desc.Name
+				if name:sub(1, 7) == "Modular" or name:find("Modular") or name:find("Chams") or name:find("ESP") then
+					pcall(function() desc:Destroy() end)
+				end
+			end
+		end
+		for _, child in ipairs(container:GetChildren()) do
+			if child:IsA("ScreenGui") or child:IsA("BillboardGui") or child:IsA("SurfaceGui") or child:IsA("Highlight") then
+				local name = child.Name
+				if name:sub(1, 7) == "Modular" or name:find("Modular") or name:find("Chams") or name:find("ESP") then
+					pcall(function() child:Destroy() end)
+				end
+			end
+		end
+	end)
 end
 
--- Purge any existing visuals/highlights/drawings on execute
+-- 1. Purge across all possible UI root containers
+pcall(function()
+	if type(gethui) == "function" then
+		purgeModularInstances(gethui())
+	end
+end)
+pcall(function() purgeModularInstances(CoreGui) end)
+pcall(function()
+	if CoreGui:FindFirstChild("RobloxGui") then
+		purgeModularInstances(CoreGui.RobloxGui)
+	end
+end)
+pcall(function()
+	if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then
+		purgeModularInstances(Players.LocalPlayer.PlayerGui)
+	end
+end)
+pcall(function() purgeModularInstances(Workspace) end)
+pcall(function() purgeModularInstances(Workspace.CurrentCamera) end)
+
+-- 2. Purge highlights on player character rigs
 for _, player in ipairs(Players:GetPlayers()) do
 	local char = player.Character
 	if char then
-		for _, desc in ipairs(char:GetDescendants()) do
-			if desc:IsA("Highlight") and (desc.Name == "ModularChams" or desc.Name:find("Chams") or desc.Name:find("ESP")) then
-				pcall(function() desc:Destroy() end)
+		pcall(function()
+			for _, desc in ipairs(char:GetDescendants()) do
+				if desc:IsA("Highlight") and (desc.Name:find("Modular") or desc.Name:find("Chams") or desc.Name:find("ESP")) then
+					pcall(function() desc:Destroy() end)
+				end
 			end
-		end
+		end)
 	end
 end
 
@@ -18411,6 +18436,20 @@ Modules["Core/Main.luau"] = function()
     -- Explicitly activate default Main tab on load
     window:SelectTab(mainTab)
     
+    
+    -- Register global cleanup function for hot-reload and multi-execution safety
+    _G.__ModularSuite_Cleanup = function()
+    	pcall(function() Visuals.removeAllVisuals() end)
+    	pcall(function() Combat.resetHitboxes() end)
+    	pcall(function() window:Destroy() end)
+    	pcall(function() Notification:Destroy() end)
+    	pcall(function() PlayerList:Destroy() end)
+    	pcall(function() ChatWidget:Destroy() end)
+    	pcall(function() MusicTracker:Destroy() end)
+    	pcall(function() Hotbar:Destroy() end)
+    	pcall(function() LeaderstatsWidget:Destroy() end)
+    	pcall(function() HealthWidget:Destroy() end)
+    end
 end
 
 -- Boot Main application in a dedicated thread

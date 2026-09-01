@@ -2626,3 +2626,17 @@ end)
 -- Explicitly activate default Main tab on load
 window:SelectTab(mainTab)
 
+
+-- Register global cleanup function for hot-reload and multi-execution safety
+_G.__ModularSuite_Cleanup = function()
+	pcall(function() Visuals.removeAllVisuals() end)
+	pcall(function() Combat.resetHitboxes() end)
+	pcall(function() window:Destroy() end)
+	pcall(function() Notification:Destroy() end)
+	pcall(function() PlayerList:Destroy() end)
+	pcall(function() ChatWidget:Destroy() end)
+	pcall(function() MusicTracker:Destroy() end)
+	pcall(function() Hotbar:Destroy() end)
+	pcall(function() LeaderstatsWidget:Destroy() end)
+	pcall(function() HealthWidget:Destroy() end)
+end

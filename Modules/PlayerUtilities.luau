@@ -247,6 +247,16 @@ function PlayerUtilities.SetClickTeleportEnabled(enabled: boolean)
 				end
 			end
 		end)
+		Notification.show("Click TP", "Ctrl+Click teleportation enabled", 2.5)
+	else
+		if clickTpConn then
+			clickTpConn:Disconnect()
+			clickTpConn = nil
+		end
+		Notification.show("Click TP", "Ctrl+Click teleportation disabled", 2.5)
+	end
+end
+
 local function formatNumberValue(strVal: string): string
 	local num = tonumber(strVal)
 	if not num then return strVal end

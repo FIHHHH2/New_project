@@ -331,11 +331,29 @@ RunService.Heartbeat:Connect(function()
 	cachedTargetPlayer, cachedTargetPart = Combat.getClosestTarget()
 end)
 
--- ── Metamethod Hooks for Silent Aim & Wallbang (Optimized) ───────────
+-- ── Metamethod Hooks for Silent Aim & Wallbang (Camera-Safe) ────────
 pcall(function()
 	local hook = hookmetamethod or (getgenv and getgenv().hookmetamethod)
 	local getnamecall = getnamecallmethod or (getgenv and getgenv().getnamecallmethod)
 	local checkcall = checkcaller or (getgenv and getgenv().checkcaller)
+	local getcalling = getcallingscript or (getgenv and getgenv().getcallingscript)
+
+	local function isCameraOrCoreScript(scriptObj: Instance?): boolean
+		if not scriptObj then return false end
+		local n = string.lower(scriptObj.Name)
+		if n:find("camera") or n:find("popper") or n:find("zoom") or n:find("transparency") or n:find("control") or n:find("vehicle") or n:find("chat") then
+			return true
+		end
+		local p = scriptObj.Parent
+		while p and p ~= game do
+			local pn = string.lower(p.Name)
+			if pn:find("camera") or pn:find("playermodule") or pn:find("controlmodule") or pn:find("corescripts") then
+				return true
+			end
+			p = p.Parent
+		end
+		return false
+	end
 
 	if type(hook) == "function" and type(getnamecall) == "function" then
 		local oldNamecall: any
@@ -344,40 +362,45 @@ pcall(function()
 				return oldNamecall(self, ...)
 			end
 
+			if checkcall and checkcall() then
+				return oldNamecall(self, ...)
+			end
+
+			local callingScript = if type(getcalling) == "function" then getcalling() else nil
+			if isCameraOrCoreScript(callingScript) then
+				return oldNamecall(self, ...)
+			end
+
 			local method = getnamecall()
 			if method == "Raycast" and self == Workspace then
-				if not (checkcall and checkcall()) then
-					local target = cachedTargetPart
-					if target and target.Parent and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
-						local origin = select(1, ...)
-						if typeof(origin) == "Vector3" then
-							local targetChar = target.Parent :: Model?
-							local canHit = true
-							if Combat.Wallbang and targetChar then
-								canHit = Combat.checkWallbangPenetration(origin, target, targetChar)
+				local target = cachedTargetPart
+				if target and target.Parent and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
+					local origin = select(1, ...)
+					if typeof(origin) == "Vector3" then
+						local targetChar = target.Parent :: Model?
+						local canHit = true
+						if Combat.Wallbang and targetChar then
+							canHit = Combat.checkWallbangPenetration(origin, target, targetChar)
+						end
+						if canHit then
+							local dir = (target.Position - origin).Unit * 1000
+							local p3 = select(3, ...)
+							if Combat.Wallbang and typeof(p3) == "RaycastParams" then
+								p3.FilterType = Enum.RaycastFilterType.Include
+								p3.FilterDescendantsInstances = { target.Parent }
 							end
-							if canHit then
-								local dir = (target.Position - origin).Unit * 1000
-								local p3 = select(3, ...)
-								if Combat.Wallbang and typeof(p3) == "RaycastParams" then
-									p3.FilterType = Enum.RaycastFilterType.Include
-									p3.FilterDescendantsInstances = { target.Parent }
-								end
-								return oldNamecall(self, origin, dir, p3)
-							end
+							return oldNamecall(self, origin, dir, p3)
 						end
 					end
 				end
 			elseif (method == "FindPartOnRay" or method == "findPartOnRay" or method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist") and self == Workspace then
-				if not (checkcall and checkcall()) then
-					local target = cachedTargetPart
-					if target and target.Parent and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
-						local ray = select(1, ...)
-						if typeof(ray) == "Ray" then
-							local newDir = (target.Position - ray.Origin).Unit * 1000
-							local newRay = Ray.new(ray.Origin, newDir)
-							return oldNamecall(self, newRay, select(2, ...))
-						end
+				local target = cachedTargetPart
+				if target and target.Parent and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
+					local ray = select(1, ...)
+					if typeof(ray) == "Ray" then
+						local newDir = (target.Position - ray.Origin).Unit * 1000
+						local newRay = Ray.new(ray.Origin, newDir)
+						return oldNamecall(self, newRay, select(2, ...))
 					end
 				end
 			end
@@ -391,8 +414,13 @@ pcall(function()
 				return oldIndex(self, key)
 			end
 
+			if checkcall and checkcall() then
+				return oldIndex(self, key)
+			end
+
 			if (key == "Hit" or key == "Target") and typeof(self) == "Instance" and self:IsA("Mouse") then
-				if not (checkcall and checkcall()) then
+				local callingScript = if type(getcalling) == "function" then getcalling() else nil
+				if not isCameraOrCoreScript(callingScript) then
 					local target = cachedTargetPart
 					if target and target.Parent and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
 						if key == "Hit" then

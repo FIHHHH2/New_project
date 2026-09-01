@@ -531,7 +531,7 @@ local function ensureWaterCupAvailable(): Tool?
 		local camCF = cam and cam.CFrame
 
 		if cam and camCF then
-			cam.CameraType = Enum.CameraType.Scriptable
+			-- safe camera pass
 			cam.CFrame = camCF
 		end
 
@@ -594,7 +594,7 @@ function IceTycoon.fillWaterNow(): boolean
 		local camType = camera.CameraType
 
 		-- Freeze camera so player screen does not jump
-		camera.CameraType = Enum.CameraType.Scriptable
+		-- safe camera pass
 		camera.CFrame = origCamCF
 
 		-- 1. Scoop water (10 rapid pulses to guarantee full capacity)
@@ -703,7 +703,7 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 	local origCamCF = camera.CFrame
 	local origCamType = camera.CameraType
 
-	camera.CameraType = Enum.CameraType.Scriptable
+	-- safe camera pass
 	camera.CFrame = origCamCF
 
 	-- 1. All 3 World Pedestal Trophies (Grab from World Pedestals & Deposit to Tycoon Pedestals)

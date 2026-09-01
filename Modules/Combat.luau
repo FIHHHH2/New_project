@@ -491,9 +491,9 @@ RunService:BindToRenderStep("FihCombatAimTrack", Enum.RenderPriority.Camera.Valu
 		end
 	end
 
-	-- Aim Tracking Logic
-	if Combat.AimTracking then
-		local shouldTrack = (Combat.AimMode == "Always") or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+	-- Hard Lock Aim Tracking (Only active when Aim Tracking toggle is explicitly enabled AND RMB is held)
+	if Combat.AimTracking and not Combat.SilentAim then
+		local shouldTrack = (Combat.AimMode == "Always") or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 		if shouldTrack then
 			local targetPart = cachedTargetPart
 			if targetPart and targetPart.Parent then

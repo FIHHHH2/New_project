@@ -11747,16 +11747,6 @@ end
 function IceTycoon.setAutoCollectCrystals(enabled: boolean)
 	IceTycoon.setAutoCollectSecrets(enabled)
 end
-	IceTycoon.AutoCollectCrystals = enabled
-	if enabled then
-		task.spawn(function()
-			while IceTycoon.AutoCollectCrystals do
-				IceTycoon.claimCrystalsNow()
-				task.wait(3.0)
-			end
-		end)
-	end
-end
 
 -- ── 6. Environment & Horror Protections ─────────────────────────────
 local function applyProtections()

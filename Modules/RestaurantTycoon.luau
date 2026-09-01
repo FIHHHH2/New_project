@@ -1,37 +1,39 @@
 --!strict
 --[=[
-    ✦ Restaurant Tycoon 3 Automation & Speed Suite ✦
-    Features:
-    - Auto Grab Cash & Table Bills (Collects all customer payments instantly)
-    - Auto-Collect Tip Jars & Register Revenue
-    - Auto-Collect Offline Earnings & Multipliers
-    - Auto-Serve Customers (Take Orders, Hand Food, Clean Tables, Take Payments)
+    ✦ Restaurant Tycoon 3 Automation & Revenue Engine ✦
+    High-performance native interaction pipeline:
+    - Auto-Grab Cash & Table Bills (Fires TaskCompleted & Interactions directly with Tycoon reference)
+    - Auto-Collect Tip Jar (Fires TipsCollected with Tycoon payload)
+    - Auto-Collect Offline Earnings
+    - Auto-Clean Dirty Dishes (TaskCompleted: CollectDishes)
+    - Auto-Take Customer Orders (TaskCompleted: TakeOrder)
     - Auto-Catch Dine & Dashers Instantly
-    - Auto-Claim Daily Rewards
-    - Instant Cooking / Task Fast-Complete
-    - Teleports (Kitchen, Cashier, Drive-Thru, Daily Rewards, Chef Luigi, Tables)
+    - Instant Cooking Accelerator (CookInputRequested & ChefCookInputRequested)
+    - Fast Safe Teleports
 ]=]
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
 
 local LocalPlayer = Players.LocalPlayer
 
 local RestaurantTycoon = {
 	AutoGrabCash = true,
-	AutoServeCustomers = false,
-	AutoCatchDineAndDash = true,
+	AutoCleanDishes = true,
+	AutoTakeOrders = true,
 	AutoCollectTips = true,
+	AutoCatchDineAndDash = true,
 	AutoClaimDailyRewards = true,
 	FastCooking = false,
 	ServiceInterval = 0.20,
-	CashInterval = 0.35,
+	CashInterval = 0.30,
 }
 
 local cashThread: thread? = nil
-local serveThread: thread? = nil
+local orderThread: thread? = nil
+local dishThread: thread? = nil
 local tipsThread: thread? = nil
 local dineThread: thread? = nil
 local cookingConn: RBXScriptConnection? = nil
@@ -53,6 +55,17 @@ local function getTycoon(): Instance?
 	return nil
 end
 
+local function getInteractionsModule(): any?
+	local pScripts = LocalPlayer:FindFirstChild("PlayerScripts")
+	if pScripts and pScripts:FindFirstChild("Source") and pScripts.Source:FindFirstChild("Systems") and pScripts.Source.Systems:FindFirstChild("Restaurant") and pScripts.Source.Systems.Restaurant:FindFirstChild("Interactions") then
+		local ok, mod = pcall(function()
+			return require(pScripts.Source.Systems.Restaurant.Interactions)
+		end)
+		if ok and mod then return mod end
+	end
+	return nil
+end
+
 local function firePrompt(prompt: ProximityPrompt)
 	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
 	if type(fpp) == "function" then
@@ -63,30 +76,22 @@ local function firePrompt(prompt: ProximityPrompt)
 	end
 end
 
-local function fireClick(cd: ClickDetector)
-	local fcd = fireclickdetector or (getgenv and getgenv().fireclickdetector)
-	if type(fcd) == "function" then
-		pcall(function()
-			fcd(cd)
-		end)
-	end
-end
-
--- ── 1. Auto Grab Cash & Table Bills Engine ────────────────────────────
+-- ── 1. NATIVE CASH & TABLE BILLS COLLECTION ENGINE ────────────────────
 function RestaurantTycoon.grabAllCashNow(): number
 	local tycoon = getTycoon()
 	local rEvents = ReplicatedStorage:FindFirstChild("Events")
 	local count = 0
 
-	-- 1. Fire Remote Events for Tips and Offline Revenue
+	-- 1. Tips Collection (Passes tycoon instance)
 	pcall(function()
 		local tipsRemote = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("TipsCollected")
-		if tipsRemote then
-			tipsRemote:FireServer()
+		if tipsRemote and tycoon then
+			tipsRemote:FireServer(tycoon)
 			count += 1
 		end
 	end)
 
+	-- 2. Offline Revenue
 	pcall(function()
 		local offlineRemote = rEvents and rEvents:FindFirstChild("Upgrades") and rEvents.Upgrades:FindFirstChild("CollectOfflineEarningsRequested")
 		if offlineRemote then
@@ -97,55 +102,56 @@ function RestaurantTycoon.grabAllCashNow(): number
 
 	if not tycoon then return count end
 
-	local clickRemote = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("Interactions") and rEvents.Restaurant.Interactions:FindFirstChild("ClickableFurnitureInteracted")
+	local taskRemote = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("TaskCompleted")
+	local interactedRemote = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("Interactions") and rEvents.Restaurant.Interactions:FindFirstChild("Interacted")
+	local interactionsMod = getInteractionsModule()
 
-	-- 2. Sweep Table Bills and Payments in Surface folder
-	local surface = tycoon:FindFirstChild("Items") and tycoon.Items:FindFirstChild("Surface")
-	if surface then
-		for _, tableObj in ipairs(surface:GetChildren()) do
-			-- Check for Bill model on table
-			local bill = tableObj:FindFirstChild("Bill")
-			if bill then
-				if clickRemote then
-					pcall(function() clickRemote:FireServer(tableObj) end)
+	-- 3. Sweep Active Interactions System Prompts for Bills
+	if interactionsMod and interactionsMod.PromptData and interactionsMod.PromptData[tycoon] then
+		for id, promptData in pairs(interactionsMod.PromptData[tycoon]) do
+			if promptData.Key == "CollectBill" then
+				if interactedRemote then
+					pcall(function() interactedRemote:FireServer(tycoon, promptData) end)
 				end
-				for _, desc in ipairs(bill:GetDescendants()) do
-					if desc:IsA("ClickDetector") then fireClick(desc) end
-					if desc:IsA("ProximityPrompt") then firePrompt(desc) end
+				if taskRemote and promptData.Model then
+					pcall(function()
+						taskRemote:FireServer({
+							Name = "CollectBill",
+							FurnitureModel = promptData.Model,
+							Tycoon = tycoon
+						})
+					end)
 				end
 				count += 1
-			end
-
-			-- Check for any Prompt / Click on table
-			for _, desc in ipairs(tableObj:GetDescendants()) do
-				if desc:IsA("ProximityPrompt") and desc.Enabled then
-					local n = desc.Name:lower()
-					local act = desc.ActionText:lower()
-					if n:find("bill") or n:find("pay") or n:find("cash") or n:find("tip") or n:find("collect") or act:find("bill") or act:find("pay") or act:find("cash") or act:find("collect") then
-						firePrompt(desc)
-						count += 1
-					end
-				elseif desc:IsA("ClickDetector") then
-					fireClick(desc)
-					count += 1
-				end
 			end
 		end
 	end
 
-	-- 3. Sweep Tip Jars and Register Furniture
-	local furniture = tycoon:FindFirstChild("Items") and tycoon.Items:FindFirstChild("Furniture")
-	if furniture then
-		for _, item in ipairs(furniture:GetChildren()) do
-			local jar = item:FindFirstChild("Jar") or item:FindFirstChild("Cash") or item:FindFirstChild("Coins")
-			if jar or item.Name:lower():find("jar") or item.Name:lower():find("register") or item.Name:lower():find("tip") then
-				if clickRemote then
-					pcall(function() clickRemote:FireServer(item) end)
-				end
-				for _, desc in ipairs(item:GetDescendants()) do
-					if desc:IsA("ClickDetector") then fireClick(desc) end
-					if desc:IsA("ProximityPrompt") then firePrompt(desc) end
-				end
+	-- 4. Sweep Surface Tables Directly for Bills
+	local surface = tycoon:FindFirstChild("Items") and tycoon.Items:FindFirstChild("Surface")
+	if surface and taskRemote then
+		for _, tableModel in ipairs(surface:GetChildren()) do
+			local bill = tableModel:FindFirstChild("Bill")
+			if bill and not bill:GetAttribute("Taken") then
+				pcall(function()
+					taskRemote:FireServer({
+						Name = "CollectBill",
+						FurnitureModel = tableModel,
+						Tycoon = tycoon
+					})
+				end)
+				count += 1
+			end
+		end
+	end
+
+	-- 5. Sweep Tagged Proximity Prompts
+	for _, prompt in ipairs(CollectionService:GetTagged("Interaction")) do
+		if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+			local n = prompt.Name:lower()
+			local act = prompt.ActionText:lower()
+			if n:find("bill") or n:find("pay") or n:find("cash") or n:find("tip") or n:find("collect") or act:find("bill") or act:find("pay") or act:find("cash") or act:find("collect") then
+				firePrompt(prompt)
 				count += 1
 			end
 		end
@@ -167,40 +173,110 @@ function RestaurantTycoon.setAutoGrabCash(enabled: boolean)
 				pcall(function()
 					RestaurantTycoon.grabAllCashNow()
 				end)
-				task.wait(math.max(RestaurantTycoon.CashInterval, 0.2))
+				task.wait(math.max(RestaurantTycoon.CashInterval, 0.15))
 			end
 		end)
 	end
 end
 
--- ── 2. Customer Service Engine ───────────────────────────────────────
-function RestaurantTycoon.serveAllCustomersNow(): number
+-- ── 2. AUTO-CLEAN DISHES ENGINE ──────────────────────────────────────
+function RestaurantTycoon.cleanDishesNow(): number
 	local tycoon = getTycoon()
 	if not tycoon then return 0 end
 
+	local rEvents = ReplicatedStorage:FindFirstChild("Events")
+	local taskRemote = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("TaskCompleted")
+	local interactedRemote = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("Interactions") and rEvents.Restaurant.Interactions:FindFirstChild("Interacted")
+	local interactionsMod = getInteractionsModule()
 	local count = 0
-	local clientCustomers = tycoon:FindFirstChild("ClientCustomers")
-	if clientCustomers then
-		for _, group in ipairs(clientCustomers:GetChildren()) do
-			for _, npc in ipairs(group:GetChildren()) do
-				local prompt = npc:FindFirstChildWhichIsA("ProximityPrompt", true)
-				if prompt and prompt.Enabled then
-					firePrompt(prompt)
-					count += 1
+
+	if interactionsMod and interactionsMod.PromptData and interactionsMod.PromptData[tycoon] then
+		for id, promptData in pairs(interactionsMod.PromptData[tycoon]) do
+			if promptData.Key == "CollectDishes" then
+				if interactedRemote then
+					pcall(function() interactedRemote:FireServer(tycoon, promptData) end)
 				end
+				if taskRemote and promptData.Model then
+					pcall(function()
+						taskRemote:FireServer({
+							Name = "CollectDishes",
+							FurnitureModel = promptData.Model,
+							Tycoon = tycoon
+						})
+					end)
+				end
+				count += 1
 			end
 		end
 	end
 
-	-- Also sweep tables & furniture for prompts (cleaning dishes, taking orders)
-	local items = tycoon:FindFirstChild("Items")
-	if items then
-		for _, desc in ipairs(items:GetDescendants()) do
-			if desc:IsA("ProximityPrompt") and desc.Enabled then
-				local n = desc.Name:lower()
-				local act = desc.ActionText:lower()
-				if n:find("customer") or n:find("order") or n:find("dish") or n:find("clean") or act:find("take") or act:find("serve") or act:find("clean") then
-					firePrompt(desc)
+	local surface = tycoon:FindFirstChild("Items") and tycoon.Items:FindFirstChild("Surface")
+	if surface and taskRemote then
+		for _, tableModel in ipairs(surface:GetChildren()) do
+			local trash = tableModel:FindFirstChild("Trash")
+			if trash and trash:GetAttribute("Collectable") then
+				pcall(function()
+					taskRemote:FireServer({
+						Name = "CollectDishes",
+						FurnitureModel = tableModel,
+						Tycoon = tycoon
+					})
+				end)
+				count += 1
+			end
+		end
+	end
+
+	return count
+end
+
+function RestaurantTycoon.setAutoCleanDishes(enabled: boolean)
+	RestaurantTycoon.AutoCleanDishes = enabled
+	if dishThread then
+		task.cancel(dishThread)
+		dishThread = nil
+	end
+
+	if enabled then
+		dishThread = task.spawn(function()
+			while RestaurantTycoon.AutoCleanDishes do
+				pcall(function()
+					RestaurantTycoon.cleanDishesNow()
+				end)
+				task.wait(0.4)
+			end
+		end)
+	end
+end
+
+-- ── 3. AUTO-TAKE ORDERS & SERVE ENGINE ───────────────────────────────
+function RestaurantTycoon.takeOrdersNow(): number
+	local tycoon = getTycoon()
+	if not tycoon then return 0 end
+
+	local rEvents = ReplicatedStorage:FindFirstChild("Events")
+	local taskRemote = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("TaskCompleted")
+	local interactedRemote = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("Interactions") and rEvents.Restaurant.Interactions:FindFirstChild("Interacted")
+	local count = 0
+
+	-- Sweep customer models in ClientCustomers
+	local clientCustomers = tycoon:FindFirstChild("ClientCustomers")
+	if clientCustomers and taskRemote then
+		for _, group in ipairs(clientCustomers:GetChildren()) do
+			local groupId = group.Name
+			for _, npc in ipairs(group:GetChildren()) do
+				local customerId = npc.Name
+				local prompt = npc:FindFirstChildWhichIsA("ProximityPrompt", true)
+				if prompt and prompt.Enabled then
+					firePrompt(prompt)
+					pcall(function()
+						taskRemote:FireServer({
+							Name = "TakeOrder",
+							GroupId = groupId,
+							CustomerId = customerId,
+							Tycoon = tycoon
+						})
+					end)
 					count += 1
 				end
 			end
@@ -211,25 +287,25 @@ function RestaurantTycoon.serveAllCustomersNow(): number
 end
 
 function RestaurantTycoon.setAutoServe(enabled: boolean)
-	RestaurantTycoon.AutoServeCustomers = enabled
-	if serveThread then
-		task.cancel(serveThread)
-		serveThread = nil
+	RestaurantTycoon.AutoTakeOrders = enabled
+	if orderThread then
+		task.cancel(orderThread)
+		orderThread = nil
 	end
 
 	if enabled then
-		serveThread = task.spawn(function()
-			while RestaurantTycoon.AutoServeCustomers do
+		orderThread = task.spawn(function()
+			while RestaurantTycoon.AutoTakeOrders do
 				pcall(function()
-					RestaurantTycoon.serveAllCustomersNow()
+					RestaurantTycoon.takeOrdersNow()
 				end)
-				task.wait(math.max(RestaurantTycoon.ServiceInterval, 0.15))
+				task.wait(math.max(RestaurantTycoon.ServiceInterval, 0.25))
 			end
 		end)
 	end
 end
 
--- ── 3. Dine & Dash Auto-Catch Engine ─────────────────────────────────
+-- ── 4. AUTO-CATCH DINE & DASHERS ─────────────────────────────────────
 function RestaurantTycoon.setAutoCatchDineAndDash(enabled: boolean)
 	RestaurantTycoon.AutoCatchDineAndDash = enabled
 	if dineThread then
@@ -250,8 +326,7 @@ function RestaurantTycoon.setAutoCatchDineAndDash(enabled: boolean)
 						if clientCustomers then
 							for _, group in ipairs(clientCustomers:GetChildren()) do
 								for _, npc in ipairs(group:GetChildren()) do
-									local tag = npc:FindFirstChild("DineAndDash") or npc:GetAttribute("DineAndDash")
-									if tag then
+									if npc:FindFirstChild("DineAndDash") or npc:GetAttribute("DineAndDash") then
 										dineRemote:FireServer(npc)
 										local prompt = npc:FindFirstChildWhichIsA("ProximityPrompt", true)
 										if prompt then firePrompt(prompt) end
@@ -267,25 +342,16 @@ function RestaurantTycoon.setAutoCatchDineAndDash(enabled: boolean)
 	end
 end
 
--- ── 4. Tips & Revenue Collection Engine ──────────────────────────────
+-- ── 5. TIPS & REVENUE ────────────────────────────────────────────────
 function RestaurantTycoon.collectTipsNow(): boolean
 	local success = false
 	pcall(function()
+		local tycoon = getTycoon()
 		local rEvents = ReplicatedStorage:FindFirstChild("Events")
 		local tipsRemote = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("TipsCollected")
-		if tipsRemote then
-			tipsRemote:FireServer()
+		if tipsRemote and tycoon then
+			tipsRemote:FireServer(tycoon)
 			success = true
-		end
-
-		local tycoon = getTycoon()
-		if tycoon then
-			for _, desc in ipairs(tycoon:GetDescendants()) do
-				if desc:IsA("ProximityPrompt") and (desc.Name:lower():find("tip") or desc.ActionText:lower():find("tip") or desc.ActionText:lower():find("collect")) then
-					firePrompt(desc)
-					success = true
-				end
-			end
 		end
 	end)
 	return success
@@ -310,7 +376,7 @@ function RestaurantTycoon.setAutoCollectTips(enabled: boolean)
 	end
 end
 
--- ── 5. Daily Rewards Claimer ─────────────────────────────────────────
+-- ── 6. DAILY REWARDS ─────────────────────────────────────────────────
 function RestaurantTycoon.claimDailyRewards(): boolean
 	local claimed = false
 	local tycoon = getTycoon()
@@ -328,7 +394,7 @@ function RestaurantTycoon.claimDailyRewards(): boolean
 	return claimed
 end
 
--- ── 6. Fast Cooking Accelerator ─────────────────────────────────────
+-- ── 7. FAST COOKING ACCELERATOR ──────────────────────────────────────
 function RestaurantTycoon.setFastCooking(enabled: boolean)
 	RestaurantTycoon.FastCooking = enabled
 	if cookingConn then
@@ -339,15 +405,19 @@ function RestaurantTycoon.setFastCooking(enabled: boolean)
 	if enabled then
 		pcall(function()
 			local rEvents = ReplicatedStorage:FindFirstChild("Events")
+			local cookReq = rEvents and rEvents:FindFirstChild("Cook") and rEvents.Cook:FindFirstChild("CookInputRequested")
+			local chefCookReq = rEvents and rEvents:FindFirstChild("Cook") and rEvents.Cook:FindFirstChild("ChefCookInputRequested")
 			local cookEvent = rEvents and rEvents:FindFirstChild("Cook") and rEvents.Cook:FindFirstChild("CookUpdated")
-			local taskComp = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("TaskCompleted")
 
-			if cookEvent and taskComp then
+			if cookEvent and cookReq then
 				cookingConn = cookEvent.OnClientEvent:Connect(function(...)
 					if RestaurantTycoon.FastCooking then
 						task.defer(function()
 							pcall(function()
-								taskComp:FireServer()
+								cookReq:FireServer("CompleteTask")
+								if chefCookReq then
+									chefCookReq:FireServer("CompleteTask", "Chef", "Chef")
+								end
 							end)
 						end)
 					end
@@ -357,7 +427,7 @@ function RestaurantTycoon.setFastCooking(enabled: boolean)
 	end
 end
 
--- ── 7. Fast Restaurant Teleports ─────────────────────────────────────
+-- ── 8. SAFE TELEPORTS ────────────────────────────────────────────────
 local function safeTeleport(targetCF: CFrame): boolean
 	local char = LocalPlayer.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?

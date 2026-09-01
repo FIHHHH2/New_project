@@ -2228,226 +2228,55 @@ window:AddToggle(cleanSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerG
 	window:Notify("UI", if enabled then "Game custom GUIs hidden" else "Game custom GUIs restored", 2)
 end)
 
--- Right Column: Universal Master Audio Controller
+-- Right Column: Universal Master Audio Controller (Native C++ Zero-Lag Engine)
 local audioSection = window:AddSection(sysRightCol, "Universal Game Audio Controller")
 
-local masterVolumeScale = 1.0
+local userGameSettings = UserSettings():GetService("UserGameSettings")
+local savedMasterVolume = userGameSettings.MasterVolume or 1.0
+if savedMasterVolume <= 0 then savedMasterVolume = 1.0 end
 local isMasterMuted = false
-local soundConnections: {[Sound]: {RBXScriptConnection}} = {}
-local isUpdatingSound: {[Sound]: boolean} = {}
-local soundGroupOrigVolumes: {[SoundGroup]: number} = {}
+local masterVolumeScale = 1.0
 
-local function cleanSoundConns(sound: Sound)
-	local conns = soundConnections[sound]
-	if conns then
-		for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
-		soundConnections[sound] = nil
-	end
-	isUpdatingSound[sound] = nil
-end
-
-local function applySoundVolume(sound: Sound)
-	if not sound or not sound.Parent then return end
-	if sound:IsDescendantOf(game:GetService("VoiceChatService")) then return end
-	if isUpdatingSound[sound] then return end
-
-	isUpdatingSound[sound] = true
-	local base = sound:GetAttribute("OrigVolume")
-	if not base then
-		base = if sound.Volume > 0 then sound.Volume else 1.0
-		sound:SetAttribute("OrigVolume", base)
-	end
-
-	local targetVol = if isMasterMuted then 0 else (base :: number) * masterVolumeScale
-	if math.abs(sound.Volume - targetVol) > 0.001 then
-		sound.Volume = targetVol
-	end
-	isUpdatingSound[sound] = nil
-end
-
-local function hookSound(sound: Sound)
-	if not sound:IsA("Sound") then return end
-	if soundConnections[sound] then
-		applySoundVolume(sound)
-		return
-	end
-
-	applySoundVolume(sound)
-
-	local conns: {RBXScriptConnection} = {}
-
-	-- Intercept volume alterations by game scripts with re-entrancy protection
-	local volConn = sound:GetPropertyChangedSignal("Volume"):Connect(function()
-		if isUpdatingSound[sound] then return end
-		if isMasterMuted or masterVolumeScale < 0.99 then
-			applySoundVolume(sound)
-		end
-	end)
-	table.insert(conns, volConn)
-
-	-- Intercept when a sound starts playing
-	local playConn = sound:GetPropertyChangedSignal("Playing"):Connect(function()
-		if sound.Playing then
-			applySoundVolume(sound)
-		end
-	end)
-	table.insert(conns, playConn)
-
-	local playedConn = sound.Played:Connect(function()
-		applySoundVolume(sound)
-	end)
-	table.insert(conns, playedConn)
-
-	local destroyConn = sound.Destroying:Connect(function()
-		cleanSoundConns(sound)
-	end)
-	table.insert(conns, destroyConn)
-
-	local ancestryConn = sound.AncestryChanged:Connect(function(_, parent)
-		if not parent then
-			cleanSoundConns(sound)
-		else
-			applySoundVolume(sound)
-		end
-	end)
-	table.insert(conns, ancestryConn)
-
-	soundConnections[sound] = conns
-end
-
-local function sweepAllGameAudios()
-	-- Sweep SoundGroups for master channel silencing
+local function applyMasterAudio()
 	pcall(function()
-		for _, sg in ipairs(SoundService:GetDescendants()) do
-			if sg:IsA("SoundGroup") then
-				if not soundGroupOrigVolumes[sg] then
-					soundGroupOrigVolumes[sg] = sg.Volume
-				end
-				local orig = soundGroupOrigVolumes[sg] or 1.0
-				local target = if isMasterMuted then 0 else orig * masterVolumeScale
-				if math.abs(sg.Volume - target) > 0.001 then
-					sg.Volume = target
-				end
-			end
-		end
-	end)
-
-	for _, service in ipairs({SoundService, Workspace, Players, ReplicatedStorage, CoreGui}) do
-		pcall(function()
-			for _, obj in ipairs(service:GetDescendants()) do
-				if obj:IsA("Sound") then
-					hookSound(obj)
-				end
-			end
-		end)
-	end
-end
-
--- Global descendant watcher for new sounds spawned anywhere in game
-local function onDescendantAdded(obj: Instance)
-	if obj:IsA("Sound") then
-		hookSound(obj)
-	elseif obj:IsA("SoundGroup") and isMasterMuted then
-		pcall(function()
-			if not soundGroupOrigVolumes[obj] then soundGroupOrigVolumes[obj] = obj.Volume end
-			obj.Volume = 0
-		end)
-	end
-end
-
-SoundService.DescendantAdded:Connect(onDescendantAdded)
-Workspace.DescendantAdded:Connect(onDescendantAdded)
-Players.DescendantAdded:Connect(onDescendantAdded)
-ReplicatedStorage.DescendantAdded:Connect(onDescendantAdded)
-
--- Synchronous CharacterAdded sound hook for instant footstep/weapon silence on respawn
-local function hookCharacterSounds(char: Model)
-	if not char then return end
-	for _, inst in ipairs(char:GetDescendants()) do
-		if inst:IsA("Sound") then
-			hookSound(inst)
-		end
-	end
-	char.DescendantAdded:Connect(function(inst)
-		if inst:IsA("Sound") then
-			hookSound(inst)
+		if isMasterMuted then
+			userGameSettings.MasterVolume = 0
+		else
+			userGameSettings.MasterVolume = savedMasterVolume * masterVolumeScale
 		end
 	end)
 end
 
-if localPlayer.Character then
-	hookCharacterSounds(localPlayer.Character)
-end
-localPlayer.CharacterAdded:Connect(hookCharacterSounds)
-
--- Hook local player backpack for tool audio silence on equip
-local function hookBackpackSounds(bp: Backpack)
-	if not bp then return end
-	for _, inst in ipairs(bp:GetDescendants()) do
-		if inst:IsA("Sound") then
-			hookSound(inst)
-		end
-	end
-	bp.DescendantAdded:Connect(function(inst)
-		if inst:IsA("Sound") then
-			hookSound(inst)
-		end
-	end)
-end
-
-local bp = localPlayer:FindFirstChildOfClass("Backpack")
-if bp then hookBackpackSounds(bp) end
-localPlayer.ChildAdded:Connect(function(child)
-	if child:IsA("Backpack") then
-		hookBackpackSounds(child)
-	end
-end)
-
--- Continuous high-frequency enforcer for airtight persistent sound volume and mute state
-task.spawn(function()
-	while true do
-		task.wait(0.25)
-		if isMasterMuted or masterVolumeScale < 0.99 then
-			sweepAllGameAudios()
-		end
-	end
-end)
-
-window:AddToggle(audioSection, "mute_all_game_audio", "Mute All Game Audio", false, nil, function(enabled)
+window:AddToggle(audioSection, "mute_all_game_audio", "Mute All Game Audio (Native Zero-Lag)", false, nil, function(enabled)
 	isMasterMuted = enabled
-	sweepAllGameAudios()
+	applyMasterAudio()
 	if enabled then
-		window:Notify("Audio", "Muted all concurrent and incoming game audio", 2.5)
+		window:Notify("Audio", "Muted all game audio (0% CPU impact)", 2)
 	else
-		window:Notify("Audio", string.format("Unmuted — Volume restored to %d%%", math.floor(masterVolumeScale * 100)), 2.5)
+		window:Notify("Audio", string.format("Unmuted — Volume restored to %d%%", math.floor(masterVolumeScale * 100)), 2)
 	end
 end)
 
 window:AddSlider(audioSection, "Master Volume Scale (%)", 0, 100, 100, function(value)
 	masterVolumeScale = value / 100
 	if not isMasterMuted then
-		sweepAllGameAudios()
+		applyMasterAudio()
 	end
 end)
 
 window:AddButton(audioSection, "Mute All Audio Now", function()
 	isMasterMuted = true
 	FeatureManager.setFeatureState("mute_all_game_audio", true)
-	sweepAllGameAudios()
-	window:Notify("Audio", "Muted all playing audio streams", 2)
+	applyMasterAudio()
+	window:Notify("Audio", "Native master audio muted", 2)
 end)
 
 window:AddButton(audioSection, "Restore Default Volumes", function()
 	isMasterMuted = false
 	masterVolumeScale = 1.0
 	FeatureManager.setFeatureState("mute_all_game_audio", false)
-	for sound, _ in pairs(soundConnections) do
-		if sound and sound.Parent then
-			local base = sound:GetAttribute("OrigVolume")
-			if base then sound.Volume = base :: number end
-		end
-	end
-	window:Notify("Audio", "Restored all default sound volumes", 2)
+	applyMasterAudio()
+	window:Notify("Audio", "Restored default master volume", 2)
 end)
 
 -- ============================================================

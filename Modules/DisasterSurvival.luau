@@ -402,20 +402,18 @@ end
 
 
 -- ── Loose Object Drag ─────────────────────────────────────────────
--- Controls: LMB hold on part = grab and drag indefinitely
---           Release LMB = drop
--- Hover shows cyan Highlight. Grab shows orange Highlight.
--- Mouse leave destroys hover highlight.
--- Physics ownership forced before BodyPosition insertion.
-local dragTarget:    BasePart?  = nil
-local dragBodyPos:   BodyPosition? = nil
-local hoverTarget:   BasePart?  = nil
-local hoverHL:       Highlight? = nil
-local grabHL:        Highlight? = nil
+-- Controls: LMB hold on part = grab and drag.  Release LMB = drop.
+-- Hover: cyan Highlight via Mouse.Target (engine-level, pixel-perfect).
+-- Drag: direct AssemblyLinearVelocity push each frame — no BodyPosition,
+--       no ownership transfer needed, grab is instant, regrab works fine.
+local dragMouse:     Mouse        = LocalPlayer:GetMouse()
+local dragTarget:    BasePart?    = nil
+local hoverTarget:   BasePart?    = nil
+local hoverHL:       Highlight?   = nil
+local grabHL:        Highlight?   = nil
 local dragHoverConn: RBXScriptConnection? = nil
 local dragEndConn:   RBXScriptConnection? = nil
-local DRAG_RANGE     = 120   -- max raycast pick distance (studs)
-local dragDepth      = 60    -- distance from camera to hold part while dragging
+local dragDepth      = 60
 
 local function clearHover()
     if hoverHL and hoverHL.Parent then hoverHL:Destroy() end
@@ -424,12 +422,13 @@ local function clearHover()
 end
 
 local function clearDragTarget()
-    if dragBodyPos and dragBodyPos.Parent then dragBodyPos:Destroy() end
+    -- Zero velocity so part doesn't keep flying after release
+    if dragTarget and dragTarget.Parent then
+        pcall(function() dragTarget.AssemblyLinearVelocity = Vector3.zero end)
+    end
     if grabHL and grabHL.Parent then grabHL:Destroy() end
-    dragBodyPos = nil
-    dragTarget  = nil
-    grabHL      = nil
-    -- disconnect the release listener when not dragging
+    dragTarget = nil
+    grabHL     = nil
     if dragEndConn then dragEndConn:Disconnect() dragEndConn = nil end
 end
 
@@ -447,7 +446,7 @@ local function makeHighlight(parent: BasePart, fill: Color3, outline: Color3, fi
     hl.OutlineColor        = outline
     hl.FillTransparency    = fillTrans
     hl.OutlineTransparency = 0
-    hl.DepthMode           = Enum.HighlightDepthMode.Occluded
+    hl.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
     hl.Adornee             = parent
     hl.Parent              = parent
     return hl
@@ -457,26 +456,10 @@ local function grabObject(part: BasePart)
     clearDragTarget()
     clearHover()
     dragTarget = part
-
-    -- Preserve the depth the part was at so it floats naturally
-    local camPos = Camera.CFrame.Position
-    dragDepth = math.clamp((part.Position - camPos).Magnitude, 5, DRAG_RANGE)
-
-    -- Touch velocity to claim physics ownership
-    pcall(function() part.AssemblyLinearVelocity = part.AssemblyLinearVelocity end)
-    task.wait()
-
-    local bp      = Instance.new("BodyPosition")
-    bp.MaxForce   = Vector3.new(4e5, 4e5, 4e5)  -- stronger pull for heavier parts
-    bp.D          = 800
-    bp.P          = 15000
-    bp.Position   = part.Position
-    bp.Parent     = part
-    dragBodyPos   = bp
-
-    grabHL = makeHighlight(part, Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 200, 50), 0.3)
-
-    -- Release on LMB up — connected once per grab
+    -- Lock depth at grab distance so part stays at same Z while dragging
+    dragDepth = math.clamp((part.Position - Camera.CFrame.Position).Magnitude, 4, 150)
+    grabHL = makeHighlight(part, Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 200, 50), 0.28)
+    -- One-shot release listener
     dragEndConn = UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             clearDragTarget()
@@ -487,31 +470,36 @@ end
 function DisasterSurvival.setObjectDrag(enabled: boolean)
     DisasterSurvival.ObjectDrag = enabled
     if enabled then
-        -- ── RenderStepped: hover scan + drag position update
+        -- RenderStepped: hover via Mouse.Target + velocity push while dragging
         dragHoverConn = RunService.RenderStepped:Connect(function()
-            local mouseLoc = UserInputService:GetMouseLocation()
-            local ray      = Camera:ScreenPointToRay(mouseLoc.X, mouseLoc.Y)
-            local char     = LocalPlayer.Character
-            local params   = RaycastParams.new()
-            if char then params.FilterDescendantsInstances = {char} end
-            params.FilterType = Enum.RaycastFilterType.Exclude
+            if dragTarget then
+                -- Part may have been destroyed mid-drag
+                if not dragTarget.Parent then clearDragTarget() return end
 
-            if dragTarget and dragBodyPos and dragBodyPos.Parent then
-                -- Move part along ray at preserved depth — unlimited duration
-                dragBodyPos.Position = Camera.CFrame.Position + ray.Direction * dragDepth
+                -- Target world position along camera ray at locked depth
+                local ray       = Camera:ScreenPointToRay(dragMouse.X, dragMouse.Y)
+                local targetPos = Camera.CFrame.Position + ray.Direction * dragDepth
+                local diff      = targetPos - dragTarget.Position
+                local dist      = diff.Magnitude
+
+                -- Spring-damper velocity: proportional to distance, damps at close range
+                local speed = math.clamp(dist * 18, 0, 280)
+                pcall(function()
+                    dragTarget.AssemblyLinearVelocity = if dist > 0.05
+                        then diff.Unit * speed
+                        else Vector3.zero
+                end)
             else
-                -- Hover highlight scan
-                local result = Workspace:Raycast(ray.Origin, ray.Direction * DRAG_RANGE, params)
-                if result and result.Instance and result.Instance:IsA("BasePart") then
-                    local hit = result.Instance :: BasePart
-                    if isDraggable(hit) then
-                        if hoverTarget ~= hit then
-                            clearHover()
-                            hoverTarget = hit
-                            hoverHL = makeHighlight(hit, Color3.fromRGB(0, 220, 255), Color3.fromRGB(255, 255, 255), 0.55)
-                        end
-                    else
+                -- Hover: Mouse.Target is engine-resolved, always pixel-accurate
+                local target = dragMouse.Target
+                if target and target:IsA("BasePart") and isDraggable(target) then
+                    if hoverTarget ~= target then
                         clearHover()
+                        hoverTarget = target
+                        hoverHL = makeHighlight(target,
+                            Color3.fromRGB(0, 220, 255),
+                            Color3.fromRGB(255, 255, 255),
+                            0.52)
                     end
                 else
                     clearHover()
@@ -519,11 +507,10 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
             end
         end)
 
-        -- ── LMB down on draggable = grab immediately
+        -- LMB down = grab whatever is currently highlighted
         dragInputConn = UserInputService.InputBegan:Connect(function(input, gp)
             if gp then return end
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                -- Only grab if hovering a draggable
                 if hoverTarget and hoverTarget.Parent then
                     grabObject(hoverTarget)
                 end
@@ -536,6 +523,7 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
         if dragInputConn then dragInputConn:Disconnect() dragInputConn = nil end
     end
 end
+
 
 
 -- ── Player / Object Fling Engine ──────────────────────────────────

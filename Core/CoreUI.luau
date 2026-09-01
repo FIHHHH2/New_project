@@ -17,13 +17,18 @@ local Notification = require("UI/Notification.luau")
 local function safeParentGui(gui: ScreenGui)
 	local targetParent = nil
 	if type(gethui) == "function" then
-		pcall(function() targetParent = gethui() end)
+		pcall(function()
+			local h = gethui()
+			if h and not h:IsA("ScreenGui") then
+				targetParent = h
+			end
+		end)
 	end
 	if not targetParent and CoreGui then
 		pcall(function() targetParent = CoreGui end)
 	end
 	if not targetParent and Players.LocalPlayer then
-		targetParent = Players.LocalPlayer:FindFirstChild("PlayerGui") or Players.LocalPlayer:WaitForChild("PlayerGui", 5)
+		targetParent = Players.LocalPlayer:FindFirstChild("PlayerGui")
 	end
 	
 	pcall(function() gui.Parent = targetParent end)

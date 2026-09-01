@@ -4,6 +4,7 @@
     Features:
     - Auto-arranges next to the PlayerList tab widget
     - Clean currency separation: [ Currencies ] vs [ Other Values ] vs [ Server Players ]
+    - Right-click any stat row to move it between Currencies and Other Values (with JSON persistence)
     - Full theme reactivity with instant dynamic recoloring
     - Real-time live polling of leaderstats, Data folders, and game remotes
     - Drag handle, minimize controls, and snap-to-dock button
@@ -14,6 +15,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
 
 local UI = require("UI/UI.luau")
 local Animations = require("UI/Animations.luau")
@@ -22,6 +24,34 @@ local LocalPlayer = Players.LocalPlayer
 
 local LeaderstatsWidget = {}
 LeaderstatsWidget.__index = LeaderstatsWidget
+
+local STAT_OVERRIDES_FILE = "fih_stat_overrides.json"
+local UserCategoryOverrides: {[string]: string} = {}
+
+local function loadOverrides()
+	pcall(function()
+		local rf = readfile or (getgenv and getgenv().readfile)
+		local isf = isfile or (getgenv and getgenv().isfile)
+		if type(rf) == "function" and (type(isf) ~= "function" or isf(STAT_OVERRIDES_FILE)) then
+			local content = rf(STAT_OVERRIDES_FILE)
+			local data = HttpService:JSONDecode(content)
+			if type(data) == "table" then
+				UserCategoryOverrides = data
+			end
+		end
+	end)
+end
+
+local function saveOverrides()
+	pcall(function()
+		local wf = writefile or (getgenv and getgenv().writefile)
+		if type(wf) == "function" then
+			wf(STAT_OVERRIDES_FILE, HttpService:JSONEncode(UserCategoryOverrides))
+		end
+	end)
+end
+
+loadOverrides()
 
 local PRIMARY_EXACT_NAMES: {[string]: boolean} = {
 	["coins"] = true,
@@ -67,6 +97,13 @@ local PRIMARY_EXACT_NAMES: {[string]: boolean} = {
 }
 
 local function isPrimaryCurrency(name: string, val: any): boolean
+	local override = UserCategoryOverrides[name]
+	if override == "currencies" then
+		return true
+	elseif override == "others" then
+		return false
+	end
+
 	local lower = name:lower()
 	return PRIMARY_EXACT_NAMES[lower] == true
 end
@@ -463,19 +500,32 @@ function LeaderstatsWidget.new()
 	end
 
 	-- ── Render Functions ─────────────────────────────────────────────
-	local curRowFrames: {[string]: {Row: Frame, ValLabel: TextLabel}} = {}
-	local othRowFrames: {[string]: {Row: Frame, ValLabel: TextLabel}} = {}
+	local curRowFrames: {[string]: {Row: TextButton, ValLabel: TextLabel}} = {}
+	local othRowFrames: {[string]: {Row: TextButton, ValLabel: TextLabel}} = {}
 	local serverRowFrames: {[string]: Frame} = {}
 
-	local function renderCurrenciesList(items: {StatItem}, container: ScrollingFrame, cache: {[string]: {Row: Frame, ValLabel: TextLabel}}, emptyText: string)
+	local function clearCache(cache: {[string]: any})
+		for k, item in pairs(cache) do
+			if item and item.Row and item.Row.Parent then
+				item.Row:Destroy()
+			end
+			cache[k] = nil
+		end
+	end
+
+	local renderAllStats: () -> ()
+
+	local function renderCurrenciesList(items: {StatItem}, container: ScrollingFrame, cache: {[string]: {Row: TextButton, ValLabel: TextLabel}}, emptyText: string, currentCategory: string)
 		if #items == 0 then
 			local empty = cache["_empty"]
 			if not empty then
-				local row = Instance.new("Frame")
+				local row = Instance.new("TextButton")
 				row.Size = UDim2.new(1, -2, 0, 22)
 				row.BackgroundColor3 = UI.Theme.ContainerDark
 				row.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 				row.BorderSizePixel = 0
+				row.Text = ""
+				row.AutoButtonColor = false
 				row.Parent = container
 				UI.registerThemeElement(row, "ContainerDark")
 
@@ -507,12 +557,14 @@ function LeaderstatsWidget.new()
 			if existing and existing.Row and existing.Row.Parent then
 				existing.ValLabel.Text = s.Formatted
 			else
-				local row = Instance.new("Frame")
+				local row = Instance.new("TextButton")
 				row.Name = s.Name .. "Row"
 				row.Size = UDim2.new(1, -2, 0, 22)
 				row.BackgroundColor3 = UI.Theme.Container
 				row.BackgroundTransparency = UI.Theme.ContainerTransparency
 				row.BorderSizePixel = 0
+				row.Text = ""
+				row.AutoButtonColor = false
 				row.LayoutOrder = idx
 				row.Parent = container
 				UI.registerThemeElement(row, "Container")
@@ -550,15 +602,32 @@ function LeaderstatsWidget.new()
 				valLabel.Parent = row
 				UI.registerThemeElement(valLabel, "AccentText")
 
+				-- Right-Click to swap between Currencies & Other Values
+				row.MouseButton2Click:Connect(function()
+					local targetCat = if currentCategory == "currencies" then "others" else "currencies"
+					UserCategoryOverrides[s.Name] = targetCat
+					saveOverrides()
+
+					clearCache(curRowFrames)
+					clearCache(othRowFrames)
+					renderAllStats()
+
+					pcall(function()
+						local Notification = require("UI/Notification.luau")
+						local catName = if targetCat == "others" then "Other Values" else "Currencies"
+						Notification.new("Leaderstats HUD", string.format("Moved '%s' to %s", s.Name, catName), 2.5)
+					end)
+				end)
+
 				cache[s.Name] = {Row = row, ValLabel = valLabel}
 			end
 		end
 	end
 
-	local function renderAllStats()
+	renderAllStats = function()
 		local data = getAllPlayerStats(LocalPlayer)
-		renderCurrenciesList(data.Primaries, curContainer, curRowFrames, "No active currencies found")
-		renderCurrenciesList(data.Others, othContainer, othRowFrames, "No secondary values found")
+		renderCurrenciesList(data.Primaries, curContainer, curRowFrames, "No active currencies found", "currencies")
+		renderCurrenciesList(data.Others, othContainer, othRowFrames, "No secondary values found", "others")
 	end
 
 	local function renderServerPlayers()

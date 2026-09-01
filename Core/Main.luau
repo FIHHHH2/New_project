@@ -1227,14 +1227,23 @@ elseif gameTabTitle == "Ice Tycoon" then
 		end
 	end)
 
-	local crystalSection = window:AddSection(farmRightCol, "Crystals & Mining")
-	window:AddToggle(crystalSection, "ice_auto_crystals", "Auto-Collect Crystals & Gems", false, nil, function(enabled)
-		IceTycoon.setAutoCollectCrystals(enabled)
+	local crystalSection = window:AddSection(farmRightCol, "Mining & Game Secrets")
+	window:AddToggle(crystalSection, "ice_auto_mine", "Auto-Mine Available Ores", false, nil, function(enabled)
+		IceTycoon.setAutoMineOres(enabled)
 	end)
 
-	window:AddButton(crystalSection, "Claim Crystals Now", function()
-		local count = IceTycoon.claimCrystalsNow()
-		window:Notify("Ice Tycoon", string.format("Claimed %d crystals/gems", count), 3)
+	window:AddButton(crystalSection, "Mine All Ores Now", function()
+		local count = IceTycoon.mineOresNow()
+		window:Notify("Ice Tycoon", string.format("Mined %d ore nodes", count), 2.5)
+	end)
+
+	window:AddToggle(crystalSection, "ice_auto_secrets", "Auto-Collect Secrets & Trophies", false, nil, function(enabled)
+		IceTycoon.setAutoCollectSecrets(enabled)
+	end)
+
+	window:AddButton(crystalSection, "Collect All Game Secrets Now", function()
+		local res = IceTycoon.collectAllSecretsNow()
+		window:Notify("Ice Tycoon", string.format("Claimed %d gems, %d trophies, %d secrets", res.Gems, res.Trophies, res.Secrets), 3.5)
 	end)
 
 	-- ── 3. PROTECTIONS & ZONES ───────────────────────────────────

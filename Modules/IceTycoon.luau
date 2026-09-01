@@ -342,6 +342,7 @@ function IceTycoon.fillWaterNow(): boolean
 	if not hrp then return false end
 
 	ensureWaterToolEquipped()
+	task.wait(0.04)
 
 	local scoopPrompt, scoopPart = findActiveScoopPrompt()
 	local fillPrompt = findPumpFillPrompt()
@@ -372,20 +373,22 @@ function IceTycoon.fillWaterNow(): boolean
 		camera.CameraType = Enum.CameraType.Scriptable
 		camera.CFrame = origCamCF
 
-		-- 1. Scoop water (0.07s)
+		-- 1. Scoop water (0.08s, 8 rapid pulses to guarantee full capacity)
 		hrp.CFrame = scoopPart.CFrame * CFrame.new(0, 3, 0)
-		task.wait(0.07)
+		task.wait(0.08)
 		if type(fpp) == "function" then
-			for _ = 1, 6 do
+			for _ = 1, 8 do
 				fpp(scoopPrompt, 1, true)
-				task.wait(0.01)
+				task.wait(0.015)
 			end
 		end
 
-		-- 2. Deposit into pump (0.07s)
+		-- 2. Deposit into pump (0.08s)
 		hrp.CFrame = CFrame.new(-81.4, 4.2, -87.5) * CFrame.Angles(0, math.rad(180), 0)
-		task.wait(0.07)
+		task.wait(0.08)
 		if type(fpp) == "function" then
+			fpp(fillPrompt, 1, true)
+			task.wait(0.04)
 			fpp(fillPrompt, 1, true)
 		end
 		task.wait(0.04)
@@ -411,43 +414,173 @@ function IceTycoon.setAutoFillWater(enabled: boolean)
 					local amt = pump:FindFirstChild("Amount") :: IntValue?
 					local max = pump:FindFirstChild("Max") :: IntValue?
 					local targetMax = (max and max.Value) or 20
-					if amt and amt:IsA("IntValue") and amt.Value < (targetMax - 4) then
+					if amt and amt:IsA("IntValue") and amt.Value < (targetMax - 2) then
 						IceTycoon.fillWaterNow()
 					end
 				end
-				task.wait(1.0)
+				task.wait(0.8)
 			end
 		end)
 	end
 end
 
--- ── 5. Crystals & Gems Auto-Farm ────────────────────────────────────
-function IceTycoon.claimCrystalsNow(): number
-	local count = 0
-	local map = Workspace:FindFirstChild("Map")
+-- ── 5. Mine Ores Auto-Farm ──────────────────────────────────────────
+IceTycoon.AutoMineOres = false
+local mineConn: RBXScriptConnection? = nil
 
-	-- 1. BuyCrystal in Map
-	if map and map:FindFirstChild("BuyCrystal") and map.BuyCrystal:IsA("BasePart") then
-		touchPart(map.BuyCrystal :: BasePart)
-		count += 1
-	end
+function IceTycoon.mineOresNow(): number
+	local mine = Workspace:FindFirstChild("Tycoon") and Workspace.Tycoon:FindFirstChild("Bought") and Workspace.Tycoon.Bought:FindFirstChild("Mine")
+	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
+	local mined = 0
 
-	-- 2. Lava Hatch Crystal in Tycoon
-	local tycoon = Workspace:FindFirstChild("Tycoon")
-	if tycoon and tycoon:FindFirstChild("Essentials") then
-		local lava = tycoon.Essentials:FindFirstChild("Lava")
-		local hatch = lava and lava:FindFirstChild("Hatch")
-		local crystal = hatch and hatch:FindFirstChild("Crystal")
-		if crystal and crystal:IsA("BasePart") then
-			touchPart(crystal :: BasePart)
-			count += 1
+	if mine and type(fpp) == "function" then
+		for _, d in ipairs(mine:GetDescendants()) do
+			if d:IsA("ProximityPrompt") and d.ActionText == "Mine" and d.Enabled then
+				d.HoldDuration = 0
+				fpp(d, 1, true)
+				mined += 1
+			end
 		end
 	end
 
-	return count
+	return mined
+end
+
+function IceTycoon.setAutoMineOres(enabled: boolean)
+	IceTycoon.AutoMineOres = enabled
+	if enabled then
+		task.spawn(function()
+			while IceTycoon.AutoMineOres do
+				IceTycoon.mineOresNow()
+				task.wait(0.5)
+			end
+		end)
+	end
+end
+
+-- ── 6. Secrets, Gems & Trophies Auto-Collector ──────────────────────
+IceTycoon.AutoCollectSecrets = false
+
+function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Secrets: number }
+	local hrp = getHrp()
+	local fti = firetouchinterest or (getgenv and getgenv().firetouchinterest)
+	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
+
+	local results = { Gems = 0, Trophies = 0, Secrets = 0 }
+	local map = Workspace:FindFirstChild("Map")
+	if not map then return results end
+
+	-- 1. All 5 Gem Pedestals
+	local troops = map:FindFirstChild("Troops")
+	local gemPed = troops and troops:FindFirstChild("GemPedestals")
+	if gemPed and hrp and type(fti) == "function" then
+		for _, ped in ipairs(gemPed:GetChildren()) do
+			local hit = ped:FindFirstChild("Hitbox")
+			if hit and hit:IsA("BasePart") then
+				fti(hrp, hit, 0)
+				task.wait(0.01)
+				fti(hrp, hit, 1)
+				results.Gems += 1
+			end
+		end
+	end
+
+	-- 2. Trophies on Pedestals
+	local pedFolder = map:FindFirstChild("Pedestals")
+	if pedFolder and type(fpp) == "function" then
+		for _, ped in ipairs(pedFolder:GetChildren()) do
+			local pr = ped:FindFirstChildWhichIsA("ProximityPrompt", true)
+			if pr and pr.Enabled then
+				pr.HoldDuration = 0
+				fpp(pr, 1, true)
+				results.Trophies += 1
+			end
+		end
+	end
+
+	-- 3. KeyGiver, Secret House Door, and LittleThing
+	if troops and hrp and type(fti) == "function" then
+		local keyGiver = troops:FindFirstChild("KeyGiver")
+		if keyGiver and keyGiver:FindFirstChild("Hitbox") and keyGiver.Hitbox:IsA("BasePart") then
+			fti(hrp, keyGiver.Hitbox, 0)
+			task.wait(0.01)
+			fti(hrp, keyGiver.Hitbox, 1)
+			results.Secrets += 1
+		end
+
+		local house = troops:FindFirstChild("House")
+		local door = house and house:FindFirstChild("Door")
+		if door and door:FindFirstChild("Hitbox") and door.Hitbox:IsA("BasePart") then
+			fti(hrp, door.Hitbox, 0)
+			task.wait(0.01)
+			fti(hrp, door.Hitbox, 1)
+			results.Secrets += 1
+		end
+
+		local little = troops:FindFirstChild("JustALittleThing")
+		if little and little:FindFirstChild("Hitbox") and little.Hitbox:IsA("BasePart") then
+			fti(hrp, little.Hitbox, 0)
+			task.wait(0.01)
+			fti(hrp, little.Hitbox, 1)
+			results.Secrets += 1
+		end
+	end
+
+	-- 4. Hotel & IceHotel Hitboxes
+	if map and hrp and type(fti) == "function" then
+		for _, hName in ipairs({"HotelHitbox", "HotelHitbox2"}) do
+			local h = map:FindFirstChild(hName)
+			if h and h:IsA("BasePart") then
+				fti(hrp, h, 0)
+				task.wait(0.01)
+				fti(hrp, h, 1)
+				results.Secrets += 1
+			end
+		end
+	end
+
+	-- 5. Regular Crystals in Map and Lava Hatch
+	if map and map:FindFirstChild("BuyCrystal") and map.BuyCrystal:IsA("BasePart") and hrp and type(fti) == "function" then
+		fti(hrp, map.BuyCrystal, 0)
+		task.wait(0.01)
+		fti(hrp, map.BuyCrystal, 1)
+		results.Gems += 1
+	end
+
+	local tycoon = Workspace:FindFirstChild("Tycoon")
+	local lava = tycoon and tycoon:FindFirstChild("Essentials") and tycoon.Essentials:FindFirstChild("Lava")
+	local hatch = lava and lava:FindFirstChild("Hatch")
+	local crystal = hatch and hatch:FindFirstChild("Crystal")
+	if crystal and crystal:IsA("BasePart") and hrp and type(fti) == "function" then
+		fti(hrp, crystal, 0)
+		task.wait(0.01)
+		fti(hrp, crystal, 1)
+		results.Gems += 1
+	end
+
+	return results
+end
+
+function IceTycoon.setAutoCollectSecrets(enabled: boolean)
+	IceTycoon.AutoCollectSecrets = enabled
+	if enabled then
+		task.spawn(function()
+			while IceTycoon.AutoCollectSecrets do
+				IceTycoon.collectAllSecretsNow()
+				task.wait(1.5)
+			end
+		end)
+	end
+end
+
+-- ── 7. Crystals & Gems Auto-Farm ────────────────────────────────────
+function IceTycoon.claimCrystalsNow(): number
+	return IceTycoon.collectAllSecretsNow().Gems
 end
 
 function IceTycoon.setAutoCollectCrystals(enabled: boolean)
+	IceTycoon.setAutoCollectSecrets(enabled)
+end
 	IceTycoon.AutoCollectCrystals = enabled
 	if enabled then
 		task.spawn(function()

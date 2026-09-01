@@ -967,9 +967,14 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	keybindBtn.MouseLeave:Connect(onToggleHoverLeave)
 
 	-- Synchronize visual state when toggled via keyboard keybind or external call
-	feature.onStateChanged = function(newState: boolean)
+	local function onStateChangedListener(newState: boolean)
 		updateToggleVisual(newState)
 		Notification.notifyFeature(name, newState)
+	end
+	if feature.stateListeners then
+		table.insert(feature.stateListeners, onStateChangedListener)
+	else
+		feature.onStateChanged = onStateChangedListener
 	end
 
 	table.insert(self.ActiveToggles, function()
@@ -985,8 +990,13 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	checkBtn.MouseButton1Click:Connect(toggleAction)
 	titleBox.MouseButton1Click:Connect(toggleAction)
 
-	feature.onKeybindChanged = function(newKey)
+	local function onKeybindChangedListener(newKey)
 		keybindBtn.Text = if newKey then string.format("[%s]", newKey.Name) else "[None]"
+	end
+	if feature.keybindListeners then
+		table.insert(feature.keybindListeners, onKeybindChangedListener)
+	else
+		feature.onKeybindChanged = onKeybindChangedListener
 	end
 
 	keybindBtn.MouseButton1Click:Connect(function()

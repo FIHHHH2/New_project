@@ -7994,8 +7994,11 @@ Modules["Core/FeatureManager.luau"] = function()
     	state: boolean,
     	keybind: Enum.KeyCode?,
     	callback: (boolean) -> (),
+    	callbacks: {(boolean) -> ()},
     	onKeybindChanged: ((Enum.KeyCode?) -> ())?,
-    	onStateChanged: ((boolean) -> ())?
+    	onStateChanged: ((boolean) -> ())?,
+    	stateListeners: {(boolean) -> ()},
+    	keybindListeners: {(Enum.KeyCode?) -> ()}
     }
     
     export type SliderRecord = {
@@ -8147,14 +8150,25 @@ Modules["Core/FeatureManager.luau"] = function()
     
     -- ── Feature & Slider Registration ─────────────────────────────────
     function FeatureManager.register(id: string, name: string, defaultState: boolean, defaultKeybind: Enum.KeyCode?, callback: (boolean) -> ()): FeatureRecord
+    	local existing = registeredFeatures[id]
+    	if existing then
+    		if callback and not table.find(existing.callbacks, callback) then
+    			table.insert(existing.callbacks, callback)
+    		end
+    		return existing
+    	end
+    
     	local record: FeatureRecord = {
     		id = id,
     		name = name,
     		state = defaultState,
     		keybind = defaultKeybind,
     		callback = callback,
+    		callbacks = {callback},
     		onKeybindChanged = nil,
-    		onStateChanged = nil
+    		onStateChanged = nil,
+    		stateListeners = {},
+    		keybindListeners = {}
     	}
     	registeredFeatures[id] = record
     	rebuildKeybindMap()
@@ -8221,9 +8235,18 @@ Modules["Core/FeatureManager.luau"] = function()
     	
     	feat.state = state
     	if feat.onStateChanged then feat.onStateChanged(state) end
-    	local success, err = pcall(feat.callback, state)
-    	if not success then
-    		warn(string.format("[FeatureManager] error toggling feature %s: %s", id, tostring(err)))
+    	if feat.stateListeners then
+    		for _, listener in ipairs(feat.stateListeners) do
+    			pcall(listener, state)
+    		end
+    	end
+    
+    	if feat.callbacks then
+    		for _, cb in ipairs(feat.callbacks) do
+    			pcall(cb, state)
+    		end
+    	elseif feat.callback then
+    		pcall(feat.callback, state)
     	end
     end
     
@@ -8233,6 +8256,11 @@ Modules["Core/FeatureManager.luau"] = function()
     	feat.keybind = keycode
     	rebuildKeybindMap()
     	if feat.onKeybindChanged then feat.onKeybindChanged(keycode) end
+    	if feat.keybindListeners then
+    		for _, listener in ipairs(feat.keybindListeners) do
+    			pcall(listener, keycode)
+    		end
+    	end
     end
     
     function FeatureManager.setModuleState(id: string, enabled: boolean)
@@ -9356,9 +9384,14 @@ Modules["Core/CoreUI.luau"] = function()
     	keybindBtn.MouseLeave:Connect(onToggleHoverLeave)
     
     	-- Synchronize visual state when toggled via keyboard keybind or external call
-    	feature.onStateChanged = function(newState: boolean)
+    	local function onStateChangedListener(newState: boolean)
     		updateToggleVisual(newState)
     		Notification.notifyFeature(name, newState)
+    	end
+    	if feature.stateListeners then
+    		table.insert(feature.stateListeners, onStateChangedListener)
+    	else
+    		feature.onStateChanged = onStateChangedListener
     	end
     
     	table.insert(self.ActiveToggles, function()
@@ -9374,8 +9407,13 @@ Modules["Core/CoreUI.luau"] = function()
     	checkBtn.MouseButton1Click:Connect(toggleAction)
     	titleBox.MouseButton1Click:Connect(toggleAction)
     
-    	feature.onKeybindChanged = function(newKey)
+    	local function onKeybindChangedListener(newKey)
     		keybindBtn.Text = if newKey then string.format("[%s]", newKey.Name) else "[None]"
+    	end
+    	if feature.keybindListeners then
+    		table.insert(feature.keybindListeners, onKeybindChangedListener)
+    	else
+    		feature.onKeybindChanged = onKeybindChangedListener
     	end
     
     	keybindBtn.MouseButton1Click:Connect(function()
@@ -16037,19 +16075,25 @@ Modules["Core/Main.luau"] = function()
     -- Hide all non-Modular PlayerGui ScreenGuis on load.
     -- Games frequently render their own black backgrounds / loading screens
     -- via ScreenGui which sit on top of everything until explicitly disabled.
-    local hiddenGameGuis: {[ScreenGui]: boolean} = {}
-    local function hidePlayerGameGuis(enabled: boolean)
+    local originalGuiStates: {[ScreenGui]: boolean} = {}
+    local function hidePlayerGameGuis(hide: boolean)
     	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
     	if not pgui then return end
     	for _, child in ipairs(pgui:GetChildren()) do
-    		if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") then
-    			if enabled then
-    				hiddenGameGuis[child] = child.Enabled
+    		if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") and not string.find(child.Name, "ProjectFih") then
+    			if hide then
+    				if originalGuiStates[child] == nil then
+    					originalGuiStates[child] = child.Enabled
+    				end
     				child.Enabled = false
     			else
-    				child.Enabled = if hiddenGameGuis[child] ~= nil then hiddenGameGuis[child] else true
+    				local orig = originalGuiStates[child]
+    				child.Enabled = if orig ~= nil then orig else true
     			end
     		end
+    	end
+    	if not hide then
+    		table.clear(originalGuiStates)
     	end
     end
     

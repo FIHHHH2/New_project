@@ -142,19 +142,25 @@ end
 -- Hide all non-Modular PlayerGui ScreenGuis on load.
 -- Games frequently render their own black backgrounds / loading screens
 -- via ScreenGui which sit on top of everything until explicitly disabled.
-local hiddenGameGuis: {[ScreenGui]: boolean} = {}
-local function hidePlayerGameGuis(enabled: boolean)
+local originalGuiStates: {[ScreenGui]: boolean} = {}
+local function hidePlayerGameGuis(hide: boolean)
 	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
 	if not pgui then return end
 	for _, child in ipairs(pgui:GetChildren()) do
-		if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") then
-			if enabled then
-				hiddenGameGuis[child] = child.Enabled
+		if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") and not string.find(child.Name, "ProjectFih") then
+			if hide then
+				if originalGuiStates[child] == nil then
+					originalGuiStates[child] = child.Enabled
+				end
 				child.Enabled = false
 			else
-				child.Enabled = if hiddenGameGuis[child] ~= nil then hiddenGameGuis[child] else true
+				local orig = originalGuiStates[child]
+				child.Enabled = if orig ~= nil then orig else true
 			end
 		end
+	end
+	if not hide then
+		table.clear(originalGuiStates)
 	end
 end
 

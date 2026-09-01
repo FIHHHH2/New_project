@@ -21,8 +21,11 @@ export type FeatureRecord = {
 	state: boolean,
 	keybind: Enum.KeyCode?,
 	callback: (boolean) -> (),
+	callbacks: {(boolean) -> ()},
 	onKeybindChanged: ((Enum.KeyCode?) -> ())?,
-	onStateChanged: ((boolean) -> ())?
+	onStateChanged: ((boolean) -> ())?,
+	stateListeners: {(boolean) -> ()},
+	keybindListeners: {(Enum.KeyCode?) -> ()}
 }
 
 export type SliderRecord = {
@@ -174,14 +177,25 @@ end)
 
 -- ── Feature & Slider Registration ─────────────────────────────────
 function FeatureManager.register(id: string, name: string, defaultState: boolean, defaultKeybind: Enum.KeyCode?, callback: (boolean) -> ()): FeatureRecord
+	local existing = registeredFeatures[id]
+	if existing then
+		if callback and not table.find(existing.callbacks, callback) then
+			table.insert(existing.callbacks, callback)
+		end
+		return existing
+	end
+
 	local record: FeatureRecord = {
 		id = id,
 		name = name,
 		state = defaultState,
 		keybind = defaultKeybind,
 		callback = callback,
+		callbacks = {callback},
 		onKeybindChanged = nil,
-		onStateChanged = nil
+		onStateChanged = nil,
+		stateListeners = {},
+		keybindListeners = {}
 	}
 	registeredFeatures[id] = record
 	rebuildKeybindMap()
@@ -248,9 +262,18 @@ function FeatureManager.setFeatureState(id: string, state: boolean)
 	
 	feat.state = state
 	if feat.onStateChanged then feat.onStateChanged(state) end
-	local success, err = pcall(feat.callback, state)
-	if not success then
-		warn(string.format("[FeatureManager] error toggling feature %s: %s", id, tostring(err)))
+	if feat.stateListeners then
+		for _, listener in ipairs(feat.stateListeners) do
+			pcall(listener, state)
+		end
+	end
+
+	if feat.callbacks then
+		for _, cb in ipairs(feat.callbacks) do
+			pcall(cb, state)
+		end
+	elseif feat.callback then
+		pcall(feat.callback, state)
 	end
 end
 
@@ -260,6 +283,11 @@ function FeatureManager.setFeatureKeybind(id: string, keycode: Enum.KeyCode?)
 	feat.keybind = keycode
 	rebuildKeybindMap()
 	if feat.onKeybindChanged then feat.onKeybindChanged(keycode) end
+	if feat.keybindListeners then
+		for _, listener in ipairs(feat.keybindListeners) do
+			pcall(listener, keycode)
+		end
+	end
 end
 
 function FeatureManager.setModuleState(id: string, enabled: boolean)

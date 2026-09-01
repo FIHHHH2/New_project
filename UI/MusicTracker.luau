@@ -23,10 +23,13 @@ local Animations = require("UI/Animations.luau")
 local MusicTracker = {}
 MusicTracker.__index = MusicTracker
 
-local LOCAL_BRIDGE_URL = "http://127.0.0.1:8888"
-local REMOTE_TUNNEL_URL = "https://steering-liberal-bucks-arrived.trycloudflare.com"
-local BRIDGE_URL = LOCAL_BRIDGE_URL
-local MUSIC_NOTE_ICON = "rbxassetid://10888371919"
+local BRIDGE_URLS = {
+	"http://127.0.0.1:8974",
+	"http://127.0.0.1:8888",
+	"https://steering-liberal-bucks-arrived.trycloudflare.com"
+}
+local BRIDGE_URL = BRIDGE_URLS[1]
+local MUSIC_NOTE_ICON = "rbxassetid://10888371919" 
 
 local DEMO_TRACKS = {
 	{
@@ -592,6 +595,110 @@ function MusicTracker.new()
 		end
 	end
 
+	
+	-- ── Synced Lyrics Engine (LRCLIB Cloud + Local Bridge IPC) ─────────
+	local parsedLrcLines: {{ ms: number, text: string }} = {}
+	local lastLrcTrack = ""
+	local serverProgressMs = 0
+	local serverDurationMs = 0
+	local lastSyncClock = os.clock()
+	local lastActiveLyric = ""
+
+	local function parseLrcString(lrcStr: string): {{ ms: number, text: string }}
+		local lines = {}
+		for raw in string.gmatch(lrcStr, "[^\r\n]+") do
+			local minStr, secStr, milStr, text = string.match(raw, "%%[(%%d%%d):(%%d%%d)%%.?(%%d*)%%](.*)")
+			if minStr and secStr then
+				local mins = tonumber(minStr) or 0
+				local secs = tonumber(secStr) or 0
+				local mils = tonumber(milStr) or 0
+				if #milStr == 2 then mils *= 10 end
+				local totalMs = (mins * 60 + secs) * 1000 + mils
+				text = string.gsub(text or "", "^%%s*(.-)%%s*$", "%%1")
+				if text ~= "" then
+					table.insert(lines, { ms = totalMs, text = text })
+				end
+			end
+		end
+		table.sort(lines, function(a, b) return a.ms < b.ms end)
+		return lines
+	end
+
+	local function fetchLyricsForTrack(title: string, artist: string)
+		local songKey = string.lower(title) .. "::" .. string.lower(artist)
+		if songKey == lastLrcTrack then return end
+		lastLrcTrack = songKey
+
+		task.spawn(function()
+			pcall(function()
+				local cleanTitle = string.gsub(title, "%b()", "")
+				cleanTitle = string.gsub(cleanTitle, "%b[]", "")
+				cleanTitle = string.gsub(cleanTitle, "[Ff]eat%..*", "")
+				cleanTitle = string.gsub(cleanTitle, "[Ff]t%..*", "")
+				cleanTitle = string.gsub(cleanTitle, "^%s*(.-)%s*$", "%1")
+
+				local cleanArtist = string.gsub(artist, "%b()", "")
+				cleanArtist = string.gsub(cleanArtist, "%b[]", "")
+				cleanArtist = string.gsub(cleanArtist, "[Ff]eat%..*", "")
+				cleanArtist = string.gsub(cleanArtist, "[Ff]t%..*", "")
+				cleanArtist = string.gsub(cleanArtist, "^%s*(.-)%s*$", "%1")
+
+				local url = string.format(
+					"https://lrclib.net/api/get?artist_name=%s&track_name=%s",
+					HttpService:UrlEncode(cleanArtist),
+					HttpService:UrlEncode(cleanTitle)
+				)
+
+				local raw = game:HttpGet(url)
+				if raw and raw ~= "" then
+					local data = HttpService:JSONDecode(raw)
+					if data and data.syncedLyrics then
+						local lines = parseLrcString(data.syncedLyrics)
+						if #lines > 0 then
+							parsedLrcLines = lines
+							return
+						end
+					elseif data and data.plainLyrics then
+						local lines = {}
+						for l in string.gmatch(data.plainLyrics, "[^\r\n]+") do
+							local t = string.gsub(l, "^%%s*(.-)%%s*$", "%%1")
+							if t ~= "" then table.insert(lines, { ms = 0, text = t }) end
+						end
+						parsedLrcLines = lines
+						return
+					end
+				end
+			end)
+		end)
+	end
+
+	local function updateActiveLyricFromTime(posMs: number)
+		if #parsedLrcLines == 0 then return end
+		local curLine = ""
+		local nextLine = ""
+
+		for i, item in ipairs(parsedLrcLines) do
+			if posMs >= item.ms then
+				curLine = item.text
+				if i < #parsedLrcLines then
+					nextLine = parsedLrcLines[i + 1].text
+				else
+					nextLine = ""
+				end
+			else
+				if curLine == "" and i == 1 then
+					curLine = item.text
+				end
+				break
+			end
+		end
+
+		if curLine ~= "" and curLine ~= lastActiveLyric then
+			lastActiveLyric = curLine
+			lyricsLabel.Text = "♫ " .. curLine
+		end
+	end
+
 	local function setTrack(t)
 		lastSongTitle = t.title
 		songTitleLabel.Text = string.format("%s — %s", t.title, t.artist)
@@ -693,37 +800,93 @@ function MusicTracker.new()
 		end)
 	end)
 
-	-- ── Local Bridge & Cloudflare Tunnel Poller (Audio Spectrum, Lyrics, Adaptive Theme) ─
+	-- ── Continuous Sub-Second Lyrics Time Synchronizer ────────────────
+	RunService.Heartbeat:Connect(function()
+		if isPlaying and serverDurationMs > 0 then
+			local elapsed = (os.clock() - lastSyncClock) * 1000
+			local curMs = math.clamp(serverProgressMs + elapsed, 0, serverDurationMs)
+			updateActiveLyricFromTime(curMs)
+		end
+	end)
+
+	-- ── Multi-Source Bridge & Synced Lyrics Poller ────────────────────
 	task.spawn(function()
+		local bridgeIndex = 1
 		local failCount = 0
+
 		while true do
-			task.wait(0.1)
+			task.wait(0.12)
 			if widget.Visible then
-				local ok, raw = pcall(function()
-					return game:HttpGet(BRIDGE_URL .. "/current")
-				end)
-				if not ok or not raw or raw == "" then
-					failCount += 1
-					if failCount >= 5 then
-						BRIDGE_URL = if BRIDGE_URL == LOCAL_BRIDGE_URL then REMOTE_TUNNEL_URL else LOCAL_BRIDGE_URL
-						failCount = 0
-					end
-				else
-					failCount = 0
+				local rawData: string? = nil
+
+				-- 1. Try file IPC (readfile) for 0ms local response
+				local rf = readfile or (getgenv and getgenv().readfile)
+				local isf = isfile or (getgenv and getgenv().isfile)
+				if type(rf) == "function" and type(isf) == "function" then
 					pcall(function()
-						local data = HttpService:JSONDecode(raw)
-						if data and data.title then
+						if isf("fih_bridge_state.json") then
+							rawData = rf("fih_bridge_state.json")
+						elseif isf("FihSuite/fih_bridge_state.json") then
+							rawData = rf("FihSuite/fih_bridge_state.json")
+						end
+					end)
+				end
+
+				-- 2. Try HTTP endpoint if file IPC was empty
+				if not rawData or rawData == "" then
+					local currentUrl = BRIDGE_URLS[bridgeIndex]
+					local ok, res = pcall(function()
+						return game:HttpGet(currentUrl .. "/current")
+					end)
+					if ok and res and res ~= "" then
+						rawData = res
+						failCount = 0
+						BRIDGE_URL = currentUrl
+					else
+						failCount += 1
+						if failCount >= 4 then
+							bridgeIndex = (bridgeIndex % #BRIDGE_URLS) + 1
+							failCount = 0
+						end
+					end
+				end
+
+				if rawData and rawData ~= "" then
+					pcall(function()
+						local data = HttpService:JSONDecode(rawData)
+						local title = data.title or data.name
+						local artist = data.artist or "Unknown"
+
+						if data and title then
 							if data.spectrum and typeof(data.spectrum) == "table" then
 								currentSpectrum = data.spectrum
 							end
 							if data.audioPeak then
 								currentAudioPeak = data.audioPeak
 							end
-							local isIdle = (data.title == "No Song Playing" and not data.isPlaying and currentAudioPeak <= 0.005)
+
+							if data.progress_ms then
+								serverProgressMs = tonumber(data.progress_ms) or 0
+								lastSyncClock = os.clock()
+							end
+							if data.duration_ms then
+								serverDurationMs = tonumber(data.duration_ms) or 0
+							end
+
+							local isIdle = (title == "No Song Playing" or title == "Local Audio Session") and not data.isPlaying and currentAudioPeak <= 0.005
 							local coverVersion = data.coverVersion or 0
-							if data.title ~= lastSongTitle or coverVersion ~= lastCoverVersion then
-								lastSongTitle = data.title
+
+							if title ~= lastSongTitle or coverVersion ~= lastCoverVersion then
+								lastSongTitle = title
 								lastCoverVersion = coverVersion
+								parsedLrcLines = {}
+								lastActiveLyric = ""
+
+								if data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 then
+									parsedLrcLines = data.synced_lyrics
+								else
+									fetchLyricsForTrack(title, artist)
+								end
 
 								if data.theme and typeof(data.theme) == "table" then
 									local t = data.theme
@@ -743,8 +906,11 @@ function MusicTracker.new()
 									playBtn.Text = "▶"
 									updateCover(nil, true, coverVersion)
 								else
-									songTitleLabel.Text = string.format("%s — %s", data.title, data.artist or "Unknown")
-									if data.lyrics then lyricsLabel.Text = "♫ " .. data.lyrics end
+									songTitleLabel.Text = string.format("%s — %s", title, artist)
+									if data.lyrics and data.lyrics ~= "" then
+										lyricsLabel.Text = "♫ " .. data.lyrics
+										lastActiveLyric = data.lyrics
+									end
 									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
 									playBtn.Text = if isPlaying then "❚❚" else "▶"
 									updateCover(data.cover, false, coverVersion)
@@ -756,7 +922,9 @@ function MusicTracker.new()
 								else
 									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
 									playBtn.Text = if isPlaying then "❚❚" else "▶"
-									if data.lyrics then lyricsLabel.Text = "♫ " .. data.lyrics end
+									if data.lyrics and data.lyrics ~= "" and #parsedLrcLines == 0 then
+										lyricsLabel.Text = "♫ " .. data.lyrics
+									end
 								end
 							end
 						end

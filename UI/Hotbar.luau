@@ -525,14 +525,21 @@ function Hotbar.new(): HotbarWidget
 	-- ── 5. Full Hotbar Viewport Render Function (Only Runs on Inventory Change) ──
 	local function updateHotbarVisuals()
 		local allTools = getAllTools()
+		local validToolSet: {[Tool]: boolean} = {}
+		for _, t in ipairs(allTools) do
+			validToolSet[t] = true
+		end
 
+		-- Purge any slot whose tool is not in current valid inventory
 		for i = 1, NUM_SLOTS do
 			local currentTool = assignedSlots[i]
-			if currentTool and (not currentTool.Parent or (currentTool.Parent ~= LocalPlayer.Character and currentTool.Parent ~= LocalPlayer:FindFirstChildOfClass("Backpack"))) then
+			if currentTool and not validToolSet[currentTool] then
 				assignedSlots[i] = nil
+				cleanViewport(slotFrames[i])
 			end
 		end
 
+		-- Auto-assign unassigned tools to first available slots
 		for _, tool in ipairs(allTools) do
 			local alreadyAssigned = false
 			for i = 1, NUM_SLOTS do
@@ -557,9 +564,8 @@ function Hotbar.new(): HotbarWidget
 			local stroke = slotBtn:FindFirstChildWhichIsA("UIStroke")
 			local nameLabel = slotBtn:FindFirstChild("ToolName") :: TextLabel?
 
-			renderToolViewportCached(slotBtn, tool, slotNum, slotCaches)
-
-			if tool then
+			if tool and validToolSet[tool] then
+				renderToolViewportCached(slotBtn, tool, slotNum, slotCaches)
 				local equipped = isToolEquipped(tool)
 				if nameLabel then
 					nameLabel.Text = tool.Name
@@ -582,6 +588,8 @@ function Hotbar.new(): HotbarWidget
 					end
 				end
 			else
+				assignedSlots[slotNum] = nil
+				cleanViewport(slotBtn)
 				if nameLabel then nameLabel.Text = "" end
 				slotBtn.BackgroundColor3 = UI.Theme.ContainerDark
 				slotBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency

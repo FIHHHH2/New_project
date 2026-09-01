@@ -472,13 +472,36 @@ function HealthWidget.new(): HealthWidgetInstance
 		table.insert(activeConns, healthConn)
 	end
 
-	-- Hook LocalPlayer
+	-- Hook LocalPlayer with instant full health bar reset
+	local function refreshLocalHealth(hum: Humanoid)
+		local maxHp = math.max(hum.MaxHealth, 1)
+		local curHp = math.clamp(hum.Health, 0, maxHp)
+		local ratio = math.clamp(curHp / maxHp, 0, 1)
+
+		hpLabel.Text = string.format("%d / %d HP", math.floor(curHp + 0.5), math.floor(maxHp))
+		if useDynamicColors then
+			barFill.BackgroundColor3 = HealthWidget.getHealthColor(ratio)
+		else
+			barFill.BackgroundColor3 = UI.Theme.Accent
+		end
+		barFill.Size = UDim2.new(ratio, 0, 1, 0)
+		bufferFill.Size = UDim2.new(ratio, 0, 1, 0)
+	end
+
 	local function onCharAdded(char: Model)
 		local hum = char:WaitForChild("Humanoid", 5) :: Humanoid?
 		if hum then
 			previousHealth = hum.Health
 			hookHumanoid(hum, LocalPlayer.DisplayName or LocalPlayer.Name, true)
-			hpLabel.Text = string.format("%d / %d HP", math.floor(hum.Health), math.floor(hum.MaxHealth))
+			refreshLocalHealth(hum)
+
+			-- Property change listeners for instant updates
+			table.insert(activeConns, hum:GetPropertyChangedSignal("Health"):Connect(function()
+				refreshLocalHealth(hum)
+			end))
+			table.insert(activeConns, hum:GetPropertyChangedSignal("MaxHealth"):Connect(function()
+				refreshLocalHealth(hum)
+			end))
 		end
 	end
 

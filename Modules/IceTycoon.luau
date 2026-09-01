@@ -867,10 +867,72 @@ function IceTycoon.getTeleportLocations(): {string}
 end
 
 
--- ── Fast Conveyors & Ore Accelerator ─────────────────────────────
+-- ── Fast Conveyors, Anti-Flyoff Rails & Upgrader No-Clip ───────────
 local conveyorConn: RBXScriptConnection? = nil
 local oreMagnetConn: RBXScriptConnection? = nil
 local cachedConveyors: {[BasePart]: Vector3} = {}
+local guideRailFolder: Folder? = nil
+
+-- Disable collision on upgrader frames and lasers so ice passes cleanly through
+local function disableUpgraderCollisions()
+	local tycoon = Workspace:FindFirstChild("Tycoon")
+	if tycoon and tycoon:FindFirstChild("Bought") then
+		for _, b in ipairs(tycoon.Bought:GetChildren()) do
+			if b.Name:lower():find("upgrader") or b.Name:lower():find("saw") then
+				for _, p in ipairs(b:GetDescendants()) do
+					if p:IsA("BasePart") and p.CanCollide and p.Position.Y > 3.4 then
+						p.CanCollide = false
+					end
+				end
+			end
+		end
+	end
+end
+
+-- Create invisible physical containment walls on conveyor sides
+local function updateGuideRails()
+	if not guideRailFolder then
+		guideRailFolder = Instance.new("Folder")
+		guideRailFolder.Name = "ModularConveyorGuideRails"
+		guideRailFolder.Parent = Workspace
+	end
+	guideRailFolder:ClearAllChildren()
+
+	for conv, origVel in pairs(cachedConveyors) do
+		if conv and conv.Parent then
+			local cp = conv.Position
+			local cs = conv.Size
+			local dir = if origVel.Magnitude > 0.1 then origVel.Unit else Vector3.new(1, 0, 0)
+
+			-- Left and right guide walls
+			if math.abs(dir.X) > 0.7 then
+				-- X conveyor: walls at Z +/- (cs.Z/2 + 0.3)
+				for _, offset in ipairs({ -(cs.Z / 2 + 0.25), (cs.Z / 2 + 0.25) }) do
+					local wall = Instance.new("Part")
+					wall.Name = "ConveyorRail"
+					wall.Size = Vector3.new(cs.X + 2.0, 5.0, 0.4)
+					wall.Position = Vector3.new(cp.X, cp.Y + 2.5, cp.Z + offset)
+					wall.Anchored = true
+					wall.CanCollide = true
+					wall.Transparency = 1
+					wall.Parent = guideRailFolder
+				end
+			elseif math.abs(dir.Z) > 0.7 then
+				-- Z conveyor: walls at X +/- (cs.X/2 + 0.3)
+				for _, offset in ipairs({ -(cs.X / 2 + 0.25), (cs.X / 2 + 0.25) }) do
+					local wall = Instance.new("Part")
+					wall.Name = "ConveyorRail"
+					wall.Size = Vector3.new(0.4, 5.0, cs.Z + 2.0)
+					wall.Position = Vector3.new(cp.X + offset, cp.Y + 2.5, cp.Z)
+					wall.Anchored = true
+					wall.CanCollide = true
+					wall.Transparency = 1
+					wall.Parent = guideRailFolder
+				end
+			end
+		end
+	end
+end
 
 local function scanConveyors()
 	local tycoon = Workspace:FindFirstChild("Tycoon") or Workspace
@@ -889,6 +951,8 @@ local function scanConveyors()
 			end
 		end
 	end
+	disableUpgraderCollisions()
+	updateGuideRails()
 end
 
 function IceTycoon.setConveyorSpeed(speed: number)
@@ -913,7 +977,10 @@ function IceTycoon.setFastConveyors(enabled: boolean)
 	end
 
 	if not enabled then
-		-- Restore original conveyor speeds
+		if guideRailFolder then
+			guideRailFolder:Destroy()
+			guideRailFolder = nil
+		end
 		for part, origVel in pairs(cachedConveyors) do
 			if part and part.Parent then
 				pcall(function()
@@ -945,17 +1012,26 @@ function IceTycoon.setFastConveyors(enabled: boolean)
 			end
 		end
 
-		-- Frictionless Ultra-Fast Conveyor Propulsion & Anti-Stuck Engine
+		-- Frictionless Anti-Flyoff Propulsion & Continuous Rescue
 		local tycoon = Workspace:FindFirstChild("Tycoon") or Workspace
 		local partsFolder = tycoon:FindFirstChild("Parts")
 		if partsFolder then
 			for _, ore in ipairs(partsFolder:GetChildren()) do
 				if ore:IsA("BasePart") and not ore.Anchored then
 					pcall(function()
-						-- Zero friction and high density for ultra-slick ice movement with no drag
+						-- Zero friction & zero bounce for high-speed locked transit
 						ore.CustomPhysicalProperties = PhysicalProperties.new(0.5, 0.0, 0.0, 100, 100)
 
 						local orePos = ore.Position
+
+						-- 1. If ore has fallen onto the floor (< 3.2 Y), immediately rescue it onto the track
+						if orePos.Y < 3.2 and orePos.Z > -500 then
+							ore.CFrame = CFrame.new(55.0, 4.5, orePos.Z)
+							ore.AssemblyLinearVelocity = Vector3.new(0, -2, targetSpeed)
+							return
+						end
+
+						-- 2. Find nearest conveyor
 						local nearestConv: BasePart? = nil
 						local nearestDist = math.huge
 
@@ -963,8 +1039,8 @@ function IceTycoon.setFastConveyors(enabled: boolean)
 							if conv and conv.Parent then
 								local cp = conv.Position
 								local cs = conv.Size
-								local halfX = cs.X / 2 + 5.0
-								local halfZ = cs.Z / 2 + 5.0
+								local halfX = cs.X / 2 + 3.0
+								local halfZ = cs.Z / 2 + 3.0
 								if math.abs(orePos.X - cp.X) <= halfX and math.abs(orePos.Z - cp.Z) <= halfZ then
 									local dist = (orePos - cp).Magnitude
 									if dist < nearestDist then
@@ -977,22 +1053,27 @@ function IceTycoon.setFastConveyors(enabled: boolean)
 
 						if nearestConv then
 							local origVel = cachedConveyors[nearestConv]
+							local cp = nearestConv.Position
+							local cs = nearestConv.Size
+
 							if origVel and origVel.Magnitude > 0.1 then
 								local dir = origVel.Unit
-								local curY = ore.AssemblyLinearVelocity.Y
-								-- Apply continuous frictionless forward velocity along the belt vector
-								ore.AssemblyLinearVelocity = Vector3.new(
-									dir.X * targetSpeed,
-									math.clamp(curY, -35, 1),
-									dir.Z * targetSpeed
-								)
-								ore.Velocity = ore.AssemblyLinearVelocity
+								local curY = math.clamp(ore.AssemblyLinearVelocity.Y, -25, 0)
+
+								-- Axis-locked forward propulsion with active lateral centering
+								if math.abs(dir.X) > 0.7 then
+									local zOffset = math.clamp((cp.Z - orePos.Z) * 8.0, -15, 15)
+									ore.AssemblyLinearVelocity = Vector3.new(dir.X * targetSpeed, curY, zOffset)
+								elseif math.abs(dir.Z) > 0.7 then
+									local xOffset = math.clamp((cp.X - orePos.X) * 8.0, -15, 15)
+									ore.AssemblyLinearVelocity = Vector3.new(xOffset, curY, dir.Z * targetSpeed)
+								end
 							end
 						else
-							-- Anti-stuck or fallen ore: propel towards collector or drop chute
+							-- Drop chute funnel: if near end of track, direct into factory hole
 							local colPart = getCollectorPart()
 							if colPart and colPart:IsA("BasePart") then
-								if orePos.Y < 3.0 or ore.AssemblyLinearVelocity.Magnitude < 3.0 then
+								if orePos.Z < -500 or orePos.Y < 2.0 then
 									local diff = colPart.Position - orePos
 									if diff.Magnitude > 1.5 then
 										ore.AssemblyLinearVelocity = diff.Unit * targetSpeed
@@ -1261,6 +1342,7 @@ function IceTycoon.cleanup()
 	IceTycoon.AntiJumpscare = false
 	IceTycoon.NoLavaDamage = false
 	IceTycoon.setFastConveyors(false)
+	if guideRailFolder then guideRailFolder:Destroy() guideRailFolder = nil end
 	IceTycoon.setFastGenerators(false)
 	IceTycoon.setOreMagnet(false)
 	IceTycoon.setDuplicatedSellNodes(false)

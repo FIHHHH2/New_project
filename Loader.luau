@@ -472,10 +472,9 @@ type ThemedElement = {
 	PropType: string
 }
 
--- Weak-keyed registry: keys are Instances, values are sets of propType strings.
--- Supports registering multiple property types on the same Instance (e.g. Container Background AND TextPrimary TextColor).
--- Allows destroyed GUI instances to be garbage-collected without leaking memory.
-UI.RegisteredElements = setmetatable({}, { __mode = "k" }) :: {[Instance]: {[string]: boolean}}
+-- Persistent theme registry: keys are Instances, values are sets of propType strings.
+-- Destroying event automatically cleans up destroyed instances to prevent memory leaks.
+UI.RegisteredElements = {} :: {[Instance]: {[string]: boolean}}
 
 function UI.registerThemeElement(inst: Instance, propType: string)
 	if not inst then return end
@@ -483,6 +482,13 @@ function UI.registerThemeElement(inst: Instance, propType: string)
 	if not propMap then
 		propMap = {}
 		UI.RegisteredElements[inst] = propMap
+
+		-- Clean up automatically when the instance is destroyed
+		pcall(function()
+			inst.Destroying:Connect(function()
+				UI.RegisteredElements[inst] = nil
+			end)
+		end)
 	end
 	propMap[propType] = true
 end
@@ -588,6 +594,82 @@ function UI.setTheme(themeName: string)
 	for _, cb in ipairs(UI.ThemeChangedCallbacks) do
 		pcall(cb, targetTheme)
 	end
+
+	-- Universal hierarchy sweep across all Modular UI ScreenGuis to guarantee 100% theme coverage
+	pcall(function()
+		local CoreGui = game:GetService("CoreGui")
+		local Players = game:GetService("Players")
+		local roots = {}
+
+		local guiNames = {
+			"ModularEngineGui",
+			"ModularNotificationsGui",
+			"ModularPlayerListGui",
+			"ModularChatGui",
+			"ModularMusicTrackerGui",
+			"ModularHotbarGui"
+		}
+
+		for _, name in ipairs(guiNames) do
+			local g = CoreGui:FindFirstChild(name)
+			if g then table.insert(roots, g) end
+			if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then
+				local pg = Players.LocalPlayer.PlayerGui:FindFirstChild(name)
+				if pg then table.insert(roots, pg) end
+			end
+		end
+
+		for _, root in ipairs(roots) do
+			for _, inst in ipairs(root:GetDescendants()) do
+				if inst:IsA("UIStroke") then
+					if inst.Thickness >= 1.4 then
+						inst.Color = targetTheme.Border
+					else
+						inst.Color = targetTheme.BorderDim
+					end
+				elseif inst:IsA("Frame") then
+					if inst.Name == "TitleBox" or inst.Name == "DecoBar" or inst.Name == "HeaderBox" or inst.Name == "ActiveTagBox" or string.find(inst.Name, "Box") then
+						inst.BackgroundColor3 = targetTheme.Container
+						inst.BackgroundTransparency = targetTheme.ContainerTransparency
+					elseif inst.Name == "MainWindow" or inst.Name == "Window" then
+						inst.BackgroundColor3 = targetTheme.Background
+						inst.BackgroundTransparency = targetTheme.BackgroundTransparency
+					end
+				elseif inst:IsA("TextButton") then
+					local propMap = UI.RegisteredElements[inst]
+					local isAccent = propMap and propMap["Accent"]
+					if not isAccent then
+						inst.BackgroundColor3 = targetTheme.Container
+						inst.BackgroundTransparency = targetTheme.ContainerTransparency
+						if propMap and propMap["TextSecondary"] then
+							inst.TextColor3 = targetTheme.TextSecondary
+						else
+							inst.TextColor3 = targetTheme.TextPrimary
+						end
+					else
+						inst.BackgroundColor3 = targetTheme.Accent
+						inst.TextColor3 = targetTheme.AccentText
+					end
+				elseif inst:IsA("TextLabel") then
+					local propMap = UI.RegisteredElements[inst]
+					if propMap and propMap["AccentText"] then
+						inst.TextColor3 = targetTheme.AccentText
+					elseif propMap and propMap["TextSecondary"] then
+						inst.TextColor3 = targetTheme.TextSecondary
+					elseif propMap and propMap["BorderDimText"] then
+						inst.TextColor3 = targetTheme.BorderDim
+					else
+						inst.TextColor3 = targetTheme.TextPrimary
+					end
+				elseif inst:IsA("TextBox") then
+					inst.TextColor3 = targetTheme.TextPrimary
+					inst.PlaceholderColor3 = targetTheme.TextSecondary
+					inst.BackgroundColor3 = targetTheme.ContainerDark
+					inst.BackgroundTransparency = targetTheme.ContainerDarkTransparency
+				end
+			end
+		end
+	end)
 end
 
 function UI.createWindow(titleText: string)

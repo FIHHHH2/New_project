@@ -191,6 +191,12 @@ function UI.applyAdaptiveTheme(accentCol: Color3, bgCol: Color3, containerCol: C
 	end
 end
 
+UI.ThemeChangedCallbacks = {} :: { (targetTheme: any) -> () }
+
+function UI.onThemeChanged(callback: (targetTheme: any) -> ())
+	table.insert(UI.ThemeChangedCallbacks, callback)
+end
+
 function UI.setTheme(themeName: string)
 	local targetTheme = UI.Themes[themeName] or UI.Themes.Dark
 	UI.CurrentTheme = targetTheme
@@ -238,13 +244,17 @@ function UI.setTheme(themeName: string)
 					TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextSecondary }):Play()
 				end
 			elseif pt == "AccentText" and (inst:IsA("TextLabel") or inst:IsA("TextButton")) then
-				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.Accent }):Play()
+				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.AccentText }):Play()
 			elseif pt == "BorderDimText" and inst:IsA("TextLabel") then
 				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.BorderDim }):Play()
 			end
 		else
 			UI.RegisteredElements[inst] = nil
 		end
+	end
+
+	for _, cb in ipairs(UI.ThemeChangedCallbacks) do
+		pcall(cb, targetTheme)
 	end
 end
 

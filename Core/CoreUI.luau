@@ -79,25 +79,56 @@ function CoreUI.new(titleText: string)
 			end
 		end)
 	end
+
+	UI.onThemeChanged(function(targetTheme)
+		self:UpdateTheme(targetTheme)
+	end)
 	
 	return self
 end
 
-function CoreUI:SetTheme(themeName: string)
-	UI.setTheme(themeName)
-	-- Reapply active tab and toggle accent visuals
-	if self.ActiveTab then
-		self:SelectTab(self.ActiveTab)
-	end
-	for _, fn in ipairs(self.ActiveToggles) do
-		fn()
-	end
-	for _, fill in ipairs(self.SliderFills) do
-		if fill and fill.Parent then
-			fill.BackgroundColor3 = UI.Theme.Accent
+function CoreUI:UpdateTheme(targetTheme: any)
+	local theme = targetTheme or UI.Theme
+
+	-- 1. Refresh active tab vs inactive tabs
+	for _, tab in ipairs(self.Tabs) do
+		if tab.Button and tab.Stroke then
+			if tab == self.ActiveTab then
+				tab.Button.BackgroundColor3 = theme.Accent
+				tab.Button.BackgroundTransparency = 0
+				tab.Button.TextColor3 = theme.AccentText
+				tab.Stroke.Color = theme.Border
+				tab.Stroke.Thickness = 1.5
+				local grad = tab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
+				if grad then grad.Enabled = true end
+			else
+				tab.Button.BackgroundColor3 = theme.Container
+				tab.Button.BackgroundTransparency = theme.ContainerTransparency
+				tab.Button.TextColor3 = theme.TextSecondary
+				tab.Stroke.Color = theme.BorderDim
+				tab.Stroke.Thickness = 1.0
+				local grad = tab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
+				if grad then grad.Enabled = false end
+			end
 		end
 	end
-	-- Reapply active subtab visuals across all registered subtab bars
+
+	-- 2. Refresh Subheader buttons (Settings / Configs)
+	if self.SettingsBtn and self.SettingsBtn:FindFirstChild("UIStroke") then
+		local isSet = (self.ActiveTab == self.SettingsTab)
+		self.SettingsBtn.BackgroundColor3 = if isSet then theme.Accent else theme.Container
+		self.SettingsBtn.BackgroundTransparency = if isSet then 0 else theme.ContainerTransparency
+		self.SettingsBtn.TextColor3 = if isSet then theme.AccentText else theme.TextPrimary
+	end
+
+	if self.ConfigsBtn and self.ConfigsBtn:FindFirstChild("UIStroke") then
+		local isConf = (self.ActiveTab == self.ConfigsTab)
+		self.ConfigsBtn.BackgroundColor3 = if isConf then theme.Accent else theme.Container
+		self.ConfigsBtn.BackgroundTransparency = if isConf then 0 else theme.ContainerTransparency
+		self.ConfigsBtn.TextColor3 = if isConf then theme.AccentText else theme.TextPrimary
+	end
+
+	-- 3. Refresh all subtab groups
 	if self.SubTabGroups then
 		for _, subTabGroup in ipairs(self.SubTabGroups) do
 			if subTabGroup.UpdateTheme then
@@ -105,6 +136,22 @@ function CoreUI:SetTheme(themeName: string)
 			end
 		end
 	end
+
+	-- 4. Refresh all active toggles
+	for _, fn in ipairs(self.ActiveToggles) do
+		pcall(fn)
+	end
+
+	-- 5. Refresh slider fills
+	for _, fill in ipairs(self.SliderFills) do
+		if fill and fill.Parent then
+			fill.BackgroundColor3 = theme.Accent
+		end
+	end
+end
+
+function CoreUI:SetTheme(themeName: string)
+	UI.setTheme(themeName)
 end
 
 function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)

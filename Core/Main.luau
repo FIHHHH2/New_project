@@ -25,6 +25,7 @@ local Visuals = require("Modules/Visuals.luau")
 local Combat = require("Modules/Combat.luau")
 local DisasterSurvival = require("Modules/DisasterSurvival.luau")
 local RunNHide = require("Modules/RunNHide.luau")
+local IceTycoon = require("Modules/IceTycoon.luau")
 local PlayerUtilities = require("Modules/PlayerUtilities.luau")
 local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
@@ -200,10 +201,21 @@ end)
 
 local function getGameTabName(): string
 	local placeId = game.PlaceId
-	if placeId == 189707 then
+	local gameName = string.lower(game.Name)
+	pcall(function()
+		local MarketplaceService = game:GetService("MarketplaceService")
+		local info = MarketplaceService:GetProductInfo(placeId)
+		if info and info.Name then
+			gameName = string.lower(info.Name)
+		end
+	end)
+
+	if placeId == 189707 or string.find(gameName, "disaster") then
 		return "Natural Disaster"
-	elseif placeId == 12901416348 or placeId == 12901416348 or string.find(game.Name:lower(), "run and hide") or string.find(game.Name:lower(), "demise") then
+	elseif placeId == 12901416348 or string.find(gameName, "run and hide") or string.find(gameName, "demise") then
 		return "Run N Hide"
+	elseif string.find(gameName, "ice tycoon") or (workspace:FindFirstChild("Tycoon") and workspace.Tycoon:FindFirstChild("Buttons")) then
+		return "Ice Tycoon"
 	end
 	return "Run N Hide"
 end
@@ -915,7 +927,7 @@ if gameTabTitle == "Run N Hide" then
 			window:Notify("Arena", "Teleported to PVP Arena loadout zone", 3)
 		end
 	end)
-else
+elseif gameTabTitle == "Natural Disaster" then
 	-- Disaster Survival Sub-Tabs (4 tabs — all in ONE CreateSubTabs call)
 	local ndsSubTabs = window:CreateSubTabs(gameTab, {
 		"Disaster Intelligence",
@@ -1022,6 +1034,115 @@ else
 	local dragSection = window:AddSection(worldRightCol, "Object Interaction")
 	window:AddToggle(dragSection, "nds_obj_drag", "Loose Object Drag (LMB hold = grab, release = drop)", false, nil, function(enabled)
 		DisasterSurvival.setObjectDrag(enabled)
+	end)
+elseif gameTabTitle == "Ice Tycoon" then
+	local iceSubTabs = window:CreateSubTabs(gameTab, { "Tycoon Automation", "Resources & Farming", "Protections & Zones" })
+	local autoSubTab = iceSubTabs["Tycoon Automation"]
+	local farmSubTab = iceSubTabs["Resources & Farming"]
+	local zoneSubTab = iceSubTabs["Protections & Zones"]
+
+	-- ── 1. TYCOON AUTOMATION ─────────────────────────────────────
+	local autoLeftCol, autoRightCol = window:CreateColumns(autoSubTab)
+
+	local cashSection = window:AddSection(autoLeftCol, "Cash Collection")
+	window:AddToggle(cashSection, "ice_auto_collect", "Auto-Collect Tycoon Cash", false, nil, function(enabled)
+		IceTycoon.setAutoCollect(enabled)
+	end)
+
+	window:AddButton(cashSection, "Collect Cash Now", function()
+		if IceTycoon.collectCashNow() then
+			window:Notify("Ice Tycoon", "Cash collected from factory", 2.5)
+		else
+			window:Notify("Ice Tycoon", "Collector not found", 2.5)
+		end
+	end)
+
+	local buySection = window:AddSection(autoRightCol, "Button Purchases")
+	window:AddToggle(buySection, "ice_auto_buy", "Auto-Buy Affordable Buttons", false, nil, function(enabled)
+		IceTycoon.setAutoBuy(enabled)
+	end)
+
+	window:AddButton(buySection, "Buy All Affordable Now", function()
+		local count = IceTycoon.buyAllAffordable()
+		window:Notify("Ice Tycoon", string.format("Purchased %d affordable buttons", count), 3)
+	end)
+
+	-- ── 2. RESOURCES & FARMING ───────────────────────────────────
+	local farmLeftCol, farmRightCol = window:CreateColumns(farmSubTab)
+
+	local toolSection = window:AddSection(farmLeftCol, "Tools & Dispensers")
+	window:AddButton(toolSection, "Claim Starter Tools & Keys", function()
+		local count = IceTycoon.claimAllTools()
+		window:Notify("Ice Tycoon", string.format("Claimed %d tools/keys (Pickaxe, Key, Lever)", count), 3)
+	end)
+
+	window:AddToggle(toolSection, "ice_auto_water", "Auto-Fill Water Reservoir", false, nil, function(enabled)
+		IceTycoon.setAutoFillWater(enabled)
+	end)
+
+	window:AddButton(toolSection, "Fill Water Tank Now", function()
+		if IceTycoon.fillWaterNow() then
+			window:Notify("Ice Tycoon", "Water reservoir filled", 2.5)
+		else
+			window:Notify("Ice Tycoon", "No water source nearby", 2.5)
+		end
+	end)
+
+	local crystalSection = window:AddSection(farmRightCol, "Crystals & Mining")
+	window:AddToggle(crystalSection, "ice_auto_crystals", "Auto-Collect Crystals & Gems", false, nil, function(enabled)
+		IceTycoon.setAutoCollectCrystals(enabled)
+	end)
+
+	window:AddButton(crystalSection, "Claim Crystals Now", function()
+		local count = IceTycoon.claimCrystalsNow()
+		window:Notify("Ice Tycoon", string.format("Claimed %d crystals/gems", count), 3)
+	end)
+
+	-- ── 3. PROTECTIONS & ZONES ───────────────────────────────────
+	local zoneLeftCol, zoneRightCol = window:CreateColumns(zoneSubTab)
+
+	local protectSection = window:AddSection(zoneLeftCol, "Environment Protections")
+	window:AddToggle(protectSection, "ice_anti_freeze", "Anti-Freeze & Shiver Bypass", false, nil, function(enabled)
+		IceTycoon.setAntiFreeze(enabled)
+	end)
+
+	window:AddToggle(protectSection, "ice_anti_jumpscare", "Anti-Jumpscare Shock Shield", false, nil, function(enabled)
+		IceTycoon.setAntiJumpscare(enabled)
+	end)
+
+	window:AddToggle(protectSection, "ice_no_lava", "No Lava & Hazard Damage", false, nil, function(enabled)
+		IceTycoon.setNoLavaDamage(enabled)
+	end)
+
+	local tpSection = window:AddSection(zoneRightCol, "Zone Shortcuts")
+	window:AddButton(tpSection, "Tycoon Base / Collector", function()
+		if IceTycoon.teleportTo("Tycoon Base / Collector") then
+			window:Notify("Teleport", "Warped to Tycoon Base", 2)
+		end
+	end)
+
+	window:AddButton(tpSection, "Lava Cave & Crystal Hatch", function()
+		if IceTycoon.teleportTo("Lava Cave & Crystal Hatch") then
+			window:Notify("Teleport", "Warped to Lava Cave", 2)
+		end
+	end)
+
+	window:AddButton(tpSection, "Troop Shop 1", function()
+		if IceTycoon.teleportTo("Troop Shop 1") then
+			window:Notify("Teleport", "Warped to Troop Shop 1", 2)
+		end
+	end)
+
+	window:AddButton(tpSection, "Jail & Lever Room", function()
+		if IceTycoon.teleportTo("Jail & Lever Room") then
+			window:Notify("Teleport", "Warped to Jail", 2)
+		end
+	end)
+
+	window:AddButton(tpSection, "Ending Portal Zone", function()
+		if IceTycoon.teleportTo("Ending Portal Zone") then
+			window:Notify("Teleport", "Warped to Ending Portal", 2)
+		end
 	end)
 end
 
@@ -1199,6 +1320,7 @@ window:AddToggle(moduleSection, "tab_game_module", string.format("%s (Game Tab)"
 		DisasterSurvival.setFlight(false)
 		DisasterSurvival.setAntiFling(false)
 		DisasterSurvival.setFling(false)
+		IceTycoon.cleanup()
 	end
 end)
 

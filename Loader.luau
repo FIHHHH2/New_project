@@ -117,6 +117,8 @@ local function requireRemote(path: string): any
 			path = "Modules/DisasterSurvival.luau"
 		elseif path == "Modules/RunNHide" or path == "RunNHide" then
 			path = "Modules/RunNHide.luau"
+		elseif path == "Modules/IceTycoon" or path == "IceTycoon" then
+			path = "Modules/IceTycoon.luau"
 		elseif path == "Modules/PlayerUtilities" or path == "PlayerUtilities" then
 			path = "Modules/PlayerUtilities.luau"
 		end

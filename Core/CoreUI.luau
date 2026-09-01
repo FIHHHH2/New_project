@@ -15,20 +15,30 @@ local FeatureManager = require("Core/FeatureManager.luau")
 local Notification = require("UI/Notification.luau")
 
 local function safeParentGui(gui: ScreenGui)
-	local targetParent = nil
+	local lp = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+	local pgui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui", 5))
+
+	local parented = false
 	if type(gethui) == "function" then
-		pcall(function() targetParent = gethui() end)
+		pcall(function()
+			local h = gethui()
+			if h then
+				gui.Parent = h
+				parented = (gui.Parent == h)
+			end
+		end)
 	end
-	if not targetParent and CoreGui then
-		pcall(function() targetParent = CoreGui end)
+	if not parented and CoreGui then
+		pcall(function()
+			gui.Parent = CoreGui
+			parented = (gui.Parent == CoreGui)
+		end)
 	end
-	if not targetParent and Players.LocalPlayer then
-		targetParent = Players.LocalPlayer:FindFirstChild("PlayerGui")
-	end
-	
-	pcall(function() gui.Parent = targetParent end)
-	if not gui.Parent and Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then
-		gui.Parent = Players.LocalPlayer.PlayerGui
+	if not parented and pgui then
+		pcall(function()
+			gui.Parent = pgui
+			parented = (gui.Parent == pgui)
+		end)
 	end
 end
 

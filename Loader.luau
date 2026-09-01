@@ -9847,6 +9847,11 @@ Modules["Modules/Visuals.luau"] = function()
     }
     
     local Visuals = {
+    	-- 2D & 3D Name Tag Settings
+    	Names = true,
+    	NameColor = Color3.fromRGB(255, 255, 255),
+    	ShowDisplayNames = true,
+    
     	-- 2D ESP Settings
     	Box2D = false,
     	BoxOutlines = false,
@@ -9976,6 +9981,7 @@ Modules["Modules/Visuals.luau"] = function()
     	HealthBarFill: any?,
     	Tracer: any?,
     	DistanceTag: any?,
+    	NameTag: any?,
     	Bones: {any},
     	LastDistance: number?,
     	Parts: CachedPlayerParts?,
@@ -9988,7 +9994,7 @@ Modules["Modules/Visuals.luau"] = function()
     local wasAnyVisualEnabled = false
     
     local function isAnyVisualEnabled(): boolean
-    	return Visuals.Box2D or Visuals.HealthBar or Visuals.Tracers or Visuals.Distance or Visuals.Skeleton or Visuals.Chams
+    	return Visuals.Box2D or Visuals.HealthBar or Visuals.Tracers or Visuals.Distance or Visuals.Skeleton or Visuals.Chams or (Visuals.Names and (Visuals.Box2D or Visuals.Chams))
     end
     
     local function cachePlayerParts(pv: PlayerVisual, character: Model?)
@@ -10054,6 +10060,7 @@ Modules["Modules/Visuals.luau"] = function()
     	if pv.HealthBarFill then pv.HealthBarFill.Visible = false end
     	if pv.Tracer then pv.Tracer.Visible = false end
     	if pv.DistanceTag then pv.DistanceTag.Visible = false end
+    	if pv.NameTag then pv.NameTag.Visible = false end
     	for _, bone in ipairs(pv.Bones) do bone.Visible = false end
     end
     
@@ -10153,6 +10160,22 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.DistanceTag = distTag
     		end
+    
+    		-- Player Name Tag (Positioned above head / bounding box)
+    		local nameTag = Visuals.acquireDrawing("Text")
+    		if nameTag then
+    			pcall(function()
+    				nameTag.Size = 13
+    				nameTag.Center = true
+    				nameTag.Outline = true
+    				nameTag.OutlineColor = Color3.fromRGB(0, 0, 0)
+    				nameTag.Color = Visuals.NameColor or Color3.fromRGB(255, 255, 255)
+    				nameTag.Visible = false
+    				nameTag.Transparency = 1
+    				nameTag.Text = if player.DisplayName ~= player.Name then string.format("%s (@%s)", player.DisplayName, player.Name) else player.Name
+    			end)
+    			pv.NameTag = nameTag
+    		end
     		
     		-- Skeleton bones (14 bone segments)
     		for i = 1, #BONE_PAIRS do
@@ -10243,6 +10266,10 @@ Modules["Modules/Visuals.luau"] = function()
     		Visuals.releaseDrawing("Text", pv.DistanceTag)
     		pv.DistanceTag = nil
     	end
+    	if pv.NameTag then
+    		Visuals.releaseDrawing("Text", pv.NameTag)
+    		pv.NameTag = nil
+    	end
     	for _, bone in ipairs(pv.Bones) do
     		Visuals.releaseDrawing("Line", bone)
     	end
@@ -10327,6 +10354,7 @@ Modules["Modules/Visuals.luau"] = function()
     		if pv.HealthBarFill then pv.HealthBarFill.Visible = false end
     		if pv.Tracer then pv.Tracer.Visible = false end
     		if pv.DistanceTag then pv.DistanceTag.Visible = false end
+    		if pv.NameTag then pv.NameTag.Visible = false end
     		for _, bone in ipairs(pv.Bones) do bone.Visible = false end
     		return
     	end
@@ -10343,6 +10371,20 @@ Modules["Modules/Visuals.luau"] = function()
     	local boxSize = Vector2.new(boxWidth, boxHeight)
     	local boxPosition = Vector2.new(boxX, boxY)
     	
+    	-- Render Player Name Tag (Above Head / Box for both 2D ESP & 3D Chams)
+    	local shouldShowNames = Visuals.Names and (Visuals.Box2D or Visuals.Chams)
+    	if shouldShowNames and pv.NameTag then
+    		pv.NameTag.Position = Vector2.new(boxX + (boxWidth * 0.5), boxY - 16)
+    		pv.NameTag.Color = Visuals.NameColor or Color3.fromRGB(255, 255, 255)
+    		local nameText = if Visuals.ShowDisplayNames and player.DisplayName ~= player.Name then string.format("%s (@%s)", player.DisplayName, player.Name) else player.DisplayName
+    		if pv.NameTag.Text ~= nameText then
+    			pv.NameTag.Text = nameText
+    		end
+    		pv.NameTag.Visible = true
+    	elseif pv.NameTag then
+    		pv.NameTag.Visible = false
+    	end
+    
     	-- Render 2D Box & Box Outline
     	if Visuals.Box2D then
     		-- Render Box Outline (Secondary black Square behind box with Thickness = 3.5 for high contrast)
@@ -17900,6 +17942,10 @@ Modules["Core/Main.luau"] = function()
     
     window:AddToggle(boxSection, "esp_box_2d", "2D ESP Box", false, nil, function(enabled)
     	Visuals.Box2D = enabled
+    end)
+    
+    window:AddToggle(boxSection, "esp_names", "Player Names (2D & 3D Overlays)", true, nil, function(enabled)
+    	Visuals.Names = enabled
     end)
     
     window:AddToggle(boxSection, "esp_box_outlines", "ESP Box Outlines (Black Contrast)", false, nil, function(enabled)

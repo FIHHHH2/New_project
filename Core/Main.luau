@@ -1734,6 +1734,10 @@ window:AddToggle(boxSection, "esp_box_2d", "2D ESP Box", false, nil, function(en
 	Visuals.Box2D = enabled
 end)
 
+window:AddToggle(boxSection, "esp_names", "Player Names (2D & 3D Overlays)", true, nil, function(enabled)
+	Visuals.Names = enabled
+end)
+
 window:AddToggle(boxSection, "esp_box_outlines", "ESP Box Outlines (Black Contrast)", false, nil, function(enabled)
 	Visuals.BoxOutlines = enabled
 end)

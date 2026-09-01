@@ -24,22 +24,37 @@ local LeaderstatsWidget = {}
 LeaderstatsWidget.__index = LeaderstatsWidget
 
 local PRIMARY_KEYWORDS = {
-	"coin", "cash", "money", "gem", "diamond", "crystal", "gold", "silver",
-	"point", "ruby", "water", "rebirth", "level", "lvl", "kill", "win",
+	"coin", "cash", "money", "crystal", "water", "tank",
+	"point", "ruby", "diamond", "rebirth", "level", "lvl", "kill", "win",
 	"score", "token", "credit", "energy", "star", "shard", "xp", "exp",
-	"tank", "streak", "bounty", "rank", "prestige", "essence", "power", "strength"
+	"bounty", "rank", "prestige", "timeplayed"
+}
+
+local EXCLUDE_KEYWORDS = {
+	"holding", "secret", "has", "unlock", "spook", "battle",
+	"hotel", "cursed", "button", "chest", "tool", "trophy"
 }
 
 local function isPrimaryCurrency(name: string, val: any): boolean
 	local lower = name:lower()
+
+	for _, ex in ipairs(EXCLUDE_KEYWORDS) do
+		if string.find(lower, ex) then
+			return false
+		end
+	end
+
 	for _, kw in ipairs(PRIMARY_KEYWORDS) do
 		if string.find(lower, kw) then
 			return true
 		end
 	end
-	if tonumber(val) ~= nil and #name <= 14 then
+
+	-- If it is a clean number without flag prefixes
+	if tonumber(val) ~= nil and #name <= 10 and not string.find(lower, "%d$") then
 		return true
 	end
+
 	return false
 end
 

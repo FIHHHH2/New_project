@@ -154,10 +154,27 @@ type ThemedElement = {
 	PropType: string
 }
 
-UI.RegisteredElements = {} :: {ThemedElement}
+-- Weak-keyed registry: keys are Instances, values are propType string.
+-- Allows destroyed GUI instances to be garbage-collected without leaking memory.
+UI.RegisteredElements = setmetatable({}, { __mode = "k" }) :: {[Instance]: string}
 
 function UI.registerThemeElement(inst: Instance, propType: string)
-	table.insert(UI.RegisteredElements, { Instance = inst, PropType = propType })
+	if not inst then return end
+	UI.RegisteredElements[inst] = propType
+end
+
+function UI.unregisterThemeElement(inst: Instance)
+	if inst then
+		UI.RegisteredElements[inst] = nil
+	end
+end
+
+function UI.cleanupRegistry()
+	for inst in pairs(UI.RegisteredElements) do
+		if not inst or not inst.Parent then
+			UI.RegisteredElements[inst] = nil
+		end
+	end
 end
 
 function UI.applyAdaptiveTheme(accentCol: Color3, bgCol: Color3, containerCol: Color3, borderCol: Color3?)
@@ -182,12 +199,8 @@ function UI.setTheme(themeName: string)
 	
 	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	
-	local liveElements = {}
-	for _, entry in ipairs(UI.RegisteredElements) do
-		local inst = entry.Instance
+	for inst, pt in pairs(UI.RegisteredElements) do
 		if inst and inst.Parent then
-			table.insert(liveElements, entry)
-			local pt = entry.PropType
 			if pt == "Background" and inst:IsA("GuiObject") then
 				TweenService:Create(inst, tweenInfo, {
 					BackgroundColor3 = targetTheme.Background,
@@ -229,9 +242,10 @@ function UI.setTheme(themeName: string)
 			elseif pt == "BorderDimText" and inst:IsA("TextLabel") then
 				TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.BorderDim }):Play()
 			end
+		else
+			UI.RegisteredElements[inst] = nil
 		end
 	end
-	UI.RegisteredElements = liveElements
 end
 
 function UI.createWindow(titleText: string)

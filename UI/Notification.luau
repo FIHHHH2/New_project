@@ -202,11 +202,38 @@ function Notification.show(title: string, message: string, duration: number?)
 				BackgroundTransparency = 1
 			})
 			tweenOut:Play()
-			tweenOut.Completed:Connect(function()
+
+			local compConn: RBXScriptConnection? = nil
+			compConn = tweenOut.Completed:Connect(function()
+				if compConn then
+					compConn:Disconnect()
+					compConn = nil
+				end
+				for _, desc in ipairs(card:GetDescendants()) do
+					UI.unregisterThemeElement(desc)
+				end
+				UI.unregisterThemeElement(card)
 				card:Destroy()
 			end)
 		end
 	end)
+end
+
+function Notification.cleanup()
+	for _, card in ipairs(activeCards) do
+		if card and card.Parent then
+			for _, desc in ipairs(card:GetDescendants()) do
+				UI.unregisterThemeElement(desc)
+			end
+			UI.unregisterThemeElement(card)
+			card:Destroy()
+		end
+	end
+	table.clear(activeCards)
+	if notifGui then
+		pcall(function() notifGui:Destroy() end)
+		notifGui = nil
+	end
 end
 
 function Notification.notifyFeature(featureName: string, state: boolean)

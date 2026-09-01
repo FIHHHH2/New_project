@@ -1086,10 +1086,26 @@ function ChatWidget.new(): ChatWidgetInstance
 	end)
 
 	-- ── Message Line Constructor (With Robust Deduplication + Profile Hook + Slide Animation) ──
+	local MAX_CHAT_HISTORY = 100
+	local chatHistory: {TextButton} = {}
 	local seenMessageMap: {[string]: number} = {}
+	local lastPruneTime = tick()
+
+	local function pruneSeenMessages()
+		local now = tick()
+		if (now - lastPruneTime) < 30 then return end
+		lastPruneTime = now
+		for key, timestamp in pairs(seenMessageMap) do
+			if (now - timestamp) > 60 then
+				seenMessageMap[key] = nil
+			end
+		end
+	end
+
 	local function addMessage(sender: string, text: string, msgId: string?)
 		if not text or text == "" then return end
 		local now = tick()
+		pruneSeenMessages()
 
 		-- Message ID deduplication
 		if msgId and msgId ~= "" then
@@ -1132,6 +1148,16 @@ function ChatWidget.new(): ChatWidgetInstance
 		msgBtn.TextColor3 = UI.Theme.TextPrimary
 		msgBtn.Parent = container
 		UI.registerThemeElement(msgBtn, "TextPrimary")
+
+		-- Cap message history to prevent unbounded memory growth
+		table.insert(chatHistory, msgBtn)
+		while #chatHistory > MAX_CHAT_HISTORY do
+			local oldest = table.remove(chatHistory, 1)
+			if oldest then
+				UI.unregisterThemeElement(oldest)
+				oldest:Destroy()
+			end
+		end
 
 		local senderHex = if isSystem then "#A0A0AA" else "#37AFF5"
 		local cleanName = sender:gsub("<", "&lt;"):gsub(">", "&gt;")

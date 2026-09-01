@@ -30,6 +30,81 @@ local flingConn: RBXScriptConnection? = nil
 local tagConn: RBXScriptConnection? = nil
 local stateConn: RBXScriptConnection? = nil
 
+-- Player character BaseParts cache for Anti-Fling physics bypass
+local otherPlayerParts: {[Player]: {BasePart}} = {}
+local characterConnections: {[Player]: {RBXScriptConnection}} = {}
+local playerAddedConn: RBXScriptConnection? = nil
+local playerRemovingConn: RBXScriptConnection? = nil
+
+local function cleanPlayerConnections(plr: Player)
+	local conns = characterConnections[plr]
+	if conns then
+		for _, conn in ipairs(conns) do
+			pcall(function() conn:Disconnect() end)
+		end
+		characterConnections[plr] = nil
+	end
+	otherPlayerParts[plr] = nil
+end
+
+local function cachePlayerParts(plr: Player, char: Model)
+	local parts: {BasePart} = {}
+	for _, inst in ipairs(char:GetDescendants()) do
+		if inst:IsA("BasePart") then
+			table.insert(parts, inst)
+			if DisasterSurvival.AntiFling then
+				inst.CanCollide = false
+			end
+		end
+	end
+	otherPlayerParts[plr] = parts
+
+	local conns: {RBXScriptConnection} = {}
+	local descAdd = char.DescendantAdded:Connect(function(inst)
+		if inst:IsA("BasePart") then
+			table.insert(parts, inst)
+			if DisasterSurvival.AntiFling then
+				inst.CanCollide = false
+			end
+		end
+	end)
+	table.insert(conns, descAdd)
+
+	local descRem = char.DescendantRemoving:Connect(function(inst)
+		if inst:IsA("BasePart") then
+			local idx = table.find(parts, inst)
+			if idx then
+				table.remove(parts, idx)
+			end
+		end
+	end)
+	table.insert(conns, descRem)
+	characterConnections[plr] = conns
+end
+
+local function trackOtherPlayer(plr: Player)
+	if plr == LocalPlayer then return end
+	if plr.Character then
+		cachePlayerParts(plr, plr.Character)
+	end
+	plr.CharacterAdded:Connect(function(char)
+		cleanPlayerConnections(plr)
+		cachePlayerParts(plr, char)
+	end)
+	plr.CharacterRemoving:Connect(function()
+		cleanPlayerConnections(plr)
+	end)
+end
+
+-- Initialize player tracker
+for _, plr in ipairs(Players:GetPlayers()) do
+	trackOtherPlayer(plr)
+end
+playerAddedConn = Players.PlayerAdded:Connect(trackOtherPlayer)
+playerRemovingConn = Players.PlayerRemoving:Connect(function(plr)
+	cleanPlayerConnections(plr)
+end)
+
 -- Clean Fall Damage Script in character and hook FreeFall state
 local function applyNoFallDamage(char: Model)
 	local fallScript = char:FindFirstChild("FallDamageScript")
@@ -123,11 +198,11 @@ function DisasterSurvival.setNoFallDamage(enabled: boolean)
 	end
 end
 
--- Flight Engine with Zero Fall Impact
+-- Flight Engine with Zero Fall Impact and Delta Time
 function DisasterSurvival.setFlight(enabled: boolean)
 	DisasterSurvival.Flight = enabled
 	if enabled then
-		flightConn = RunService.RenderStepped:Connect(function()
+		flightConn = RunService.RenderStepped:Connect(function(dt: number)
 			local char = LocalPlayer.Character
 			local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 			local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -158,7 +233,7 @@ function DisasterSurvival.setFlight(enabled: boolean)
 			end
 			
 			if moveDir.Magnitude > 0 then
-				hrp.CFrame += moveDir.Unit * (DisasterSurvival.FlightSpeed * (1/60))
+				hrp.CFrame += moveDir.Unit * (DisasterSurvival.FlightSpeed * dt)
 			end
 		end)
 	elseif flightConn then
@@ -176,7 +251,7 @@ function DisasterSurvival.setFlight(enabled: boolean)
 	end
 end
 
--- Anti-Fling: Clamps external velocity impulses and disables player collision physics
+-- Anti-Fling: Clamps external velocity impulses and disables player collision physics via cached parts
 function DisasterSurvival.setAntiFling(enabled: boolean)
 	DisasterSurvival.AntiFling = enabled
 	if enabled then
@@ -192,13 +267,9 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
 				hrp.AssemblyAngularVelocity = Vector3.zero
 			end
 			
-			for _, otherPlayer in ipairs(Players:GetPlayers()) do
-				if otherPlayer ~= LocalPlayer and otherPlayer.Character then
-					for _, part in ipairs(otherPlayer.Character:GetDescendants()) do
-						if part:IsA("BasePart") then
-							part.CanCollide = false
-						end
-					end
+			for _, parts in pairs(otherPlayerParts) do
+				for _, part in ipairs(parts) do
+					part.CanCollide = false
 				end
 			end
 		end)
@@ -206,12 +277,10 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
 		antiFlingConn:Disconnect()
 		antiFlingConn = nil
 		-- Restore collision
-		for _, otherPlayer in ipairs(Players:GetPlayers()) do
-			if otherPlayer ~= LocalPlayer and otherPlayer.Character then
-				for _, part in ipairs(otherPlayer.Character:GetDescendants()) do
-					if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-						part.CanCollide = true
-					end
+		for _, parts in pairs(otherPlayerParts) do
+			for _, part in ipairs(parts) do
+				if part and part.Parent and part.Name ~= "HumanoidRootPart" then
+					part.CanCollide = true
 				end
 			end
 		end
@@ -249,6 +318,14 @@ function DisasterSurvival.cleanup()
 	if flingConn then flingConn:Disconnect() flingConn = nil end
 	if tagConn then tagConn:Disconnect() tagConn = nil end
 	if stateConn then stateConn:Disconnect() stateConn = nil end
+	if playerAddedConn then playerAddedConn:Disconnect() playerAddedConn = nil end
+	if playerRemovingConn then playerRemovingConn:Disconnect() playerRemovingConn = nil end
+
+	for plr in pairs(characterConnections) do
+		cleanPlayerConnections(plr)
+	end
+	table.clear(otherPlayerParts)
+
 	if LocalPlayer.Character then
 		local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
 		local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?

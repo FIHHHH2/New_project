@@ -424,40 +424,74 @@ function RunNHide.getPlayerRoleCategory(p: Player): (string, Color3)
 	return "Bystander", Color3.fromRGB(60, 220, 90)
 end
 
--- ── Weapon Grabber ────────────────────────────────────────────────
+-- ── Weapon Grabber Cache ──────────────────────────────────────────
+local scatteredPrompts: {[ProximityPrompt]: boolean} = {}
+
+local function isWeaponPrompt(prompt: ProximityPrompt): boolean
+	local parent = prompt.Parent
+	if not parent then return false end
+	local pName = parent.Name:lower()
+	local gName = (parent.Parent and parent.Parent.Name or ""):lower()
+	return pName:find("spawn") ~= nil
+		or pName:find("weapon") ~= nil
+		or pName:find("pickup") ~= nil
+		or gName:find("scattered") ~= nil
+		or gName:find("weapon") ~= nil
+		or pName:find("gun") ~= nil
+end
+
+local function trackPrompt(inst: Instance)
+	if inst:IsA("ProximityPrompt") and isWeaponPrompt(inst) then
+		scatteredPrompts[inst] = true
+	end
+end
+
+local function untrackPrompt(inst: Instance)
+	if inst:IsA("ProximityPrompt") then
+		scatteredPrompts[inst] = nil
+	end
+end
+
+local function scanScatteredPrompts()
+	table.clear(scatteredPrompts)
+	for _, d in ipairs(Workspace:GetDescendants()) do
+		if d:IsA("ProximityPrompt") and isWeaponPrompt(d) then
+			scatteredPrompts[d] = true
+		end
+	end
+end
+
 function RunNHide.grabAllScatteredWeapons(): number
 	local count = 0
-	for _, d in ipairs(Workspace:GetDescendants()) do
-		if d:IsA("ProximityPrompt") then
-			local pName = (d.Parent and d.Parent.Name or ""):lower()
-			local gName = (d.Parent and d.Parent.Parent and d.Parent.Parent.Name or ""):lower()
-			if pName:find("spawn") or pName:find("weapon") or pName:find("pickup") or gName:find("scattered") or gName:find("weapon") or pName:find("gun") then
-				d.MaxActivationDistance = 99999
-				d.HoldDuration = 0
-				d.RequiresLineOfSight = false
-				local fireprompt = (getgenv and getgenv().fireproximityprompt) or fireproximityprompt
-				if type(fireprompt) == "function" then
-					pcall(function() fireprompt(d) end)
+	for prompt in pairs(scatteredPrompts) do
+		if prompt and prompt.Parent then
+			prompt.MaxActivationDistance = 99999
+			prompt.HoldDuration = 0
+			prompt.RequiresLineOfSight = false
+			local fireprompt = (getgenv and getgenv().fireproximityprompt) or fireproximityprompt
+			if type(fireprompt) == "function" then
+				pcall(function() fireprompt(prompt) end)
+				count += 1
+			else
+				local char = LocalPlayer.Character
+				local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")) :: BasePart?
+				local part = if prompt.Parent:IsA("BasePart") then prompt.Parent else prompt.Parent:FindFirstChildWhichIsA("BasePart")
+				if root and part then
+					local origCF = root.CFrame
+					root.CFrame = part.CFrame * CFrame.new(0, 1, 0)
+					task.wait(0.04)
+					pcall(function()
+						prompt:InputHoldBegin()
+						task.wait(0.02)
+						prompt:InputHoldEnd()
+					end)
+					task.wait(0.04)
+					root.CFrame = origCF
 					count += 1
-				else
-					local char = LocalPlayer.Character
-					local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")) :: BasePart?
-					local part = if d.Parent:IsA("BasePart") then d.Parent else d.Parent:FindFirstChildWhichIsA("BasePart")
-					if root and part then
-						local origCF = root.CFrame
-						root.CFrame = part.CFrame * CFrame.new(0, 1, 0)
-						task.wait(0.04)
-						pcall(function()
-							d:InputHoldBegin()
-							task.wait(0.02)
-							d:InputHoldEnd()
-						end)
-						task.wait(0.04)
-						root.CFrame = origCF
-						count += 1
-					end
 				end
 			end
+		else
+			scatteredPrompts[prompt] = nil
 		end
 	end
 	return count
@@ -467,6 +501,33 @@ function RunNHide.init()
 	if RunNHide.IsActive then return end
 	RunNHide.IsActive = true
 	resolveDemiseModules()
+
+	-- Ragdoll parts cache
+	local cachedRnhRagdollParts: {BasePart} = {}
+	local lastRnhRagdollChar: Model? = nil
+	local wasRnhRagdolled = false
+
+	local function refreshRnhRagdollParts(char: Model)
+		table.clear(cachedRnhRagdollParts)
+		local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local torso = (char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("LowerTorso")) :: BasePart?
+		if root then table.insert(cachedRnhRagdollParts, root) end
+		if torso and torso ~= root then table.insert(cachedRnhRagdollParts, torso) end
+		for _, p in ipairs(char:GetChildren()) do
+			if p:IsA("BasePart") and (string.find(p.Name, "Torso") or string.find(p.Name, "Leg")) then
+				if not table.find(cachedRnhRagdollParts, p) then
+					table.insert(cachedRnhRagdollParts, p)
+				end
+			end
+		end
+	end
+
+	-- Initial prompt scan and hierarchy listeners
+	scanScatteredPrompts()
+	local promptAddConn = Workspace.DescendantAdded:Connect(trackPrompt)
+	table.insert(connections, promptAddConn)
+	local promptRemConn = Workspace.DescendantRemoving:Connect(untrackPrompt)
+	table.insert(connections, promptRemConn)
 
 	-- Ragdoll Movement & Auto Standup (Propels Root + Torso with Space Jump)
 	local lastRnhJumpTime = 0
@@ -490,6 +551,12 @@ function RunNHide.init()
 			or hum:GetState() == Enum.HumanoidStateType.PlatformStanding
 
 		if isRagdolled and RunNHide.MoveInRagdoll then
+			if not wasRnhRagdolled or char ~= lastRnhRagdollChar then
+				lastRnhRagdollChar = char
+				wasRnhRagdolled = true
+				refreshRnhRagdollParts(char)
+			end
+
 			local cam = Workspace.CurrentCamera
 			if cam then
 				local look = cam.CFrame.LookVector
@@ -503,19 +570,10 @@ function RunNHide.init()
 				if UserInputService:IsKeyDown(Enum.KeyCode.A) or UserInputService:IsKeyDown(Enum.KeyCode.Left) then moveVec -= flatRight end
 				if UserInputService:IsKeyDown(Enum.KeyCode.D) or UserInputService:IsKeyDown(Enum.KeyCode.Right) then moveVec += flatRight end
 
-				local partsToPropel = {}
-				if root then table.insert(partsToPropel, root) end
-				if torso then table.insert(partsToPropel, torso) end
-				for _, p in ipairs(char:GetChildren()) do
-					if p:IsA("BasePart") and (p.Name:find("Torso") or p.Name:find("Leg")) then
-						table.insert(partsToPropel, p)
-					end
-				end
-
 				if moveVec.Magnitude > 0.05 then
 					local dir = moveVec.Unit
 					local speed = RunNHide.RagdollSpeed or 36
-					for _, p in ipairs(partsToPropel) do
+					for _, p in ipairs(cachedRnhRagdollParts) do
 						p.AssemblyLinearVelocity = Vector3.new(dir.X * speed, p.AssemblyLinearVelocity.Y, dir.Z * speed)
 					end
 				end
@@ -525,12 +583,14 @@ function RunNHide.init()
 					local mainPart = root or torso
 					if mainPart and math.abs(mainPart.AssemblyLinearVelocity.Y) < 16 then
 						lastRnhJumpTime = tick()
-						for _, p in ipairs(partsToPropel) do
+						for _, p in ipairs(cachedRnhRagdollParts) do
 							p.AssemblyLinearVelocity = Vector3.new(p.AssemblyLinearVelocity.X, 54, p.AssemblyLinearVelocity.Z)
 						end
 					end
 				end
 			end
+		else
+			wasRnhRagdolled = false
 		end
 
 		if isRagdolled and RunNHide.AutoStandup then
@@ -549,7 +609,6 @@ function RunNHide.init()
 	-- Boundary Watcher
 	local boundWatch = Workspace.DescendantAdded:Connect(function(child)
 		if RunNHide.DisableBarriers or RunNHide.DisableKillbricks then
-			task.wait(0.05)
 			neutralizeSinglePart(child)
 		end
 	end)
@@ -561,29 +620,41 @@ function RunNHide.init()
 				if part and part.Parent then
 					if part.CanCollide then part.CanCollide = false end
 					if part.CanTouch then part.CanTouch = false end
+				else
+					RunNHide.DisabledParts[part] = nil
 				end
 			end
 		end
 	end)
 	table.insert(connections, boundHeartbeat)
 
-	-- Role Watchdog Loop
+	-- Role Watchdog Loop (Throttled to 1 Hz)
+	local lastRoleCheckTime = 0
 	local roleConn = RunService.Heartbeat:Connect(function()
 		if RunNHide.RoleTracker then
-			for _, p in ipairs(Players:GetPlayers()) do
-				if p ~= LocalPlayer then
-					local roleCat = RunNHide.getPlayerRoleCategory(p)
-					RunNHide.LastKnownRoles[p] = roleCat
+			local now = os.clock()
+			if now - lastRoleCheckTime >= 1.0 then
+				lastRoleCheckTime = now
+				for _, p in ipairs(Players:GetPlayers()) do
+					if p ~= LocalPlayer then
+						local roleCat = RunNHide.getPlayerRoleCategory(p)
+						RunNHide.LastKnownRoles[p] = roleCat
+					end
 				end
 			end
 		end
 	end)
 	table.insert(connections, roleConn)
 
-	-- Auto-Grab Periodic Watcher
+	-- Auto-Grab Periodic Watcher (Throttled to 2 Hz)
+	local lastGrabTime = 0
 	local grabConn = RunService.Heartbeat:Connect(function()
 		if RunNHide.AutoGrabWeapons then
-			RunNHide.grabAllScatteredWeapons()
+			local now = os.clock()
+			if now - lastGrabTime >= 0.5 then
+				lastGrabTime = now
+				RunNHide.grabAllScatteredWeapons()
+			end
 		end
 	end)
 	table.insert(connections, grabConn)
@@ -734,6 +805,7 @@ function RunNHide.cleanup()
 		pcall(function() conn:Disconnect() end)
 	end
 	table.clear(connections)
+	table.clear(scatteredPrompts)
 
 	if RunNHide.VoidSafetyPlat then
 		pcall(function() RunNHide.VoidSafetyPlat:Destroy() end)

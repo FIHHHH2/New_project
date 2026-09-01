@@ -33,9 +33,53 @@ local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character
 local humanoid: Humanoid? = if character then character:FindFirstChildOfClass("Humanoid") else nil
 
+local cachedCharacterParts: {BasePart} = {}
+local charDescendantAddedConn: RBXScriptConnection? = nil
+local charDescendantRemovingConn: RBXScriptConnection? = nil
+
+local function updateCachedCharacterParts(char: Model?)
+	table.clear(cachedCharacterParts)
+	if charDescendantAddedConn then
+		charDescendantAddedConn:Disconnect()
+		charDescendantAddedConn = nil
+	end
+	if charDescendantRemovingConn then
+		charDescendantRemovingConn:Disconnect()
+		charDescendantRemovingConn = nil
+	end
+
+	if not char then return end
+
+	for _, inst in ipairs(char:GetDescendants()) do
+		if inst:IsA("BasePart") then
+			table.insert(cachedCharacterParts, inst)
+		end
+	end
+
+	charDescendantAddedConn = char.DescendantAdded:Connect(function(inst)
+		if inst:IsA("BasePart") then
+			table.insert(cachedCharacterParts, inst)
+		end
+	end)
+
+	charDescendantRemovingConn = char.DescendantRemoving:Connect(function(inst)
+		if inst:IsA("BasePart") then
+			local idx = table.find(cachedCharacterParts, inst)
+			if idx then
+				table.remove(cachedCharacterParts, idx)
+			end
+		end
+	end)
+end
+
+if character then
+	updateCachedCharacterParts(character)
+end
+
 localPlayer.CharacterAdded:Connect(function(char)
 	character = char
 	humanoid = char:WaitForChild("Humanoid", 5) :: Humanoid?
+	updateCachedCharacterParts(char)
 end)
 
 -- Disable overlapping default CoreGui elements and native Roblox TopBarApp
@@ -242,12 +286,8 @@ local noclipConn: RBXScriptConnection? = nil
 window:AddToggle(flightSection, "noclip_toggle", "Noclip (Collision Bypass)", false, nil, function(enabled)
 	if enabled then
 		noclipConn = RunService.Stepped:Connect(function()
-			if localPlayer.Character then
-				for _, part in ipairs(localPlayer.Character:GetDescendants()) do
-					if part:IsA("BasePart") then
-						part.CanCollide = false
-					end
-				end
+			for _, part in ipairs(cachedCharacterParts) do
+				part.CanCollide = false
 			end
 		end)
 	else
@@ -260,8 +300,8 @@ window:AddToggle(flightSection, "noclip_toggle", "Noclip (Collision Bypass)", fa
 			if hum then
 				hum:ChangeState(Enum.HumanoidStateType.Running)
 			end
-			for _, part in ipairs(localPlayer.Character:GetDescendants()) do
-				if part:IsA("BasePart") and (part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Torso" or part.Name == "CollisionPart" or part.Name == "Head") then
+			for _, part in ipairs(cachedCharacterParts) do
+				if part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Torso" or part.Name == "CollisionPart" or part.Name == "Head" then
 					part.CanCollide = true
 				end
 			end
@@ -355,6 +395,25 @@ end)
 local ragdollWalkConn: RBXScriptConnection? = nil
 local ragdollJumpConn: RBXScriptConnection? = nil
 local lastRagdollJumpTime = 0
+local cachedRagdollParts: {BasePart} = {}
+local lastRagdollChar: Model? = nil
+local wasRagdolled: boolean = false
+
+local function refreshRagdollParts(char: Model)
+	table.clear(cachedRagdollParts)
+	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local torso = (char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("LowerTorso")) :: BasePart?
+	if root then table.insert(cachedRagdollParts, root) end
+	if torso and torso ~= root then table.insert(cachedRagdollParts, torso) end
+	for _, p in ipairs(char:GetChildren()) do
+		if p:IsA("BasePart") and (string.find(p.Name, "Torso") or string.find(p.Name, "Leg")) then
+			if not table.find(cachedRagdollParts, p) then
+				table.insert(cachedRagdollParts, p)
+			end
+		end
+	end
+end
+
 window:AddToggle(charPhysSection, "ragdoll_walk_jump", "Ragdoll Walk & Space Jump", false, nil, function(enabled)
 	if enabled then
 		ragdollWalkConn = RunService.Heartbeat:Connect(function()
@@ -377,6 +436,12 @@ window:AddToggle(charPhysSection, "ragdoll_walk_jump", "Ragdoll Walk & Space Jum
 				or hum:GetState() == Enum.HumanoidStateType.PlatformStanding
 
 			if isRagdolled then
+				if not wasRagdolled or char ~= lastRagdollChar then
+					lastRagdollChar = char
+					wasRagdolled = true
+					refreshRagdollParts(char)
+				end
+
 				local cam = Workspace.CurrentCamera
 				if cam then
 					local look = cam.CFrame.LookVector
@@ -390,19 +455,10 @@ window:AddToggle(charPhysSection, "ragdoll_walk_jump", "Ragdoll Walk & Space Jum
 					if UserInputService:IsKeyDown(Enum.KeyCode.A) or UserInputService:IsKeyDown(Enum.KeyCode.Left) then moveVec -= flatRight end
 					if UserInputService:IsKeyDown(Enum.KeyCode.D) or UserInputService:IsKeyDown(Enum.KeyCode.Right) then moveVec += flatRight end
 
-					local partsToPropel = {}
-					if root then table.insert(partsToPropel, root) end
-					if torso then table.insert(partsToPropel, torso) end
-					for _, p in ipairs(char:GetChildren()) do
-						if p:IsA("BasePart") and (p.Name:find("Torso") or p.Name:find("Leg")) then
-							table.insert(partsToPropel, p)
-						end
-					end
-
 					if moveVec.Magnitude > 0.05 then
 						local dir = moveVec.Unit
 						local speed = 36
-						for _, p in ipairs(partsToPropel) do
+						for _, p in ipairs(cachedRagdollParts) do
 							p.AssemblyLinearVelocity = Vector3.new(dir.X * speed, p.AssemblyLinearVelocity.Y, dir.Z * speed)
 						end
 					end
@@ -411,12 +467,14 @@ window:AddToggle(charPhysSection, "ragdoll_walk_jump", "Ragdoll Walk & Space Jum
 						local mainPart = root or torso
 						if mainPart and math.abs(mainPart.AssemblyLinearVelocity.Y) < 16 then
 							lastRagdollJumpTime = tick()
-							for _, p in ipairs(partsToPropel) do
+							for _, p in ipairs(cachedRagdollParts) do
 								p.AssemblyLinearVelocity = Vector3.new(p.AssemblyLinearVelocity.X, 54, p.AssemblyLinearVelocity.Z)
 							end
 						end
 					end
 				end
+			else
+				wasRagdolled = false
 			end
 		end)
 
@@ -437,11 +495,11 @@ window:AddToggle(charPhysSection, "ragdoll_walk_jump", "Ragdoll Walk & Space Jum
 
 			if isRagdolled and (tick() - lastRagdollJumpTime > 0.28) then
 				lastRagdollJumpTime = tick()
-				local parts = { root, torso }
-				for _, p in ipairs(parts) do
-					if p then
-						p.AssemblyLinearVelocity = Vector3.new(p.AssemblyLinearVelocity.X, 54, p.AssemblyLinearVelocity.Z)
-					end
+				if #cachedRagdollParts == 0 then
+					refreshRagdollParts(char)
+				end
+				for _, p in ipairs(cachedRagdollParts) do
+					p.AssemblyLinearVelocity = Vector3.new(p.AssemblyLinearVelocity.X, 54, p.AssemblyLinearVelocity.Z)
 				end
 			end
 		end)
@@ -454,6 +512,7 @@ window:AddToggle(charPhysSection, "ragdoll_walk_jump", "Ragdoll Walk & Space Jum
 			ragdollJumpConn:Disconnect()
 			ragdollJumpConn = nil
 		end
+		wasRagdolled = false
 	end
 end)
 
@@ -1304,14 +1363,27 @@ end
 
 window:AddSlider(audioSection, "VOLUME CONTROLLER", 0, 100, 100, function(value)
 	currentVolumeScale = value / 100
-	for _, obj in ipairs(game:GetDescendants()) do
+	for _, obj in ipairs(SoundService:GetDescendants()) do
+		if obj:IsA("Sound") then
+			updateSound(obj)
+		end
+	end
+	for _, obj in ipairs(Workspace:GetDescendants()) do
 		if obj:IsA("Sound") then
 			updateSound(obj)
 		end
 	end
 end)
 
-game.DescendantAdded:Connect(function(obj)
+SoundService.DescendantAdded:Connect(function(obj)
+	if obj:IsA("Sound") then
+		task.defer(function()
+			updateSound(obj)
+		end)
+	end
+end)
+
+Workspace.DescendantAdded:Connect(function(obj)
 	if obj:IsA("Sound") then
 		task.defer(function()
 			updateSound(obj)

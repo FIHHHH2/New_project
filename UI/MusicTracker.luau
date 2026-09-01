@@ -498,14 +498,43 @@ function MusicTracker.new()
 
 	-- ── Continuous 60+ FPS Lightning-Fast Spring-Damper Visualizer Physics ─
 	local visualizerConn = RunService.RenderStepped:Connect(function(dt: number)
+		if not widget.Visible then
+			if smoothedEnergy > 0 then
+				smoothedEnergy = 0
+			end
+			return
+		end
+
 		local safeDt = math.clamp(dt or 0.016, 0.001, 0.05)
 		local isAudible = isPlaying or (currentAudioPeak > 0.005)
 
-		local targetEnergy = if (widget.Visible and isAudible) then currentAudioPeak else 0.0
+		local targetEnergy = if isAudible then currentAudioPeak else 0.0
 		if targetEnergy > smoothedEnergy then
 			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 60.0, 0.40, 0.98)
 		else
 			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 24.0, 0.15, 0.85)
+		end
+
+		-- Early exit if audio is inaudible/idle and bars have settled to rest position
+		if smoothedEnergy < 0.001 and not isAudible then
+			local allAtRest = true
+			for i = 1, 16 do
+				if currentHeights[i] > 3.05 or math.abs(currentVelocities[i]) > 0.05 then
+					allAtRest = false
+					break
+				end
+			end
+			if allAtRest then
+				for i = 1, 16 do
+					if currentHeights[i] ~= 3.0 then
+						currentHeights[i] = 3.0
+						currentVelocities[i] = 0.0
+						local bar = visualizerBars[i]
+						if bar then bar.Size = UDim2.new(0, 6, 0, 3) end
+					end
+				end
+				return
+			end
 		end
 
 		local t = os.clock()
@@ -513,7 +542,7 @@ function MusicTracker.new()
 			local bar = visualizerBars[i]
 			if not bar then continue end
 
-			if not widget.Visible or smoothedEnergy < 0.002 then
+			if smoothedEnergy < 0.002 then
 				currentHeights[i] = math.max(3.0, currentHeights[i] + (3.0 - currentHeights[i]) * math.clamp(safeDt * 20.0, 0.15, 0.6))
 				bar.Size = UDim2.new(0, 6, 0, currentHeights[i])
 			else
@@ -561,7 +590,7 @@ function MusicTracker.new()
 	task.spawn(function()
 		local failCount = 0
 		while true do
-			task.wait(0.04)
+			task.wait(0.1)
 			if widget.Visible then
 				local ok, raw = pcall(function()
 					return game:HttpGet(BRIDGE_URL .. "/current")

@@ -3,6 +3,8 @@
     ✦ Visuals Rendering Engine ✦
     High-performance 2D ESP Boxes with Outlines, Health Bars, Tracers with Origin Selector,
     Distance Tags, Skeletons, and 3D Highlight Chams with customizable colors.
+    Optimized with centralized DrawingPool, cached character part hierarchies,
+    viewport dimension caching, and zero per-frame heap table allocations.
 ]=]
 
 local Players = game:GetService("Players")
@@ -13,9 +15,31 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera or Workspace:WaitForChild("Camera") :: Camera
 
-Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+-- Module connections registry for clean unloading
+local moduleConnections: {RBXScriptConnection} = {}
+
+local camConn = Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 	Camera = Workspace.CurrentCamera or Camera
 end)
+table.insert(moduleConnections, camConn)
+
+-- Constant Bone Hierarchy Table (Module Scope - 0 Heap Allocations per frame)
+local BONE_PAIRS: {{string}} = {
+	{"Head", "UpperTorso"},
+	{"UpperTorso", "LowerTorso"},
+	{"UpperTorso", "LeftUpperArm"},
+	{"LeftUpperArm", "LeftLowerArm"},
+	{"LeftLowerArm", "LeftHand"},
+	{"UpperTorso", "RightUpperArm"},
+	{"RightUpperArm", "RightLowerArm"},
+	{"RightLowerArm", "RightHand"},
+	{"LowerTorso", "LeftUpperLeg"},
+	{"LeftUpperLeg", "LeftLowerLeg"},
+	{"LeftLowerLeg", "LeftFoot"},
+	{"LowerTorso", "RightUpperLeg"},
+	{"RightUpperLeg", "RightLowerLeg"},
+	{"RightLowerLeg", "RightFoot"}
+}
 
 local Visuals = {
 	-- 2D ESP Settings
@@ -44,6 +68,100 @@ local Visuals = {
 	ChamsOutlineColor = Color3.fromRGB(255, 255, 255),
 }
 
+-- Centralized Drawing Object Pool
+local DrawingPool: {[string]: {any}} = {
+	Square = {},
+	Line = {},
+	Text = {},
+	Circle = {}
+}
+
+local hasDrawing = (typeof(Drawing) == "table" and typeof(Drawing.new) == "function")
+
+-- Public Pool Interface
+function Visuals.acquireDrawing(drawingType: string): any?
+	local pool = DrawingPool[drawingType]
+	if pool and #pool > 0 then
+		local obj = table.remove(pool)
+		if obj then
+			pcall(function()
+				obj.Visible = false
+			end)
+			return obj
+		end
+	end
+	
+	if hasDrawing then
+		local success, obj = pcall(function()
+			return Drawing.new(drawingType)
+		end)
+		if success and obj then
+			pcall(function()
+				obj.Visible = false
+			end)
+			return obj
+		end
+	end
+	return nil
+end
+
+function Visuals.releaseDrawing(drawingTypeOrObj: any, maybeObj: any?)
+	local drawingType: string?
+	local obj: any?
+	
+	if typeof(drawingTypeOrObj) == "string" then
+		drawingType = drawingTypeOrObj
+		obj = maybeObj
+	else
+		obj = drawingTypeOrObj
+		if typeof(maybeObj) == "string" then
+			drawingType = maybeObj
+		end
+	end
+	
+	if not obj then return end
+	
+	pcall(function()
+		obj.Visible = false
+	end)
+	
+	if drawingType and DrawingPool[drawingType] then
+		table.insert(DrawingPool[drawingType], obj)
+	else
+		-- Auto-detect drawing type from object properties if not supplied
+		local detectedType = "Square"
+		local successText, _ = pcall(function() return obj.Text end)
+		if successText then
+			detectedType = "Text"
+		else
+			local successRadius, _ = pcall(function() return obj.Radius end)
+			if successRadius then
+				detectedType = "Circle"
+			else
+				local successFrom, _ = pcall(function() return obj.From end)
+				if successFrom then
+					detectedType = "Line"
+				end
+			end
+		end
+		if DrawingPool[detectedType] then
+			table.insert(DrawingPool[detectedType], obj)
+		end
+	end
+end
+
+-- Cached Character Parts Structure
+type CachedPlayerParts = {
+	Character: Model?,
+	Humanoid: Humanoid?,
+	RootPart: BasePart?,
+	Head: BasePart?,
+	Torso: BasePart?,
+	UpperTorso: BasePart?,
+	LowerTorso: BasePart?,
+	BoneMap: {[string]: BasePart?},
+}
+
 -- Registry of created visual elements per player
 type PlayerVisual = {
 	Highlight: Highlight?,
@@ -53,162 +171,74 @@ type PlayerVisual = {
 	HealthBarFill: any?,
 	Tracer: any?,
 	DistanceTag: any?,
-	Bones: {any}
+	Bones: {any},
+	LastDistance: number?,
+	Parts: CachedPlayerParts?,
+	CharAddedConn: RBXScriptConnection?,
+	CharRemovingConn: RBXScriptConnection?,
+	ChildAddedConn: RBXScriptConnection?,
 }
 
 local playerVisuals: {[Player]: PlayerVisual} = {}
-local hasDrawing = (typeof(Drawing) == "table" and typeof(Drawing.new) == "function")
+local wasAnyVisualEnabled = false
 
-local function createPlayerVisual(player: Player): PlayerVisual
-	local pv: PlayerVisual = {
-		Highlight = nil,
-		BoxOutline = nil,
-		Box = nil,
-		HealthBarBg = nil,
-		HealthBarFill = nil,
-		Tracer = nil,
-		DistanceTag = nil,
-		Bones = {}
-	}
-	
-	if hasDrawing then
-		-- Box Outline (Secondary black square for contrast, Thickness = 3.5)
-		local successOutline, boxOutline = pcall(function()
-			local square = Drawing.new("Square")
-			square.Thickness = 3.5
-			square.Filled = false
-			square.Color = Color3.fromRGB(0, 0, 0)
-			square.Visible = false
-			square.Transparency = 1
-			return square
-		end)
-		if successOutline and boxOutline then
-			pv.BoxOutline = boxOutline
-		end
-
-		-- 2D Box
-		local successBox, box = pcall(function()
-			local square = Drawing.new("Square")
-			square.Thickness = 1.5
-			square.Filled = false
-			square.Color = Visuals.BoxColor
-			square.Visible = false
-			square.Transparency = 1
-			return square
-		end)
-		if successBox and box then
-			pv.Box = box
-		end
-		
-		-- Health Bar BG
-		local successHbBg, hbBg = pcall(function()
-			local square = Drawing.new("Square")
-			square.Thickness = 1
-			square.Filled = true
-			square.Color = Color3.fromRGB(15, 15, 15)
-			square.Visible = false
-			square.Transparency = 1
-			return square
-		end)
-		if successHbBg and hbBg then
-			pv.HealthBarBg = hbBg
-		end
-		
-		-- Health Bar Fill
-		local successHbFill, hbFill = pcall(function()
-			local square = Drawing.new("Square")
-			square.Thickness = 1
-			square.Filled = true
-			square.Color = Color3.fromRGB(50, 220, 80)
-			square.Visible = false
-			square.Transparency = 1
-			return square
-		end)
-		if successHbFill and hbFill then
-			pv.HealthBarFill = hbFill
-		end
-		
-		-- Tracer line
-		local successTracer, tracer = pcall(function()
-			local line = Drawing.new("Line")
-			line.Thickness = 1.2
-			line.Color = Visuals.TracerColor
-			line.Visible = false
-			line.Transparency = 1
-			return line
-		end)
-		if successTracer and tracer then
-			pv.Tracer = tracer
-		end
-		
-		-- Distance tag (3D stud distance text positioned below bounding box)
-		local successDist, distTag = pcall(function()
-			local text = Drawing.new("Text")
-			text.Size = 13
-			text.Center = true
-			text.Outline = true
-			text.OutlineColor = Color3.fromRGB(0, 0, 0)
-			text.Color = Visuals.DistanceColor
-			text.Visible = false
-			text.Transparency = 1
-			return text
-		end)
-		if successDist and distTag then
-			pv.DistanceTag = distTag
-		end
-		
-		-- Skeleton bones (14 bone segments)
-		for i = 1, 14 do
-			local successBone, bone = pcall(function()
-				local line = Drawing.new("Line")
-				line.Thickness = 1.2
-				line.Color = Visuals.SkeletonColor
-				line.Visible = false
-				line.Transparency = 1
-				return line
-			end)
-			if successBone and bone then
-				table.insert(pv.Bones, bone)
-			end
-		end
-	end
-	
-	return pv
+local function isAnyVisualEnabled(): boolean
+	return Visuals.Box2D or Visuals.HealthBar or Visuals.Tracers or Visuals.Distance or Visuals.Skeleton or Visuals.Chams
 end
 
-local function cleanPlayerVisual(pv: PlayerVisual)
-	if pv.Highlight then
-		pcall(function() pv.Highlight:Destroy() end)
-		pv.Highlight = nil
+local function cachePlayerParts(pv: PlayerVisual, character: Model?)
+	if not character then
+		pv.Parts = nil
+		return
 	end
-	if pv.BoxOutline then
-		pcall(function() pv.BoxOutline:Remove() end)
-		pv.BoxOutline = nil
+	
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") :: BasePart?
+	local head = character:FindFirstChild("Head") :: BasePart?
+	local torso = character:FindFirstChild("Torso") :: BasePart?
+	local upperTorso = character:FindFirstChild("UpperTorso") :: BasePart?
+	local lowerTorso = character:FindFirstChild("LowerTorso") :: BasePart?
+	
+	local boneMap: {[string]: BasePart?} = {}
+	for _, pair in ipairs(BONE_PAIRS) do
+		local p1Name = pair[1]
+		local p2Name = pair[2]
+		if not boneMap[p1Name] then
+			boneMap[p1Name] = character:FindFirstChild(p1Name) :: BasePart?
+		end
+		if not boneMap[p2Name] then
+			boneMap[p2Name] = character:FindFirstChild(p2Name) :: BasePart?
+		end
 	end
-	if pv.Box then
-		pcall(function() pv.Box:Remove() end)
-		pv.Box = nil
+	
+	-- Fallback resolution for R6 character rigs
+	if not boneMap["UpperTorso"] and torso then
+		boneMap["UpperTorso"] = torso
+		boneMap["LowerTorso"] = torso
 	end
-	if pv.HealthBarBg then
-		pcall(function() pv.HealthBarBg:Remove() end)
-		pv.HealthBarBg = nil
+	if not boneMap["LeftUpperArm"] then
+		boneMap["LeftUpperArm"] = character:FindFirstChild("Left Arm") :: BasePart?
 	end
-	if pv.HealthBarFill then
-		pcall(function() pv.HealthBarFill:Remove() end)
-		pv.HealthBarFill = nil
+	if not boneMap["RightUpperArm"] then
+		boneMap["RightUpperArm"] = character:FindFirstChild("Right Arm") :: BasePart?
 	end
-	if pv.Tracer then
-		pcall(function() pv.Tracer:Remove() end)
-		pv.Tracer = nil
+	if not boneMap["LeftUpperLeg"] then
+		boneMap["LeftUpperLeg"] = character:FindFirstChild("Left Leg") :: BasePart?
 	end
-	if pv.DistanceTag then
-		pcall(function() pv.DistanceTag:Remove() end)
-		pv.DistanceTag = nil
+	if not boneMap["RightUpperLeg"] then
+		boneMap["RightUpperLeg"] = character:FindFirstChild("Right Leg") :: BasePart?
 	end
-	for _, bone in ipairs(pv.Bones) do
-		pcall(function() bone:Remove() end)
-	end
-	pv.Bones = {}
+	
+	pv.Parts = {
+		Character = character,
+		Humanoid = humanoid,
+		RootPart = rootPart,
+		Head = head,
+		Torso = torso,
+		UpperTorso = upperTorso,
+		LowerTorso = lowerTorso,
+		BoneMap = boneMap,
+	}
 end
 
 local function hideAll(pv: PlayerVisual)
@@ -222,7 +252,208 @@ local function hideAll(pv: PlayerVisual)
 	for _, bone in ipairs(pv.Bones) do bone.Visible = false end
 end
 
-local function updatePlayer(player: Player, pv: PlayerVisual)
+local function createPlayerVisual(player: Player): PlayerVisual
+	local pv: PlayerVisual = {
+		Highlight = nil,
+		BoxOutline = nil,
+		Box = nil,
+		HealthBarBg = nil,
+		HealthBarFill = nil,
+		Tracer = nil,
+		DistanceTag = nil,
+		Bones = {},
+		LastDistance = nil,
+		Parts = nil,
+		CharAddedConn = nil,
+		CharRemovingConn = nil,
+		ChildAddedConn = nil,
+	}
+	
+	if hasDrawing then
+		-- Box Outline (Secondary black square for high contrast, Thickness = 3.5)
+		local boxOutline = Visuals.acquireDrawing("Square")
+		if boxOutline then
+			pcall(function()
+				boxOutline.Thickness = 3.5
+				boxOutline.Filled = false
+				boxOutline.Color = Color3.fromRGB(0, 0, 0)
+				boxOutline.Visible = false
+				boxOutline.Transparency = 1
+			end)
+			pv.BoxOutline = boxOutline
+		end
+
+		-- 2D Box
+		local box = Visuals.acquireDrawing("Square")
+		if box then
+			pcall(function()
+				box.Thickness = 1.5
+				box.Filled = false
+				box.Color = Visuals.BoxColor
+				box.Visible = false
+				box.Transparency = 1
+			end)
+			pv.Box = box
+		end
+		
+		-- Health Bar BG
+		local hbBg = Visuals.acquireDrawing("Square")
+		if hbBg then
+			pcall(function()
+				hbBg.Thickness = 1
+				hbBg.Filled = true
+				hbBg.Color = Color3.fromRGB(15, 15, 15)
+				hbBg.Visible = false
+				hbBg.Transparency = 1
+			end)
+			pv.HealthBarBg = hbBg
+		end
+		
+		-- Health Bar Fill
+		local hbFill = Visuals.acquireDrawing("Square")
+		if hbFill then
+			pcall(function()
+				hbFill.Thickness = 1
+				hbFill.Filled = true
+				hbFill.Color = Color3.fromRGB(50, 220, 80)
+				hbFill.Visible = false
+				hbFill.Transparency = 1
+			end)
+			pv.HealthBarFill = hbFill
+		end
+		
+		-- Tracer line
+		local tracer = Visuals.acquireDrawing("Line")
+		if tracer then
+			pcall(function()
+				tracer.Thickness = 1.2
+				tracer.Color = Visuals.TracerColor
+				tracer.Visible = false
+				tracer.Transparency = 1
+			end)
+			pv.Tracer = tracer
+		end
+		
+		-- Distance tag (3D stud distance text positioned below bounding box)
+		local distTag = Visuals.acquireDrawing("Text")
+		if distTag then
+			pcall(function()
+				distTag.Size = 13
+				distTag.Center = true
+				distTag.Outline = true
+				distTag.OutlineColor = Color3.fromRGB(0, 0, 0)
+				distTag.Color = Visuals.DistanceColor
+				distTag.Visible = false
+				distTag.Transparency = 1
+			end)
+			pv.DistanceTag = distTag
+		end
+		
+		-- Skeleton bones (14 bone segments)
+		for i = 1, #BONE_PAIRS do
+			local bone = Visuals.acquireDrawing("Line")
+			if bone then
+				pcall(function()
+					bone.Thickness = 1.2
+					bone.Color = Visuals.SkeletonColor
+					bone.Visible = false
+					bone.Transparency = 1
+				end)
+				table.insert(pv.Bones, bone)
+			end
+		end
+	end
+	
+	-- Cache character parts and listen for character lifecycle
+	if player.Character then
+		cachePlayerParts(pv, player.Character)
+	end
+	
+	pv.CharAddedConn = player.CharacterAdded:Connect(function(char)
+		cachePlayerParts(pv, char)
+		if pv.ChildAddedConn then
+			pv.ChildAddedConn:Disconnect()
+			pv.ChildAddedConn = nil
+		end
+		pv.ChildAddedConn = char.ChildAdded:Connect(function()
+			if not pv.Parts or not pv.Parts.RootPart or not pv.Parts.Humanoid then
+				cachePlayerParts(pv, char)
+			end
+		end)
+	end)
+	
+	pv.CharRemovingConn = player.CharacterRemoving:Connect(function()
+		pv.Parts = nil
+		pv.LastDistance = nil
+		if pv.ChildAddedConn then
+			pv.ChildAddedConn:Disconnect()
+			pv.ChildAddedConn = nil
+		end
+		hideAll(pv)
+	end)
+	
+	return pv
+end
+
+local function cleanPlayerVisual(pv: PlayerVisual)
+	if pv.CharAddedConn then
+		pv.CharAddedConn:Disconnect()
+		pv.CharAddedConn = nil
+	end
+	if pv.CharRemovingConn then
+		pv.CharRemovingConn:Disconnect()
+		pv.CharRemovingConn = nil
+	end
+	if pv.ChildAddedConn then
+		pv.ChildAddedConn:Disconnect()
+		pv.ChildAddedConn = nil
+	end
+	
+	if pv.Highlight then
+		pcall(function() pv.Highlight:Destroy() end)
+		pv.Highlight = nil
+	end
+	
+	if pv.BoxOutline then
+		Visuals.releaseDrawing("Square", pv.BoxOutline)
+		pv.BoxOutline = nil
+	end
+	if pv.Box then
+		Visuals.releaseDrawing("Square", pv.Box)
+		pv.Box = nil
+	end
+	if pv.HealthBarBg then
+		Visuals.releaseDrawing("Square", pv.HealthBarBg)
+		pv.HealthBarBg = nil
+	end
+	if pv.HealthBarFill then
+		Visuals.releaseDrawing("Square", pv.HealthBarFill)
+		pv.HealthBarFill = nil
+	end
+	if pv.Tracer then
+		Visuals.releaseDrawing("Line", pv.Tracer)
+		pv.Tracer = nil
+	end
+	if pv.DistanceTag then
+		Visuals.releaseDrawing("Text", pv.DistanceTag)
+		pv.DistanceTag = nil
+	end
+	for _, bone in ipairs(pv.Bones) do
+		Visuals.releaseDrawing("Line", bone)
+	end
+	pv.Bones = {}
+	pv.Parts = nil
+	pv.LastDistance = nil
+end
+
+local function updatePlayer(
+	player: Player,
+	pv: PlayerVisual,
+	screenCenter: Vector2,
+	screenBottom: Vector2,
+	mousePos: Vector2?,
+	myRootPart: BasePart?
+)
 	if player == LocalPlayer then return end
 	local character = player.Character
 	if not character then
@@ -230,13 +461,20 @@ local function updatePlayer(player: Player, pv: PlayerVisual)
 		return
 	end
 	
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") :: BasePart?
+	-- Verify and update cached character parts if needed
+	local parts = pv.Parts
+	if not parts or parts.Character ~= character or not parts.RootPart or not parts.Humanoid then
+		cachePlayerParts(pv, character)
+		parts = pv.Parts
+	end
 	
-	if not humanoid or not rootPart or humanoid.Health <= 0 then
+	if not parts or not parts.Humanoid or not parts.RootPart or parts.Humanoid.Health <= 0 then
 		hideAll(pv)
 		return
 	end
+	
+	local humanoid = parts.Humanoid
+	local rootPart = parts.RootPart
 	
 	-- 3D Chams / Highlight
 	if Visuals.Chams then
@@ -289,13 +527,13 @@ local function updatePlayer(player: Player, pv: PlayerVisual)
 	end
 	
 	-- Bounding Box size estimation
-	local head = character:FindFirstChild("Head") :: BasePart?
+	local head = parts.Head
 	local headPos = if head then Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0)) else Vector3.new(rootPos.X, rootPos.Y - 30, 0)
 	local legPos = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
 	
 	local boxHeight = math.abs(legPos.Y - headPos.Y)
 	local boxWidth = boxHeight * 0.65
-	local boxX = rootPos.X - (boxWidth / 2)
+	local boxX = rootPos.X - (boxWidth * 0.5)
 	local boxY = headPos.Y
 	local boxSize = Vector2.new(boxWidth, boxHeight)
 	local boxPosition = Vector2.new(boxX, boxY)
@@ -351,12 +589,11 @@ local function updatePlayer(player: Player, pv: PlayerVisual)
 		local fromPos: Vector2
 		
 		if tracerOrigin == "Center" then
-			fromPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+			fromPos = screenCenter
 		elseif tracerOrigin == "Mouse" then
-			local mousePos = UserInputService:GetMouseLocation()
-			fromPos = Vector2.new(mousePos.X, mousePos.Y)
+			fromPos = mousePos or screenCenter
 		else -- "Bottom" or default fallback
-			fromPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+			fromPos = screenBottom
 		end
 		
 		pv.Tracer.From = fromPos
@@ -367,15 +604,18 @@ local function updatePlayer(player: Player, pv: PlayerVisual)
 		pv.Tracer.Visible = false
 	end
 	
-	-- Render Distance Tag (3D stud distance calculation: math.floor((pos - myPos).Magnitude) .. "m")
+	-- Render Distance Tag (3D stud distance calculation with delta threshold cache)
 	if Visuals.Distance and pv.DistanceTag then
-		local myRoot = if LocalPlayer.Character then (LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character:FindFirstChild("UpperTorso")) :: BasePart? else nil
-		local myPos = if myRoot then myRoot.Position else Camera.CFrame.Position
+		local myPos = if myRootPart then myRootPart.Position else Camera.CFrame.Position
 		local targetPos = rootPart.Position
 		local dist = math.floor((targetPos - myPos).Magnitude)
 		
-		pv.DistanceTag.Text = dist .. "m"
-		pv.DistanceTag.Position = Vector2.new(boxX + (boxWidth / 2), boxY + boxHeight + 2)
+		if not pv.LastDistance or math.abs(dist - pv.LastDistance) >= 1 then
+			pv.LastDistance = dist
+			pv.DistanceTag.Text = tostring(dist) .. "m"
+		end
+		
+		pv.DistanceTag.Position = Vector2.new(boxX + (boxWidth * 0.5), boxY + boxHeight + 2)
 		pv.DistanceTag.Color = Visuals.DistanceColor or Color3.fromRGB(240, 240, 240)
 		pv.DistanceTag.Visible = true
 	elseif pv.DistanceTag then
@@ -383,29 +623,13 @@ local function updatePlayer(player: Player, pv: PlayerVisual)
 	end
 	
 	-- Render Skeleton ESP
-	if Visuals.Skeleton and #pv.Bones > 0 then
-		local bonePairs = {
-			{"Head", "UpperTorso"},
-			{"UpperTorso", "LowerTorso"},
-			{"UpperTorso", "LeftUpperArm"},
-			{"LeftUpperArm", "LeftLowerArm"},
-			{"LeftLowerArm", "LeftHand"},
-			{"UpperTorso", "RightUpperArm"},
-			{"RightUpperArm", "RightLowerArm"},
-			{"RightLowerArm", "RightHand"},
-			{"LowerTorso", "LeftUpperLeg"},
-			{"LeftUpperLeg", "LeftLowerLeg"},
-			{"LeftLowerLeg", "LeftFoot"},
-			{"LowerTorso", "RightUpperLeg"},
-			{"RightUpperLeg", "RightLowerLeg"},
-			{"RightLowerLeg", "RightFoot"}
-		}
-		
-		for idx, pair in ipairs(bonePairs) do
+	if Visuals.Skeleton and #pv.Bones > 0 and parts then
+		local boneMap = parts.BoneMap
+		for idx, pair in ipairs(BONE_PAIRS) do
 			local boneLine = pv.Bones[idx]
 			if boneLine then
-				local p1 = character:FindFirstChild(pair[1]) :: BasePart?
-				local p2 = character:FindFirstChild(pair[2]) :: BasePart?
+				local p1 = boneMap[pair[1]]
+				local p2 = boneMap[pair[2]]
 				if p1 and p2 then
 					local v1, on1 = Camera:WorldToViewportPoint(p1.Position)
 					local v2, on2 = Camera:WorldToViewportPoint(p2.Position)
@@ -429,8 +653,32 @@ local function updatePlayer(player: Player, pv: PlayerVisual)
 	end
 end
 
--- Main render loop
-RunService.RenderStepped:Connect(function()
+-- Main RenderStepped render loop
+local renderConn = RunService.RenderStepped:Connect(function()
+	-- Master Early-Return Gate: Skip loop entirely if all visual modules are disabled
+	if not isAnyVisualEnabled() then
+		if wasAnyVisualEnabled then
+			wasAnyVisualEnabled = false
+			for _, pv in pairs(playerVisuals) do
+				hideAll(pv)
+			end
+		end
+		return
+	end
+	wasAnyVisualEnabled = true
+	
+	-- Cache viewport dimensions and origin vectors once per frame
+	local viewportSize = Camera.ViewportSize
+	local screenCenter = Vector2.new(viewportSize.X * 0.5, viewportSize.Y * 0.5)
+	local screenBottom = Vector2.new(viewportSize.X * 0.5, viewportSize.Y)
+	local mousePos: Vector2? = nil
+	if Visuals.Tracers and Visuals.TracerOrigin == "Mouse" then
+		mousePos = UserInputService:GetMouseLocation()
+	end
+	
+	local localChar = LocalPlayer.Character
+	local myRootPart: BasePart? = if localChar then (localChar:FindFirstChild("HumanoidRootPart") or localChar:FindFirstChild("Torso") or localChar:FindFirstChild("UpperTorso")) :: BasePart? else nil
+	
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer then
 			local pv = playerVisuals[player]
@@ -438,24 +686,47 @@ RunService.RenderStepped:Connect(function()
 				pv = createPlayerVisual(player)
 				playerVisuals[player] = pv
 			end
-			updatePlayer(player, pv)
+			updatePlayer(player, pv, screenCenter, screenBottom, mousePos, myRootPart)
 		end
 	end
 end)
+table.insert(moduleConnections, renderConn)
 
-Players.PlayerRemoving:Connect(function(player)
+local playerRemConn = Players.PlayerRemoving:Connect(function(player)
 	local pv = playerVisuals[player]
 	if pv then
 		cleanPlayerVisual(pv)
 		playerVisuals[player] = nil
 	end
 end)
+table.insert(moduleConnections, playerRemConn)
 
+-- Module Unload & Resource Cleanup
 function Visuals.cleanup()
+	-- 1. Clean and release all player visuals
 	for player, pv in pairs(playerVisuals) do
 		cleanPlayerVisual(pv)
 	end
 	playerVisuals = {}
+	
+	-- 2. Drain and permanently remove all pooled Drawing instances
+	for typeName, pool in pairs(DrawingPool) do
+		for _, obj in ipairs(pool) do
+			pcall(function()
+				obj:Remove()
+			end)
+		end
+		DrawingPool[typeName] = {}
+	end
+	
+	-- 3. Disconnect all module-level connections
+	for _, conn in ipairs(moduleConnections) do
+		pcall(function()
+			conn:Disconnect()
+		end)
+	end
+	moduleConnections = {}
+	wasAnyVisualEnabled = false
 end
 
 return Visuals

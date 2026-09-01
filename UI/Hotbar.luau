@@ -50,14 +50,56 @@ local KEYCODES = {
 	Enum.KeyCode.Zero
 }
 
--- ── 3D Viewport Helper for Tool Models ─────────────────────────────
-local function renderToolViewport(container: GuiObject, tool: Tool?)
+export type ToolViewportCache = {
+	Tool: Tool?,
+	Name: string,
+	TextureId: string,
+	Signature: string
+}
+
+function Hotbar.getToolSignature(tool: Tool?): string
+	if not tool then return "" end
+	return string.format("%s_%s_%s", tool.Name, tool.TextureId, tostring(tool))
+end
+
+-- ── 3D Viewport Helper for Tool Models with Explicit Part & Camera Cleanup ──
+local function cleanViewport(container: GuiObject)
 	local oldVp = container:FindFirstChild("ModelViewport")
 	if oldVp then
+		local oldCam = oldVp:FindFirstChildWhichIsA("Camera")
+		if oldCam then
+			oldCam:Destroy()
+		end
+		for _, child in ipairs(oldVp:GetChildren()) do
+			child:Destroy()
+		end
 		oldVp:Destroy()
 	end
+end
 
-	if not tool then return end
+local function renderToolViewportCached(
+	container: GuiObject,
+	tool: Tool?,
+	cacheKey: any,
+	cacheStore: {[any]: ToolViewportCache}
+)
+	if not tool then
+		cleanViewport(container)
+		cacheStore[cacheKey] = nil
+		return
+	end
+
+	local sig = Hotbar.getToolSignature(tool)
+	local cached = cacheStore[cacheKey]
+	local existingVp = container:FindFirstChild("ModelViewport")
+
+	-- If cached tool state matches and ModelViewport instance already exists, skip re-cloning
+	if cached and existingVp and cached.Tool == tool and cached.Name == tool.Name and cached.TextureId == tool.TextureId and cached.Signature == sig then
+		return
+	end
+
+	-- Tool state is dirty: cleanly destroy old ViewportFrame, Camera, and Cloned Parts
+	cleanViewport(container)
 
 	local vp = Instance.new("ViewportFrame")
 	vp.Name = "ModelViewport"
@@ -136,6 +178,13 @@ local function renderToolViewport(container: GuiObject, tool: Tool?)
 			img.Parent = vp
 		end
 	end
+
+	cacheStore[cacheKey] = {
+		Tool = tool,
+		Name = tool.Name,
+		TextureId = tool.TextureId,
+		Signature = sig
+	}
 end
 
 function Hotbar.new(): HotbarWidget
@@ -402,6 +451,9 @@ function Hotbar.new(): HotbarWidget
 	-- ── 3. State Management & Tool Gathering ──────────────────────────
 	local assignedSlots: {[number]: Tool} = {}
 	local slotFrames: {[number]: TextButton} = {}
+	local slotCaches: {[number]: ToolViewportCache} = {}
+	local backpackCards: {[Tool]: TextButton} = {}
+	local backpackCaches: {[Tool]: ToolViewportCache} = {}
 	local isBackpackOpen = false
 	local filterQuery = ""
 
@@ -480,7 +532,7 @@ function Hotbar.new(): HotbarWidget
 			local nameLabel = slotBtn:FindFirstChild("ToolName") :: TextLabel?
 			local uiScale = slotBtn:FindFirstChildWhichIsA("UIScale")
 
-			renderToolViewport(slotBtn, tool)
+			renderToolViewportCached(slotBtn, tool, slotNum, slotCaches)
 
 			if tool then
 				local equipped = isToolEquipped(tool)
@@ -533,79 +585,136 @@ function Hotbar.new(): HotbarWidget
 
 	-- ── 5. Render Backpack Grid Items ─────────────────────────────────
 	local function updateBackpackGrid()
-		for _, child in ipairs(bpGridScroll:GetChildren()) do
-			if child:IsA("GuiObject") and child.Name:find("Item_") then
-				child:Destroy()
-			end
-		end
-
 		local allTools = getAllTools()
+		local activeToolSet: {[Tool]: boolean} = {}
+
 		for _, tool in ipairs(allTools) do
-			if filterQuery ~= "" and not tool.Name:lower():find(filterQuery:lower(), 1, true) then
+			activeToolSet[tool] = true
+			local matchesFilter = (filterQuery == "" or tool.Name:lower():find(filterQuery:lower(), 1, true) ~= nil)
+
+			local existingCard = backpackCards[tool]
+			if not matchesFilter then
+				if existingCard then
+					cleanViewport(existingCard)
+					UI.unregisterThemeElement(existingCard)
+					existingCard:Destroy()
+					backpackCards[tool] = nil
+					backpackCaches[tool] = nil
+				end
 				continue
 			end
 
 			local equipped = isToolEquipped(tool)
-			local itemCard = Instance.new("TextButton")
-			itemCard.Name = "Item_" .. tool.Name
-			itemCard.Size = UDim2.new(0, 84, 0, 74)
-			itemCard.BackgroundColor3 = if equipped then UI.Theme.Accent else UI.Theme.ContainerDark
-			itemCard.BackgroundTransparency = if equipped then 0.15 else UI.Theme.ContainerDarkTransparency
-			itemCard.BorderSizePixel = 0
-			itemCard.Text = ""
-			itemCard.AutoButtonColor = false
-			itemCard.ClipsDescendants = true
-			itemCard.Parent = bpGridScroll
-			UI.registerThemeElement(itemCard, if equipped then "Accent" else "ContainerDark")
 
-			local itemStroke = Instance.new("UIStroke")
-			itemStroke.Color = if equipped then UI.Theme.Border else UI.Theme.BorderDim
-			itemStroke.Thickness = if equipped then 1.8 else 1.0
-			itemStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-			itemStroke.Parent = itemCard
-			UI.registerThemeElement(itemStroke, "Border")
+			if existingCard and existingCard.Parent == bpGridScroll then
+				-- Update visual state on existing card without destroying/re-cloning
+				existingCard.BackgroundColor3 = if equipped then UI.Theme.Accent else UI.Theme.ContainerDark
+				existingCard.BackgroundTransparency = if equipped then 0.15 else UI.Theme.ContainerDarkTransparency
+				UI.registerThemeElement(existingCard, if equipped then "Accent" else "ContainerDark")
 
-			-- 3D Model Viewport inside Backpack Item Card
-			renderToolViewport(itemCard, tool)
+				local itemStroke = existingCard:FindFirstChildWhichIsA("UIStroke")
+				if itemStroke then
+					itemStroke.Color = if equipped then UI.Theme.Border else UI.Theme.BorderDim
+					itemStroke.Thickness = if equipped then 1.8 else 1.0
+				end
 
-			local tName = Instance.new("TextLabel")
-			tName.Size = UDim2.new(1, -6, 0, 14)
-			tName.Position = UDim2.new(0, 3, 1, -24)
-			tName.BackgroundTransparency = 1
-			tName.Text = tool.Name
-			tName.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
-			tName.Font = UI.Fonts.Header
-			tName.TextSize = 9
-			tName.TextTruncate = Enum.TextTruncate.AtEnd
-			tName.ZIndex = 10
-			tName.Parent = itemCard
-			UI.registerThemeElement(tName, "TextPrimary")
+				local tName = existingCard:FindFirstChild("ToolLabel") :: TextLabel?
+				if tName then
+					tName.Text = tool.Name
+					tName.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+				end
 
-			local badge = Instance.new("TextLabel")
-			badge.Size = UDim2.new(1, 0, 0, 10)
-			badge.Position = UDim2.new(0, 0, 1, -11)
-			badge.BackgroundTransparency = 1
-			badge.Text = if equipped then "EQUIPPED" else ""
-			badge.TextColor3 = UI.Theme.AccentText
-			badge.Font = UI.Fonts.Mono
-			badge.TextSize = 8
-			badge.ZIndex = 10
-			badge.Parent = itemCard
+				local badge = existingCard:FindFirstChild("EquippedBadge") :: TextLabel?
+				if badge then
+					badge.Text = if equipped then "EQUIPPED" else ""
+				end
 
-			Animations.attachMicroSquash(itemCard, itemStroke, function()
-				return if isToolEquipped(tool) then UI.Theme.Accent else UI.Theme.ContainerDark
-			end, function()
-				return UI.Theme.Accent
-			end, function()
-				return UI.Theme.AccentDark
-			end)
+				renderToolViewportCached(existingCard, tool, tool, backpackCaches)
+			else
+				if existingCard then
+					cleanViewport(existingCard)
+					UI.unregisterThemeElement(existingCard)
+					existingCard:Destroy()
+					backpackCards[tool] = nil
+					backpackCaches[tool] = nil
+				end
 
-			itemCard.MouseButton1Click:Connect(function()
-				equipOrToggleTool(tool)
-				task.wait(0.04)
-				updateHotbarVisuals()
-				updateBackpackGrid()
-			end)
+				local itemCard = Instance.new("TextButton")
+				itemCard.Name = "Item_" .. tool.Name
+				itemCard.Size = UDim2.new(0, 84, 0, 74)
+				itemCard.BackgroundColor3 = if equipped then UI.Theme.Accent else UI.Theme.ContainerDark
+				itemCard.BackgroundTransparency = if equipped then 0.15 else UI.Theme.ContainerDarkTransparency
+				itemCard.BorderSizePixel = 0
+				itemCard.Text = ""
+				itemCard.AutoButtonColor = false
+				itemCard.ClipsDescendants = true
+				itemCard.Parent = bpGridScroll
+				UI.registerThemeElement(itemCard, if equipped then "Accent" else "ContainerDark")
+
+				local itemStroke = Instance.new("UIStroke")
+				itemStroke.Color = if equipped then UI.Theme.Border else UI.Theme.BorderDim
+				itemStroke.Thickness = if equipped then 1.8 else 1.0
+				itemStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+				itemStroke.Parent = itemCard
+				UI.registerThemeElement(itemStroke, "Border")
+
+				-- 3D Model Viewport inside Backpack Item Card (with dirty checking)
+				renderToolViewportCached(itemCard, tool, tool, backpackCaches)
+
+				local tName = Instance.new("TextLabel")
+				tName.Name = "ToolLabel"
+				tName.Size = UDim2.new(1, -6, 0, 14)
+				tName.Position = UDim2.new(0, 3, 1, -24)
+				tName.BackgroundTransparency = 1
+				tName.Text = tool.Name
+				tName.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+				tName.Font = UI.Fonts.Header
+				tName.TextSize = 9
+				tName.TextTruncate = Enum.TextTruncate.AtEnd
+				tName.ZIndex = 10
+				tName.Parent = itemCard
+				UI.registerThemeElement(tName, "TextPrimary")
+
+				local badge = Instance.new("TextLabel")
+				badge.Name = "EquippedBadge"
+				badge.Size = UDim2.new(1, 0, 0, 10)
+				badge.Position = UDim2.new(0, 0, 1, -11)
+				badge.BackgroundTransparency = 1
+				badge.Text = if equipped then "EQUIPPED" else ""
+				badge.TextColor3 = UI.Theme.AccentText
+				badge.Font = UI.Fonts.Mono
+				badge.TextSize = 8
+				badge.ZIndex = 10
+				badge.Parent = itemCard
+
+				Animations.attachMicroSquash(itemCard, itemStroke, function()
+					return if isToolEquipped(tool) then UI.Theme.Accent else UI.Theme.ContainerDark
+				end, function()
+					return UI.Theme.Accent
+				end, function()
+					return UI.Theme.AccentDark
+				end)
+
+				itemCard.MouseButton1Click:Connect(function()
+					equipOrToggleTool(tool)
+					task.wait(0.04)
+					updateHotbarVisuals()
+					updateBackpackGrid()
+				end)
+
+				backpackCards[tool] = itemCard
+			end
+		end
+
+		-- Clean up cards for tools that were removed from inventory
+		for oldTool, oldCard in pairs(backpackCards) do
+			if not activeToolSet[oldTool] then
+				cleanViewport(oldCard)
+				UI.unregisterThemeElement(oldCard)
+				oldCard:Destroy()
+				backpackCards[oldTool] = nil
+				backpackCaches[oldTool] = nil
+			end
 		end
 	end
 
@@ -798,37 +907,46 @@ function Hotbar.new(): HotbarWidget
 	end)
 
 	-- ── 9. Backpack & Character Event Hooks ───────────────────────────
+	local invConnections: {RBXScriptConnection} = {}
+	local function disconnectInventoryEvents()
+		for _, conn in ipairs(invConnections) do
+			pcall(function() conn:Disconnect() end)
+		end
+		table.clear(invConnections)
+	end
+
 	local function hookInventoryEvents()
+		disconnectInventoryEvents()
 		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
 		if bp then
-			bp.ChildAdded:Connect(function()
+			table.insert(invConnections, bp.ChildAdded:Connect(function()
 				task.wait(0.03)
 				updateHotbarVisuals()
 				if isBackpackOpen then updateBackpackGrid() end
-			end)
-			bp.ChildRemoved:Connect(function()
+			end))
+			table.insert(invConnections, bp.ChildRemoved:Connect(function()
 				task.wait(0.03)
 				updateHotbarVisuals()
 				if isBackpackOpen then updateBackpackGrid() end
-			end)
+			end))
 		end
 
 		local char = LocalPlayer.Character
 		if char then
-			char.ChildAdded:Connect(function(child)
+			table.insert(invConnections, char.ChildAdded:Connect(function(child)
 				if child:IsA("Tool") then
 					task.wait(0.03)
 					updateHotbarVisuals()
 					if isBackpackOpen then updateBackpackGrid() end
 				end
-			end)
-			char.ChildRemoved:Connect(function(child)
+			end))
+			table.insert(invConnections, char.ChildRemoved:Connect(function(child)
 				if child:IsA("Tool") then
 					task.wait(0.03)
 					updateHotbarVisuals()
 					if isBackpackOpen then updateBackpackGrid() end
 				end
-			end)
+			end))
 		end
 	end
 

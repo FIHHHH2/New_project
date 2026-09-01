@@ -201,23 +201,40 @@ local RunNHide = requireRemote("Modules/RunNHide.luau")
 
 _G.__ModularSuite_Cleanup = function()
 	pcall(function()
-		DisasterSurvival.cleanup()
-		RunNHide.cleanup()
-		Combat.resetHitboxes()
+		if Visuals and type(Visuals.cleanup) == "function" then
+			pcall(Visuals.cleanup)
+		end
+		if DisasterSurvival and type(DisasterSurvival.cleanup) == "function" then
+			pcall(DisasterSurvival.cleanup)
+		end
+		if RunNHide and type(RunNHide.cleanup) == "function" then
+			pcall(RunNHide.cleanup)
+		end
+		if Combat and type(Combat.resetHitboxes) == "function" then
+			pcall(Combat.resetHitboxes)
+		end
+		if Notification and type(Notification.cleanup) == "function" then
+			pcall(Notification.cleanup)
+		end
+		if UI and type(UI.cleanupRegistry) == "function" then
+			pcall(UI.cleanupRegistry)
+		end
 		for _, name in ipairs(guiNames) do
 			for _, c in ipairs(CoreGui:GetChildren()) do
 				if c.Name == name then
-					c:Destroy()
+					pcall(function() c:Destroy() end)
 				end
 			end
 			if pgui then
 				for _, c in ipairs(pgui:GetChildren()) do
 					if c.Name == name then
-						c:Destroy()
+						pcall(function() c:Destroy() end)
 					end
 				end
 			end
 		end
+		_G.__ToggleProjectFihMenu = nil
+		_G.__ToggleProjectFihBackpack = nil
 	end)
 end
 

@@ -337,15 +337,84 @@ local function findPumpFillPrompt(): (ProximityPrompt?, BasePart?)
 	return nil, nil
 end
 
+local function ensureWaterCupAvailable(): Tool?
+	local lp = Players.LocalPlayer
+	local char = lp.Character
+	local bp = lp:FindFirstChildOfClass("Backpack")
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+	-- 1. Check if already in Character or Backpack
+	if char then
+		for _, c in ipairs(char:GetChildren()) do
+			if c:IsA("Tool") and string.find(c.Name:lower(), "cup") then
+				return c
+			end
+		end
+	end
+	if bp then
+		for _, c in ipairs(bp:GetChildren()) do
+			if c:IsA("Tool") and string.find(c.Name:lower(), "cup") then
+				if hum then
+					pcall(function() hum:EquipTool(c) end)
+				end
+				return c
+			end
+		end
+	end
+
+	-- 2. If no Cup tool exists, grab one from the WaterPedestal bucket
+	local hrp = getHrp()
+	local map = Workspace:FindFirstChild("Map")
+	local bucket = map and map:FindFirstChild("Troops") and map.Troops:FindFirstChild("WaterPedestal") and map.Troops.WaterPedestal:FindFirstChild("Bucket")
+	local prompt = bucket and bucket:FindFirstChildWhichIsA("ProximityPrompt", true)
+	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
+
+	if hrp and bucket and bucket:IsA("BasePart") and prompt and type(fpp) == "function" then
+		local origCF = hrp.CFrame
+		local cam = Workspace.CurrentCamera
+		local camType = cam and cam.CameraType
+		local camCF = cam and cam.CFrame
+
+		if cam and camCF then
+			cam.CameraType = Enum.CameraType.Scriptable
+			cam.CFrame = camCF
+		end
+
+		hrp.CFrame = bucket.CFrame * CFrame.new(0, 2, 0)
+		task.wait(0.06)
+		prompt.HoldDuration = 0
+		fpp(prompt, 1, true)
+		task.wait(0.04)
+
+		hrp.CFrame = origCF
+		if cam and camCF and camType then
+			cam.CameraType = camType
+			cam.CFrame = camCF
+		end
+
+		-- Check backpack for acquired tool
+		if bp then
+			for _, c in ipairs(bp:GetChildren()) do
+				if c:IsA("Tool") and string.find(c.Name:lower(), "cup") then
+					if hum then pcall(function() hum:EquipTool(c) end) end
+					return c
+				end
+			end
+		end
+	end
+
+	return nil
+end
+
 function IceTycoon.fillWaterNow(): boolean
 	local hrp = getHrp()
 	if not hrp then return false end
 
-	ensureWaterToolEquipped()
+	ensureWaterCupAvailable()
 	task.wait(0.04)
 
 	local scoopPrompt, scoopPart = findActiveScoopPrompt()
-	local fillPrompt = findPumpFillPrompt()
+	local fillPrompt, fillPart = findPumpFillPrompt()
 	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
 	local camera = Workspace.CurrentCamera
 
@@ -373,18 +442,19 @@ function IceTycoon.fillWaterNow(): boolean
 		camera.CameraType = Enum.CameraType.Scriptable
 		camera.CFrame = origCamCF
 
-		-- 1. Scoop water (0.08s, 8 rapid pulses to guarantee full capacity)
+		-- 1. Scoop water (10 rapid pulses to guarantee full capacity)
 		hrp.CFrame = scoopPart.CFrame * CFrame.new(0, 3, 0)
 		task.wait(0.08)
 		if type(fpp) == "function" then
-			for _ = 1, 8 do
+			for _ = 1, 10 do
 				fpp(scoopPrompt, 1, true)
 				task.wait(0.015)
 			end
 		end
 
-		-- 2. Deposit into pump (0.08s)
-		hrp.CFrame = CFrame.new(-81.4, 4.2, -87.5) * CFrame.Angles(0, math.rad(180), 0)
+		-- 2. Deposit into pump (double verified triggers)
+		local depositPos = (fillPart and fillPart.CFrame * CFrame.new(0, 2, 0)) or (CFrame.new(-81.4, 4.2, -87.5) * CFrame.Angles(0, math.rad(180), 0))
+		hrp.CFrame = depositPos
 		task.wait(0.08)
 		if type(fpp) == "function" then
 			fpp(fillPrompt, 1, true)
@@ -417,8 +487,10 @@ function IceTycoon.setAutoFillWater(enabled: boolean)
 					if amt and amt:IsA("IntValue") and amt.Value < (targetMax - 2) then
 						IceTycoon.fillWaterNow()
 					end
+				else
+					IceTycoon.fillWaterNow()
 				end
-				task.wait(0.8)
+				task.wait(0.9)
 			end
 		end)
 	end
@@ -426,7 +498,6 @@ end
 
 -- ── 5. Mine Ores Auto-Farm ──────────────────────────────────────────
 IceTycoon.AutoMineOres = false
-local mineConn: RBXScriptConnection? = nil
 
 function IceTycoon.mineOresNow(): number
 	local mine = Workspace:FindFirstChild("Tycoon") and Workspace.Tycoon:FindFirstChild("Bought") and Workspace.Tycoon.Bought:FindFirstChild("Mine")
@@ -463,20 +534,48 @@ IceTycoon.AutoCollectSecrets = false
 
 function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Secrets: number }
 	local hrp = getHrp()
+	local camera = Workspace.CurrentCamera
 	local fti = firetouchinterest or (getgenv and getgenv().firetouchinterest)
 	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
 
 	local results = { Gems = 0, Trophies = 0, Secrets = 0 }
 	local map = Workspace:FindFirstChild("Map")
-	if not map then return results end
+	if not (map and hrp and camera) then return results end
 
-	-- 1. All 5 Gem Pedestals
+	local origCF = hrp.CFrame
+	local origCamCF = camera.CFrame
+	local origCamType = camera.CameraType
+
+	camera.CameraType = Enum.CameraType.Scriptable
+	camera.CFrame = origCamCF
+
+	-- 1. All 3 Trophies on Pedestals (Camera-Frozen Instant Tap)
+	local pedFolder = map:FindFirstChild("Pedestals")
+	if pedFolder and type(fpp) == "function" then
+		for _, ped in ipairs(pedFolder:GetChildren()) do
+			local union = ped:FindFirstChild("Union") :: BasePart? or ped:FindFirstChildWhichIsA("BasePart")
+			local pr = ped:FindFirstChildWhichIsA("ProximityPrompt", true)
+			if union and pr and pr.Enabled then
+				hrp.CFrame = union.CFrame * CFrame.new(0, 2, 0)
+				task.wait(0.06)
+				pr.HoldDuration = 0
+				fpp(pr, 1, true)
+				task.wait(0.02)
+				fpp(pr, 1, true)
+				results.Trophies += 1
+			end
+		end
+	end
+
+	-- 2. All 5 Gem Pedestals (Camera-Frozen Instant Tap)
 	local troops = map:FindFirstChild("Troops")
 	local gemPed = troops and troops:FindFirstChild("GemPedestals")
-	if gemPed and hrp and type(fti) == "function" then
+	if gemPed and type(fti) == "function" then
 		for _, ped in ipairs(gemPed:GetChildren()) do
 			local hit = ped:FindFirstChild("Hitbox")
 			if hit and hit:IsA("BasePart") then
+				hrp.CFrame = hit.CFrame * CFrame.new(0, 2, 0)
+				task.wait(0.03)
 				fti(hrp, hit, 0)
 				task.wait(0.01)
 				fti(hrp, hit, 1)
@@ -485,23 +584,12 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 		end
 	end
 
-	-- 2. Trophies on Pedestals
-	local pedFolder = map:FindFirstChild("Pedestals")
-	if pedFolder and type(fpp) == "function" then
-		for _, ped in ipairs(pedFolder:GetChildren()) do
-			local pr = ped:FindFirstChildWhichIsA("ProximityPrompt", true)
-			if pr and pr.Enabled then
-				pr.HoldDuration = 0
-				fpp(pr, 1, true)
-				results.Trophies += 1
-			end
-		end
-	end
-
 	-- 3. KeyGiver, Secret House Door, and LittleThing
-	if troops and hrp and type(fti) == "function" then
+	if troops and type(fti) == "function" then
 		local keyGiver = troops:FindFirstChild("KeyGiver")
 		if keyGiver and keyGiver:FindFirstChild("Hitbox") and keyGiver.Hitbox:IsA("BasePart") then
+			hrp.CFrame = keyGiver.Hitbox.CFrame * CFrame.new(0, 2, 0)
+			task.wait(0.03)
 			fti(hrp, keyGiver.Hitbox, 0)
 			task.wait(0.01)
 			fti(hrp, keyGiver.Hitbox, 1)
@@ -511,6 +599,8 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 		local house = troops:FindFirstChild("House")
 		local door = house and house:FindFirstChild("Door")
 		if door and door:FindFirstChild("Hitbox") and door.Hitbox:IsA("BasePart") then
+			hrp.CFrame = door.Hitbox.CFrame * CFrame.new(0, 2, 0)
+			task.wait(0.03)
 			fti(hrp, door.Hitbox, 0)
 			task.wait(0.01)
 			fti(hrp, door.Hitbox, 1)
@@ -519,6 +609,8 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 
 		local little = troops:FindFirstChild("JustALittleThing")
 		if little and little:FindFirstChild("Hitbox") and little.Hitbox:IsA("BasePart") then
+			hrp.CFrame = little.Hitbox.CFrame * CFrame.new(0, 2, 0)
+			task.wait(0.03)
 			fti(hrp, little.Hitbox, 0)
 			task.wait(0.01)
 			fti(hrp, little.Hitbox, 1)
@@ -527,7 +619,7 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 	end
 
 	-- 4. Hotel & IceHotel Hitboxes
-	if map and hrp and type(fti) == "function" then
+	if map and type(fti) == "function" then
 		for _, hName in ipairs({"HotelHitbox", "HotelHitbox2"}) do
 			local h = map:FindFirstChild(hName)
 			if h and h:IsA("BasePart") then
@@ -540,7 +632,7 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 	end
 
 	-- 5. Regular Crystals in Map and Lava Hatch
-	if map and map:FindFirstChild("BuyCrystal") and map.BuyCrystal:IsA("BasePart") and hrp and type(fti) == "function" then
+	if map and map:FindFirstChild("BuyCrystal") and map.BuyCrystal:IsA("BasePart") and type(fti) == "function" then
 		fti(hrp, map.BuyCrystal, 0)
 		task.wait(0.01)
 		fti(hrp, map.BuyCrystal, 1)
@@ -551,12 +643,17 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 	local lava = tycoon and tycoon:FindFirstChild("Essentials") and tycoon.Essentials:FindFirstChild("Lava")
 	local hatch = lava and lava:FindFirstChild("Hatch")
 	local crystal = hatch and hatch:FindFirstChild("Crystal")
-	if crystal and crystal:IsA("BasePart") and hrp and type(fti) == "function" then
+	if crystal and crystal:IsA("BasePart") and type(fti) == "function" then
 		fti(hrp, crystal, 0)
 		task.wait(0.01)
 		fti(hrp, crystal, 1)
 		results.Gems += 1
 	end
+
+	-- Restore position and camera
+	hrp.CFrame = origCF
+	camera.CameraType = origCamType
+	camera.CFrame = origCamCF
 
 	return results
 end

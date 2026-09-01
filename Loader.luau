@@ -5650,10 +5650,10 @@ __MODULE_SOURCES__["UI/LeaderstatsWidget.luau"] = [====[--!strict
     Features:
     - Auto-arranges next to the PlayerList tab widget
     - Clean currency separation: [ Currencies ] vs [ Other Values ] vs [ Server Players ]
+    - Full high-contrast legibility across Light, Dark, Translucent, and Adaptive themes
     - Right-click any stat row to move it between Currencies and Other Values (with JSON persistence)
-    - Full theme reactivity with instant dynamic recoloring
+    - Full fluid animations (spring opening, hover glows, click pops, tab transitions)
     - Real-time live polling of leaderstats, Data folders, and game remotes
-    - Drag handle, minimize controls, and snap-to-dock button
 ]=]
 
 local Players = game:GetService("Players")
@@ -5949,6 +5949,7 @@ function LeaderstatsWidget.new()
 	dockBtn.Parent = topbar
 	UI.registerThemeElement(dockBtn, "Container")
 	UI.registerThemeElement(dockBtn, "TextSecondary")
+	Animations.buttonHoverPush(dockBtn)
 
 	local dockStroke = Instance.new("UIStroke")
 	dockStroke.Color = UI.Theme.BorderDim
@@ -5972,6 +5973,7 @@ function LeaderstatsWidget.new()
 	minBtn.Parent = topbar
 	UI.registerThemeElement(minBtn, "Container")
 	UI.registerThemeElement(minBtn, "TextPrimary")
+	Animations.buttonHoverPush(minBtn)
 
 	local minStroke = Instance.new("UIStroke")
 	minStroke.Color = UI.Theme.Border
@@ -5994,6 +5996,7 @@ function LeaderstatsWidget.new()
 	closeBtn.Parent = topbar
 	UI.registerThemeElement(closeBtn, "Container")
 	UI.registerThemeElement(closeBtn, "TextPrimary")
+	Animations.buttonHoverPush(closeBtn)
 
 	local closeStroke = Instance.new("UIStroke")
 	closeStroke.Color = UI.Theme.Border
@@ -6049,6 +6052,7 @@ function LeaderstatsWidget.new()
 		btn.Parent = modeBar
 		UI.registerThemeElement(btn, "Container")
 		UI.registerThemeElement(btn, "TextSecondary")
+		Animations.buttonHoverPush(btn)
 
 		local st = Instance.new("UIStroke")
 		st.Color = UI.Theme.BorderDim
@@ -6201,7 +6205,10 @@ function LeaderstatsWidget.new()
 		for idx, s in ipairs(items) do
 			local existing = cache[s.Name]
 			if existing and existing.Row and existing.Row.Parent then
-				existing.ValLabel.Text = s.Formatted
+				if existing.ValLabel.Text ~= s.Formatted then
+					existing.ValLabel.Text = s.Formatted
+					Animations.buttonClickPop(existing.Row)
+				end
 			else
 				local row = Instance.new("TextButton")
 				row.Name = s.Name .. "Row"
@@ -6214,6 +6221,7 @@ function LeaderstatsWidget.new()
 				row.LayoutOrder = idx
 				row.Parent = container
 				UI.registerThemeElement(row, "Container")
+				Animations.buttonHoverPush(row)
 
 				local rStroke = Instance.new("UIStroke")
 				rStroke.Color = UI.Theme.BorderDim
@@ -6235,6 +6243,7 @@ function LeaderstatsWidget.new()
 				nameLabel.Parent = row
 				UI.registerThemeElement(nameLabel, "TextPrimary")
 
+				-- Value label with high contrast for Light & Dark mode
 				local valLabel = Instance.new("TextLabel")
 				valLabel.Size = UDim2.new(0.45, -8, 1, 0)
 				valLabel.Position = UDim2.new(0.55, 0, 0, 0)
@@ -6246,10 +6255,11 @@ function LeaderstatsWidget.new()
 				valLabel.TextXAlignment = Enum.TextXAlignment.Right
 				valLabel.TextTruncate = Enum.TextTruncate.AtEnd
 				valLabel.Parent = row
-				UI.registerThemeElement(valLabel, "AccentText")
+				UI.registerThemeElement(valLabel, "Accent")
 
 				-- Right-Click to swap between Currencies & Other Values
 				row.MouseButton2Click:Connect(function()
+					Animations.buttonClickPop(row)
 					local targetCat = if currentCategory == "currencies" then "others" else "currencies"
 					UserCategoryOverrides[s.Name] = targetCat
 					saveOverrides()
@@ -6353,9 +6363,19 @@ function LeaderstatsWidget.new()
 		activeMode = mode
 		updateTabStyles()
 
-		curContainer.Visible = (mode == "currencies")
-		othContainer.Visible = (mode == "others")
-		svrContainer.Visible = (mode == "server")
+		local targetCont = if mode == "currencies" then curContainer elseif mode == "others" then othContainer else svrContainer
+
+		for _, cont in ipairs({curContainer, othContainer, svrContainer}) do
+			if cont == targetCont then
+				cont.Visible = true
+				cont.Position = UDim2.new(0, 4, 0, 0)
+				TweenService:Create(cont, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					Position = UDim2.new(0, 0, 0, 0)
+				}):Play()
+			else
+				cont.Visible = false
+			end
+		end
 
 		if mode == "currencies" or mode == "others" then
 			renderAllStats()
@@ -6364,9 +6384,18 @@ function LeaderstatsWidget.new()
 		end
 	end
 
-	curBtn.MouseButton1Click:Connect(function() setMode("currencies") end)
-	othBtn.MouseButton1Click:Connect(function() setMode("others") end)
-	svrBtn.MouseButton1Click:Connect(function() setMode("server") end)
+	curBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(curBtn)
+		setMode("currencies")
+	end)
+	othBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(othBtn)
+		setMode("others")
+	end)
+	svrBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(svrBtn)
+		setMode("server")
+	end)
 
 	setMode("currencies")
 
@@ -6375,24 +6404,39 @@ function LeaderstatsWidget.new()
 		local pListGui = CoreGui:FindFirstChild("ModularPlayerListGui") or (LocalPlayer and LocalPlayer.PlayerGui:FindFirstChild("ModularPlayerListGui"))
 		local pListFrame = pListGui and pListGui:FindFirstChild("PlayerListWidget")
 		if pListFrame and pListFrame:IsA("GuiObject") then
-			local pListAbsPos = pListFrame.AbsolutePosition
 			local pListPos = pListFrame.Position
-			widget.Position = UDim2.new(
+			local targetPos = UDim2.new(
 				pListPos.X.Scale,
 				pListPos.X.Offset - WIDGET_W - 8,
 				pListPos.Y.Scale,
 				pListPos.Y.Offset
 			)
+			TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = targetPos
+			}):Play()
 		else
 			widget.Position = UDim2.new(1, -(270 + WIDGET_W + 8), 0, 10)
 		end
 	end
 
-	dockBtn.MouseButton1Click:Connect(autoDockNextToPlayerList)
+	dockBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(dockBtn)
+		autoDockNextToPlayerList()
+	end)
 
 	-- ── Theme Change Listener ────────────────────────────────────────
 	UI.onThemeChanged(function(targetTheme)
 		updateTabStyles()
+		for _, item in pairs(curRowFrames) do
+			if item and item.ValLabel then
+				item.ValLabel.TextColor3 = targetTheme.Accent
+			end
+		end
+		for _, item in pairs(othRowFrames) do
+			if item and item.ValLabel then
+				item.ValLabel.TextColor3 = targetTheme.Accent
+			end
+		end
 	end)
 
 	-- ── Continuous Polling Loop ───────────────────────────────────────
@@ -6448,11 +6492,13 @@ function LeaderstatsWidget.new()
 	-- Minimize & Close actions
 	local minimized = false
 	minBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(minBtn)
 		minimized = not minimized
 		body.Visible = not minimized
 	end)
 
 	closeBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(closeBtn)
 		widget.Visible = false
 	end)
 
@@ -6461,7 +6507,10 @@ function LeaderstatsWidget.new()
 	self.Dock = autoDockNextToPlayerList
 	self.SetVisible = function(vis: boolean)
 		widget.Visible = vis
-		if vis then autoDockNextToPlayerList() end
+		if vis then
+			autoDockNextToPlayerList()
+			Animations.springOpen(widget, uiScale)
+		end
 	end
 
 	return self
@@ -11503,15 +11552,84 @@ local function findPumpFillPrompt(): (ProximityPrompt?, BasePart?)
 	return nil, nil
 end
 
+local function ensureWaterCupAvailable(): Tool?
+	local lp = Players.LocalPlayer
+	local char = lp.Character
+	local bp = lp:FindFirstChildOfClass("Backpack")
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+	-- 1. Check if already in Character or Backpack
+	if char then
+		for _, c in ipairs(char:GetChildren()) do
+			if c:IsA("Tool") and string.find(c.Name:lower(), "cup") then
+				return c
+			end
+		end
+	end
+	if bp then
+		for _, c in ipairs(bp:GetChildren()) do
+			if c:IsA("Tool") and string.find(c.Name:lower(), "cup") then
+				if hum then
+					pcall(function() hum:EquipTool(c) end)
+				end
+				return c
+			end
+		end
+	end
+
+	-- 2. If no Cup tool exists, grab one from the WaterPedestal bucket
+	local hrp = getHrp()
+	local map = Workspace:FindFirstChild("Map")
+	local bucket = map and map:FindFirstChild("Troops") and map.Troops:FindFirstChild("WaterPedestal") and map.Troops.WaterPedestal:FindFirstChild("Bucket")
+	local prompt = bucket and bucket:FindFirstChildWhichIsA("ProximityPrompt", true)
+	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
+
+	if hrp and bucket and bucket:IsA("BasePart") and prompt and type(fpp) == "function" then
+		local origCF = hrp.CFrame
+		local cam = Workspace.CurrentCamera
+		local camType = cam and cam.CameraType
+		local camCF = cam and cam.CFrame
+
+		if cam and camCF then
+			cam.CameraType = Enum.CameraType.Scriptable
+			cam.CFrame = camCF
+		end
+
+		hrp.CFrame = bucket.CFrame * CFrame.new(0, 2, 0)
+		task.wait(0.06)
+		prompt.HoldDuration = 0
+		fpp(prompt, 1, true)
+		task.wait(0.04)
+
+		hrp.CFrame = origCF
+		if cam and camCF and camType then
+			cam.CameraType = camType
+			cam.CFrame = camCF
+		end
+
+		-- Check backpack for acquired tool
+		if bp then
+			for _, c in ipairs(bp:GetChildren()) do
+				if c:IsA("Tool") and string.find(c.Name:lower(), "cup") then
+					if hum then pcall(function() hum:EquipTool(c) end) end
+					return c
+				end
+			end
+		end
+	end
+
+	return nil
+end
+
 function IceTycoon.fillWaterNow(): boolean
 	local hrp = getHrp()
 	if not hrp then return false end
 
-	ensureWaterToolEquipped()
+	ensureWaterCupAvailable()
 	task.wait(0.04)
 
 	local scoopPrompt, scoopPart = findActiveScoopPrompt()
-	local fillPrompt = findPumpFillPrompt()
+	local fillPrompt, fillPart = findPumpFillPrompt()
 	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
 	local camera = Workspace.CurrentCamera
 
@@ -11539,18 +11657,19 @@ function IceTycoon.fillWaterNow(): boolean
 		camera.CameraType = Enum.CameraType.Scriptable
 		camera.CFrame = origCamCF
 
-		-- 1. Scoop water (0.08s, 8 rapid pulses to guarantee full capacity)
+		-- 1. Scoop water (10 rapid pulses to guarantee full capacity)
 		hrp.CFrame = scoopPart.CFrame * CFrame.new(0, 3, 0)
 		task.wait(0.08)
 		if type(fpp) == "function" then
-			for _ = 1, 8 do
+			for _ = 1, 10 do
 				fpp(scoopPrompt, 1, true)
 				task.wait(0.015)
 			end
 		end
 
-		-- 2. Deposit into pump (0.08s)
-		hrp.CFrame = CFrame.new(-81.4, 4.2, -87.5) * CFrame.Angles(0, math.rad(180), 0)
+		-- 2. Deposit into pump (double verified triggers)
+		local depositPos = (fillPart and fillPart.CFrame * CFrame.new(0, 2, 0)) or (CFrame.new(-81.4, 4.2, -87.5) * CFrame.Angles(0, math.rad(180), 0))
+		hrp.CFrame = depositPos
 		task.wait(0.08)
 		if type(fpp) == "function" then
 			fpp(fillPrompt, 1, true)
@@ -11583,8 +11702,10 @@ function IceTycoon.setAutoFillWater(enabled: boolean)
 					if amt and amt:IsA("IntValue") and amt.Value < (targetMax - 2) then
 						IceTycoon.fillWaterNow()
 					end
+				else
+					IceTycoon.fillWaterNow()
 				end
-				task.wait(0.8)
+				task.wait(0.9)
 			end
 		end)
 	end
@@ -11592,7 +11713,6 @@ end
 
 -- ── 5. Mine Ores Auto-Farm ──────────────────────────────────────────
 IceTycoon.AutoMineOres = false
-local mineConn: RBXScriptConnection? = nil
 
 function IceTycoon.mineOresNow(): number
 	local mine = Workspace:FindFirstChild("Tycoon") and Workspace.Tycoon:FindFirstChild("Bought") and Workspace.Tycoon.Bought:FindFirstChild("Mine")
@@ -11629,20 +11749,48 @@ IceTycoon.AutoCollectSecrets = false
 
 function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Secrets: number }
 	local hrp = getHrp()
+	local camera = Workspace.CurrentCamera
 	local fti = firetouchinterest or (getgenv and getgenv().firetouchinterest)
 	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
 
 	local results = { Gems = 0, Trophies = 0, Secrets = 0 }
 	local map = Workspace:FindFirstChild("Map")
-	if not map then return results end
+	if not (map and hrp and camera) then return results end
 
-	-- 1. All 5 Gem Pedestals
+	local origCF = hrp.CFrame
+	local origCamCF = camera.CFrame
+	local origCamType = camera.CameraType
+
+	camera.CameraType = Enum.CameraType.Scriptable
+	camera.CFrame = origCamCF
+
+	-- 1. All 3 Trophies on Pedestals (Camera-Frozen Instant Tap)
+	local pedFolder = map:FindFirstChild("Pedestals")
+	if pedFolder and type(fpp) == "function" then
+		for _, ped in ipairs(pedFolder:GetChildren()) do
+			local union = ped:FindFirstChild("Union") :: BasePart? or ped:FindFirstChildWhichIsA("BasePart")
+			local pr = ped:FindFirstChildWhichIsA("ProximityPrompt", true)
+			if union and pr and pr.Enabled then
+				hrp.CFrame = union.CFrame * CFrame.new(0, 2, 0)
+				task.wait(0.06)
+				pr.HoldDuration = 0
+				fpp(pr, 1, true)
+				task.wait(0.02)
+				fpp(pr, 1, true)
+				results.Trophies += 1
+			end
+		end
+	end
+
+	-- 2. All 5 Gem Pedestals (Camera-Frozen Instant Tap)
 	local troops = map:FindFirstChild("Troops")
 	local gemPed = troops and troops:FindFirstChild("GemPedestals")
-	if gemPed and hrp and type(fti) == "function" then
+	if gemPed and type(fti) == "function" then
 		for _, ped in ipairs(gemPed:GetChildren()) do
 			local hit = ped:FindFirstChild("Hitbox")
 			if hit and hit:IsA("BasePart") then
+				hrp.CFrame = hit.CFrame * CFrame.new(0, 2, 0)
+				task.wait(0.03)
 				fti(hrp, hit, 0)
 				task.wait(0.01)
 				fti(hrp, hit, 1)
@@ -11651,23 +11799,12 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 		end
 	end
 
-	-- 2. Trophies on Pedestals
-	local pedFolder = map:FindFirstChild("Pedestals")
-	if pedFolder and type(fpp) == "function" then
-		for _, ped in ipairs(pedFolder:GetChildren()) do
-			local pr = ped:FindFirstChildWhichIsA("ProximityPrompt", true)
-			if pr and pr.Enabled then
-				pr.HoldDuration = 0
-				fpp(pr, 1, true)
-				results.Trophies += 1
-			end
-		end
-	end
-
 	-- 3. KeyGiver, Secret House Door, and LittleThing
-	if troops and hrp and type(fti) == "function" then
+	if troops and type(fti) == "function" then
 		local keyGiver = troops:FindFirstChild("KeyGiver")
 		if keyGiver and keyGiver:FindFirstChild("Hitbox") and keyGiver.Hitbox:IsA("BasePart") then
+			hrp.CFrame = keyGiver.Hitbox.CFrame * CFrame.new(0, 2, 0)
+			task.wait(0.03)
 			fti(hrp, keyGiver.Hitbox, 0)
 			task.wait(0.01)
 			fti(hrp, keyGiver.Hitbox, 1)
@@ -11677,6 +11814,8 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 		local house = troops:FindFirstChild("House")
 		local door = house and house:FindFirstChild("Door")
 		if door and door:FindFirstChild("Hitbox") and door.Hitbox:IsA("BasePart") then
+			hrp.CFrame = door.Hitbox.CFrame * CFrame.new(0, 2, 0)
+			task.wait(0.03)
 			fti(hrp, door.Hitbox, 0)
 			task.wait(0.01)
 			fti(hrp, door.Hitbox, 1)
@@ -11685,6 +11824,8 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 
 		local little = troops:FindFirstChild("JustALittleThing")
 		if little and little:FindFirstChild("Hitbox") and little.Hitbox:IsA("BasePart") then
+			hrp.CFrame = little.Hitbox.CFrame * CFrame.new(0, 2, 0)
+			task.wait(0.03)
 			fti(hrp, little.Hitbox, 0)
 			task.wait(0.01)
 			fti(hrp, little.Hitbox, 1)
@@ -11693,7 +11834,7 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 	end
 
 	-- 4. Hotel & IceHotel Hitboxes
-	if map and hrp and type(fti) == "function" then
+	if map and type(fti) == "function" then
 		for _, hName in ipairs({"HotelHitbox", "HotelHitbox2"}) do
 			local h = map:FindFirstChild(hName)
 			if h and h:IsA("BasePart") then
@@ -11706,7 +11847,7 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 	end
 
 	-- 5. Regular Crystals in Map and Lava Hatch
-	if map and map:FindFirstChild("BuyCrystal") and map.BuyCrystal:IsA("BasePart") and hrp and type(fti) == "function" then
+	if map and map:FindFirstChild("BuyCrystal") and map.BuyCrystal:IsA("BasePart") and type(fti) == "function" then
 		fti(hrp, map.BuyCrystal, 0)
 		task.wait(0.01)
 		fti(hrp, map.BuyCrystal, 1)
@@ -11717,12 +11858,17 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 	local lava = tycoon and tycoon:FindFirstChild("Essentials") and tycoon.Essentials:FindFirstChild("Lava")
 	local hatch = lava and lava:FindFirstChild("Hatch")
 	local crystal = hatch and hatch:FindFirstChild("Crystal")
-	if crystal and crystal:IsA("BasePart") and hrp and type(fti) == "function" then
+	if crystal and crystal:IsA("BasePart") and type(fti) == "function" then
 		fti(hrp, crystal, 0)
 		task.wait(0.01)
 		fti(hrp, crystal, 1)
 		results.Gems += 1
 	end
+
+	-- Restore position and camera
+	hrp.CFrame = origCF
+	camera.CameraType = origCamType
+	camera.CFrame = origCamCF
 
 	return results
 end

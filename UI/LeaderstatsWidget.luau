@@ -4,10 +4,10 @@
     Features:
     - Auto-arranges next to the PlayerList tab widget
     - Clean currency separation: [ Currencies ] vs [ Other Values ] vs [ Server Players ]
+    - Full high-contrast legibility across Light, Dark, Translucent, and Adaptive themes
     - Right-click any stat row to move it between Currencies and Other Values (with JSON persistence)
-    - Full theme reactivity with instant dynamic recoloring
+    - Full fluid animations (spring opening, hover glows, click pops, tab transitions)
     - Real-time live polling of leaderstats, Data folders, and game remotes
-    - Drag handle, minimize controls, and snap-to-dock button
 ]=]
 
 local Players = game:GetService("Players")
@@ -303,6 +303,7 @@ function LeaderstatsWidget.new()
 	dockBtn.Parent = topbar
 	UI.registerThemeElement(dockBtn, "Container")
 	UI.registerThemeElement(dockBtn, "TextSecondary")
+	Animations.buttonHoverPush(dockBtn)
 
 	local dockStroke = Instance.new("UIStroke")
 	dockStroke.Color = UI.Theme.BorderDim
@@ -326,6 +327,7 @@ function LeaderstatsWidget.new()
 	minBtn.Parent = topbar
 	UI.registerThemeElement(minBtn, "Container")
 	UI.registerThemeElement(minBtn, "TextPrimary")
+	Animations.buttonHoverPush(minBtn)
 
 	local minStroke = Instance.new("UIStroke")
 	minStroke.Color = UI.Theme.Border
@@ -348,6 +350,7 @@ function LeaderstatsWidget.new()
 	closeBtn.Parent = topbar
 	UI.registerThemeElement(closeBtn, "Container")
 	UI.registerThemeElement(closeBtn, "TextPrimary")
+	Animations.buttonHoverPush(closeBtn)
 
 	local closeStroke = Instance.new("UIStroke")
 	closeStroke.Color = UI.Theme.Border
@@ -403,6 +406,7 @@ function LeaderstatsWidget.new()
 		btn.Parent = modeBar
 		UI.registerThemeElement(btn, "Container")
 		UI.registerThemeElement(btn, "TextSecondary")
+		Animations.buttonHoverPush(btn)
 
 		local st = Instance.new("UIStroke")
 		st.Color = UI.Theme.BorderDim
@@ -555,7 +559,10 @@ function LeaderstatsWidget.new()
 		for idx, s in ipairs(items) do
 			local existing = cache[s.Name]
 			if existing and existing.Row and existing.Row.Parent then
-				existing.ValLabel.Text = s.Formatted
+				if existing.ValLabel.Text ~= s.Formatted then
+					existing.ValLabel.Text = s.Formatted
+					Animations.buttonClickPop(existing.Row)
+				end
 			else
 				local row = Instance.new("TextButton")
 				row.Name = s.Name .. "Row"
@@ -568,6 +575,7 @@ function LeaderstatsWidget.new()
 				row.LayoutOrder = idx
 				row.Parent = container
 				UI.registerThemeElement(row, "Container")
+				Animations.buttonHoverPush(row)
 
 				local rStroke = Instance.new("UIStroke")
 				rStroke.Color = UI.Theme.BorderDim
@@ -589,6 +597,7 @@ function LeaderstatsWidget.new()
 				nameLabel.Parent = row
 				UI.registerThemeElement(nameLabel, "TextPrimary")
 
+				-- Value label with high contrast for Light & Dark mode
 				local valLabel = Instance.new("TextLabel")
 				valLabel.Size = UDim2.new(0.45, -8, 1, 0)
 				valLabel.Position = UDim2.new(0.55, 0, 0, 0)
@@ -600,10 +609,11 @@ function LeaderstatsWidget.new()
 				valLabel.TextXAlignment = Enum.TextXAlignment.Right
 				valLabel.TextTruncate = Enum.TextTruncate.AtEnd
 				valLabel.Parent = row
-				UI.registerThemeElement(valLabel, "AccentText")
+				UI.registerThemeElement(valLabel, "Accent")
 
 				-- Right-Click to swap between Currencies & Other Values
 				row.MouseButton2Click:Connect(function()
+					Animations.buttonClickPop(row)
 					local targetCat = if currentCategory == "currencies" then "others" else "currencies"
 					UserCategoryOverrides[s.Name] = targetCat
 					saveOverrides()
@@ -707,9 +717,19 @@ function LeaderstatsWidget.new()
 		activeMode = mode
 		updateTabStyles()
 
-		curContainer.Visible = (mode == "currencies")
-		othContainer.Visible = (mode == "others")
-		svrContainer.Visible = (mode == "server")
+		local targetCont = if mode == "currencies" then curContainer elseif mode == "others" then othContainer else svrContainer
+
+		for _, cont in ipairs({curContainer, othContainer, svrContainer}) do
+			if cont == targetCont then
+				cont.Visible = true
+				cont.Position = UDim2.new(0, 4, 0, 0)
+				TweenService:Create(cont, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					Position = UDim2.new(0, 0, 0, 0)
+				}):Play()
+			else
+				cont.Visible = false
+			end
+		end
 
 		if mode == "currencies" or mode == "others" then
 			renderAllStats()
@@ -718,9 +738,18 @@ function LeaderstatsWidget.new()
 		end
 	end
 
-	curBtn.MouseButton1Click:Connect(function() setMode("currencies") end)
-	othBtn.MouseButton1Click:Connect(function() setMode("others") end)
-	svrBtn.MouseButton1Click:Connect(function() setMode("server") end)
+	curBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(curBtn)
+		setMode("currencies")
+	end)
+	othBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(othBtn)
+		setMode("others")
+	end)
+	svrBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(svrBtn)
+		setMode("server")
+	end)
 
 	setMode("currencies")
 
@@ -729,24 +758,39 @@ function LeaderstatsWidget.new()
 		local pListGui = CoreGui:FindFirstChild("ModularPlayerListGui") or (LocalPlayer and LocalPlayer.PlayerGui:FindFirstChild("ModularPlayerListGui"))
 		local pListFrame = pListGui and pListGui:FindFirstChild("PlayerListWidget")
 		if pListFrame and pListFrame:IsA("GuiObject") then
-			local pListAbsPos = pListFrame.AbsolutePosition
 			local pListPos = pListFrame.Position
-			widget.Position = UDim2.new(
+			local targetPos = UDim2.new(
 				pListPos.X.Scale,
 				pListPos.X.Offset - WIDGET_W - 8,
 				pListPos.Y.Scale,
 				pListPos.Y.Offset
 			)
+			TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = targetPos
+			}):Play()
 		else
 			widget.Position = UDim2.new(1, -(270 + WIDGET_W + 8), 0, 10)
 		end
 	end
 
-	dockBtn.MouseButton1Click:Connect(autoDockNextToPlayerList)
+	dockBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(dockBtn)
+		autoDockNextToPlayerList()
+	end)
 
 	-- ── Theme Change Listener ────────────────────────────────────────
 	UI.onThemeChanged(function(targetTheme)
 		updateTabStyles()
+		for _, item in pairs(curRowFrames) do
+			if item and item.ValLabel then
+				item.ValLabel.TextColor3 = targetTheme.Accent
+			end
+		end
+		for _, item in pairs(othRowFrames) do
+			if item and item.ValLabel then
+				item.ValLabel.TextColor3 = targetTheme.Accent
+			end
+		end
 	end)
 
 	-- ── Continuous Polling Loop ───────────────────────────────────────
@@ -802,11 +846,13 @@ function LeaderstatsWidget.new()
 	-- Minimize & Close actions
 	local minimized = false
 	minBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(minBtn)
 		minimized = not minimized
 		body.Visible = not minimized
 	end)
 
 	closeBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(closeBtn)
 		widget.Visible = false
 	end)
 
@@ -815,7 +861,10 @@ function LeaderstatsWidget.new()
 	self.Dock = autoDockNextToPlayerList
 	self.SetVisible = function(vis: boolean)
 		widget.Visible = vis
-		if vis then autoDockNextToPlayerList() end
+		if vis then
+			autoDockNextToPlayerList()
+			Animations.springOpen(widget, uiScale)
+		end
 	end
 
 	return self

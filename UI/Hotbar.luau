@@ -418,15 +418,33 @@ function Hotbar.new(): HotbarWidget
 	local function equipOrToggleTool(tool: Tool)
 		local char = LocalPlayer.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
 		if not char or not hum then return end
 
 		if isToolEquipped(tool) then
+			-- Un-equip currently held tool
 			pcall(function() hum:UnequipTools() end)
+			if tool.Parent == char and bp then
+				pcall(function() tool.Parent = bp end)
+			end
 		else
+			-- Un-equip any other equipped tools first
 			pcall(function() hum:UnequipTools() end)
+			for _, c in ipairs(char:GetChildren()) do
+				if c:IsA("Tool") and bp then
+					pcall(function() c.Parent = bp end)
+				end
+			end
 			task.wait(0.02)
 			pcall(function() hum:EquipTool(tool) end)
+			if tool.Parent ~= char then
+				pcall(function() tool.Parent = char end)
+			end
 		end
+
+		task.wait(0.02)
+		updateHotbarVisuals()
+		updateBackpackGrid()
 	end
 
 	-- ── Drop Item Function ───────────────────────────────────────────

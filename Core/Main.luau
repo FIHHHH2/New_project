@@ -376,28 +376,48 @@ window:AddSlider(flightSection, "Fly Speed", 10, 200, 50, function(value)
 	flySpeed = value
 end)
 
--- Right Column: Speed & Jump Modifiers
+-- Right Column: Speed & Jump Modifiers (Persistent Locks)
 local speedSection = window:AddSection(mfRightCol, "Speed & Jump Modifiers")
 
+local activeSpeedLock: number? = nil
+local activeJumpLock: number? = nil
+
+local function enforcePersistentStats()
+	if not humanoid or humanoid.Health <= 0 then return end
+	if activeSpeedLock ~= nil and humanoid.WalkSpeed ~= activeSpeedLock then
+		humanoid.WalkSpeed = activeSpeedLock
+	end
+	if activeJumpLock ~= nil and humanoid.JumpPower ~= activeJumpLock then
+		humanoid.JumpPower = activeJumpLock
+	end
+end
+
+RunService.RenderStepped:Connect(enforcePersistentStats)
+RunService.Heartbeat:Connect(enforcePersistentStats)
+
 window:AddToggle(speedSection, "walkspeed_boost", "WalkSpeed Boost (32 WS)", false, nil, function(enabled)
+	activeSpeedLock = if enabled then 32 else nil
 	if humanoid then
 		humanoid.WalkSpeed = if enabled then 32 else 16
 	end
 end)
 
 window:AddToggle(speedSection, "jumppower_boost", "JumpPower Boost (100 JP)", false, nil, function(enabled)
+	activeJumpLock = if enabled then 100 else nil
 	if humanoid then
 		humanoid.JumpPower = if enabled then 100 else 50
 	end
 end)
 
 window:AddSlider(speedSection, "Custom Speed", 16, 250, 16, function(value)
+	activeSpeedLock = if value > 16 then value else nil
 	if humanoid then
 		humanoid.WalkSpeed = value
 	end
 end)
 
 window:AddSlider(speedSection, "Custom JumpPower", 50, 300, 50, function(value)
+	activeJumpLock = if value > 50 then value else nil
 	if humanoid then
 		humanoid.JumpPower = value
 	end

@@ -324,12 +324,10 @@ function DisasterSurvival.setAntiObjectKill(enabled: boolean)
 end
 
 -- ── Custom Car Driving ────────────────────────────────────────────
--- Scans Workspace for VehicleSeat instances that are unoccupied,
--- allows clicking one to auto-sit using Humanoid:Sit(seat.CFrame)
--- vulnerability. Controls: W/A/S/D = throttle/steer, Space = brake.
+-- Enter: "Enter Nearest Car" button teleports HRP onto the VehicleSeat.
+-- Roblox proximity detection fires the SeatWeld automatically.
+-- Controls while CarDriving toggle is on: W/S = throttle, A/D = steer.
 local activeSeat: VehicleSeat? = nil
-local steerVal = 0
-local throttleVal = 0
 
 function DisasterSurvival.scanCars(): {VehicleSeat}
     local found: {VehicleSeat} = {}
@@ -343,15 +341,22 @@ end
 
 function DisasterSurvival.sitInCar(seat: VehicleSeat)
     local char = LocalPlayer.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
+    if not (hrp and hum) then return end
 
-    -- VehicleSeat:Sit() exploits the Roblox built-in vehicle API 
-    -- which the server trusts for seat occupancy assignment
-    pcall(function()
-        hum.Sit = true
-        (seat :: any):Sit(hum)
+    -- Teleport HRP onto the seat surface — Roblox's proximity SeatWeld fires
+    -- automatically once the HRP is within range of the VehicleSeat
+    local seatCF = seat.CFrame
+    local upOffset = seat.Size.Y * 0.5 + 2.5  -- land on top of seat, not inside it
+    hrp.CFrame = seatCF * CFrame.new(0, upOffset, 0)
+
+    -- Give Roblox one frame to register proximity and weld character
+    task.delay(0.1, function()
+        -- If weld didn't fire automatically, force ThrottleFloat so physics registers
+        pcall(function() seat.ThrottleFloat = 0 end)
     end)
+
     activeSeat = seat
 end
 
@@ -361,6 +366,7 @@ function DisasterSurvival.exitCar()
     if hum then hum.Jump = true end
     activeSeat = nil
 end
+
 
 function DisasterSurvival.setCarDriving(enabled: boolean)
     DisasterSurvival.CarDriving = enabled

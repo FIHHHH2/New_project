@@ -884,12 +884,19 @@ if gameTabTitle == "Run N Hide" then
 		end
 	end)
 else
-	-- Disaster Survival Sub-Tabs
-	local ndsSubTabs = window:CreateSubTabs(gameTab, { "Disaster Intelligence", "Mobility & Flight", "Physics & Protection" })
-	local disSubTab = ndsSubTabs["Disaster Intelligence"]
-	local mobSubTab = ndsSubTabs["Mobility & Flight"]
-	local phySubTab = ndsSubTabs["Physics & Protection"]
+	-- Disaster Survival Sub-Tabs (4 tabs — all in ONE CreateSubTabs call)
+	local ndsSubTabs = window:CreateSubTabs(gameTab, {
+		"Disaster Intelligence",
+		"Mobility & Flight",
+		"Physics & Protection",
+		"World & Vehicles",
+	})
+	local disSubTab   = ndsSubTabs["Disaster Intelligence"]
+	local mobSubTab   = ndsSubTabs["Mobility & Flight"]
+	local phySubTab   = ndsSubTabs["Physics & Protection"]
+	local worldSubTab = ndsSubTabs["World & Vehicles"]
 
+	-- ── DISASTER INTELLIGENCE ─────────────────────────────────────
 	local disLeftCol, disRightCol = window:CreateColumns(disSubTab)
 	local disasterSection = window:AddSection(disLeftCol, "Disaster Monitor")
 
@@ -911,6 +918,7 @@ else
 		DisasterSurvival.setNoFallDamage(enabled)
 	end)
 
+	-- ── MOBILITY & FLIGHT ─────────────────────────────────────────
 	local mobLeftCol, mobRightCol = window:CreateColumns(mobSubTab)
 	local fltSection = window:AddSection(mobLeftCol, "Flight Navigation")
 	window:AddToggle(fltSection, "flight_no_fall", "Flight No Fall Damage", false, nil, function(enabled)
@@ -922,6 +930,7 @@ else
 		DisasterSurvival.FlightSpeed = value
 	end)
 
+	-- ── PHYSICS & PROTECTION ──────────────────────────────────────
 	local phyLeftCol, phyRightCol = window:CreateColumns(phySubTab)
 	local protSection = window:AddSection(phyLeftCol, "Protection & Physics")
 	window:AddToggle(protSection, "anti_fling", "Anti-Fling Protection", false, nil, function(enabled)
@@ -937,41 +946,45 @@ else
 		DisasterSurvival.setFling(enabled)
 	end)
 
-	-- ── CAR DRIVING & OBJECT DRAG ──────────────────────
-	-- Additional sub-tab: [ Car Driving & World Interaction ]
-	local ndsWorldSubTabs = window:CreateSubTabs(gameTab, { "World & Vehicles" })
-	local worldSubTab = ndsWorldSubTabs["World & Vehicles"]
+	-- ── WORLD & VEHICLES ─────────────────────────────────────────
 	local worldLeftCol, worldRightCol = window:CreateColumns(worldSubTab)
 
 	local carSection = window:AddSection(worldLeftCol, "Vehicle Exploits")
-	window:AddToggle(carSection, "nds_car_drive", "Custom Car Driving (W/A/S/D/F)", false, nil, function(enabled)
+	window:AddToggle(carSection, "nds_car_drive", "Custom Car Driving (W/A/S/D)", false, nil, function(enabled)
 		DisasterSurvival.setCarDriving(enabled)
 	end)
 
-	window:AddButton(carSection, "Scan & List All Cars", function()
+	window:AddButton(carSection, "Enter Nearest Car", function()
 		local cars = DisasterSurvival.scanCars()
 		if #cars == 0 then
 			window:Notify("Cars", "No VehicleSeats found in map", 3)
-		else
-			window:Notify("Cars", string.format("Found %d vehicle seat(s) — approach and press F to enter", #cars), 4)
-			-- Auto-sit in nearest unoccupied seat
-			local char = localPlayer.Character
-			local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-			if hrp then
-				local best: VehicleSeat? = nil
-				local bestDist = math.huge
-				for _, seat in ipairs(cars) do
-					if not seat.Occupant then
-						local d = (seat.Position - hrp.Position).Magnitude
-						if d < bestDist then bestDist = d best = seat end
-					end
-				end
-				if best and bestDist < 50 then
-					DisasterSurvival.sitInCar(best)
-					window:Notify("Cars", "Entered nearest car — W/A/S/D to drive, F to exit", 3)
-				end
+			return
+		end
+		local char = localPlayer.Character
+		local hrp  = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not hrp then window:Notify("Cars", "No character found", 3) return end
+
+		local best: VehicleSeat? = nil
+		local bestDist = math.huge
+		for _, seat in ipairs(cars) do
+			if not seat.Occupant then
+				local d = (seat.Position - hrp.Position).Magnitude
+				if d < bestDist then bestDist = d best = seat end
 			end
 		end
+
+		if best then
+			-- Teleport HRP onto seat — proximity trigger fires the SeatWeld automatically
+			DisasterSurvival.sitInCar(best)
+			window:Notify("Cars", string.format("Warped to car (%.1f studs) — W/A/S/D to drive", bestDist), 3.5)
+		else
+			window:Notify("Cars", "No unoccupied car found", 3)
+		end
+	end)
+
+	window:AddButton(carSection, "Exit Car", function()
+		DisasterSurvival.exitCar()
+		window:Notify("Cars", "Exited vehicle", 2)
 	end)
 
 	local dragSection = window:AddSection(worldRightCol, "Object Interaction")

@@ -717,6 +717,8 @@ function MusicTracker.new()
 								currentSpectrum = data.spectrum
 							end
 							if data.audioPeak then
+								currentAudioPeak = data.audioPeak
+							end
 							local isIdle = (data.title == "No Song Playing" and not data.isPlaying and currentAudioPeak <= 0.005)
 							local coverVersion = data.coverVersion or 0
 							if data.title ~= lastSongTitle or coverVersion ~= lastCoverVersion then

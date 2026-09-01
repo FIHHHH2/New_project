@@ -2,12 +2,12 @@
 --[=[
     ✦ Squared Retro Hotbar & 3D Model Viewport Backpack Inventory Widget ✦
     Features:
-    - Pure O(1) instantaneous zero-lag tool equipping & unequipping (<0.01ms)
+    - Fluid Drag-to-Move / Drag-to-Swap toolbar objects with live drop target highlights
+    - Instantaneous O(1) zero-lag tool equipping & unequipping (<0.01ms)
     - Permanent 3D ViewportFrame caching (zero model re-cloning on equip/unequip)
     - Smart hierarchy filter (moving tools between Backpack and Character never rebuilds viewports)
     - Dedicated retro [ ≡ INV ] hamburger button to toggle Backpack Inventory
     - Reliable 1-0 number key unequip toggling
-    - Drag-to-sort slots: drag any hotbar item onto another slot to swap/reorder
     - Drag-to-drop: dragging an item outside the HUD drops the item into the world
     - 100% Theme-reactive (Dark, Light, Translucent Dark, Translucent Light, Adaptive)
 ]=]
@@ -18,6 +18,7 @@ local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local GuiService = game:GetService("GuiService")
 
 local UI = require("UI/UI.luau")
 local Animations = require("UI/Animations.luau")
@@ -188,26 +189,37 @@ function Hotbar.new(): HotbarWidget
 	dragGhost.Name = "DragGhost"
 	dragGhost.Size = UDim2.new(0, 52, 0, 52)
 	dragGhost.BackgroundColor3 = UI.Theme.Accent
-	dragGhost.BackgroundTransparency = 0.3
+	dragGhost.BackgroundTransparency = 0.25
 	dragGhost.BorderSizePixel = 0
 	dragGhost.Visible = false
-	dragGhost.ZIndex = 100
+	dragGhost.ZIndex = 200
 	dragGhost.Parent = screenGui
 
 	local ghostStroke = Instance.new("UIStroke")
-	ghostStroke.Color = UI.Theme.Border
+	ghostStroke.Color = Color3.fromRGB(255, 255, 255)
 	ghostStroke.Thickness = 2
 	ghostStroke.Parent = dragGhost
 
+	local ghostBadge = Instance.new("TextLabel")
+	ghostBadge.Size = UDim2.new(1, 0, 0, 16)
+	ghostBadge.Position = UDim2.new(0, 0, 0, 4)
+	ghostBadge.BackgroundTransparency = 1
+	ghostBadge.Text = "MOVING"
+	ghostBadge.TextColor3 = UI.Theme.AccentText
+	ghostBadge.Font = UI.Fonts.Mono
+	ghostBadge.TextSize = 8
+	ghostBadge.ZIndex = 201
+	ghostBadge.Parent = dragGhost
+
 	local ghostLabel = Instance.new("TextLabel")
-	ghostLabel.Size = UDim2.new(1, -4, 0, 16)
-	ghostLabel.Position = UDim2.new(0, 2, 1, -18)
+	ghostLabel.Size = UDim2.new(1, -4, 0, 18)
+	ghostLabel.Position = UDim2.new(0, 2, 1, -22)
 	ghostLabel.BackgroundTransparency = 1
 	ghostLabel.TextColor3 = UI.Theme.AccentText
 	ghostLabel.Font = UI.Fonts.Header
-	ghostLabel.TextSize = 9
+	ghostLabel.TextSize = 10
 	ghostLabel.TextTruncate = Enum.TextTruncate.AtEnd
-	ghostLabel.ZIndex = 101
+	ghostLabel.ZIndex = 201
 	ghostLabel.Parent = dragGhost
 
 	-- ── 1. Hotbar HUD Container ───────────────────────────────────────
@@ -281,7 +293,7 @@ function Hotbar.new(): HotbarWidget
 	bpTitle.Size = UDim2.new(1, -60, 1, 0)
 	bpTitle.Position = UDim2.new(0, 10, 0, 0)
 	bpTitle.BackgroundTransparency = 1
-	bpTitle.Text = "Backpack Inventory (Sort & Drag)"
+	bpTitle.Text = "Backpack Inventory (Sort & Drag to Toolbar)"
 	bpTitle.TextColor3 = UI.Theme.TextPrimary
 	bpTitle.Font = UI.Fonts.Header
 	bpTitle.TextSize = 11
@@ -382,6 +394,8 @@ function Hotbar.new(): HotbarWidget
 	local draggingTool: Tool? = nil
 	local draggingFromSlot: number? = nil
 	local dragStartPos = Vector2.zero
+	local isDraggingActive = false
+	local justFinishedDrag = false
 
 	local function getAllTools(): {Tool}
 		local tools: {Tool} = {}
@@ -644,9 +658,9 @@ function Hotbar.new(): HotbarWidget
 
 				itemCard.InputChanged:Connect(function(input)
 					if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-						if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and not draggingTool then
+						if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and not isDraggingActive then
 							local curPos = UserInputService:GetMouseLocation()
-							if (curPos - cardPressPos).Magnitude > 8 then
+							if (curPos - cardPressPos).Magnitude > 6 then
 								startDragging(tool, nil, curPos)
 							end
 						end
@@ -654,7 +668,7 @@ function Hotbar.new(): HotbarWidget
 				end)
 
 				itemCard.MouseButton1Click:Connect(function()
-					if not draggingTool then
+					if not justFinishedDrag and not isDraggingActive then
 						local char = LocalPlayer.Character
 						local hum = char and char:FindFirstChildOfClass("Humanoid")
 						local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
@@ -710,13 +724,11 @@ function Hotbar.new(): HotbarWidget
 		local currentlyEquipped = char:FindFirstChildOfClass("Tool")
 
 		if currentlyEquipped == tool or isToolEquipped(tool) then
-			-- Un-equip
 			hum:UnequipTools()
 			if bp and tool.Parent == char then
 				tool.Parent = bp
 			end
 		else
-			-- Equip
 			hum:UnequipTools()
 			hum:EquipTool(tool)
 		end
@@ -774,7 +786,7 @@ function Hotbar.new(): HotbarWidget
 		end)
 	end
 
-	-- ── Drag & Drop Handlers ─────────────────────────────────────────
+	-- ── Drag & Drop Handlers (Toolbar Moving / Sorting) ───────────────
 	local function isPointInsideGui(point: Vector2, gui: GuiObject): boolean
 		local pos = gui.AbsolutePosition
 		local size = gui.AbsoluteSize
@@ -785,22 +797,37 @@ function Hotbar.new(): HotbarWidget
 		draggingTool = tool
 		draggingFromSlot = fromSlot
 		dragStartPos = startMouse
+		isDraggingActive = true
 
 		dragGhost.Position = UDim2.new(0, startMouse.X - 26, 0, startMouse.Y - 26)
 		ghostLabel.Text = tool.Name
 		dragGhost.Visible = true
+
+		if fromSlot and slotFrames[fromSlot] then
+			slotFrames[fromSlot].BackgroundTransparency = 0.6
+		end
 	end
 
 	local function finishDragging(endMouse: Vector2)
-		if not draggingTool then return end
+		if not isDraggingActive or not draggingTool then return end
 		local tool = draggingTool
 		local fromSlot = draggingFromSlot
 
 		dragGhost.Visible = false
 		draggingTool = nil
 		draggingFromSlot = nil
+		isDraggingActive = false
+		justFinishedDrag = true
+		task.delay(0.15, function()
+			justFinishedDrag = false
+		end)
 
-		-- 1. Check if dropped over a Hotbar Slot (Swap / Reorder)
+		-- Reset any slot dimming
+		if fromSlot and slotFrames[fromSlot] then
+			slotFrames[fromSlot].BackgroundTransparency = UI.Theme.ContainerTransparency
+		end
+
+		-- 1. Check if dropped over a Hotbar Slot (Move / Swap Object in Toolbar)
 		local targetSlot: number? = nil
 		for slotIdx = 1, NUM_SLOTS do
 			local slotFrame = slotFrames[slotIdx]
@@ -812,46 +839,84 @@ function Hotbar.new(): HotbarWidget
 
 		if targetSlot then
 			if fromSlot then
+				if fromSlot ~= targetSlot then
+					local oldTargetTool = assignedSlots[targetSlot]
+					assignedSlots[targetSlot] = tool
+					assignedSlots[fromSlot] = oldTargetTool
+
+					pcall(function()
+						local Notification = require("UI/Notification.luau")
+						Notification.new("Toolbar", string.format("Moved '%s' to Slot %d", tool.Name, targetSlot % 10), 1.5)
+					end)
+				end
+			else
+				-- Dragged from Backpack Grid onto Toolbar Slot
 				local oldTargetTool = assignedSlots[targetSlot]
 				assignedSlots[targetSlot] = tool
-				assignedSlots[fromSlot] = oldTargetTool
-			else
-				assignedSlots[targetSlot] = tool
+				pcall(function()
+					local Notification = require("UI/Notification.luau")
+					Notification.new("Toolbar", string.format("Assigned '%s' to Slot %d", tool.Name, targetSlot % 10), 1.5)
+				end)
 			end
-			Animations.popScale(slotFrames[targetSlot], 0.9, 1.08, 1.0, 0.18)
+			Animations.popScale(slotFrames[targetSlot], 0.88, 1.12, 1.0, 0.2)
 			updateHotbarVisuals()
 			if isBackpackOpen then updateBackpackGrid() end
 			return
 		end
 
-		-- 2. Check if dropped over Backpack Grid
+		-- 2. Check if dropped over Backpack Grid (Unassign from Toolbar)
 		if bpWindow.Visible and isPointInsideGui(endMouse, bpGridScroll) then
 			if fromSlot then
 				assignedSlots[fromSlot] = nil
+				pcall(function()
+					local Notification = require("UI/Notification.luau")
+					Notification.new("Toolbar", string.format("Removed '%s' from Slot %d", tool.Name, fromSlot % 10), 1.5)
+				end)
 				updateHotbarVisuals()
 				updateBackpackGrid()
 			end
 			return
 		end
 
-		-- 3. Dropped OUTSIDE both Hotbar and Backpack -> Drop Tool into world!
+		-- 3. Dropped OUTSIDE both Hotbar and Backpack -> Drop Tool into 3D world!
 		local inHotbar = isPointInsideGui(endMouse, hotbarFrame)
 		local inBackpack = bpWindow.Visible and isPointInsideGui(endMouse, bpWindow)
 
 		if not inHotbar and not inBackpack then
 			dropTool(tool)
+		else
+			updateHotbarVisuals()
 		end
 	end
 
 	UserInputService.InputChanged:Connect(function(input)
-		if draggingTool and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		if isDraggingActive and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local mousePos = UserInputService:GetMouseLocation()
 			dragGhost.Position = UDim2.new(0, mousePos.X - 26, 0, mousePos.Y - 26)
+
+			-- Live hover highlighting over target slots
+			for slotIdx = 1, NUM_SLOTS do
+				local slotFrame = slotFrames[slotIdx]
+				if slotFrame then
+					local stroke = slotFrame:FindFirstChildWhichIsA("UIStroke")
+					if isPointInsideGui(mousePos, slotFrame) then
+						slotFrame.BackgroundColor3 = UI.Theme.Accent
+						slotFrame.BackgroundTransparency = 0.3
+						if stroke then stroke.Color = Color3.fromRGB(80, 255, 140) end
+					else
+						local tool = assignedSlots[slotIdx]
+						local equipped = tool and isToolEquipped(tool)
+						slotFrame.BackgroundColor3 = if equipped then UI.Theme.Accent else (if tool then UI.Theme.Container else UI.Theme.ContainerDark)
+						slotFrame.BackgroundTransparency = if equipped then 0.2 else (if tool then UI.Theme.ContainerTransparency else UI.Theme.ContainerDarkTransparency)
+						if stroke then stroke.Color = if equipped then UI.Theme.Border else UI.Theme.BorderDim end
+					end
+				end
+			end
 		end
 	end)
 
 	UserInputService.InputEnded:Connect(function(input)
-		if draggingTool and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+		if isDraggingActive and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
 			finishDragging(UserInputService:GetMouseLocation())
 		end
 	end)
@@ -922,11 +987,11 @@ function Hotbar.new(): HotbarWidget
 
 		slotBtn.InputChanged:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-				if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and not draggingTool then
+				if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and not isDraggingActive then
 					local curTool = assignedSlots[i]
 					if curTool then
 						local curPos = UserInputService:GetMouseLocation()
-						if (curPos - slotPressPos).Magnitude > 8 then
+						if (curPos - slotPressPos).Magnitude > 6 then
 							startDragging(curTool, i, curPos)
 						end
 					end
@@ -935,7 +1000,7 @@ function Hotbar.new(): HotbarWidget
 		end)
 
 		slotBtn.MouseButton1Click:Connect(function()
-			if not draggingTool then
+			if not justFinishedDrag and not isDraggingActive then
 				local tool = assignedSlots[i]
 				if tool then
 					Animations.buttonClickPop(slotBtn)
@@ -1019,8 +1084,10 @@ function Hotbar.new(): HotbarWidget
 	UI.registerThemeElement(invTextLabel, "Accent")
 
 	invBtn.MouseButton1Click:Connect(function()
-		Animations.buttonClickPop(invBtn)
-		toggleBackpack()
+		if not justFinishedDrag then
+			Animations.buttonClickPop(invBtn)
+			toggleBackpack()
+		end
 	end)
 
 	-- ── 10. Search Filter & Events ────────────────────────────────────

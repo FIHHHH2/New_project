@@ -18,7 +18,8 @@ local guiNames = {
 	"ModularNotificationsGui",
 	"ModularPlayerListGui",
 	"ModularChatGui",
-	"ModularMusicTrackerGui"
+	"ModularMusicTrackerGui",
+	"ModularHotbarGui"
 }
 
 for _, name in ipairs(guiNames) do
@@ -98,6 +99,8 @@ local function requireRemote(path: string): any
 			path = "UI/ChatWidget.luau"
 		elseif path == "UI/MusicTracker" or path == "MusicTracker" then
 			path = "UI/MusicTracker.luau"
+		elseif path == "UI/Hotbar" or path == "Hotbar" then
+			path = "UI/Hotbar.luau"
 		elseif path == "Core/FeatureManager" or path == "FeatureManager" then
 			path = "Core/FeatureManager.luau"
 		elseif path == "Core/CoreUI" or path == "CoreUI" then

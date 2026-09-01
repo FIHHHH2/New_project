@@ -26,6 +26,8 @@ local Combat = require("Modules/Combat.luau")
 local DisasterSurvival = require("Modules/DisasterSurvival.luau")
 local RunNHide = require("Modules/RunNHide.luau")
 local PlayerUtilities = require("Modules/PlayerUtilities.luau")
+local Hotbar = require("UI/Hotbar.luau")
+local Notification = require("UI/Notification.luau")
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character

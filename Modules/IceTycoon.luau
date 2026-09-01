@@ -22,6 +22,7 @@ local LocalPlayer = Players.LocalPlayer
 local IceTycoon = {
 	AutoCollect = false,
 	AutoBuy = false,
+	SmartPriorityBuy = true,
 	AutoFillWater = false,
 	AutoCollectCrystals = false,
 	AntiFreeze = false,
@@ -33,6 +34,8 @@ local IceTycoon = {
 	FastGenerators = false,
 	GeneratorSpeed = 120,
 	OreMagnet = false,
+	DuplicatedSellNodes = false,
+	AutoArmyFight = false,
 }
 
 if _G.__ModularTycoon_Cleanup then
@@ -169,6 +172,26 @@ local function getAvailableButtons(): {Instance}
 	return allButtons
 end
 
+local function getButtonPriority(btn: Instance): number
+	local name = string.lower(btn.Name)
+	-- Priority 1: Direct Money/Ore Multipliers (Droppers, Upgraders, Saws, Factory, Generators)
+	if name:find("dropper") or name:find("upgrader") or name:find("saw") or name:find("generator") or name:find("collector") or name:find("gemthing") or name:find("gemreceiver") then
+		return 100
+	-- Priority 2: Production Infrastructures (Conveyors, Pumps, Farms, Domes, Wells)
+	elseif name:find("conveyor") or name:find("pump") or name:find("farm") or name:find("dome") or name:find("speed") or name:find("multiplier") then
+		return 80
+	-- Priority 3: Gameplay & Rebirth unlocks (Rebirth, Troops, Units, Keys, Levers)
+	elseif name:find("rebirth") or name:find("troop") or name:find("unit") or name:find("key") then
+		return 60
+	-- Priority 4: Structural access (Doors, Ladders, Bridges, Vaults)
+	elseif name:find("door") or name:find("ladder") or name:find("bridge") or name:find("vault") then
+		return 40
+	-- Priority 5 (Lowest): Cosmetic / Decorative (Walls, Roofs, Windows, Lights, Decor, Signs)
+	else
+		return 10
+	end
+end
+
 local function getButtonTouchPart(btn: Instance): BasePart?
 	local touch = btn:FindFirstChild("Touch") or btn:FindFirstChild("TheAdornee") or btn:FindFirstChild("Head") or btn:FindFirstChildOfClass("BasePart")
 	if touch and touch:IsA("BasePart") then
@@ -194,6 +217,12 @@ function IceTycoon.buyAllAffordable(): number
 	local buttons = getAvailableButtons()
 	local boughtCount = 0
 
+	if IceTycoon.SmartPriorityBuy then
+		table.sort(buttons, function(a, b)
+			return getButtonPriority(a) > getButtonPriority(b)
+		end)
+	end
+
 	for _, b in ipairs(buttons) do
 		local priceVal = b:FindFirstChild("Price") or b:FindFirstChild("Cost") or b:FindFirstChild("Value")
 		local price = (priceVal and priceVal:IsA("ValueBase") and tonumber((priceVal :: any).Value)) or 0
@@ -218,6 +247,12 @@ function IceTycoon.setAutoBuy(enabled: boolean)
 				local coins = getPlayerCoins()
 				local buttons = getAvailableButtons()
 
+				if IceTycoon.SmartPriorityBuy then
+					table.sort(buttons, function(a, b)
+						return getButtonPriority(a) > getButtonPriority(b)
+					end)
+				end
+
 				for _, b in ipairs(buttons) do
 					if not IceTycoon.AutoBuy then break end
 					local priceVal = b:FindFirstChild("Price") or b:FindFirstChild("Cost") or b:FindFirstChild("Value")
@@ -231,7 +266,7 @@ function IceTycoon.setAutoBuy(enabled: boolean)
 						end
 					end
 				end
-				task.wait(1.5)
+				task.wait(1.2)
 			end
 		end)
 	end
@@ -497,12 +532,12 @@ function IceTycoon.setAutoFillWater(enabled: boolean)
 				if pump then
 					local amt = pump:FindFirstChild("Amount") :: IntValue?
 					local max = pump:FindFirstChild("Max") :: IntValue?
-					local targetMax = (max and max.Value) or 20
-					if amt and amt:IsA("IntValue") and amt.Value < (targetMax - 2) then
+					local targetMax = (max and max.Value) or 50
+					local halfCapacity = targetMax * 0.5
+					-- Only fill when water level is strictly under 50% capacity
+					if amt and amt:IsA("IntValue") and amt.Value < halfCapacity then
 						IceTycoon.fillWaterNow()
 					end
-				else
-					IceTycoon.fillWaterNow()
 				end
 				task.wait(0.9)
 			end
@@ -1060,6 +1095,126 @@ function IceTycoon.setOreMagnet(enabled: boolean)
 	end)
 end
 
+
+-- ── 8. Duplicated Sell Nodes & Generator Proximity Relays ────────
+local proxySellConn: RBXScriptConnection? = nil
+
+function IceTycoon.setDuplicatedSellNodes(enabled: boolean)
+	IceTycoon.DuplicatedSellNodes = enabled
+
+	if proxySellConn then
+		proxySellConn:Disconnect()
+		proxySellConn = nil
+	end
+
+	if not enabled then return end
+
+	local tycoon = Workspace:FindFirstChild("Tycoon") or Workspace
+	local partsFolder = tycoon:FindFirstChild("Parts")
+	local fti = firetouchinterest or (getgenv and getgenv().firetouchinterest)
+
+	proxySellConn = RunService.Heartbeat:Connect(function()
+		pcall(function()
+			local colPart = getCollectorPart()
+			if not colPart or not colPart:IsA("BasePart") then return end
+
+			local targetFolder = partsFolder or tycoon
+			for _, ore in ipairs(targetFolder:GetChildren()) do
+				if ore:IsA("BasePart") and not ore.Anchored and ore ~= colPart then
+					if type(fti) == "function" then
+						fti(ore, colPart, 0)
+						task.wait(0.01)
+						fti(ore, colPart, 1)
+					else
+						ore.CFrame = colPart.CFrame * CFrame.new(0, 0.5, 0)
+					end
+				end
+			end
+		end)
+	end)
+end
+
+-- ── 9. Sphere Army Spawner & Auto-Battler ─────────────────────────
+local armyConn: thread? = nil
+
+function IceTycoon.spawnArmyUnits(noobCount: number?, knightCount: number?): number
+	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
+	local troops = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Troops")
+	if not troops then return 0 end
+
+	local spawned = 0
+	local nTarget = noobCount or 5
+	local kTarget = knightCount or 5
+
+	-- Spawn Knights (knbutton / kn2button)
+	for _, btnName in ipairs({"knbutton", "kn2button"}) do
+		local btn = troops:FindFirstChild(btnName)
+		local prompt = btn and btn:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if prompt and type(fpp) == "function" then
+			for _ = 1, kTarget do
+				fpp(prompt, 1, true)
+				spawned += 1
+				task.wait(0.03)
+			end
+		end
+	end
+
+	-- Spawn Noobs (nobutton / no2button)
+	for _, btnName in ipairs({"nobutton", "no2button"}) do
+		local btn = troops:FindFirstChild(btnName)
+		local prompt = btn and btn:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if prompt and type(fpp) == "function" then
+			for _ = 1, nTarget do
+				fpp(prompt, 1, true)
+				spawned += 1
+				task.wait(0.03)
+			end
+		end
+	end
+
+	return spawned
+end
+
+function IceTycoon.commandAttack(): boolean
+	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
+	local troops = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Troops")
+	if not troops or type(fpp) ~= "function" then return false end
+
+	for _, atkName in ipairs({"AttackButton", "Attack2Button"}) do
+		local btn = troops:FindFirstChild(atkName)
+		local prompt = btn and btn:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if prompt then
+			fpp(prompt, 1, true)
+			task.wait(0.05)
+		end
+	end
+	return true
+end
+
+function IceTycoon.setAutoArmyFight(enabled: boolean)
+	IceTycoon.AutoArmyFight = enabled
+
+	if armyConn then
+		task.cancel(armyConn)
+		armyConn = nil
+	end
+
+	if enabled then
+		armyConn = task.spawn(function()
+			while IceTycoon.AutoArmyFight do
+				pcall(function()
+					-- 1. Spawn army units
+					IceTycoon.spawnArmyUnits(6, 6)
+					task.wait(1.5)
+					-- 2. Command army to attack & battle
+					IceTycoon.commandAttack()
+				end)
+				task.wait(4.0)
+			end
+		end)
+	end
+end
+
 -- ── Cleanup ─────────────────────────────────────────────────────────
 function IceTycoon.cleanup()
 	IceTycoon.AutoCollect = false
@@ -1072,6 +1227,8 @@ function IceTycoon.cleanup()
 	IceTycoon.setFastConveyors(false)
 	IceTycoon.setFastGenerators(false)
 	IceTycoon.setOreMagnet(false)
+	IceTycoon.setDuplicatedSellNodes(false)
+	IceTycoon.setAutoArmyFight(false)
 
 	if collectConn then collectConn:Disconnect() collectConn = nil end
 	if buyConn then buyConn:Disconnect() buyConn = nil end

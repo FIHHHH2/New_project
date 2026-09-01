@@ -669,7 +669,7 @@ function Hotbar.new(): HotbarWidget
 					if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 						if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and not isDraggingActive then
 							local curPos = UserInputService:GetMouseLocation()
-							if (curPos - cardPressPos).Magnitude > 6 then
+							if (curPos - cardPressPos).Magnitude > 14 then
 								startDragging(tool, nil, curPos)
 							end
 						end
@@ -678,19 +678,8 @@ function Hotbar.new(): HotbarWidget
 
 				itemCard.MouseButton1Click:Connect(function()
 					if not justFinishedDrag and not isDraggingActive then
-						local char = LocalPlayer.Character
-						local hum = char and char:FindFirstChildOfClass("Humanoid")
-						local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-						if not char or not hum then return end
-
-						if isToolEquipped(tool) then
-							hum:UnequipTools()
-							if bp and tool.Parent == char then tool.Parent = bp end
-						else
-							hum:UnequipTools()
-							hum:EquipTool(tool)
-						end
-						updateSlotHighlightsOnly()
+						Animations.buttonClickPop(itemCard)
+						equipOrToggleTool(tool)
 					end
 				end)
 
@@ -1035,7 +1024,7 @@ function Hotbar.new(): HotbarWidget
 					local curTool = assignedSlots[i]
 					if curTool then
 						local curPos = UserInputService:GetMouseLocation()
-						if (curPos - slotPressPos).Magnitude > 6 then
+						if (curPos - slotPressPos).Magnitude > 14 then
 							startDragging(curTool, i, curPos)
 						end
 					end

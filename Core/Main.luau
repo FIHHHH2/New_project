@@ -1268,6 +1268,10 @@ elseif gameTabTitle == "Ice Tycoon" then
 		IceTycoon.setOreMagnet(enabled)
 	end)
 
+	window:AddToggle(convSection, "ice_dup_sells", "Duplicated Proximity Sell Nodes", false, nil, function(enabled)
+		IceTycoon.setDuplicatedSellNodes(enabled)
+	end)
+
 	local cashSection = window:AddSection(autoLeftCol, "Cash Collection")
 	window:AddToggle(cashSection, "ice_auto_collect", "Auto-Collect Tycoon Cash", false, nil, function(enabled)
 		IceTycoon.setAutoCollect(enabled)
@@ -1284,6 +1288,10 @@ elseif gameTabTitle == "Ice Tycoon" then
 	local buySection = window:AddSection(autoRightCol, "Button Purchases")
 	window:AddToggle(buySection, "ice_auto_buy", "Auto-Buy Affordable Buttons", false, nil, function(enabled)
 		IceTycoon.setAutoBuy(enabled)
+	end)
+
+	window:AddToggle(buySection, "ice_smart_buy", "Smart Priority Buy (Droppers/Upgrades 1st)", true, nil, function(enabled)
+		IceTycoon.SmartPriorityBuy = enabled
 	end)
 
 	window:AddButton(buySection, "Buy All Affordable Now", function()
@@ -1312,7 +1320,7 @@ elseif gameTabTitle == "Ice Tycoon" then
 		end
 	end)
 
-	local crystalSection = window:AddSection(farmRightCol, "Mining & Game Secrets")
+	local crystalSection = window:AddSection(farmRightCol, "Mining & Trophies")
 	window:AddToggle(crystalSection, "ice_auto_mine", "Auto-Mine Available Ores", false, nil, function(enabled)
 		IceTycoon.setAutoMineOres(enabled)
 	end)
@@ -1322,13 +1330,29 @@ elseif gameTabTitle == "Ice Tycoon" then
 		window:Notify("Ice Tycoon", string.format("Mined %d ore nodes", count), 2.5)
 	end)
 
-	window:AddToggle(crystalSection, "ice_auto_secrets", "Auto-Collect Secrets & Trophies", false, nil, function(enabled)
+	window:AddToggle(crystalSection, "ice_auto_secrets", "Auto-Collect Trophies & Secrets", false, nil, function(enabled)
 		IceTycoon.setAutoCollectSecrets(enabled)
 	end)
 
-	window:AddButton(crystalSection, "Collect All Game Secrets Now", function()
+	window:AddButton(crystalSection, "Collect All Trophies & Secrets Now", function()
 		local res = IceTycoon.collectAllSecretsNow()
 		window:Notify("Ice Tycoon", string.format("Claimed %d gems, %d trophies, %d secrets", res.Gems, res.Trophies, res.Secrets), 3.5)
+	end)
+
+	local armySection = window:AddSection(farmRightCol, "Sphere Army & Combat")
+	window:AddToggle(armySection, "ice_auto_army", "Sphere Army Auto-Battler & Spawner", false, nil, function(enabled)
+		IceTycoon.setAutoArmyFight(enabled)
+	end)
+
+	window:AddButton(armySection, "Spawn Army Reinforcements Now", function()
+		local count = IceTycoon.spawnArmyUnits(8, 8)
+		window:Notify("Sphere Army", string.format("Spawned %d Noob and Knight units", count), 3)
+	end)
+
+	window:AddButton(armySection, "Command Army to Attack", function()
+		if IceTycoon.commandAttack() then
+			window:Notify("Sphere Army", "Commanded army units into battle!", 2.5)
+		end
 	end)
 
 	-- ── 3. PROTECTIONS & ZONES ───────────────────────────────────

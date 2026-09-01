@@ -3965,14 +3965,26 @@ Modules["UI/MusicTracker.luau"] = function()
     	local screenGui = Instance.new("ScreenGui")
     	screenGui.Name = "ModularMusicTrackerGui"
     	screenGui.ResetOnSpawn = false
-    	screenGui.DisplayOrder = 600
+    	screenGui.DisplayOrder = 650
     	screenGui.IgnoreGuiInset = true
     	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     	screenGui.Enabled = true
     
-    	pcall(function() screenGui.Parent = CoreGui end)
-    	if not screenGui.Parent then
-    		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+    	local lp = Players.LocalPlayer
+    	local pgui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui", 5))
+    
+    	local parented = false
+    	if CoreGui then
+    		pcall(function()
+    			screenGui.Parent = CoreGui
+    			parented = (screenGui.Parent == CoreGui)
+    		end)
+    	end
+    	if not parented and pgui then
+    		pcall(function()
+    			screenGui.Parent = pgui
+    			parented = (screenGui.Parent == pgui)
+    		end)
     	end
     
     	local DEFAULT_W, DEFAULT_H = 340, 136
@@ -3982,7 +3994,9 @@ Modules["UI/MusicTracker.luau"] = function()
     	local widget = Instance.new("Frame")
     	widget.Name = "MusicTrackerWidget"
     	widget.Size = UDim2.new(0, DEFAULT_W, 0, DEFAULT_H)
-    	widget.Position = UDim2.new(0, 14, 1, -200)
+    	widget.Position = UDim2.new(0, 16, 1, -170)
+    	widget.Visible = true
+    	widget.ZIndex = 50
     	widget.BackgroundColor3 = UI.Theme.Background
     	widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
     	widget.BorderSizePixel = 0
@@ -4903,36 +4917,34 @@ Modules["UI/MusicTracker.luau"] = function()
     	end)
     
     	local isOpen = true
-    	local isTransitioning = false
     
     	local function openWidget(selfOrOnComplete: any, maybeOnComplete: any)
     		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
-    		if (isOpen and screenGui.Enabled and widget.Visible) or isTransitioning then return end
-    		isTransitioning = true
+    		isOpen = true
     		screenGui.Enabled = true
     		widget.Visible = true
-    		isOpen = true
-    		Animations.openWindow(widget, uiScale, function()
-    			isTransitioning = false
-    			if onComplete then onComplete() end
-    		end)
+    		uiScale.Scale = 0.90
+    		TweenService:Create(uiScale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1.0 }):Play()
+    		if onComplete then onComplete() end
     	end
     
     	local function closeWidget(selfOrOnComplete: any, maybeOnComplete: any)
     		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
-    		if not isOpen or isTransitioning then return end
-    		isTransitioning = true
     		isOpen = false
-    		Animations.closeWindow(widget, uiScale, function()
-    			isTransitioning = false
-    			screenGui.Enabled = false
+    		local closeTween = TweenService:Create(uiScale, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.05 })
+    		closeTween:Play()
+    		closeTween.Completed:Connect(function()
+    			if not isOpen then
+    				widget.Visible = false
+    				screenGui.Enabled = false
+    			end
     			if onComplete then onComplete() end
     		end)
     	end
     
     	local function toggleWidget(selfOrOnComplete: any, maybeOnComplete: any)
     		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
-    		if isOpen then
+    		if isOpen and widget.Visible and screenGui.Enabled then
     			closeWidget(onComplete)
     		else
     			openWidget(onComplete)
@@ -4940,7 +4952,13 @@ Modules["UI/MusicTracker.luau"] = function()
     	end
     
     	local function setWidgetVisible(selfOrVal: any, maybeVal: any)
-    		local v = if type(selfOrVal) == "boolean" then selfOrVal elseif type(maybeVal) == "boolean" then maybeVal else true
+    		local v = true
+    		if type(selfOrVal) == "boolean" then
+    			v = selfOrVal
+    		elseif type(maybeVal) == "boolean" then
+    			v = maybeVal
+    		end
+    
     		if v then
     			openWidget()
     		else

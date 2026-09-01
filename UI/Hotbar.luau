@@ -1,10 +1,11 @@
 --!strict
 --[=[
-    ✦ Squared Retro Hotbar & Custom Backpack Inventory Widget ✦
+    ✦ Squared Retro Hotbar & 3D Model Viewport Backpack Inventory Widget ✦
     Features:
-    - 10-slot bottom-center Hotbar HUD with direct 1-0 keybind tool equipping
-    - Tactile spring micro-interactions & equipped tool pop-scale feedback
-    - Full-featured expandable Backpack Grid with real-time tool search & filtering
+    - 10-slot bottom-center Hotbar HUD with live 3D ViewportFrame model previews
+    - Direct 1-0 keybind tool equipping with tactile spring micro-interactions
+    - Full-featured expandable Backpack Grid with real-time 3D tool model viewports
+    - Live tool search, filtering, and [ Unequip All ] action
     - Real-time inventory synchronization with Backpack and Character events
     - 100% Theme-reactive (Dark, Light, Translucent Dark, Translucent Light, Adaptive)
 ]=]
@@ -34,7 +35,7 @@ export type HotbarWidget = {
 }
 
 local NUM_SLOTS = 10
-local SLOT_SIZE = 44
+local SLOT_SIZE = 48
 local SLOT_GAP = 4
 local KEYCODES = {
 	Enum.KeyCode.One,
@@ -48,6 +49,94 @@ local KEYCODES = {
 	Enum.KeyCode.Nine,
 	Enum.KeyCode.Zero
 }
+
+-- ── 3D Viewport Helper for Tool Models ─────────────────────────────
+local function renderToolViewport(container: GuiObject, tool: Tool?)
+	local oldVp = container:FindFirstChild("ModelViewport")
+	if oldVp then
+		oldVp:Destroy()
+	end
+
+	if not tool then return end
+
+	local vp = Instance.new("ViewportFrame")
+	vp.Name = "ModelViewport"
+	vp.Size = UDim2.new(1, 0, 1, 0)
+	vp.Position = UDim2.new(0, 0, 0, 0)
+	vp.BackgroundTransparency = 1
+	vp.BorderSizePixel = 0
+	vp.Ambient = Color3.fromRGB(190, 190, 200)
+	vp.LightColor = Color3.fromRGB(255, 255, 255)
+	vp.LightDirection = Vector3.new(-1, -1.6, -1).Unit
+	vp.ZIndex = 3
+	vp.Parent = container
+
+	local count = 0
+	local minBounds = Vector3.new(math.huge, math.huge, math.huge)
+	local maxBounds = Vector3.new(-math.huge, -math.huge, -math.huge)
+
+	for _, desc in ipairs(tool:GetDescendants()) do
+		if desc:IsA("BasePart") then
+			count += 1
+			local clone = desc:Clone()
+			clone.CanCollide = false
+			clone.Anchored = true
+			clone.Parent = vp
+			
+			local p = desc.Position
+			local sz = desc.Size
+			minBounds = Vector3.new(
+				math.min(minBounds.X, p.X - sz.X / 2),
+				math.min(minBounds.Y, p.Y - sz.Y / 2),
+				math.min(minBounds.Z, p.Z - sz.Z / 2)
+			)
+			maxBounds = Vector3.new(
+				math.max(maxBounds.X, p.X + sz.X / 2),
+				math.max(maxBounds.Y, p.Y + sz.Y / 2),
+				math.max(maxBounds.Z, p.Z + sz.Z / 2)
+			)
+		end
+	end
+
+	if count == 0 then
+		local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+		if handle and handle:IsA("BasePart") then
+			count = 1
+			local clone = handle:Clone()
+			clone.CanCollide = false
+			clone.Anchored = true
+			clone.Parent = vp
+			minBounds = handle.Position - handle.Size / 2
+			maxBounds = handle.Position + handle.Size / 2
+		end
+	end
+
+	if count > 0 then
+		local center = (minBounds + maxBounds) / 2
+		local size = maxBounds - minBounds
+		local maxDim = math.max(size.X, size.Y, size.Z, 1.2)
+
+		local cam = Instance.new("Camera")
+		cam.FieldOfView = 42
+		local dist = maxDim * 1.65
+		local camOffset = Vector3.new(dist * 0.7, dist * 0.52, dist * 0.82)
+		cam.CFrame = CFrame.new(center + camOffset, center)
+		cam.Parent = vp
+		vp.CurrentCamera = cam
+	else
+		-- Fallback to tool icon texture if no 3D geometry exists
+		if tool.TextureId ~= "" then
+			local img = Instance.new("ImageLabel")
+			img.Size = UDim2.new(0.65, 0, 0.65, 0)
+			img.Position = UDim2.new(0.175, 0, 0.1, 0)
+			img.BackgroundTransparency = 1
+			img.Image = tool.TextureId
+			img.ScaleType = Enum.ScaleType.Fit
+			img.ZIndex = 4
+			img.Parent = vp
+		end
+	end
+end
 
 function Hotbar.new(): HotbarWidget
 	local screenGui = Instance.new("ScreenGui")
@@ -68,7 +157,7 @@ function Hotbar.new(): HotbarWidget
 	end)
 
 	-- ── 1. Hotbar HUD Container (Bottom-Center Dock) ──────────────────
-	local hotbarTotalW = (NUM_SLOTS * SLOT_SIZE) + ((NUM_SLOTS - 1) * SLOT_GAP) + 36 -- +36 for backpack toggle btn
+	local hotbarTotalW = (NUM_SLOTS * SLOT_SIZE) + ((NUM_SLOTS - 1) * SLOT_GAP) + 38
 	local hotbarFrame = Instance.new("Frame")
 	hotbarFrame.Name = "HotbarHUD"
 	hotbarFrame.Size = UDim2.new(0, hotbarTotalW, 0, SLOT_SIZE + 8)
@@ -121,8 +210,8 @@ function Hotbar.new(): HotbarWidget
 	-- ── 2. Full Backpack Inventory Window (Popup Grid) ────────────────
 	local bpWindow = Instance.new("Frame")
 	bpWindow.Name = "BackpackInventoryWindow"
-	bpWindow.Size = UDim2.new(0, 460, 0, 310)
-	bpWindow.Position = UDim2.new(0.5, -230, 0.5, -155)
+	bpWindow.Size = UDim2.new(0, 470, 0, 320)
+	bpWindow.Position = UDim2.new(0.5, -235, 0.5, -160)
 	bpWindow.BackgroundColor3 = UI.Theme.Background
 	bpWindow.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	bpWindow.BorderSizePixel = 0
@@ -184,7 +273,7 @@ function Hotbar.new(): HotbarWidget
 	bpTitle.Size = UDim2.new(1, -60, 1, 0)
 	bpTitle.Position = UDim2.new(0, 8, 0, 0)
 	bpTitle.BackgroundTransparency = 1
-	bpTitle.Text = "Backpack Inventory >>>>>"
+	bpTitle.Text = "Backpack Inventory (3D Preview) >>>>>"
 	bpTitle.TextColor3 = UI.Theme.TextPrimary
 	bpTitle.Font = UI.Fonts.Header
 	bpTitle.TextSize = 11
@@ -305,7 +394,7 @@ function Hotbar.new(): HotbarWidget
 	bpGridPad.Parent = bpGridScroll
 
 	local bpGridLayout = Instance.new("UIGridLayout")
-	bpGridLayout.CellSize = UDim2.new(0, 80, 0, 70)
+	bpGridLayout.CellSize = UDim2.new(0, 84, 0, 74)
 	bpGridLayout.CellPadding = UDim2.new(0, 6, 0, 6)
 	bpGridLayout.SortOrder = Enum.SortOrder.Name
 	bpGridLayout.Parent = bpGridScroll
@@ -359,7 +448,6 @@ function Hotbar.new(): HotbarWidget
 	local function updateHotbarVisuals()
 		local allTools = getAllTools()
 
-		-- Auto-assign slots if empty or re-order
 		for i = 1, NUM_SLOTS do
 			local currentTool = assignedSlots[i]
 			if currentTool and (not currentTool.Parent or (currentTool.Parent ~= LocalPlayer.Character and currentTool.Parent ~= LocalPlayer:FindFirstChildOfClass("Backpack"))) then
@@ -367,7 +455,6 @@ function Hotbar.new(): HotbarWidget
 			end
 		end
 
-		local toolIdx = 1
 		for _, tool in ipairs(allTools) do
 			local alreadyAssigned = false
 			for i = 1, NUM_SLOTS do
@@ -391,8 +478,9 @@ function Hotbar.new(): HotbarWidget
 			local tool = assignedSlots[slotNum]
 			local stroke = slotBtn:FindFirstChildWhichIsA("UIStroke")
 			local nameLabel = slotBtn:FindFirstChild("ToolName") :: TextLabel?
-			local numBadge = slotBtn:FindFirstChild("SlotNum") :: TextLabel?
 			local uiScale = slotBtn:FindFirstChildWhichIsA("UIScale")
+
+			renderToolViewport(slotBtn, tool)
 
 			if tool then
 				local equipped = isToolEquipped(tool)
@@ -404,7 +492,7 @@ function Hotbar.new(): HotbarWidget
 				if equipped then
 					TweenService:Create(slotBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 						BackgroundColor3 = UI.Theme.Accent,
-						BackgroundTransparency = 0
+						BackgroundTransparency = 0.2
 					}):Play()
 					if stroke then
 						TweenService:Create(stroke, TweenInfo.new(0.15), {
@@ -460,9 +548,9 @@ function Hotbar.new(): HotbarWidget
 			local equipped = isToolEquipped(tool)
 			local itemCard = Instance.new("TextButton")
 			itemCard.Name = "Item_" .. tool.Name
-			itemCard.Size = UDim2.new(0, 80, 0, 70)
+			itemCard.Size = UDim2.new(0, 84, 0, 74)
 			itemCard.BackgroundColor3 = if equipped then UI.Theme.Accent else UI.Theme.ContainerDark
-			itemCard.BackgroundTransparency = if equipped then 0.1 else UI.Theme.ContainerDarkTransparency
+			itemCard.BackgroundTransparency = if equipped then 0.15 else UI.Theme.ContainerDarkTransparency
 			itemCard.BorderSizePixel = 0
 			itemCard.Text = ""
 			itemCard.AutoButtonColor = false
@@ -477,23 +565,19 @@ function Hotbar.new(): HotbarWidget
 			itemStroke.Parent = itemCard
 			UI.registerThemeElement(itemStroke, "Border")
 
-			local iconImg = Instance.new("ImageLabel")
-			iconImg.Size = UDim2.new(0, 32, 0, 32)
-			iconImg.Position = UDim2.new(0.5, -16, 0, 6)
-			iconImg.BackgroundTransparency = 1
-			iconImg.Image = tool.TextureId ~= "" and tool.TextureId or "rbxasset://textures/ui/GuiImagePlaceholder.png"
-			iconImg.ScaleType = Enum.ScaleType.Fit
-			iconImg.Parent = itemCard
+			-- 3D Model Viewport inside Backpack Item Card
+			renderToolViewport(itemCard, tool)
 
 			local tName = Instance.new("TextLabel")
-			tName.Size = UDim2.new(1, -6, 0, 16)
-			tName.Position = UDim2.new(0, 3, 1, -26)
+			tName.Size = UDim2.new(1, -6, 0, 14)
+			tName.Position = UDim2.new(0, 3, 1, -24)
 			tName.BackgroundTransparency = 1
 			tName.Text = tool.Name
 			tName.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
 			tName.Font = UI.Fonts.Header
-			tName.TextSize = 10
+			tName.TextSize = 9
 			tName.TextTruncate = Enum.TextTruncate.AtEnd
+			tName.ZIndex = 10
 			tName.Parent = itemCard
 			UI.registerThemeElement(tName, "TextPrimary")
 
@@ -505,6 +589,7 @@ function Hotbar.new(): HotbarWidget
 			badge.TextColor3 = UI.Theme.AccentText
 			badge.Font = UI.Fonts.Mono
 			badge.TextSize = 8
+			badge.ZIndex = 10
 			badge.Parent = itemCard
 
 			Animations.attachMicroSquash(itemCard, itemStroke, function()
@@ -560,20 +645,21 @@ function Hotbar.new(): HotbarWidget
 		numLabel.Font = UI.Fonts.Mono
 		numLabel.TextSize = 9
 		numLabel.TextXAlignment = Enum.TextXAlignment.Left
+		numLabel.ZIndex = 10
 		numLabel.Parent = slotBtn
 		UI.registerThemeElement(numLabel, "TextSecondary")
 
 		local nameLabel = Instance.new("TextLabel")
 		nameLabel.Name = "ToolName"
-		nameLabel.Size = UDim2.new(1, -4, 0, 22)
-		nameLabel.Position = UDim2.new(0, 2, 0.5, -4)
+		nameLabel.Size = UDim2.new(1, -4, 0, 14)
+		nameLabel.Position = UDim2.new(0, 2, 1, -15)
 		nameLabel.BackgroundTransparency = 1
 		nameLabel.Text = ""
 		nameLabel.TextColor3 = UI.Theme.TextPrimary
 		nameLabel.Font = UI.Fonts.Header
-		nameLabel.TextSize = 9
-		nameLabel.TextWrapped = true
+		nameLabel.TextSize = 8
 		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+		nameLabel.ZIndex = 10
 		nameLabel.Parent = slotBtn
 		UI.registerThemeElement(nameLabel, "TextPrimary")
 
@@ -601,10 +687,10 @@ function Hotbar.new(): HotbarWidget
 		slotFrames[i] = slotBtn
 	end
 
-	-- ── 7. Backpack Expand Button on Hotbar [ 🎒 ] ────────────────────
+	-- ── 7. Backpack Expand Button on Hotbar [ ≡ ] ─────────────────────
 	local bpToggleBtn = Instance.new("TextButton")
 	bpToggleBtn.Name = "BackpackToggleBtn"
-	bpToggleBtn.Size = UDim2.new(0, 28, 0, SLOT_SIZE)
+	bpToggleBtn.Size = UDim2.new(0, 30, 0, SLOT_SIZE)
 	bpToggleBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	bpToggleBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	bpToggleBtn.BorderSizePixel = 0

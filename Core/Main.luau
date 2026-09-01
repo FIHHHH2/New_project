@@ -2174,7 +2174,16 @@ window:AddToggle(perfSection, "fps_uncap", "FPS UNCAP (Remove 60 FPS Cap)", fals
 	end
 end)
 
-window:AddToggle(perfSection, "hide_game_guis", "Hide Default Game GUIs (PlayerGui)", true, nil, function(enabled)
+window:AddToggle(perfSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar & Core)", true, nil, function(enabled)
+	disableRobloxTopBarApp(enabled)
+	for _, guiType in ipairs(coreGuiOverlays) do
+		pcall(function()
+			StarterGui:SetCoreGuiEnabled(guiType, not enabled)
+		end)
+	end
+end)
+
+window:AddToggle(perfSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui)", true, nil, function(enabled)
 	hidePlayerGameGuis(enabled)
 end)
 
@@ -2243,13 +2252,19 @@ local sysLeftCol, sysRightCol = window:CreateColumns(sysSubTab)
 -- Left Column: Screen & GUI Optimization
 local cleanSection = window:AddSection(sysLeftCol, "Screen & GUI Optimization")
 
-window:AddToggle(cleanSection, "hide_default_guis", "Hide Game Default GUIs (Topbar & Core)", true, nil, function(enabled)
+window:AddToggle(cleanSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar, Leaderboard, Chat)", true, nil, function(enabled)
 	disableRobloxTopBarApp(enabled)
 	for _, guiType in ipairs(coreGuiOverlays) do
 		pcall(function()
 			StarterGui:SetCoreGuiEnabled(guiType, not enabled)
 		end)
 	end
+	window:Notify("UI", if enabled then "Roblox Core UIs hidden" else "Roblox Core UIs restored", 2)
+end)
+
+window:AddToggle(cleanSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui HUDs & Menus)", true, nil, function(enabled)
+	hidePlayerGameGuis(enabled)
+	window:Notify("UI", if enabled then "Game custom GUIs hidden" else "Game custom GUIs restored", 2)
 end)
 
 -- Right Column: Universal Master Audio Controller

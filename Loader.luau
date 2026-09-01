@@ -5893,6 +5893,7 @@ function LeaderstatsWidget.new()
 
 			myStatsContainer.Visible = true
 			svrContainer.Visible = false
+			renderMyStats()
 		else
 			svrBtn.BackgroundColor3 = UI.Theme.Accent
 			svrBtn.TextColor3 = UI.Theme.AccentText
@@ -5906,6 +5907,7 @@ function LeaderstatsWidget.new()
 
 			myStatsContainer.Visible = false
 			svrContainer.Visible = true
+			renderServerPlayers()
 		end
 	end
 

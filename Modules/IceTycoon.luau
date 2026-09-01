@@ -949,7 +949,7 @@ function IceTycoon.setFastConveyors(enabled: boolean)
 						end
 					else
 						-- Fail-safe catch if ore fell below conveyor track
-						local collector = findCollector()
+						local collector = getCollectorPart()
 						local colPart = collector and (collector:FindFirstChild("Main") or collector:FindFirstChildOfClass("BasePart") or collector)
 						if colPart and colPart:IsA("BasePart") and orePos.Y < 2.5 then
 							ore.CFrame = colPart.CFrame * CFrame.new(0, 0.5, 0)
@@ -981,7 +981,7 @@ function IceTycoon.setFastGenerators(enabled: boolean)
 
 	local function boostOre(part: Instance)
 		if part:IsA("BasePart") and not part.Anchored then
-			local collector = findCollector()
+			local collector = getCollectorPart()
 			local colPart = collector and (collector:FindFirstChild("Main") or collector:FindFirstChildOfClass("BasePart") or collector)
 			if colPart and colPart:IsA("BasePart") then
 				local diff = colPart.Position - part.Position
@@ -1000,7 +1000,7 @@ function IceTycoon.setFastGenerators(enabled: boolean)
 	end
 
 	generatorConn = RunService.Heartbeat:Connect(function()
-		local collector = findCollector()
+		local collector = getCollectorPart()
 		local colPart = collector and (collector:FindFirstChild("Main") or collector:FindFirstChildOfClass("BasePart") or collector)
 		if not colPart or not colPart:IsA("BasePart") then return end
 		local colPos = colPart.Position
@@ -1028,7 +1028,7 @@ function IceTycoon.setOreMagnet(enabled: boolean)
 	if not enabled then return end
 
 	oreMagnetConn = RunService.Heartbeat:Connect(function()
-		local collector = findCollector()
+		local collector = getCollectorPart()
 		if not collector then return end
 		local colPos = collector.Position
 

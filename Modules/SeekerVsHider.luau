@@ -252,17 +252,41 @@ function SeekerVsHider.getAvailableGuns(): {string}
 end
 
 -- ── 5. Tactical & Map Actions ─────────────────────────────────────────
-function SeekerVsHider.breakAllGlass(): boolean
+function SeekerVsHider.breakAllGlass(): number
 	local re = ReplicatedStorage:FindFirstChild("ClientToServerCommunication") and ReplicatedStorage.ClientToServerCommunication:FindFirstChild("RemoteEvents")
 	local bg = re and re:FindFirstChild("BreakGlass")
+	local count = 0
 
-	if bg then
-		pcall(function()
-			bg:FireServer()
-		end)
-		return true
+	local cam = Workspace.CurrentCamera
+	local myChar = LocalPlayer.Character
+
+	for _, obj in ipairs(Workspace:GetDescendants()) do
+		if obj:IsA("BasePart") then
+			local mat = obj.Material
+			local name = obj.Name:lower()
+			local isGlass = (mat == Enum.Material.Glass or mat == Enum.Material.Foil or mat == Enum.Material.Ice or mat == Enum.Material.ForceField or name:find("glass") or name:find("window") or name:find("pane"))
+			
+			if isGlass and not (cam and obj:IsDescendantOf(cam)) and not (myChar and obj:IsDescendantOf(myChar)) then
+				-- 1. Fire Server BreakGlass Remote for each glass Part instance
+				if bg then
+					pcall(function()
+						bg:FireServer(obj)
+					end)
+				end
+
+				-- 2. Direct client shatter & collision bypass
+				pcall(function()
+					obj.Transparency = 1
+					obj.CanCollide = false
+					obj.CanQuery = false
+					obj.CanTouch = false
+				end)
+				count += 1
+			end
+		end
 	end
-	return false
+
+	return count
 end
 
 local function safeTeleport(targetCF: CFrame): boolean

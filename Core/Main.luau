@@ -28,6 +28,7 @@ local RunNHide = require("Modules/RunNHide.luau")
 local IceTycoon = require("Modules/IceTycoon.luau")
 local LuckyBlocks = require("Modules/LuckyBlocks.luau")
 local RestaurantTycoon = require("Modules/RestaurantTycoon.luau")
+local SeekerVsHider = require("Modules/SeekerVsHider.luau")
 local LuckyBlocks = require("Modules/LuckyBlocks.luau")
 local PlayerUtilities = require("Modules/PlayerUtilities.luau")
 local Hotbar = require("UI/Hotbar.luau")
@@ -259,7 +260,9 @@ local function getGameTabName(): string
 		end
 	end)
 
-	if placeId == 1190485299606 or string.find(gameName, "restaurant") or (workspace:FindFirstChild("Tycoons") and workspace.Tycoons:FindFirstChildWhichIsA("Folder")) then
+	if placeId == 18336470541 or string.find(gameName, "seeker") or string.find(gameName, "hider") or workspace:FindFirstChild("SPH_Workspace") then
+		return "Seeker vs Hider"
+	elseif placeId == 1190485299606 or string.find(gameName, "restaurant") or (workspace:FindFirstChild("Tycoons") and workspace.Tycoons:FindFirstChildWhichIsA("Folder")) then
 		return "Restaurant Tycoon"
 	elseif placeId == 662417684 or string.find(gameName, "lucky block") or workspace:FindFirstChild("CenterBlocks") then
 		return "Lucky Blocks"
@@ -270,7 +273,7 @@ local function getGameTabName(): string
 	elseif string.find(gameName, "ice tycoon") or (workspace:FindFirstChild("Tycoon") and workspace.Tycoon:FindFirstChild("Buttons")) then
 		return "Ice Tycoon"
 	end
-	return "Restaurant Tycoon"
+	return "Seeker vs Hider"
 end
 
 local gameTabTitle = getGameTabName()
@@ -281,6 +284,7 @@ local combatTab = window:CreateTab("Combat")
 local visualsTab = window:CreateTab("Visuals")
 
 -- Create Game Module Tabs (Current detected game is shown on start; all other game modules can be toggled/opened on demand)
+local svhTab = window:CreateTab("Seeker vs Hider", gameTabTitle ~= "Seeker vs Hider")
 local restTab = window:CreateTab("Restaurant Tycoon", gameTabTitle ~= "Restaurant Tycoon")
 local luckyTab = window:CreateTab("Lucky Blocks", gameTabTitle ~= "Lucky Blocks")
 local iceTab = window:CreateTab("Ice Tycoon", gameTabTitle ~= "Ice Tycoon")
@@ -851,6 +855,12 @@ end)
 
 -- Universal Game Module Switcher (Open ANY module in ANY game)
 local gameHubSection = window:AddSection(utilLeftCol, "Game Modules Hub (Universal)")
+
+window:AddButton(gameHubSection, "Open Seeker vs Hider Suite", function()
+	window:SetTabVisibility(svhTab, true)
+	window:SelectTab(svhTab)
+	window:Notify("Modules", "Opened Seeker vs Hider Suite", 2)
+end)
 
 window:AddButton(gameHubSection, "Open Restaurant Tycoon Suite", function()
 	window:SetTabVisibility(restTab, true)
@@ -1639,6 +1649,128 @@ do
 		end)
 	end
 end
+-- ── 6. SEEKER VS HIDER SUITE ───────────────────────────────
+do
+	local svhSubTabs = window:CreateSubTabs(svhTab, { "Silent Aim & Combat", "Weapon Overclocks", "Gun Spawner & Vault", "Tactical Teleports" })
+	local aimSubTab = svhSubTabs["Silent Aim & Combat"]
+	local wepSubTab = svhSubTabs["Weapon Overclocks"]
+	local vaultSubTab = svhSubTabs["Gun Spawner & Vault"]
+	local tpSubTab = svhSubTabs["Tactical Teleports"]
+
+	local aLeftCol, aRightCol = window:CreateColumns(aimSubTab)
+	local aimSection = window:AddSection(aLeftCol, "FastCast Silent Aim Engine")
+
+	window:AddToggle(aimSection, "svh_silent_aim", "True Silent Aim (Vector Redirection)", true, nil, function(enabled)
+		SeekerVsHider.SilentAim = enabled
+	end)
+
+	window:AddToggle(aimSection, "svh_team_check", "Team / Role Check", true, nil, function(enabled)
+		SeekerVsHider.TeamCheck = enabled
+	end)
+
+	window:AddToggle(aimSection, "svh_wall_check", "Wall & Obstacle Check", false, nil, function(enabled)
+		SeekerVsHider.WallCheck = enabled
+	end)
+
+	local aimParamsSection = window:AddSection(aRightCol, "Targeting & FOV Limits")
+
+	window:AddSlider(aimParamsSection, "Silent Aim FOV Radius", 30, 600, 220, function(val)
+		SeekerVsHider.FOV = val
+	end)
+
+	window:AddSlider(aimParamsSection, "Hit Chance Percentage", 10, 100, 100, function(val)
+		SeekerVsHider.HitChance = val
+	end)
+
+	window:AddButton(aimParamsSection, "Target Part: Head", function()
+		SeekerVsHider.TargetPart = "Head"
+		window:Notify("Targeting", "Target set to Head", 2)
+	end)
+
+	window:AddButton(aimParamsSection, "Target Part: Torso", function()
+		SeekerVsHider.TargetPart = "Torso"
+		window:Notify("Targeting", "Target set to Torso", 2)
+	end)
+
+	window:AddButton(aimParamsSection, "Target Part: Random", function()
+		SeekerVsHider.TargetPart = "Random"
+		window:Notify("Targeting", "Target set to Random Hitbox", 2)
+	end)
+
+	local wLeftCol, wRightCol = window:CreateColumns(wepSubTab)
+	local modSection = window:AddSection(wLeftCol, "Weapon Mechanism Overrides")
+
+	window:AddToggle(modSection, "svh_no_recoil", "Zero Recoil & Kickback", true, nil, function(enabled)
+		SeekerVsHider.NoRecoil = enabled
+		SeekerVsHider.applyWeaponConfigs()
+	end)
+
+	window:AddToggle(modSection, "svh_no_spread", "Zero Spread (Laser Accuracy)", true, nil, function(enabled)
+		SeekerVsHider.NoSpread = enabled
+		SeekerVsHider.applyWeaponConfigs()
+	end)
+
+	window:AddToggle(modSection, "svh_full_auto", "Full Auto Mode (All Guns)", true, nil, function(enabled)
+		SeekerVsHider.FullAuto = enabled
+		SeekerVsHider.applyWeaponConfigs()
+	end)
+
+	window:AddToggle(modSection, "svh_no_drop", "Zero Bullet Drop (Instant Trajectory)", true, nil, function(enabled)
+		SeekerVsHider.NoBulletDrop = enabled
+		SeekerVsHider.applyWeaponConfigs()
+	end)
+
+	local actSection = window:AddSection(wRightCol, "Tactical Game Exploits")
+
+	window:AddButton(actSection, "Break All Map Glass Now", function()
+		if SeekerVsHider.breakAllGlass() then
+			window:Notify("Exploit", "Shattered all map glass", 2.5)
+		end
+	end)
+
+	local vLeftCol, vRightCol = window:CreateColumns(vaultSubTab)
+	local primarySection = window:AddSection(vLeftCol, "Rifles & Heavy Weapons")
+	local guns = SeekerVsHider.getAvailableGuns()
+
+	for i = 1, 16 do
+		local gName = guns[i]
+		if gName then
+			window:AddButton(primarySection, "Equip " .. gName, function()
+				if SeekerVsHider.selectGun(gName) then
+					window:Notify("Gun Vault", "Equipped " .. gName, 2)
+				end
+			end)
+		end
+	end
+
+	local secSection = window:AddSection(vRightCol, "SMGs, Pistols & Specials")
+	for i = 17, #guns do
+		local gName = guns[i]
+		if gName then
+			window:AddButton(secSection, "Equip " .. gName, function()
+				if SeekerVsHider.selectGun(gName) then
+					window:Notify("Gun Vault", "Equipped " .. gName, 2)
+				end
+			end)
+		end
+	end
+
+	local tpLeftCol, tpRightCol = window:CreateColumns(tpSubTab)
+	local tpSection = window:AddSection(tpLeftCol, "Match & Arena Shortcuts")
+
+	window:AddButton(tpSection, "Safe High Vantage Vantage Point", function()
+		if SeekerVsHider.teleportSafeHigh() then
+			window:Notify("Teleport", "Warped to safe high altitude", 2)
+		end
+	end)
+
+	window:AddButton(tpSection, "Lobby Safe Area", function()
+		if SeekerVsHider.teleportToLobby() then
+			window:Notify("Teleport", "Warped to Lobby", 2)
+		end
+	end)
+end
+
 -- ============================================================
 -- 4. VISUALS TAB CONTENT (HORIZONTAL MINI SUB-TABS)
 --    [ 2D Overlays & ESP ] [ 3D Chams & Skeletons ] [ ESP Customizer ]
@@ -1817,6 +1949,16 @@ local modLeftCol, modRightCol = window:CreateColumns(modSubTab)
 
 -- Left Column: Game Suite Modules (Execution / De-execution)
 local gameModuleSection = window:AddSection(modLeftCol, "Game Suite Modules (Mount & Execute)")
+
+window:AddToggle(gameModuleSection, "mod_exec_svh", "Seeker vs Hider Suite", gameTabTitle == "Seeker vs Hider", nil, function(enabled)
+	window:SetTabVisibility(svhTab, enabled)
+	if not enabled then
+		SeekerVsHider.SilentAim = false
+		SeekerVsHider.NoRecoil = false
+		SeekerVsHider.NoSpread = false
+		SeekerVsHider.FullAuto = false
+	end
+end)
 
 window:AddToggle(gameModuleSection, "mod_exec_rt", "Restaurant Tycoon 3 Suite", gameTabTitle == "Restaurant Tycoon", nil, function(enabled)
 	window:SetTabVisibility(restTab, enabled)

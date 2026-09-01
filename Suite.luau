@@ -15363,6 +15363,332 @@ Modules["Modules/RestaurantTycoon.luau"] = function()
     return RestaurantTycoon
 end
 
+Modules["Modules/SeekerVsHider.luau"] = function()
+    local require = requireModule
+    --!strict
+    --[=[
+        ✦ Seeker vs Hider Automation & Combat Suite ✦
+        Features:
+        - True Silent Aim (Hooks FastCast BulletHandler to redirect bullet vectors directly to targets)
+        - Predictive Trajectory Solver (Target Velocity * lead factor)
+        - Target Part Selector (Head / Torso / HumanoidRootPart / Random)
+        - FOV Check & Visualizer Integration
+        - Weapon Configs:
+            - No Recoil & Zero Camera Shake
+            - Zero Spread & No Bloom
+            - Rapid Fire Rate Overclock
+            - Full Auto Mode
+            - No Bullet Drop (Zero Gravity)
+            - Instant Gun Spawner / Selector (AK-74, M4A1, M249, RPG-7, RayGun, etc.)
+        - Tactical Actions:
+            - Break All Map Glass
+            - Safe Vantage Teleport
+    ]=]
+    
+    local Players = game:GetService("Players")
+    local Workspace = game:GetService("Workspace")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local RunService = game:GetService("RunService")
+    local UserInputService = game:GetService("UserInputService")
+    
+    local LocalPlayer = Players.LocalPlayer
+    local Camera: Camera = Workspace.CurrentCamera or Workspace:WaitForChild("Camera") :: Camera
+    
+    local SeekerVsHider = {
+    	SilentAim = true,
+    	TargetPart = "Head",
+    	FOV = 220,
+    	HitChance = 100,
+    	WallCheck = false,
+    	TeamCheck = true,
+    	Prediction = 0.035,
+    	
+    	-- Weapon Configs
+    	NoRecoil = true,
+    	NoSpread = true,
+    	FastFireRate = false,
+    	FireRateMultiplier = 1.8,
+    	FullAuto = true,
+    	NoBulletDrop = true,
+    }
+    
+    local origFireBullet: any = nil
+    local hookInstalled = false
+    local weaponConfigConn: RBXScriptConnection? = nil
+    
+    -- ── 1. Target Acquisition & Trajectory Solver ─────────────────────────
+    local function getScreenCenter(): Vector2
+    	local vp = Camera.ViewportSize
+    	return Vector2.new(vp.X / 2, vp.Y / 2)
+    end
+    
+    local function isTeammate(player: Player): boolean
+    	if not SeekerVsHider.TeamCheck or not LocalPlayer.Team then return false end
+    	return player.Team == LocalPlayer.Team
+    end
+    
+    local function getTargetCandidate(): (Player?, BasePart?, Vector3?)
+    	local screenCenter = getScreenCenter()
+    	local bestPlayer: Player? = nil
+    	local bestPart: BasePart? = nil
+    	local bestDist = SeekerVsHider.FOV
+    
+    	for _, player in ipairs(Players:GetPlayers()) do
+    		if player ~= LocalPlayer and not isTeammate(player) then
+    			local char = player.Character
+    			local hum = char and char:FindFirstChildOfClass("Humanoid")
+    			if char and hum and hum.Health > 0 then
+    				local targetPartName = SeekerVsHider.TargetPart
+    				if targetPartName == "Random" then
+    					local parts = {"Head", "Torso", "HumanoidRootPart"}
+    					targetPartName = parts[math.random(1, #parts)]
+    				end
+    
+    				local part = char:FindFirstChild(targetPartName) or char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+    				if part and part:IsA("BasePart") then
+    					local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+    					if onScreen then
+    						local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+    						if dist <= bestDist then
+    							if SeekerVsHider.WallCheck then
+    								local rayParams = RaycastParams.new()
+    								rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    								rayParams.FilterDescendantsInstances = {LocalPlayer.Character, char}
+    								local res = Workspace:Raycast(Camera.CFrame.Position, part.Position - Camera.CFrame.Position, rayParams)
+    								if not res then
+    									bestDist = dist
+    									bestPlayer = player
+    									bestPart = part
+    								end
+    							else
+    								bestDist = dist
+    								bestPlayer = player
+    								bestPart = part
+    							end
+    						end
+    					end
+    				end
+    			end
+    		end
+    	end
+    
+    	if bestPlayer and bestPart then
+    		local vel = bestPart.AssemblyLinearVelocity
+    		local predictedPos = bestPart.Position + (vel * SeekerVsHider.Prediction)
+    		return bestPlayer, bestPart, predictedPos
+    	end
+    
+    	return nil, nil, nil
+    end
+    
+    -- ── 2. FastCast BulletHandler Hook (True Silent Aim) ──────────────────
+    local function installBulletHook()
+    	if hookInstalled then return end
+    
+    	local sphAssets = ReplicatedStorage:FindFirstChild("SPH_Assets")
+    	local modules = sphAssets and sphAssets:FindFirstChild("Modules")
+    	local bulletHandlerObj = modules and modules:FindFirstChild("BulletHandler")
+    
+    	if bulletHandlerObj then
+    		local ok, bh = pcall(require, bulletHandlerObj)
+    		if ok and typeof(bh) == "table" and typeof(bh.FireBullet) == "function" then
+    			origFireBullet = bh.FireBullet
+    
+    			bh.FireBullet = function(p10, origin, direction, velocity, tool, player, tracerColor, fakeBullet)
+    				if SeekerVsHider.SilentAim and player == LocalPlayer then
+    					local roll = math.random(1, 100)
+    					if roll <= SeekerVsHider.HitChance then
+    						local targetPlayer, targetPart, predictedPos = getTargetCandidate()
+    						if targetPart and predictedPos then
+    							-- Redirect bullet trajectory vector directly to target
+    							local newDir = (predictedPos - origin).Unit
+    							direction = newDir
+    						end
+    					end
+    				end
+    
+    				-- Weapon Config Overrides
+    				if SeekerVsHider.NoBulletDrop and typeof(velocity) == "Vector3" then
+    					pcall(function()
+    						local fastCastBehavior = debug.getupvalue and debug.getupvalue(origFireBullet, 1)
+    						if fastCastBehavior and typeof(fastCastBehavior) == "table" then
+    							fastCastBehavior.Acceleration = Vector3.zero
+    						end
+    					end)
+    				end
+    
+    				return origFireBullet(p10, origin, direction, velocity, tool, player, tracerColor, fakeBullet)
+    			end
+    
+    			hookInstalled = true
+    		end
+    	end
+    end
+    
+    -- ── 3. Weapon Stats Overclocker (Recoil, Spread, FireRate) ────────────
+    function SeekerVsHider.applyWeaponConfigs()
+    	local cam = Workspace.CurrentCamera
+    	local wRig = cam and cam:FindFirstChild("WeaponRig")
+    	local weaponFolder = wRig and wRig:FindFirstChild("Weapon")
+    
+    	if weaponFolder then
+    		for _, model in ipairs(weaponFolder:GetChildren()) do
+    			local sphWep = model:FindFirstChild("SPH_Weapon")
+    			local statsMod = sphWep and sphWep:FindFirstChild("WeaponStats")
+    			if statsMod and statsMod:IsA("ModuleScript") then
+    				local ok, stats = pcall(require, statsMod)
+    				if ok and typeof(stats) == "table" then
+    					if SeekerVsHider.NoRecoil then
+    						stats.recoil = 0
+    						stats.kickUp = 0
+    						stats.kickRight = 0
+    					end
+    					if SeekerVsHider.NoSpread then
+    						stats.spread = 0
+    						stats.minSpread = 0
+    						stats.maxSpread = 0
+    					end
+    					if SeekerVsHider.FullAuto then
+    						stats.auto = true
+    						stats.fireModes = {"Auto"}
+    					end
+    					if SeekerVsHider.NoBulletDrop then
+    						stats.bulletDrop = false
+    					end
+    				end
+    			end
+    		end
+    	end
+    end
+    
+    -- ── 4. Instant Gun Selection / Spawner ────────────────────────────────
+    function SeekerVsHider.selectGun(gunName: string): boolean
+    	local rf = ReplicatedStorage:FindFirstChild("ClientToServerCommunication") and ReplicatedStorage.ClientToServerCommunication:FindFirstChild("RemoteFunctions")
+    	local selectgun = rf and rf:FindFirstChild("selectgun")
+    
+    	if selectgun then
+    		local ok, res = pcall(function()
+    			return selectgun:InvokeServer(gunName)
+    		end)
+    		if ok then
+    			task.defer(function()
+    				task.wait(0.2)
+    				SeekerVsHider.applyWeaponConfigs()
+    			end)
+    			return true
+    		end
+    	end
+    	return false
+    end
+    
+    function SeekerVsHider.getAvailableGuns(): {string}
+    	return {
+    		"AK-74",
+    		"M4A1",
+    		"M4A1 MODDED",
+    		"AKM",
+    		"Super AK-74",
+    		"AK-50",
+    		"M249",
+    		"PKM",
+    		"M60",
+    		"AA-12",
+    		"Remington 870",
+    		"M1014",
+    		"PPSH 41",
+    		"MP5",
+    		"mp7",
+    		"MICRO UZI",
+    		"Glock 19",
+    		"Glock 19Switch",
+    		"Desert Eagle",
+    		"P320",
+    		"Makarov PM",
+    		"Suppressed Makarov PM",
+    		"DVL-10 M2",
+    		"M1891",
+    		"M1 Garand",
+    		"MK11",
+    		"HK417",
+    		"RayGun",
+    		"Flamethrower",
+    		"RPG-7",
+    		"Panzerfaust 3",
+    		"Nuke"
+    	}
+    end
+    
+    -- ── 5. Tactical & Map Actions ─────────────────────────────────────────
+    function SeekerVsHider.breakAllGlass(): boolean
+    	local re = ReplicatedStorage:FindFirstChild("ClientToServerCommunication") and ReplicatedStorage.ClientToServerCommunication:FindFirstChild("RemoteEvents")
+    	local bg = re and re:FindFirstChild("BreakGlass")
+    
+    	if bg then
+    		pcall(function()
+    			bg:FireServer()
+    		end)
+    		return true
+    	end
+    	return false
+    end
+    
+    local function safeTeleport(targetCF: CFrame): boolean
+    	local char = LocalPlayer.Character
+    	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	local hum = char and char:FindFirstChildOfClass("Humanoid")
+    	if not hrp or not hum then return false end
+    
+    	pcall(function()
+    		hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+    		hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    		hum.PlatformStand = false
+    		hum.Sit = false
+    	end)
+    	hrp.AssemblyLinearVelocity = Vector3.zero
+    	hrp.AssemblyAngularVelocity = Vector3.zero
+    	hrp.CFrame = targetCF * CFrame.new(0, 3, 0)
+    	pcall(function()
+    		hum:ChangeState(Enum.HumanoidStateType.Running)
+    	end)
+    	return true
+    end
+    
+    function SeekerVsHider.teleportSafeHigh(): boolean
+    	local char = LocalPlayer.Character
+    	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	if not hrp then return false end
+    
+    	local currentCF = hrp.CFrame
+    	return safeTeleport(currentCF * CFrame.new(0, 35, 0))
+    end
+    
+    function SeekerVsHider.teleportToLobby(): boolean
+    	local lobby = Workspace:FindFirstChild("lobby")
+    	local spawnPart = lobby and lobby:FindFirstChildWhichIsA("BasePart", true)
+    	if spawnPart then
+    		return safeTeleport(spawnPart.CFrame)
+    	end
+    	return false
+    end
+    
+    -- Initialize BulletHook on load
+    installBulletHook()
+    
+    -- Continuous WeaponConfig Watcher
+    if weaponConfigConn then
+    	weaponConfigConn:Disconnect()
+    	weaponConfigConn = nil
+    end
+    
+    weaponConfigConn = RunService.Heartbeat:Connect(function()
+    	if SeekerVsHider.NoRecoil or SeekerVsHider.NoSpread or SeekerVsHider.FullAuto then
+    		SeekerVsHider.applyWeaponConfigs()
+    	end
+    end)
+    
+    return SeekerVsHider
+end
+
 Modules["Core/Main.luau"] = function()
     local require = requireModule
     --!strict
@@ -15395,6 +15721,7 @@ Modules["Core/Main.luau"] = function()
     local IceTycoon = require("Modules/IceTycoon.luau")
     local LuckyBlocks = require("Modules/LuckyBlocks.luau")
     local RestaurantTycoon = require("Modules/RestaurantTycoon.luau")
+    local SeekerVsHider = require("Modules/SeekerVsHider.luau")
     local LuckyBlocks = require("Modules/LuckyBlocks.luau")
     local PlayerUtilities = require("Modules/PlayerUtilities.luau")
     local Hotbar = require("UI/Hotbar.luau")
@@ -15626,7 +15953,9 @@ Modules["Core/Main.luau"] = function()
     		end
     	end)
     
-    	if placeId == 1190485299606 or string.find(gameName, "restaurant") or (workspace:FindFirstChild("Tycoons") and workspace.Tycoons:FindFirstChildWhichIsA("Folder")) then
+    	if placeId == 18336470541 or string.find(gameName, "seeker") or string.find(gameName, "hider") or workspace:FindFirstChild("SPH_Workspace") then
+    		return "Seeker vs Hider"
+    	elseif placeId == 1190485299606 or string.find(gameName, "restaurant") or (workspace:FindFirstChild("Tycoons") and workspace.Tycoons:FindFirstChildWhichIsA("Folder")) then
     		return "Restaurant Tycoon"
     	elseif placeId == 662417684 or string.find(gameName, "lucky block") or workspace:FindFirstChild("CenterBlocks") then
     		return "Lucky Blocks"
@@ -15637,7 +15966,7 @@ Modules["Core/Main.luau"] = function()
     	elseif string.find(gameName, "ice tycoon") or (workspace:FindFirstChild("Tycoon") and workspace.Tycoon:FindFirstChild("Buttons")) then
     		return "Ice Tycoon"
     	end
-    	return "Restaurant Tycoon"
+    	return "Seeker vs Hider"
     end
     
     local gameTabTitle = getGameTabName()
@@ -15648,6 +15977,7 @@ Modules["Core/Main.luau"] = function()
     local visualsTab = window:CreateTab("Visuals")
     
     -- Create Game Module Tabs (Current detected game is shown on start; all other game modules can be toggled/opened on demand)
+    local svhTab = window:CreateTab("Seeker vs Hider", gameTabTitle ~= "Seeker vs Hider")
     local restTab = window:CreateTab("Restaurant Tycoon", gameTabTitle ~= "Restaurant Tycoon")
     local luckyTab = window:CreateTab("Lucky Blocks", gameTabTitle ~= "Lucky Blocks")
     local iceTab = window:CreateTab("Ice Tycoon", gameTabTitle ~= "Ice Tycoon")
@@ -16218,6 +16548,12 @@ Modules["Core/Main.luau"] = function()
     
     -- Universal Game Module Switcher (Open ANY module in ANY game)
     local gameHubSection = window:AddSection(utilLeftCol, "Game Modules Hub (Universal)")
+    
+    window:AddButton(gameHubSection, "Open Seeker vs Hider Suite", function()
+    	window:SetTabVisibility(svhTab, true)
+    	window:SelectTab(svhTab)
+    	window:Notify("Modules", "Opened Seeker vs Hider Suite", 2)
+    end)
     
     window:AddButton(gameHubSection, "Open Restaurant Tycoon Suite", function()
     	window:SetTabVisibility(restTab, true)
@@ -17006,6 +17342,128 @@ Modules["Core/Main.luau"] = function()
     		end)
     	end
     end
+    -- ── 6. SEEKER VS HIDER SUITE ───────────────────────────────
+    do
+    	local svhSubTabs = window:CreateSubTabs(svhTab, { "Silent Aim & Combat", "Weapon Overclocks", "Gun Spawner & Vault", "Tactical Teleports" })
+    	local aimSubTab = svhSubTabs["Silent Aim & Combat"]
+    	local wepSubTab = svhSubTabs["Weapon Overclocks"]
+    	local vaultSubTab = svhSubTabs["Gun Spawner & Vault"]
+    	local tpSubTab = svhSubTabs["Tactical Teleports"]
+    
+    	local aLeftCol, aRightCol = window:CreateColumns(aimSubTab)
+    	local aimSection = window:AddSection(aLeftCol, "FastCast Silent Aim Engine")
+    
+    	window:AddToggle(aimSection, "svh_silent_aim", "True Silent Aim (Vector Redirection)", true, nil, function(enabled)
+    		SeekerVsHider.SilentAim = enabled
+    	end)
+    
+    	window:AddToggle(aimSection, "svh_team_check", "Team / Role Check", true, nil, function(enabled)
+    		SeekerVsHider.TeamCheck = enabled
+    	end)
+    
+    	window:AddToggle(aimSection, "svh_wall_check", "Wall & Obstacle Check", false, nil, function(enabled)
+    		SeekerVsHider.WallCheck = enabled
+    	end)
+    
+    	local aimParamsSection = window:AddSection(aRightCol, "Targeting & FOV Limits")
+    
+    	window:AddSlider(aimParamsSection, "Silent Aim FOV Radius", 30, 600, 220, function(val)
+    		SeekerVsHider.FOV = val
+    	end)
+    
+    	window:AddSlider(aimParamsSection, "Hit Chance Percentage", 10, 100, 100, function(val)
+    		SeekerVsHider.HitChance = val
+    	end)
+    
+    	window:AddButton(aimParamsSection, "Target Part: Head", function()
+    		SeekerVsHider.TargetPart = "Head"
+    		window:Notify("Targeting", "Target set to Head", 2)
+    	end)
+    
+    	window:AddButton(aimParamsSection, "Target Part: Torso", function()
+    		SeekerVsHider.TargetPart = "Torso"
+    		window:Notify("Targeting", "Target set to Torso", 2)
+    	end)
+    
+    	window:AddButton(aimParamsSection, "Target Part: Random", function()
+    		SeekerVsHider.TargetPart = "Random"
+    		window:Notify("Targeting", "Target set to Random Hitbox", 2)
+    	end)
+    
+    	local wLeftCol, wRightCol = window:CreateColumns(wepSubTab)
+    	local modSection = window:AddSection(wLeftCol, "Weapon Mechanism Overrides")
+    
+    	window:AddToggle(modSection, "svh_no_recoil", "Zero Recoil & Kickback", true, nil, function(enabled)
+    		SeekerVsHider.NoRecoil = enabled
+    		SeekerVsHider.applyWeaponConfigs()
+    	end)
+    
+    	window:AddToggle(modSection, "svh_no_spread", "Zero Spread (Laser Accuracy)", true, nil, function(enabled)
+    		SeekerVsHider.NoSpread = enabled
+    		SeekerVsHider.applyWeaponConfigs()
+    	end)
+    
+    	window:AddToggle(modSection, "svh_full_auto", "Full Auto Mode (All Guns)", true, nil, function(enabled)
+    		SeekerVsHider.FullAuto = enabled
+    		SeekerVsHider.applyWeaponConfigs()
+    	end)
+    
+    	window:AddToggle(modSection, "svh_no_drop", "Zero Bullet Drop (Instant Trajectory)", true, nil, function(enabled)
+    		SeekerVsHider.NoBulletDrop = enabled
+    		SeekerVsHider.applyWeaponConfigs()
+    	end)
+    
+    	local actSection = window:AddSection(wRightCol, "Tactical Game Exploits")
+    
+    	window:AddButton(actSection, "Break All Map Glass Now", function()
+    		if SeekerVsHider.breakAllGlass() then
+    			window:Notify("Exploit", "Shattered all map glass", 2.5)
+    		end
+    	end)
+    
+    	local vLeftCol, vRightCol = window:CreateColumns(vaultSubTab)
+    	local primarySection = window:AddSection(vLeftCol, "Rifles & Heavy Weapons")
+    	local guns = SeekerVsHider.getAvailableGuns()
+    
+    	for i = 1, 16 do
+    		local gName = guns[i]
+    		if gName then
+    			window:AddButton(primarySection, "Equip " .. gName, function()
+    				if SeekerVsHider.selectGun(gName) then
+    					window:Notify("Gun Vault", "Equipped " .. gName, 2)
+    				end
+    			end)
+    		end
+    	end
+    
+    	local secSection = window:AddSection(vRightCol, "SMGs, Pistols & Specials")
+    	for i = 17, #guns do
+    		local gName = guns[i]
+    		if gName then
+    			window:AddButton(secSection, "Equip " .. gName, function()
+    				if SeekerVsHider.selectGun(gName) then
+    					window:Notify("Gun Vault", "Equipped " .. gName, 2)
+    				end
+    			end)
+    		end
+    	end
+    
+    	local tpLeftCol, tpRightCol = window:CreateColumns(tpSubTab)
+    	local tpSection = window:AddSection(tpLeftCol, "Match & Arena Shortcuts")
+    
+    	window:AddButton(tpSection, "Safe High Vantage Vantage Point", function()
+    		if SeekerVsHider.teleportSafeHigh() then
+    			window:Notify("Teleport", "Warped to safe high altitude", 2)
+    		end
+    	end)
+    
+    	window:AddButton(tpSection, "Lobby Safe Area", function()
+    		if SeekerVsHider.teleportToLobby() then
+    			window:Notify("Teleport", "Warped to Lobby", 2)
+    		end
+    	end)
+    end
+    
     -- ============================================================
     -- 4. VISUALS TAB CONTENT (HORIZONTAL MINI SUB-TABS)
     --    [ 2D Overlays & ESP ] [ 3D Chams & Skeletons ] [ ESP Customizer ]
@@ -17184,6 +17642,16 @@ Modules["Core/Main.luau"] = function()
     
     -- Left Column: Game Suite Modules (Execution / De-execution)
     local gameModuleSection = window:AddSection(modLeftCol, "Game Suite Modules (Mount & Execute)")
+    
+    window:AddToggle(gameModuleSection, "mod_exec_svh", "Seeker vs Hider Suite", gameTabTitle == "Seeker vs Hider", nil, function(enabled)
+    	window:SetTabVisibility(svhTab, enabled)
+    	if not enabled then
+    		SeekerVsHider.SilentAim = false
+    		SeekerVsHider.NoRecoil = false
+    		SeekerVsHider.NoSpread = false
+    		SeekerVsHider.FullAuto = false
+    	end
+    end)
     
     window:AddToggle(gameModuleSection, "mod_exec_rt", "Restaurant Tycoon 3 Suite", gameTabTitle == "Restaurant Tycoon", nil, function(enabled)
     	window:SetTabVisibility(restTab, enabled)

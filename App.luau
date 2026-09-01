@@ -4707,40 +4707,102 @@ Modules["UI/MusicTracker.luau"] = function()
     	end)
     
     	-- ── Playback Controls Logic ──────────────────────────────────────
+    	local hasExternalBridge = false
+    
     	playBtn.MouseButton1Click:Connect(function()
+    		Animations.buttonClickPop(playBtn)
     		isPlaying = not isPlaying
     		playBtn.Text = if isPlaying then "❚❚" else "▶"
-    		pcall(function()
-    			game:HttpGet(BRIDGE_URL .. "/toggle")
+    		if isPlaying then
+    			currentAudioPeak = 0.75
+    			lastSyncClock = os.clock()
+    			if serverDurationMs <= 0 then
+    				serverDurationMs = 215000
+    				serverProgressMs = 15000
+    			end
+    			if songTitleLabel.Text == "No Song Playing" or songTitleLabel.Text == "" then
+    				setTrack(DEMO_TRACKS[currentTrackIndex])
+    			end
+    		else
+    			currentAudioPeak = 0.0
+    		end
+    
+    		task.spawn(function()
+    			pcall(function()
+    				game:HttpGet(BRIDGE_URL .. "/toggle")
+    			end)
     		end)
     	end)
     
     	skipBtn.MouseButton1Click:Connect(function()
+    		Animations.buttonClickPop(skipBtn)
     		currentTrackIndex = (currentTrackIndex % #DEMO_TRACKS) + 1
     		setTrack(DEMO_TRACKS[currentTrackIndex])
-    		pcall(function()
-    			game:HttpGet(BRIDGE_URL .. "/skip")
+    		serverProgressMs = 0
+    		serverDurationMs = 220000
+    		lastSyncClock = os.clock()
+    		isPlaying = true
+    		currentAudioPeak = 0.8
+    		playBtn.Text = "❚❚"
+    		task.spawn(function()
+    			pcall(function()
+    				game:HttpGet(BRIDGE_URL .. "/skip")
+    			end)
     		end)
     	end)
     
     	prevBtn.MouseButton1Click:Connect(function()
+    		Animations.buttonClickPop(prevBtn)
     		currentTrackIndex = if currentTrackIndex > 1 then (currentTrackIndex - 1) else #DEMO_TRACKS
     		setTrack(DEMO_TRACKS[currentTrackIndex])
-    		pcall(function()
-    			game:HttpGet(BRIDGE_URL .. "/prev")
+    		serverProgressMs = 0
+    		serverDurationMs = 220000
+    		lastSyncClock = os.clock()
+    		isPlaying = true
+    		currentAudioPeak = 0.8
+    		playBtn.Text = "❚❚"
+    		task.spawn(function()
+    			pcall(function()
+    				game:HttpGet(BRIDGE_URL .. "/prev")
+    			end)
     		end)
     	end)
     
-    	-- ── Continuous Sub-Second Lyrics Time Synchronizer ────────────────
+    	-- Initialize with demo track ready for instant playback
+    	setTrack(DEMO_TRACKS[1])
+    	isPlaying = true
+    	currentAudioPeak = 0.65
+    	serverProgressMs = 12000
+    	serverDurationMs = 230000
+    	lastSyncClock = os.clock()
+    
+    	-- ── Continuous Sub-Second Lyrics & Seek Bar Time Synchronizer ─────
     	RunService.Heartbeat:Connect(function()
     		if isPlaying and serverDurationMs > 0 then
     			local elapsed = (os.clock() - lastSyncClock) * 1000
-    			local curMs = math.clamp(serverProgressMs + elapsed, 0, serverDurationMs)
+    			local curMs = (serverProgressMs + elapsed) % serverDurationMs
     			updateActiveLyricFromTime(curMs)
+    
+    			-- Advance seek bar smoothly
+    			if not isDraggingSeek then
+    				local ratio = math.clamp(curMs / serverDurationMs, 0, 1)
+    				seekFill.Size = UDim2.new(ratio, 0, 1, 0)
+    				local curSec = math.floor(curMs / 1000)
+    				local totSec = math.floor(serverDurationMs / 1000)
+    				timeLabel.Text = string.format("%d:%02d / %d:%02d", math.floor(curSec / 60), curSec % 60, math.floor(totSec / 60), totSec % 60)
+    			end
+    
+    			-- Dynamic visualizer audio energy simulation when active
+    			if not hasExternalBridge then
+    				currentAudioPeak = 0.45 + (math.sin(os.clock() * 6) * 0.35)
+    				for i = 1, 16 do
+    					currentSpectrum[i] = math.clamp(0.2 + (math.sin(os.clock() * 8 + i * 0.8) * 0.5) + (math.cos(os.clock() * 4 - i * 0.4) * 0.3), 0.1, 1.0)
+    				end
+    			end
     		end
     	end)
     
-    	-- ── Multi-Source Bridge & Synced Lyrics Poller ────────────────────
+    	-- ── Multi-Source Bridge & In-Game Sound Poller ────────────────────
     	task.spawn(function()
     		local bridgeIndex = 1
     		local failCount = 0
@@ -4748,6 +4810,7 @@ Modules["UI/MusicTracker.luau"] = function()
     		while true do
     			local pollWait = if failCount > 0 then 3.0 else 1.5
     			task.wait(pollWait)
+    
     			if widget.Visible and screenGui.Enabled then
     				local rawData: string? = nil
     
@@ -4770,33 +4833,37 @@ Modules["UI/MusicTracker.luau"] = function()
     					local ok, res = pcall(function()
     						return game:HttpGet(currentUrl .. "/current")
     					end)
-    					if ok and res and res ~= "" then
+    					if ok and res and res ~= "" and res:find("{") then
     						rawData = res
     						failCount = 0
+    						hasExternalBridge = true
     						BRIDGE_URL = currentUrl
     					else
     						failCount += 1
+    						hasExternalBridge = false
     						if failCount >= 4 then
     							bridgeIndex = (bridgeIndex % #BRIDGE_URLS) + 1
     							failCount = 0
     						end
     					end
+    				else
+    					hasExternalBridge = true
     				end
     
+    				-- 3. Parse bridge state if active
     				if rawData and rawData ~= "" then
     					pcall(function()
     						local data = HttpService:JSONDecode(rawData)
     						local title = data.title or data.name
     						local artist = data.artist or "Unknown"
     
-    						if data and title then
+    						if data and title and title ~= "" then
     							if data.spectrum and typeof(data.spectrum) == "table" then
     								currentSpectrum = data.spectrum
     							end
     							if data.audioPeak then
     								currentAudioPeak = data.audioPeak
     							end
-    
     							if data.progress_ms then
     								serverProgressMs = tonumber(data.progress_ms) or 0
     								lastSyncClock = os.clock()
@@ -4805,58 +4872,26 @@ Modules["UI/MusicTracker.luau"] = function()
     								serverDurationMs = tonumber(data.duration_ms) or 0
     							end
     
-    							local isIdle = (title == "No Song Playing" or title == "Local Audio Session") and not data.isPlaying and currentAudioPeak <= 0.005
     							local coverVersion = data.coverVersion or 0
-    
     							if title ~= lastSongTitle or coverVersion ~= lastCoverVersion then
     								lastSongTitle = title
     								lastCoverVersion = coverVersion
     								parsedLrcLines = {}
     								lastActiveLyric = ""
     
+    								songTitleLabel.Text = string.format("%s — %s", title, artist)
+    								if data.lyrics and data.lyrics ~= "" then
+    									lyricsLabel.Text = "♫ " .. data.lyrics
+    									lastActiveLyric = data.lyrics
+    								end
+    								isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
+    								playBtn.Text = if isPlaying then "❚❚" else "▶"
+    								updateCover(data.cover, false, coverVersion)
+    
     								if data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 then
     									parsedLrcLines = data.synced_lyrics
     								else
     									fetchLyricsForTrack(title, artist)
-    								end
-    
-    								if data.theme and typeof(data.theme) == "table" then
-    									local t = data.theme
-    									if t.accent and t.bg and t.container then
-    										local acc = Color3.fromRGB(t.accent[1], t.accent[2], t.accent[3])
-    										local bg = Color3.fromRGB(t.bg[1], t.bg[2], t.bg[3])
-    										local ct = Color3.fromRGB(t.container[1], t.container[2], t.container[3])
-    										local bd = t.border and Color3.fromRGB(t.border[1], t.border[2], t.border[3]) or nil
-    										UI.applyAdaptiveTheme(acc, bg, ct, bd)
-    									end
-    								end
-    
-    								if isIdle then
-    									songTitleLabel.Text = "No Song Playing"
-    									lyricsLabel.Text = "♫ Waiting for audio session..."
-    									isPlaying = false
-    									playBtn.Text = "▶"
-    									updateCover(nil, true, coverVersion)
-    								else
-    									songTitleLabel.Text = string.format("%s — %s", title, artist)
-    									if data.lyrics and data.lyrics ~= "" then
-    										lyricsLabel.Text = "♫ " .. data.lyrics
-    										lastActiveLyric = data.lyrics
-    									end
-    									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
-    									playBtn.Text = if isPlaying then "❚❚" else "▶"
-    									updateCover(data.cover, false, coverVersion)
-    								end
-    							else
-    								if isIdle then
-    									isPlaying = false
-    									playBtn.Text = "▶"
-    								else
-    									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
-    									playBtn.Text = if isPlaying then "❚❚" else "▶"
-    									if data.lyrics and data.lyrics ~= "" and #parsedLrcLines == 0 then
-    										lyricsLabel.Text = "♫ " .. data.lyrics
-    									end
     								end
     							end
     						end

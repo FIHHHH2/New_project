@@ -30,6 +30,7 @@ local PlayerUtilities = require("Modules/PlayerUtilities.luau")
 local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
 local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
+local HealthWidget = require("UI/HealthWidget.luau")
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character
@@ -184,6 +185,7 @@ local chatWidgetInstance = ChatWidget.new()
 local musicTrackerWidget = MusicTracker.new()
 local hotbarWidget = Hotbar.new()
 local leaderstatsWidget = LeaderstatsWidget.new()
+local healthWidget = HealthWidget.new()
 
 _G.__ToggleProjectFihBackpack = function()
 	if hotbarWidget then
@@ -1359,6 +1361,22 @@ end)
 
 window:AddToggle(tracerSection, "hud_leaderstats_widget", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
 	leaderstatsWidget.SetVisible(enabled)
+end)
+
+window:AddToggle(tracerSection, "hud_healthbar_widget", "Health Bar HUD Widget", true, nil, function(enabled)
+	healthWidget.SetVisible(enabled)
+end)
+
+window:AddToggle(tracerSection, "hud_damage_indicators", "3D Floating Damage Numbers", true, nil, function(enabled)
+	healthWidget.ToggleDamageNumbers(enabled)
+end)
+
+window:AddToggle(tracerSection, "hud_damage_flash", "Damage Taken Screen Flash", true, nil, function(enabled)
+	healthWidget.ToggleDamageFlash(enabled)
+end)
+
+window:AddToggle(tracerSection, "hud_dynamic_health_color", "Dynamic Health Gradient (Green/Red)", true, nil, function(enabled)
+	healthWidget.SetDynamicColors(enabled)
 end)
 
 -- ── VISUALS SUB-TAB 2: 3D CHAMS & SKELETONS ──────────────────

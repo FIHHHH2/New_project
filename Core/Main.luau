@@ -596,6 +596,139 @@ end)
 -- ── MAIN SUB-TAB 3: PLAYER UTILITIES ─────────────────────────
 local utilLeftCol, utilRightCol = window:CreateColumns(playerUtilsSubTab)
 
+-- Left Column: Live Currencies & Leaderstats
+local statsSection = window:AddSection(utilLeftCol, "Live Currencies & Leaderstats")
+
+local statsContainer = Instance.new("Frame")
+statsContainer.Name = "StatsContainer"
+statsContainer.Size = UDim2.new(1, 0, 0, 0)
+statsContainer.AutomaticSize = Enum.AutomaticSize.Y
+statsContainer.BackgroundTransparency = 1
+statsContainer.BorderSizePixel = 0
+statsContainer.Parent = statsSection.Container
+
+local statsLayout = Instance.new("UIListLayout")
+statsLayout.Padding = UDim.new(0, 4)
+statsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+statsLayout.Parent = statsContainer
+
+local statRowFrames: {[string]: {Row: Frame, ValLabel: TextLabel}} = {}
+
+local function renderCurrencies()
+	local stats = PlayerUtilities.getCurrenciesAndStats()
+	if #stats == 0 then
+		local noStat = statRowFrames["_empty"]
+		if not noStat then
+			local row = Instance.new("Frame")
+			row.Size = UDim2.new(1, 0, 0, 24)
+			row.BackgroundColor3 = UI.Theme.ContainerDark
+			row.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+			row.BorderSizePixel = 0
+			row.Parent = statsContainer
+			UI.registerThemeElement(row, "ContainerDark")
+
+			local lbl = Instance.new("TextLabel")
+			lbl.Size = UDim2.new(1, -8, 1, 0)
+			lbl.Position = UDim2.new(0, 4, 0, 0)
+			lbl.BackgroundTransparency = 1
+			lbl.Text = "No active currencies found in session"
+			lbl.TextColor3 = UI.Theme.TextSecondary
+			lbl.Font = UI.Fonts.Body
+			lbl.TextSize = 10
+			lbl.Parent = row
+			UI.registerThemeElement(lbl, "TextSecondary")
+
+			statRowFrames["_empty"] = {Row = row, ValLabel = lbl}
+		end
+		return
+	end
+
+	if statRowFrames["_empty"] then
+		if statRowFrames["_empty"].Row and statRowFrames["_empty"].Row.Parent then
+			statRowFrames["_empty"].Row:Destroy()
+		end
+		statRowFrames["_empty"] = nil
+	end
+
+	for idx, s in ipairs(stats) do
+		local existing = statRowFrames[s.Name]
+		if existing and existing.Row and existing.Row.Parent then
+			existing.ValLabel.Text = s.Formatted or s.Value
+		else
+			local row = Instance.new("Frame")
+			row.Name = s.Name .. "StatRow"
+			row.Size = UDim2.new(1, 0, 0, 24)
+			row.BackgroundColor3 = UI.Theme.Container
+			row.BackgroundTransparency = UI.Theme.ContainerTransparency
+			row.BorderSizePixel = 0
+			row.LayoutOrder = idx
+			row.Parent = statsContainer
+			UI.registerThemeElement(row, "Container")
+
+			local rStroke = Instance.new("UIStroke")
+			rStroke.Color = UI.Theme.Border
+			rStroke.Thickness = 1.0
+			rStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			rStroke.Parent = row
+			UI.registerThemeElement(rStroke, "Border")
+
+			local nameLabel = Instance.new("TextLabel")
+			nameLabel.Size = UDim2.new(0.55, -6, 1, 0)
+			nameLabel.Position = UDim2.new(0, 6, 0, 0)
+			nameLabel.BackgroundTransparency = 1
+			nameLabel.Text = s.Name
+			nameLabel.TextColor3 = UI.Theme.TextPrimary
+			nameLabel.Font = UI.Fonts.Body
+			nameLabel.TextSize = 10
+			nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+			nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+			nameLabel.Parent = row
+			UI.registerThemeElement(nameLabel, "TextPrimary")
+
+			local valLabel = Instance.new("TextLabel")
+			valLabel.Size = UDim2.new(0.45, -8, 1, 0)
+			valLabel.Position = UDim2.new(0.55, 0, 0, 0)
+			valLabel.BackgroundTransparency = 1
+			valLabel.Text = s.Formatted or s.Value
+			valLabel.TextColor3 = UI.Theme.Accent
+			valLabel.Font = UI.Fonts.Mono
+			valLabel.TextSize = 10
+			valLabel.TextXAlignment = Enum.TextXAlignment.Right
+			valLabel.TextTruncate = Enum.TextTruncate.AtEnd
+			valLabel.Parent = row
+			UI.registerThemeElement(valLabel, "AccentText")
+
+			statRowFrames[s.Name] = {Row = row, ValLabel = valLabel}
+		end
+	end
+end
+
+-- Initial render
+task.spawn(function()
+	task.wait(0.5)
+	pcall(renderCurrencies)
+end)
+
+-- Continuous auto-updater
+local autoUpdateCurrencies = true
+task.spawn(function()
+	while true do
+		task.wait(2.5)
+		if autoUpdateCurrencies then
+			pcall(renderCurrencies)
+		end
+	end
+end)
+
+window:AddButton(statsSection, "Refresh Currencies Now", function()
+	renderCurrencies()
+	window:Notify("Currencies", "Refreshed live leaderstats & currencies", 2)
+end)
+
+window:AddToggle(statsSection, "auto_refresh_currencies", "Auto-Refresh Monitor (2.5s)", true, nil, function(enabled)
+	autoUpdateCurrencies = enabled
+end)
+
 -- Left Column: Server & Session Utilities
 local serverSection = window:AddSection(utilLeftCol, "Server & Session Utilities")
 

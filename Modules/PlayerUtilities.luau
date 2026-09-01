@@ -247,14 +247,92 @@ function PlayerUtilities.SetClickTeleportEnabled(enabled: boolean)
 				end
 			end
 		end)
-		Notification.show("Click TP", "Ctrl+Click teleportation enabled", 2.5)
-	else
-		if clickTpConn then
-			clickTpConn:Disconnect()
-			clickTpConn = nil
-		end
-		Notification.show("Click TP", "Ctrl+Click teleportation disabled", 2.5)
+local function formatNumberValue(strVal: string): string
+	local num = tonumber(strVal)
+	if not num then return strVal end
+	if num >= 1e12 then
+		return string.format("%.2fT", num / 1e12)
+	elseif num >= 1e9 then
+		return string.format("%.2fB", num / 1e9)
+	elseif num >= 1e6 then
+		return string.format("%.2fM", num / 1e6)
+	elseif num >= 1e3 then
+		return string.format("%.1fK", num / 1e3)
 	end
+	return tostring(num)
+end
+
+function PlayerUtilities.getCurrenciesAndStats(): {{ Name: string, Value: string, Formatted: string, Source: string }}
+	local results: {{ Name: string, Value: string, Formatted: string, Source: string }} = {}
+	local seen: {[string]: boolean} = {}
+
+	local function add(name: string, val: any, src: string)
+		local strVal = tostring(val)
+		if seen[name] or strVal == "" or #strVal > 40 then return end
+		seen[name] = true
+		table.insert(results, {
+			Name = name,
+			Value = strVal,
+			Formatted = formatNumberValue(strVal),
+			Source = src
+		})
+	end
+
+	-- 1. Standard leaderstats folder
+	local ls = LocalPlayer:FindFirstChild("leaderstats")
+	if ls then
+		for _, v in ipairs(ls:GetChildren()) do
+			if v:IsA("ValueBase") then
+				add(v.Name, (v :: any).Value, "leaderstats")
+			end
+		end
+	end
+
+	-- 2. Known stat/data folders on Player
+	for _, folderName in ipairs({"Data", "Stats", "Values", "Currencies", "PlayerData"}) do
+		local f = LocalPlayer:FindFirstChild(folderName)
+		if f then
+			for _, v in ipairs(f:GetChildren()) do
+				if v:IsA("ValueBase") then
+					add(v.Name, (v :: any).Value, folderName)
+				end
+			end
+		end
+	end
+
+	-- 3. Game Remote Functions (e.g. GetPlayerData)
+	pcall(function()
+		local RepStorage = game:GetService("ReplicatedStorage")
+		local gpd = RepStorage:FindFirstChild("GetPlayerData")
+		if gpd and gpd:IsA("RemoteFunction") then
+			local data = gpd:InvokeServer()
+			if type(data) == "table" then
+				for k, v in pairs(data) do
+					if type(v) ~= "table" and type(v) ~= "function" and tostring(k) ~= "Name" and tostring(k) ~= "FirstJoin" and tostring(k) ~= "RandomNumber" then
+						add(tostring(k), tostring(v), "PlayerData")
+					end
+				end
+			end
+		end
+	end)
+
+	-- 4. ScreenGui Currency TextLabels fallback
+	local pgui = LocalPlayer:FindFirstChild("PlayerGui")
+	if pgui then
+		for _, d in ipairs(pgui:GetDescendants()) do
+			if d:IsA("TextLabel") and d.Visible then
+				local pName = d.Parent and d.Parent.Name:lower() or ""
+				local dName = d.Name:lower()
+				if string.find(pName, "coin") or string.find(pName, "cash") or string.find(pName, "money") or string.find(pName, "gem") or string.find(pName, "water") or string.find(dName, "coin") or string.find(dName, "cash") then
+					if d.Text ~= "" and #d.Text < 30 and not string.find(d.Text, "BUY") then
+						add(d.Parent.Name, d.Text, "PlayerGui")
+					end
+				end
+			end
+		end
+	end
+
+	return results
 end
 
 return PlayerUtilities

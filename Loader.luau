@@ -14034,6 +14034,8 @@ local function normalizePath(rawPath: string): string
 		return "UI/MusicTracker.luau"
 	elseif path == "UI/Hotbar" or path == "Hotbar" then
 		return "UI/Hotbar.luau"
+	elseif path == "UI/LeaderstatsWidget" or path == "LeaderstatsWidget" then
+		return "UI/LeaderstatsWidget.luau"
 	elseif path == "Core/FeatureManager" or path == "FeatureManager" then
 		return "Core/FeatureManager.luau"
 	elseif path == "Core/CoreUI" or path == "CoreUI" then

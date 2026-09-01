@@ -106,60 +106,60 @@ local function renderToolViewportCached(
 	vp.Position = UDim2.new(0, 0, 0, 0)
 	vp.BackgroundTransparency = 1
 	vp.BorderSizePixel = 0
-	vp.Ambient = Color3.fromRGB(190, 190, 200)
+	vp.Ambient = Color3.fromRGB(200, 200, 210)
 	vp.LightColor = Color3.fromRGB(255, 255, 255)
 	vp.LightDirection = Vector3.new(-1, -1.6, -1).Unit
 	vp.ZIndex = 3
 	vp.Parent = container
 
-	local count = 0
-	local minBounds = Vector3.new(math.huge, math.huge, math.huge)
-	local maxBounds = Vector3.new(-math.huge, -math.huge, -math.huge)
-
+	local parts: {BasePart} = {}
+	local handle = tool:FindFirstChild("Handle") :: BasePart?
 	for _, desc in ipairs(tool:GetDescendants()) do
 		if desc:IsA("BasePart") then
-			count += 1
-			local clone = desc:Clone()
+			table.insert(parts, desc)
+		end
+	end
+
+	if #parts > 0 then
+		local refPart = handle or parts[1]
+		local refCF = refPart.CFrame
+		local minBounds = Vector3.new(math.huge, math.huge, math.huge)
+		local maxBounds = Vector3.new(-math.huge, -math.huge, -math.huge)
+
+		local model = Instance.new("Model")
+		model.Name = "ClonedTool"
+
+		for _, p in ipairs(parts) do
+			local clone = p:Clone()
 			clone.CanCollide = false
 			clone.Anchored = true
-			clone.Parent = vp
+			local relCF = refCF:ToObjectSpace(p.CFrame)
+			clone.CFrame = relCF
+			clone.Parent = model
 
-			local p = desc.Position
-			local sz = desc.Size
+			local cp = relCF.Position
+			local sz = clone.Size
 			minBounds = Vector3.new(
-				math.min(minBounds.X, p.X - sz.X / 2),
-				math.min(minBounds.Y, p.Y - sz.Y / 2),
-				math.min(minBounds.Z, p.Z - sz.Z / 2)
+				math.min(minBounds.X, cp.X - sz.X / 2),
+				math.min(minBounds.Y, cp.Y - sz.Y / 2),
+				math.min(minBounds.Z, cp.Z - sz.Z / 2)
 			)
 			maxBounds = Vector3.new(
-				math.max(maxBounds.X, p.X + sz.X / 2),
-				math.max(maxBounds.Y, p.Y + sz.Y / 2),
-				math.max(maxBounds.Z, p.Z + sz.Z / 2)
+				math.max(maxBounds.X, cp.X + sz.X / 2),
+				math.max(maxBounds.Y, cp.Y + sz.Y / 2),
+				math.max(maxBounds.Z, cp.Z + sz.Z / 2)
 			)
 		end
-	end
 
-	if count == 0 then
-		local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
-		if handle and handle:IsA("BasePart") then
-			count = 1
-			local clone = handle:Clone()
-			clone.CanCollide = false
-			clone.Anchored = true
-			clone.Parent = vp
-			minBounds = handle.Position - handle.Size / 2
-			maxBounds = handle.Position + handle.Size / 2
-		end
-	end
+		model.Parent = vp
 
-	if count > 0 then
 		local center = (minBounds + maxBounds) / 2
 		local size = (maxBounds - minBounds)
 		local maxDim = math.max(size.X, size.Y, size.Z, 0.8)
 
 		local cam = Instance.new("Camera")
 		cam.FieldOfView = 50
-		cam.CFrame = CFrame.new(center + Vector3.new(maxDim * 1.3, maxDim * 0.9, maxDim * 1.3), center)
+		cam.CFrame = CFrame.new(center + Vector3.new(maxDim * 1.35, maxDim * 0.95, maxDim * 1.35), center)
 		cam.Parent = vp
 		vp.CurrentCamera = cam
 	end
@@ -338,6 +338,7 @@ function Hotbar.new(): HotbarWidget
 	searchBox.BackgroundColor3 = UI.Theme.Container
 	searchBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	searchBox.BorderSizePixel = 0
+	searchBox.Text = ""
 	searchBox.PlaceholderText = "Search inventory tools..."
 	searchBox.PlaceholderColor3 = UI.Theme.TextSecondary
 	searchBox.TextColor3 = UI.Theme.TextPrimary

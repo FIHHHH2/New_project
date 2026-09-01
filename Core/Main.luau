@@ -1445,27 +1445,48 @@ do
 	end)
 
 	local rLeftCol, rRightCol = window:CreateColumns(revSubTab)
-	local revSection = window:AddSection(rLeftCol, "Tips & Register Revenue")
+	local cashSection = window:AddSection(rLeftCol, "Cash & Table Bills Collector")
 
-	window:AddToggle(revSection, "rt_auto_collect_tips", "Auto-Collect Customer Tips", false, nil, function(enabled)
+	window:AddToggle(cashSection, "rt_auto_grab_cash", "Auto-Grab Cash & Table Bills", true, nil, function(enabled)
+		RestaurantTycoon.setAutoGrabCash(enabled)
+	end)
+
+	window:AddToggle(cashSection, "rt_auto_collect_tips", "Auto-Collect Customer Tips", true, nil, function(enabled)
 		RestaurantTycoon.setAutoCollectTips(enabled)
 	end)
 
-	window:AddButton(revSection, "Collect All Tips Now", function()
-		if RestaurantTycoon.collectTipsNow() then
-			window:Notify("Restaurant Tycoon", "Collected restaurant tips", 2)
-		else
-			window:Notify("Restaurant Tycoon", "No pending tips to collect", 2)
-		end
+	window:AddButton(cashSection, "Grab All Cash & Bills Now", function()
+		local count = RestaurantTycoon.grabAllCashNow()
+		window:Notify("Restaurant Tycoon", string.format("Swept %d cash & bill sources", count), 2.5)
 	end)
 
-	local rewardSection = window:AddSection(rRightCol, "Daily Rewards & Luigi")
+	window:AddSlider(cashSection, "Cash Sweep Interval (ms)", 150, 800, 350, function(value)
+		RestaurantTycoon.CashInterval = value / 1000
+	end)
+
+	local rewardSection = window:AddSection(rRightCol, "Offline Earnings & Daily Rewards")
+
+	window:AddButton(rewardSection, "Collect Offline Earnings", function()
+		local rEvents = game:GetService("ReplicatedStorage"):FindFirstChild("Events")
+		if rEvents and rEvents:FindFirstChild("Upgrades") and rEvents.Upgrades:FindFirstChild("CollectOfflineEarningsRequested") then
+			rEvents.Upgrades.CollectOfflineEarningsRequested:FireServer()
+			window:Notify("Restaurant Tycoon", "Collected offline restaurant revenue", 2.5)
+		end
+	end)
 
 	window:AddButton(rewardSection, "Claim Daily Reward Box", function()
 		if RestaurantTycoon.claimDailyRewards() then
 			window:Notify("Restaurant Tycoon", "Claimed daily reward box", 2.5)
 		else
 			window:Notify("Restaurant Tycoon", "Daily reward not ready or not found", 2.5)
+		end
+	end)
+
+	window:AddButton(rewardSection, "Collect Tip Jar Now", function()
+		if RestaurantTycoon.collectTipsNow() then
+			window:Notify("Restaurant Tycoon", "Collected restaurant tips", 2)
+		else
+			window:Notify("Restaurant Tycoon", "No pending tips to collect", 2)
 		end
 	end)
 

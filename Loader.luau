@@ -15614,20 +15614,21 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     --[=[
         ✦ Seeker vs Hider Automation & Combat Suite ✦
         Features:
-        - True Silent Aim (Hooks FastCast BulletHandler to redirect bullet vectors directly to targets)
-        - Predictive Trajectory Solver (Target Velocity * lead factor)
+        - True Silent Aim (Hooks FastCast:Fire & BulletHandler.FireBullet directly)
+        - Predictive 3D Trajectory Solver (Target Velocity * lead factor)
         - Target Part Selector (Head / Torso / HumanoidRootPart / Random)
-        - FOV Check & Visualizer Integration
-        - Weapon Configs:
-            - No Recoil & Zero Camera Shake
+        - FOV Radius & Team Check
+        - Real-Time Weapon Overclocking (via getgc tables):
+            - Zero Recoil & No Pushback
             - Zero Spread & No Bloom
-            - Rapid Fire Rate Overclock
-            - Full Auto Mode
-            - No Bullet Drop (Zero Gravity)
-            - Instant Gun Spawner / Selector (AK-74, M4A1, M249, RPG-7, RayGun, etc.)
-        - Tactical Actions:
-            - Break All Map Glass
-            - Safe Vantage Teleport
+            - Full Auto Conversion (fireMode = 2)
+            - Zero Bullet Drop (bulletDrop = false, Acceleration = 0)
+            - Rapid Fire Rate Multiplier
+            - Instant Auto-Chamber
+            - Fall Damage & Wall-Raise Bypass
+        - Gun Vault Spawner (Select & Equip any of 32+ Weapons)
+        - Break All Map Glass
+        - Safe Vantage Teleports
     ]=]
     
     local Players = game:GetService("Players")
@@ -15642,10 +15643,10 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     local SeekerVsHider = {
     	SilentAim = true,
     	TargetPart = "Head",
-    	FOV = 220,
+    	FOV = 350,
     	HitChance = 100,
     	WallCheck = false,
-    	TeamCheck = true,
+    	TeamCheck = false,
     	Prediction = 0.035,
     	
     	-- Weapon Configs
@@ -15659,6 +15660,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     
     local SHARED_RAY_PARAMS = RaycastParams.new()
     local origFireBullet: any = nil
+    local origFastCastFire: any = nil
     local hookInstalled = false
     local weaponConfigConn: RBXScriptConnection? = nil
     
@@ -15690,7 +15692,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     					targetPartName = parts[math.random(1, #parts)]
     				end
     
-    				local part = char:FindFirstChild(targetPartName) or char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+    				local part = char:FindFirstChild(targetPartName) or char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildWhichIsA("BasePart")
     				if part and part:IsA("BasePart") then
     					local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
     					if onScreen then
@@ -15718,7 +15720,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	end
     
     	if bestPlayer and bestPart then
-    		local vel = bestPart.AssemblyLinearVelocity
+    		local vel = bestPart.AssemblyLinearVelocity or Vector3.zero
     		local predictedPos = bestPart.Position + (vel * SeekerVsHider.Prediction)
     		return bestPlayer, bestPart, predictedPos
     	end
@@ -15726,28 +15728,25 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	return nil, nil, nil
     end
     
-    -- ── 2. FastCast BulletHandler Hook (True Silent Aim) ──────────────────
+    -- ── 2. FastCast & BulletHandler Dual Hooks (Guaranteed Silent Aim) ────
     local function installBulletHook()
     	if hookInstalled then return end
     
     	local sphAssets = ReplicatedStorage:FindFirstChild("SPH_Assets")
     	local modules = sphAssets and sphAssets:FindFirstChild("Modules")
-    	local bulletHandlerObj = modules and modules:FindFirstChild("BulletHandler")
     
-    	if bulletHandlerObj then
-    		local ok, bh = pcall(require, bulletHandlerObj)
-    		if ok and typeof(bh) == "table" and typeof(bh.FireBullet) == "function" then
-    			origFireBullet = bh.FireBullet
-    
-    			bh.FireBullet = function(p10, origin, direction, velocity, tool, player, tracerColor, fakeBullet)
-    				local isLocal = (player == LocalPlayer or player == nil or player == LocalPlayer.Character or player == LocalPlayer.Name or (p10 == LocalPlayer.Character))
-    
-    				if SeekerVsHider.SilentAim and isLocal then
+    	-- Hook 1: FastCast.Fire directly on FastCast module
+    	local fastCastObj = modules and modules:FindFirstChild("FastCast")
+    	if fastCastObj then
+    		local okFc, FastCast = pcall(require, fastCastObj)
+    		if okFc and typeof(FastCast) == "table" and typeof(FastCast.Fire) == "function" then
+    			origFastCastFire = FastCast.Fire
+    			FastCast.Fire = function(self, origin, direction, velocity, behavior)
+    				if SeekerVsHider.SilentAim then
     					local roll = math.random(1, 100)
     					if roll <= SeekerVsHider.HitChance then
     						local targetPlayer, targetPart, predictedPos = getTargetCandidate()
     						if targetPart and predictedPos then
-    							-- Redirect bullet trajectory vector directly to target
     							local newDir = (predictedPos - origin).Unit
     							direction = newDir
     							if typeof(velocity) == "Vector3" then
@@ -15758,57 +15757,104 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     					end
     				end
     
-    				-- Weapon Config Overrides
-    				if SeekerVsHider.NoBulletDrop then
-    					pcall(function()
-    						local fastCastBehavior = debug.getupvalue and debug.getupvalue(origFireBullet, 1)
-    						if fastCastBehavior and typeof(fastCastBehavior) == "table" then
-    							fastCastBehavior.Acceleration = Vector3.zero
+    				if SeekerVsHider.NoBulletDrop and behavior then
+    					behavior.Acceleration = Vector3.zero
+    				end
+    
+    				return origFastCastFire(self, origin, direction, velocity, behavior)
+    			end
+    		end
+    	end
+    
+    	-- Hook 2: BulletHandler.FireBullet wrapper
+    	local bulletHandlerObj = modules and modules:FindFirstChild("BulletHandler")
+    	if bulletHandlerObj then
+    		local okBh, bh = pcall(require, bulletHandlerObj)
+    		if okBh and typeof(bh) == "table" and typeof(bh.FireBullet) == "function" then
+    			origFireBullet = bh.FireBullet
+    			bh.FireBullet = function(p10, origin, direction, velocity, tool, player, tracerColor, fakeBullet)
+    				local isLocal = (player == LocalPlayer or player == nil or player == LocalPlayer.Character or player == LocalPlayer.Name or (p10 == LocalPlayer.Character))
+    
+    				if SeekerVsHider.SilentAim and isLocal then
+    					local roll = math.random(1, 100)
+    					if roll <= SeekerVsHider.HitChance then
+    						local targetPlayer, targetPart, predictedPos = getTargetCandidate()
+    						if targetPart and predictedPos then
+    							local newDir = (predictedPos - origin).Unit
+    							direction = newDir
+    							if typeof(velocity) == "Vector3" then
+    								local spd = velocity.Magnitude
+    								velocity = newDir * (if spd > 10 then spd else 1000)
+    							end
     						end
-    					end)
+    					end
     				end
     
     				return origFireBullet(p10, origin, direction, velocity, tool, player, tracerColor, fakeBullet)
     			end
-    
-    			hookInstalled = true
     		end
     	end
+    
+    	hookInstalled = true
     end
     
-    -- ── 3. Weapon Stats Overclocker (Recoil, Spread, FireRate) ────────────
+    -- ── 3. Weapon Stats Overclocker (Recoil, Spread, FireRate, Auto) ──────
     function SeekerVsHider.applyWeaponConfigs()
-    	local cam = Workspace.CurrentCamera
-    	local wRig = cam and cam:FindFirstChild("WeaponRig")
-    	local weaponFolder = wRig and wRig:FindFirstChild("Weapon")
+    	-- 1. Scan getgc for active weapon stats tables
+    	if type(getgc) == "function" then
+    		for _, obj in ipairs(getgc(true)) do
+    			if type(obj) == "table" then
+    				local hasRecoil = rawget(obj, "recoil") ~= nil
+    				local hasSpread = rawget(obj, "spread") ~= nil
+    				local hasFireRate = rawget(obj, "fireRate") ~= nil or rawget(obj, "rpm") ~= nil
+    				local hasAmmo = rawget(obj, "startAmmoPool") ~= nil or rawget(obj, "magazineCapacity") ~= nil
     
-    	if weaponFolder then
-    		for _, model in ipairs(weaponFolder:GetChildren()) do
-    			local sphWep = model:FindFirstChild("SPH_Weapon")
-    			local statsMod = sphWep and sphWep:FindFirstChild("WeaponStats")
-    			if statsMod and statsMod:IsA("ModuleScript") then
-    				local ok, stats = pcall(require, statsMod)
-    				if ok and typeof(stats) == "table" then
-    					if SeekerVsHider.NoRecoil then
-    						stats.recoil = 0
-    						stats.kickUp = 0
-    						stats.kickRight = 0
-    					end
+    				if hasRecoil or hasSpread or hasFireRate or hasAmmo then
     					if SeekerVsHider.NoSpread then
-    						stats.spread = 0
-    						stats.minSpread = 0
-    						stats.maxSpread = 0
+    						rawset(obj, "spread", 0)
+    						rawset(obj, "minSpread", 0)
+    						rawset(obj, "maxSpread", 0)
+    					end
+    					if SeekerVsHider.NoRecoil then
+    						rawset(obj, "recoil", 0)
+    						rawset(obj, "kickUp", 0)
+    						rawset(obj, "kickRight", 0)
+    						rawset(obj, "maxPushback", 0)
     					end
     					if SeekerVsHider.FullAuto then
-    						stats.auto = true
-    						stats.fireModes = {"Auto"}
+    						rawset(obj, "fireMode", 2)
+    						rawset(obj, "auto", true)
     					end
     					if SeekerVsHider.NoBulletDrop then
-    						stats.bulletDrop = false
+    						rawset(obj, "bulletDrop", false)
     					end
+    					if SeekerVsHider.FastFireRate then
+    						local rate = rawget(obj, "fireRate")
+    						if type(rate) == "number" and rate < 1200 then
+    							rawset(obj, "fireRate", math.floor(rate * SeekerVsHider.FireRateMultiplier))
+    						end
+    					end
+    					rawset(obj, "autoChamber", true)
     				end
     			end
     		end
+    	end
+    
+    	-- 2. Modify SPH_Assets.GameConfig
+    	local sphAssets = ReplicatedStorage:FindFirstChild("SPH_Assets")
+    	local gameCfgMod = sphAssets and sphAssets:FindFirstChild("GameConfig")
+    	if gameCfgMod and gameCfgMod:IsA("ModuleScript") then
+    		pcall(function()
+    			local cfg = require(gameCfgMod)
+    			if type(cfg) == "table" then
+    				cfg.fallDamage = false
+    				cfg.cameraBobDampening = 0
+    				cfg.cameraTilting = false
+    				cfg.blurEffects = false
+    				cfg.suppressionEffects = false
+    				cfg.raiseGunAtWall = false
+    			end
+    		end)
     	end
     end
     
@@ -15823,7 +15869,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     		end)
     		if ok then
     			task.defer(function()
-    				task.wait(0.2)
+    				task.wait(0.15)
     				SeekerVsHider.applyWeaponConfigs()
     			end)
     			return true
@@ -15885,14 +15931,12 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     			local isGlass = (mat == Enum.Material.Glass or mat == Enum.Material.Foil or mat == Enum.Material.Ice or mat == Enum.Material.ForceField or name:find("glass") or name:find("window") or name:find("pane"))
     			
     			if isGlass and not (cam and obj:IsDescendantOf(cam)) and not (myChar and obj:IsDescendantOf(myChar)) then
-    				-- 1. Fire Server BreakGlass Remote for each glass Part instance
     				if bg then
     					pcall(function()
     						bg:FireServer(obj)
     					end)
     				end
     
-    				-- 2. Direct client shatter & collision bypass
     				pcall(function()
     					obj.Transparency = 1
     					obj.CanCollide = false
@@ -15938,7 +15982,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     end
     
     function SeekerVsHider.teleportToLobby(): boolean
-    	local lobby = Workspace:FindFirstChild("lobby")
+    	local lobby = Workspace:FindFirstChild("lobby") or Workspace:FindFirstChild("Lobby")
     	local spawnPart = lobby and lobby:FindFirstChildWhichIsA("BasePart", true)
     	if spawnPart then
     		return safeTeleport(spawnPart.CFrame)
@@ -15946,8 +15990,9 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	return false
     end
     
-    -- Initialize BulletHook on load
+    -- Initialize FastCast & BulletHandler hooks
     installBulletHook()
+    SeekerVsHider.applyWeaponConfigs()
     
     -- Continuous WeaponConfig Watcher
     if weaponConfigConn then
@@ -16199,29 +16244,6 @@ Modules["Core/Main.luau"] = function()
     		end
     	end
     end)
-    
-    local function getGameTabName(): string
-    	local placeId = game.PlaceId
-    	local gameName = string.lower(game.Name)
-    	pcall(function()
-    		local MarketplaceService = game:GetService("MarketplaceService")
-    		local info = MarketplaceService:GetProductInfo(placeId)
-    		if info and info.Name then
-    			gameName = string.lower(info.Name)
-    		end
-    	end)
-    
-    	if placeId == 662417684 or string.find(gameName, "lucky block") or workspace:FindFirstChild("CenterBlocks") then
-    		return "Lucky Blocks"
-    	elseif placeId == 189707 or string.find(gameName, "disaster") then
-    		return "Natural Disaster"
-    	elseif placeId == 12901416348 or string.find(gameName, "run and hide") or string.find(gameName, "demise") then
-    		return "Run N Hide"
-    	elseif string.find(gameName, "ice tycoon") or (workspace:FindFirstChild("Tycoon") and workspace.Tycoon:FindFirstChild("Buttons")) then
-    		return "Ice Tycoon"
-    	end
-    	return "Lucky Blocks"
-    end
     
     local function getGameTabName(): string
     	local placeId = game.PlaceId

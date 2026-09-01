@@ -243,29 +243,6 @@ local function getGameTabName(): string
 		end
 	end)
 
-	if placeId == 662417684 or string.find(gameName, "lucky block") or workspace:FindFirstChild("CenterBlocks") then
-		return "Lucky Blocks"
-	elseif placeId == 189707 or string.find(gameName, "disaster") then
-		return "Natural Disaster"
-	elseif placeId == 12901416348 or string.find(gameName, "run and hide") or string.find(gameName, "demise") then
-		return "Run N Hide"
-	elseif string.find(gameName, "ice tycoon") or (workspace:FindFirstChild("Tycoon") and workspace.Tycoon:FindFirstChild("Buttons")) then
-		return "Ice Tycoon"
-	end
-	return "Lucky Blocks"
-end
-
-local function getGameTabName(): string
-	local placeId = game.PlaceId
-	local gameName = string.lower(game.Name)
-	pcall(function()
-		local MarketplaceService = game:GetService("MarketplaceService")
-		local info = MarketplaceService:GetProductInfo(placeId)
-		if info and info.Name then
-			gameName = string.lower(info.Name)
-		end
-	end)
-
 	if placeId == 18336470541 or string.find(gameName, "seeker") or string.find(gameName, "hider") or workspace:FindFirstChild("SPH_Workspace") then
 		return "Seeker vs Hider"
 	elseif placeId == 1190485299606 or string.find(gameName, "restaurant") or (workspace:FindFirstChild("Tycoons") and workspace.Tycoons:FindFirstChildWhichIsA("Folder")) then

@@ -799,9 +799,59 @@ function LeaderstatsWidget.new()
 		end
 	end)
 
-	-- ── Continuous Polling Loop ───────────────────────────────────────
+	-- ── Ultra-Fast Reactive & Debounced Polling Engine ──────────────
+	local updateScheduled = false
+	local function queueQuickRefresh()
+		if updateScheduled or not widget.Visible then return end
+		updateScheduled = true
+		task.delay(0.04, function()
+			updateScheduled = false
+			pcall(function()
+				if activeMode == "currencies" or activeMode == "others" then
+					renderAllStats()
+				else
+					renderServerPlayers()
+				end
+			end)
+		end)
+	end
+
+	-- Instant ValueBase & Attribute Listeners
+	local function bindFolder(folder: Instance)
+		for _, child in ipairs(folder:GetChildren()) do
+			if child:IsA("ValueBase") then
+				child.Changed:Connect(queueQuickRefresh)
+			end
+		end
+		folder.ChildAdded:Connect(function(child)
+			if child:IsA("ValueBase") then
+				child.Changed:Connect(queueQuickRefresh)
+			end
+			queueQuickRefresh()
+		end)
+		folder.ChildRemoved:Connect(queueQuickRefresh)
+	end
+
+	for _, fName in ipairs({"leaderstats", "Data", "Stats", "Values", "Currencies", "PlayerData", "Tycoon"}) do
+		local f = LocalPlayer:FindFirstChild(fName)
+		if f then bindFolder(f) end
+	end
+
+	LocalPlayer.ChildAdded:Connect(function(child)
+		for _, fName in ipairs({"leaderstats", "Data", "Stats", "Values", "Currencies", "PlayerData", "Tycoon"}) do
+			if child.Name == fName then
+				bindFolder(child)
+				queueQuickRefresh()
+				break
+			end
+		end
+	end)
+
+	LocalPlayer.AttributeChanged:Connect(queueQuickRefresh)
+
+	-- High-Frequency 0.25s Fallback Poller for Remote Functions & Network Sync
 	task.spawn(function()
-		task.wait(0.5)
+		task.wait(0.2)
 		while true do
 			pcall(function()
 				if widget.Visible then
@@ -812,7 +862,7 @@ function LeaderstatsWidget.new()
 					end
 				end
 			end)
-			task.wait(2.0)
+			task.wait(0.25)
 		end
 	end)
 

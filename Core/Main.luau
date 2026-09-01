@@ -733,11 +733,53 @@ task.spawn(function()
 	pcall(renderCurrencies)
 end)
 
--- Continuous auto-updater
+-- Continuous auto-updater (0.25s high-frequency polling with reactive value change triggers)
 local autoUpdateCurrencies = true
+local refreshCurrenciesDebounced: thread? = nil
+local function triggerInstantCurrencyRefresh()
+	if not autoUpdateCurrencies then return end
+	if refreshCurrenciesDebounced then task.cancel(refreshCurrenciesDebounced) end
+	refreshCurrenciesDebounced = task.delay(0.04, function()
+		pcall(renderCurrencies)
+	end)
+end
+
+-- Hook value objects on LocalPlayer for 0ms latency UI updates
+local function hookCurrencyFolder(folder: Instance)
+	for _, child in ipairs(folder:GetChildren()) do
+		if child:IsA("ValueBase") then
+			child.Changed:Connect(triggerInstantCurrencyRefresh)
+		end
+	end
+	folder.ChildAdded:Connect(function(child)
+		if child:IsA("ValueBase") then
+			child.Changed:Connect(triggerInstantCurrencyRefresh)
+		end
+		triggerInstantCurrencyRefresh()
+	end)
+	folder.ChildRemoved:Connect(triggerInstantCurrencyRefresh)
+end
+
+for _, fName in ipairs({"leaderstats", "Data", "Stats", "Values", "Currencies", "PlayerData", "Tycoon"}) do
+	local f = localPlayer:FindFirstChild(fName)
+	if f then hookCurrencyFolder(f) end
+end
+
+localPlayer.ChildAdded:Connect(function(child)
+	for _, fName in ipairs({"leaderstats", "Data", "Stats", "Values", "Currencies", "PlayerData", "Tycoon"}) do
+		if child.Name == fName then
+			hookCurrencyFolder(child)
+			triggerInstantCurrencyRefresh()
+			break
+		end
+	end
+end)
+
+localPlayer.AttributeChanged:Connect(triggerInstantCurrencyRefresh)
+
 task.spawn(function()
 	while true do
-		task.wait(2.5)
+		task.wait(0.25)
 		if autoUpdateCurrencies then
 			pcall(renderCurrencies)
 		end
@@ -749,7 +791,7 @@ window:AddButton(statsSection, "Refresh Currencies Now", function()
 	window:Notify("Currencies", "Refreshed live leaderstats & currencies", 2)
 end)
 
-window:AddToggle(statsSection, "auto_refresh_currencies", "Auto-Refresh Monitor (2.5s)", true, nil, function(enabled)
+window:AddToggle(statsSection, "auto_refresh_currencies", "Fast Live Monitor (0.25s)", true, nil, function(enabled)
 	autoUpdateCurrencies = enabled
 end)
 

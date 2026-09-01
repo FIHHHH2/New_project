@@ -52,13 +52,14 @@ function MusicTracker.new()
 	screenGui.ResetOnSpawn = false
 	screenGui.IgnoreGuiInset = true
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	screenGui.Enabled = false
 
 	pcall(function() screenGui.Parent = CoreGui end)
 	if not screenGui.Parent then
 		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	end
 
-	local DEFAULT_W, DEFAULT_H = 430, 182
+	local DEFAULT_W, DEFAULT_H = 340, 136
 	local TOPBAR_H = 26
 
 	-- ── Main Widget Frame ─────────────────────────────────────────────
@@ -93,7 +94,7 @@ function MusicTracker.new()
 	UI.registerThemeElement(outerStroke, "Border")
 
 	local uiScale = Instance.new("UIScale")
-	uiScale.Scale = 1.0
+	uiScale.Scale = 0.85
 	uiScale.Parent = widget
 
 	-- ── Topbar (Drag Handle) ──────────────────────────────────────────

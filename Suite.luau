@@ -3967,13 +3967,14 @@ Modules["UI/MusicTracker.luau"] = function()
     	screenGui.ResetOnSpawn = false
     	screenGui.IgnoreGuiInset = true
     	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    	screenGui.Enabled = false
     
     	pcall(function() screenGui.Parent = CoreGui end)
     	if not screenGui.Parent then
     		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
     	end
     
-    	local DEFAULT_W, DEFAULT_H = 430, 182
+    	local DEFAULT_W, DEFAULT_H = 340, 136
     	local TOPBAR_H = 26
     
     	-- ── Main Widget Frame ─────────────────────────────────────────────
@@ -4008,7 +4009,7 @@ Modules["UI/MusicTracker.luau"] = function()
     	UI.registerThemeElement(outerStroke, "Border")
     
     	local uiScale = Instance.new("UIScale")
-    	uiScale.Scale = 1.0
+    	uiScale.Scale = 0.85
     	uiScale.Parent = widget
     
     	-- ── Topbar (Drag Handle) ──────────────────────────────────────────
@@ -5263,7 +5264,7 @@ Modules["UI/Hotbar.luau"] = function()
     	hotbarList.Parent = hotbarFrame
     
     	-- ── 2. Backpack Inventory Window ──────────────────────────────────
-    	local BP_WIDTH = 480
+    	local BP_WIDTH = 660
     	local BP_HEIGHT = 340
     	local bpWindow = Instance.new("Frame")
     	bpWindow.Name = "BackpackWindow"
@@ -5389,7 +5390,7 @@ Modules["UI/Hotbar.luau"] = function()
     	bpGridPad.Parent = bpGridScroll
     
     	local bpGridLayout = Instance.new("UIGridLayout")
-    	bpGridLayout.CellSize = UDim2.new(0, 84, 0, 74)
+    	bpGridLayout.CellSize = UDim2.new(0, 98, 0, 76)
     	bpGridLayout.CellPadding = UDim2.new(0, 6, 0, 6)
     	bpGridLayout.SortOrder = Enum.SortOrder.Name
     	bpGridLayout.Parent = bpGridScroll
@@ -16015,18 +16016,15 @@ Modules["Core/Main.luau"] = function()
     end
     
     task.spawn(disableCoreGuis)
-    -- Auto-hide game GUIs immediately — fixes black screen on load
+    -- Keep Game GUIs in PlayerGui visible on load, only CoreGuis are disabled by default
     task.spawn(function()
-    	-- Brief wait for PlayerGui to populate
-    	task.wait(0.5)
-    	hidePlayerGameGuis(true)
+    	hidePlayerGameGuis(false)
     end)
     
     localPlayer.CharacterAdded:Connect(function()
     	task.spawn(disableCoreGuis)
     	task.spawn(function()
-    		task.wait(0.5)
-    		hidePlayerGameGuis(true)
+    		hidePlayerGameGuis(false)
     	end)
     end)
     
@@ -18039,7 +18037,7 @@ Modules["Core/Main.luau"] = function()
     	end
     end)
     
-    window:AddToggle(perfSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui)", true, nil, function(enabled)
+    window:AddToggle(perfSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui)", false, nil, function(enabled)
     	hidePlayerGameGuis(enabled)
     end)
     
@@ -18118,7 +18116,7 @@ Modules["Core/Main.luau"] = function()
     	window:Notify("UI", if enabled then "Roblox Core UIs hidden" else "Roblox Core UIs restored", 2)
     end)
     
-    window:AddToggle(cleanSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui HUDs & Menus)", true, nil, function(enabled)
+    window:AddToggle(cleanSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui HUDs & Menus)", false, nil, function(enabled)
     	hidePlayerGameGuis(enabled)
     	window:Notify("UI", if enabled then "Game custom GUIs hidden" else "Game custom GUIs restored", 2)
     end)

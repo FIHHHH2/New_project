@@ -298,7 +298,7 @@ function Hotbar.new(): HotbarWidget
 	hotbarList.Parent = hotbarFrame
 
 	-- ── 2. Backpack Inventory Window ──────────────────────────────────
-	local BP_WIDTH = 480
+	local BP_WIDTH = 660
 	local BP_HEIGHT = 340
 	local bpWindow = Instance.new("Frame")
 	bpWindow.Name = "BackpackWindow"
@@ -424,7 +424,7 @@ function Hotbar.new(): HotbarWidget
 	bpGridPad.Parent = bpGridScroll
 
 	local bpGridLayout = Instance.new("UIGridLayout")
-	bpGridLayout.CellSize = UDim2.new(0, 84, 0, 74)
+	bpGridLayout.CellSize = UDim2.new(0, 98, 0, 76)
 	bpGridLayout.CellPadding = UDim2.new(0, 6, 0, 6)
 	bpGridLayout.SortOrder = Enum.SortOrder.Name
 	bpGridLayout.Parent = bpGridScroll

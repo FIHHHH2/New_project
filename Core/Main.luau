@@ -159,18 +159,15 @@ local function hidePlayerGameGuis(enabled: boolean)
 end
 
 task.spawn(disableCoreGuis)
--- Auto-hide game GUIs immediately — fixes black screen on load
+-- Keep Game GUIs in PlayerGui visible on load, only CoreGuis are disabled by default
 task.spawn(function()
-	-- Brief wait for PlayerGui to populate
-	task.wait(0.5)
-	hidePlayerGameGuis(true)
+	hidePlayerGameGuis(false)
 end)
 
 localPlayer.CharacterAdded:Connect(function()
 	task.spawn(disableCoreGuis)
 	task.spawn(function()
-		task.wait(0.5)
-		hidePlayerGameGuis(true)
+		hidePlayerGameGuis(false)
 	end)
 end)
 
@@ -2183,7 +2180,7 @@ window:AddToggle(perfSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (To
 	end
 end)
 
-window:AddToggle(perfSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui)", true, nil, function(enabled)
+window:AddToggle(perfSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui)", false, nil, function(enabled)
 	hidePlayerGameGuis(enabled)
 end)
 
@@ -2262,7 +2259,7 @@ window:AddToggle(cleanSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (T
 	window:Notify("UI", if enabled then "Roblox Core UIs hidden" else "Roblox Core UIs restored", 2)
 end)
 
-window:AddToggle(cleanSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui HUDs & Menus)", true, nil, function(enabled)
+window:AddToggle(cleanSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui HUDs & Menus)", false, nil, function(enabled)
 	hidePlayerGameGuis(enabled)
 	window:Notify("UI", if enabled then "Game custom GUIs hidden" else "Game custom GUIs restored", 2)
 end)

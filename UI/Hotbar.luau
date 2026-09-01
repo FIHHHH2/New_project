@@ -728,19 +728,23 @@ function Hotbar.new(): HotbarWidget
 		local char = LocalPlayer.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-		if not char or not hum then return end
+		if not char or not hum or not tool or not tool.Parent then return end
 
 		local currentlyEquipped = char:FindFirstChildOfClass("Tool")
 
-		if currentlyEquipped == tool or isToolEquipped(tool) then
-			hum:UnequipTools()
-			if bp and tool.Parent == char then
-				tool.Parent = bp
+		pcall(function()
+			if currentlyEquipped == tool or isToolEquipped(tool) then
+				hum:UnequipTools()
+				if bp and tool.Parent == char then
+					tool.Parent = bp
+				end
+			else
+				hum:UnequipTools()
+				if tool.Parent then
+					hum:EquipTool(tool)
+				end
 			end
-		else
-			hum:UnequipTools()
-			hum:EquipTool(tool)
-		end
+		end)
 
 		updateSlotHighlightsOnly()
 	end

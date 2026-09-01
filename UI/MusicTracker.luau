@@ -50,9 +50,10 @@ function MusicTracker.new()
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ModularMusicTrackerGui"
 	screenGui.ResetOnSpawn = false
+	screenGui.DisplayOrder = 600
 	screenGui.IgnoreGuiInset = true
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	screenGui.Enabled = false
+	screenGui.Enabled = true
 
 	pcall(function() screenGui.Parent = CoreGui end)
 	if not screenGui.Parent then
@@ -991,10 +992,12 @@ function MusicTracker.new()
 
 	local function openWidget(selfOrOnComplete: any, maybeOnComplete: any)
 		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
-		if isOpen or isTransitioning then return end
+		if (isOpen and screenGui.Enabled and widget.Visible) or isTransitioning then return end
 		isTransitioning = true
+		screenGui.Enabled = true
+		widget.Visible = true
+		isOpen = true
 		Animations.openWindow(widget, uiScale, function()
-			isOpen = true
 			isTransitioning = false
 			if onComplete then onComplete() end
 		end)
@@ -1004,9 +1007,10 @@ function MusicTracker.new()
 		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
 		if not isOpen or isTransitioning then return end
 		isTransitioning = true
+		isOpen = false
 		Animations.closeWindow(widget, uiScale, function()
-			isOpen = false
 			isTransitioning = false
+			screenGui.Enabled = false
 			if onComplete then onComplete() end
 		end)
 	end

@@ -187,6 +187,19 @@ local hotbarWidget = Hotbar.new()
 local leaderstatsWidget = LeaderstatsWidget.new()
 local healthWidget = HealthWidget.new()
 
+-- Synchronize Player List with Leaderstats and Player Profile Sub-GUIs
+playerListWidget.OnClose = function()
+	if leaderstatsWidget and typeof(leaderstatsWidget.Close) == "function" then
+		leaderstatsWidget.Close()
+	end
+end
+
+playerListWidget.OnOpen = function()
+	if leaderstatsWidget and typeof(leaderstatsWidget.Open) == "function" then
+		leaderstatsWidget.Open()
+	end
+end
+
 _G.__ToggleProjectFihBackpack = function()
 	if hotbarWidget then
 		hotbarWidget.ToggleBackpack()

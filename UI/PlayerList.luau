@@ -32,7 +32,9 @@ export type PlayerListWidget = {
 	Open: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
 	Close: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
 	Toggle: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
-	SetVisible: (selfOrVal: any, maybeVal: any) -> ()
+	SetVisible: (selfOrVal: any, maybeVal: any) -> (),
+	OnClose: (() -> ())?,
+	OnOpen: (() -> ())?
 }
 
 local ROW_H = 38
@@ -295,6 +297,8 @@ function PlayerList.new(): PlayerListWidget
 	-- Forward declare closeContextMenu
 	local closeContextMenu: () -> ()
 
+	local widgetObj: any = nil
+
 	local function openWidget(selfOrOnComplete: any, maybeOnComplete: any)
 		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
 		if isOpen or isTransitioning then return end
@@ -302,6 +306,9 @@ function PlayerList.new(): PlayerListWidget
 		Animations.openWindow(widget, uiScale, function()
 			isOpen = true
 			isTransitioning = false
+			if widgetObj and widgetObj.OnOpen then
+				pcall(widgetObj.OnOpen)
+			end
 			if onComplete then onComplete() end
 		end)
 	end
@@ -314,6 +321,9 @@ function PlayerList.new(): PlayerListWidget
 		Animations.closeWindow(widget, uiScale, function()
 			isOpen = false
 			isTransitioning = false
+			if widgetObj and widgetObj.OnClose then
+				pcall(widgetObj.OnClose)
+			end
 			if onComplete then onComplete() end
 		end)
 	end
@@ -798,7 +808,7 @@ function PlayerList.new(): PlayerListWidget
 		end
 	end)
 
-	return {
+	widgetObj = {
 		Frame = widget,
 		Container = container,
 		UiScale = uiScale,
@@ -809,7 +819,10 @@ function PlayerList.new(): PlayerListWidget
 		Close = closeWidget,
 		Toggle = toggleWidget,
 		SetVisible = setWidgetVisible,
+		OnClose = nil,
+		OnOpen = nil,
 	}
+	return widgetObj
 end
 
 return PlayerList

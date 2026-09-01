@@ -1247,19 +1247,6 @@ elseif gameTabTitle == "Ice Tycoon" then
 	-- ── 1. TYCOON AUTOMATION ─────────────────────────────────────
 	local autoLeftCol, autoRightCol = window:CreateColumns(autoSubTab)
 
-	local cashSection = window:AddSection(autoLeftCol, "Cash Collection")
-	window:AddToggle(cashSection, "ice_auto_collect", "Auto-Collect Tycoon Cash", false, nil, function(enabled)
-		IceTycoon.setAutoCollect(enabled)
-	end)
-
-	window:AddButton(cashSection, "Collect Cash Now", function()
-		if IceTycoon.collectCashNow() then
-			window:Notify("Ice Tycoon", "Cash collected from factory", 2.5)
-		else
-			window:Notify("Ice Tycoon", "Collector not found", 2.5)
-		end
-	end)
-
 	local convSection = window:AddSection(autoLeftCol, "Conveyors & Generators")
 	window:AddToggle(convSection, "ice_fast_conveyors", "Fast Conveyors (Speed Boost)", false, nil, function(enabled)
 		IceTycoon.setFastConveyors(enabled)
@@ -1279,6 +1266,19 @@ elseif gameTabTitle == "Ice Tycoon" then
 
 	window:AddToggle(convSection, "ice_ore_magnet", "Ore Vacuum / Magnet to Collector", false, nil, function(enabled)
 		IceTycoon.setOreMagnet(enabled)
+	end)
+
+	local cashSection = window:AddSection(autoLeftCol, "Cash Collection")
+	window:AddToggle(cashSection, "ice_auto_collect", "Auto-Collect Tycoon Cash", false, nil, function(enabled)
+		IceTycoon.setAutoCollect(enabled)
+	end)
+
+	window:AddButton(cashSection, "Collect Cash Now", function()
+		if IceTycoon.collectCashNow() then
+			window:Notify("Ice Tycoon", "Cash collected from factory", 2.5)
+		else
+			window:Notify("Ice Tycoon", "Collector not found", 2.5)
+		end
 	end)
 
 	local buySection = window:AddSection(autoRightCol, "Button Purchases")

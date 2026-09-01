@@ -64,7 +64,7 @@ end
 local function cachePlayerParts(plr: Player, char: Model)
     local parts: {BasePart} = {}
     for _, inst in ipairs(char:GetDescendants()) do
-        if inst:IsA("BasePart") then
+        if inst:IsA("BasePart") and not inst:FindFirstAncestorWhichIsA("Tool") and not inst:FindFirstAncestorWhichIsA("Accessory") then
             table.insert(parts, inst)
             if DisasterSurvival.AntiFling then inst.CanCollide = false end
         end
@@ -73,7 +73,7 @@ local function cachePlayerParts(plr: Player, char: Model)
 
     local conns: {RBXScriptConnection} = {}
     table.insert(conns, char.DescendantAdded:Connect(function(inst)
-        if inst:IsA("BasePart") then
+        if inst:IsA("BasePart") and not inst:FindFirstAncestorWhichIsA("Tool") and not inst:FindFirstAncestorWhichIsA("Accessory") then
             table.insert(parts, inst)
             if DisasterSurvival.AntiFling then inst.CanCollide = false end
         end

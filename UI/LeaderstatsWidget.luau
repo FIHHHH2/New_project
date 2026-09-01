@@ -849,12 +849,13 @@ function LeaderstatsWidget.new()
 
 	LocalPlayer.AttributeChanged:Connect(queueQuickRefresh)
 
-	-- High-Frequency 0.25s Fallback Poller for Remote Functions & Network Sync
+	-- Low-Frequency 3.0s Fallback Poller for Network Sync (Primary updates are event-driven)
 	task.spawn(function()
-		task.wait(0.2)
+		task.wait(1.0)
 		while true do
+			task.wait(3.0)
 			pcall(function()
-				if widget.Visible then
+				if widget.Visible and screenGui.Enabled then
 					if activeMode == "currencies" or activeMode == "others" then
 						renderAllStats()
 					else
@@ -862,7 +863,6 @@ function LeaderstatsWidget.new()
 					end
 				end
 			end)
-			task.wait(0.25)
 		end
 	end)
 

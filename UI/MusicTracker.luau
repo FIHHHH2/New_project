@@ -72,14 +72,14 @@ function MusicTracker.new()
 		end)
 	end
 
-	local DEFAULT_W, DEFAULT_H = 340, 136
-	local TOPBAR_H = 26
+	local DEFAULT_W, DEFAULT_H = 400, 160
+	local TOPBAR_H = 28
 
 	-- ── Main Widget Frame ─────────────────────────────────────────────
 	local widget = Instance.new("Frame")
 	widget.Name = "MusicTrackerWidget"
 	widget.Size = UDim2.new(0, DEFAULT_W, 0, DEFAULT_H)
-	widget.Position = UDim2.new(0, 16, 1, -170)
+	widget.Position = UDim2.new(0, 18, 1, -185)
 	widget.Visible = true
 	widget.ZIndex = 50
 	widget.BackgroundColor3 = UI.Theme.Background
@@ -109,7 +109,7 @@ function MusicTracker.new()
 	UI.registerThemeElement(outerStroke, "Border")
 
 	local uiScale = Instance.new("UIScale")
-	uiScale.Scale = 0.85
+	uiScale.Scale = 1.0
 	uiScale.Parent = widget
 
 	-- ── Topbar (Drag Handle) ──────────────────────────────────────────
@@ -831,8 +831,9 @@ function MusicTracker.new()
 		local failCount = 0
 
 		while true do
-			task.wait(0.12)
-			if widget.Visible then
+			local pollWait = if failCount > 0 then 3.0 else 1.5
+			task.wait(pollWait)
+			if widget.Visible and screenGui.Enabled then
 				local rawData: string? = nil
 
 				-- 1. Try file IPC (readfile) for 0ms local response

@@ -3987,14 +3987,14 @@ Modules["UI/MusicTracker.luau"] = function()
     		end)
     	end
     
-    	local DEFAULT_W, DEFAULT_H = 340, 136
-    	local TOPBAR_H = 26
+    	local DEFAULT_W, DEFAULT_H = 400, 160
+    	local TOPBAR_H = 28
     
     	-- ── Main Widget Frame ─────────────────────────────────────────────
     	local widget = Instance.new("Frame")
     	widget.Name = "MusicTrackerWidget"
     	widget.Size = UDim2.new(0, DEFAULT_W, 0, DEFAULT_H)
-    	widget.Position = UDim2.new(0, 16, 1, -170)
+    	widget.Position = UDim2.new(0, 18, 1, -185)
     	widget.Visible = true
     	widget.ZIndex = 50
     	widget.BackgroundColor3 = UI.Theme.Background
@@ -4024,7 +4024,7 @@ Modules["UI/MusicTracker.luau"] = function()
     	UI.registerThemeElement(outerStroke, "Border")
     
     	local uiScale = Instance.new("UIScale")
-    	uiScale.Scale = 0.85
+    	uiScale.Scale = 1.0
     	uiScale.Parent = widget
     
     	-- ── Topbar (Drag Handle) ──────────────────────────────────────────
@@ -4746,8 +4746,9 @@ Modules["UI/MusicTracker.luau"] = function()
     		local failCount = 0
     
     		while true do
-    			task.wait(0.12)
-    			if widget.Visible then
+    			local pollWait = if failCount > 0 then 3.0 else 1.5
+    			task.wait(pollWait)
+    			if widget.Visible and screenGui.Enabled then
     				local rawData: string? = nil
     
     				-- 1. Try file IPC (readfile) for 0ms local response
@@ -7301,12 +7302,13 @@ Modules["UI/LeaderstatsWidget.luau"] = function()
     
     	LocalPlayer.AttributeChanged:Connect(queueQuickRefresh)
     
-    	-- High-Frequency 0.25s Fallback Poller for Remote Functions & Network Sync
+    	-- Low-Frequency 3.0s Fallback Poller for Network Sync (Primary updates are event-driven)
     	task.spawn(function()
-    		task.wait(0.2)
+    		task.wait(1.0)
     		while true do
+    			task.wait(3.0)
     			pcall(function()
-    				if widget.Visible then
+    				if widget.Visible and screenGui.Enabled then
     					if activeMode == "currencies" or activeMode == "others" then
     						renderAllStats()
     					else
@@ -7314,7 +7316,6 @@ Modules["UI/LeaderstatsWidget.luau"] = function()
     					end
     				end
     			end)
-    			task.wait(0.25)
     		end
     	end)
     
@@ -17959,8 +17960,8 @@ Modules["Core/Main.luau"] = function()
     -- ── VISUALS SUB-TAB 1: 2D OVERLAYS & ESP ─────────────────────
     local v2dLeftCol, v2dRightCol = window:CreateColumns(esp2dSubTab)
     
-    -- Left Column: 2D Bounding Boxes
-    local boxSection = window:AddSection(v2dLeftCol, "2D Bounding Boxes")
+    -- Left Column: 2D Bounding Boxes & Tags
+    local boxSection = window:AddSection(v2dLeftCol, "2D Bounding Boxes & Tags")
     
     window:AddToggle(boxSection, "esp_box_2d", "2D ESP Box", false, nil, function(enabled)
     	Visuals.Box2D = enabled
@@ -17982,34 +17983,46 @@ Modules["Core/Main.luau"] = function()
     	Visuals.Distance = enabled
     end)
     
-    -- Right Column: Tracers & HUD Widgets
-    local tracerSection = window:AddSection(v2dRightCol, "Tracers & HUD Widgets")
-    
-    window:AddToggle(tracerSection, "esp_tracers", "Snapline Tracers", false, nil, function(enabled)
+    window:AddToggle(boxSection, "esp_tracers", "Snapline Tracers", false, nil, function(enabled)
     	Visuals.Tracers = enabled
     end)
     
-    window:AddToggle(tracerSection, "music_tracker_widget", "Music Tracker Widget", true, nil, function(enabled)
-    	musicTrackerWidget.SetVisible(enabled)
+    -- Right Column: Complete HUD & Widget Overlays
+    local hudSection = window:AddSection(v2dRightCol, "Custom HUD & Widget Overlays")
+    
+    window:AddToggle(hudSection, "hud_playerlist", "Player List (Tab HUD)", true, nil, function(enabled)
+    	playerListWidget.SetVisible(enabled)
     end)
     
-    window:AddToggle(tracerSection, "hud_leaderstats_widget", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
+    window:AddToggle(hudSection, "hud_leaderstats", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
     	leaderstatsWidget.SetVisible(enabled)
     end)
     
-    window:AddToggle(tracerSection, "hud_healthbar_widget", "Health Bar HUD Widget", true, nil, function(enabled)
+    window:AddToggle(hudSection, "hud_chat", "Custom Retro Chat Box HUD", true, nil, function(enabled)
+    	chatWidgetInstance.SetVisible(enabled)
+    end)
+    
+    window:AddToggle(hudSection, "hud_music_player", "Music Tracker & Lyrics Player HUD", true, nil, function(enabled)
+    	musicTrackerWidget.SetVisible(enabled)
+    end)
+    
+    window:AddToggle(hudSection, "hud_backpack", "Custom Backpack & Toolbar HUD", true, nil, function(enabled)
+    	hotbarWidget.SetVisible(enabled)
+    end)
+    
+    window:AddToggle(hudSection, "hud_healthbar", "Health Bar HUD Widget", true, nil, function(enabled)
     	healthWidget.SetVisible(enabled)
     end)
     
-    window:AddToggle(tracerSection, "hud_damage_indicators", "3D Floating Damage Numbers", true, nil, function(enabled)
+    window:AddToggle(hudSection, "hud_damage_indicators", "3D Floating Damage Numbers", true, nil, function(enabled)
     	healthWidget.ToggleDamageNumbers(enabled)
     end)
     
-    window:AddToggle(tracerSection, "hud_damage_flash", "Damage Taken Screen Flash", true, nil, function(enabled)
+    window:AddToggle(hudSection, "hud_damage_flash", "Damage Taken Screen Flash", true, nil, function(enabled)
     	healthWidget.ToggleDamageFlash(enabled)
     end)
     
-    window:AddToggle(tracerSection, "hud_dynamic_health_color", "Dynamic Health Gradient (Green/Red)", true, nil, function(enabled)
+    window:AddToggle(hudSection, "hud_dynamic_health", "Dynamic Health Gradient (Green/Red)", true, nil, function(enabled)
     	healthWidget.SetDynamicColors(enabled)
     end)
     

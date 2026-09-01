@@ -1727,8 +1727,8 @@ local customSubTab = visSubTabs["ESP Customizer"]
 -- ── VISUALS SUB-TAB 1: 2D OVERLAYS & ESP ─────────────────────
 local v2dLeftCol, v2dRightCol = window:CreateColumns(esp2dSubTab)
 
--- Left Column: 2D Bounding Boxes
-local boxSection = window:AddSection(v2dLeftCol, "2D Bounding Boxes")
+-- Left Column: 2D Bounding Boxes & Tags
+local boxSection = window:AddSection(v2dLeftCol, "2D Bounding Boxes & Tags")
 
 window:AddToggle(boxSection, "esp_box_2d", "2D ESP Box", false, nil, function(enabled)
 	Visuals.Box2D = enabled
@@ -1750,34 +1750,46 @@ window:AddToggle(boxSection, "esp_distance", "Distance Tags (Studs)", false, nil
 	Visuals.Distance = enabled
 end)
 
--- Right Column: Tracers & HUD Widgets
-local tracerSection = window:AddSection(v2dRightCol, "Tracers & HUD Widgets")
-
-window:AddToggle(tracerSection, "esp_tracers", "Snapline Tracers", false, nil, function(enabled)
+window:AddToggle(boxSection, "esp_tracers", "Snapline Tracers", false, nil, function(enabled)
 	Visuals.Tracers = enabled
 end)
 
-window:AddToggle(tracerSection, "music_tracker_widget", "Music Tracker Widget", true, nil, function(enabled)
-	musicTrackerWidget.SetVisible(enabled)
+-- Right Column: Complete HUD & Widget Overlays
+local hudSection = window:AddSection(v2dRightCol, "Custom HUD & Widget Overlays")
+
+window:AddToggle(hudSection, "hud_playerlist", "Player List (Tab HUD)", true, nil, function(enabled)
+	playerListWidget.SetVisible(enabled)
 end)
 
-window:AddToggle(tracerSection, "hud_leaderstats_widget", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
+window:AddToggle(hudSection, "hud_leaderstats", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
 	leaderstatsWidget.SetVisible(enabled)
 end)
 
-window:AddToggle(tracerSection, "hud_healthbar_widget", "Health Bar HUD Widget", true, nil, function(enabled)
+window:AddToggle(hudSection, "hud_chat", "Custom Retro Chat Box HUD", true, nil, function(enabled)
+	chatWidgetInstance.SetVisible(enabled)
+end)
+
+window:AddToggle(hudSection, "hud_music_player", "Music Tracker & Lyrics Player HUD", true, nil, function(enabled)
+	musicTrackerWidget.SetVisible(enabled)
+end)
+
+window:AddToggle(hudSection, "hud_backpack", "Custom Backpack & Toolbar HUD", true, nil, function(enabled)
+	hotbarWidget.SetVisible(enabled)
+end)
+
+window:AddToggle(hudSection, "hud_healthbar", "Health Bar HUD Widget", true, nil, function(enabled)
 	healthWidget.SetVisible(enabled)
 end)
 
-window:AddToggle(tracerSection, "hud_damage_indicators", "3D Floating Damage Numbers", true, nil, function(enabled)
+window:AddToggle(hudSection, "hud_damage_indicators", "3D Floating Damage Numbers", true, nil, function(enabled)
 	healthWidget.ToggleDamageNumbers(enabled)
 end)
 
-window:AddToggle(tracerSection, "hud_damage_flash", "Damage Taken Screen Flash", true, nil, function(enabled)
+window:AddToggle(hudSection, "hud_damage_flash", "Damage Taken Screen Flash", true, nil, function(enabled)
 	healthWidget.ToggleDamageFlash(enabled)
 end)
 
-window:AddToggle(tracerSection, "hud_dynamic_health_color", "Dynamic Health Gradient (Green/Red)", true, nil, function(enabled)
+window:AddToggle(hudSection, "hud_dynamic_health", "Dynamic Health Gradient (Green/Red)", true, nil, function(enabled)
 	healthWidget.SetDynamicColors(enabled)
 end)
 

@@ -18198,6 +18198,15 @@ Modules["Core/Main.luau"] = function()
     	end)
     	table.insert(conns, destroyConn)
     
+    	local ancestryConn = sound.AncestryChanged:Connect(function(_, parent)
+    		if not parent then
+    			cleanSoundConns(sound)
+    		else
+    			applySoundVolume(sound)
+    		end
+    	end)
+    	table.insert(conns, ancestryConn)
+    
     	soundConnections[sound] = conns
     end
     
@@ -18232,9 +18241,7 @@ Modules["Core/Main.luau"] = function()
     -- Global descendant watcher for new sounds spawned anywhere in game
     local function onDescendantAdded(obj: Instance)
     	if obj:IsA("Sound") then
-    		task.defer(function()
-    			hookSound(obj)
-    		end)
+    		hookSound(obj)
     	elseif obj:IsA("SoundGroup") and isMasterMuted then
     		pcall(function()
     			if not soundGroupOrigVolumes[obj] then soundGroupOrigVolumes[obj] = obj.Volume end
@@ -18247,6 +18254,49 @@ Modules["Core/Main.luau"] = function()
     Workspace.DescendantAdded:Connect(onDescendantAdded)
     Players.DescendantAdded:Connect(onDescendantAdded)
     ReplicatedStorage.DescendantAdded:Connect(onDescendantAdded)
+    
+    -- Synchronous CharacterAdded sound hook for instant footstep/weapon silence on respawn
+    local function hookCharacterSounds(char: Model)
+    	if not char then return end
+    	for _, inst in ipairs(char:GetDescendants()) do
+    		if inst:IsA("Sound") then
+    			hookSound(inst)
+    		end
+    	end
+    	char.DescendantAdded:Connect(function(inst)
+    		if inst:IsA("Sound") then
+    			hookSound(inst)
+    		end
+    	end)
+    end
+    
+    if localPlayer.Character then
+    	hookCharacterSounds(localPlayer.Character)
+    end
+    localPlayer.CharacterAdded:Connect(hookCharacterSounds)
+    
+    -- Hook local player backpack for tool audio silence on equip
+    local function hookBackpackSounds(bp: Backpack)
+    	if not bp then return end
+    	for _, inst in ipairs(bp:GetDescendants()) do
+    		if inst:IsA("Sound") then
+    			hookSound(inst)
+    		end
+    	end
+    	bp.DescendantAdded:Connect(function(inst)
+    		if inst:IsA("Sound") then
+    			hookSound(inst)
+    		end
+    	end)
+    end
+    
+    local bp = localPlayer:FindFirstChildOfClass("Backpack")
+    if bp then hookBackpackSounds(bp) end
+    localPlayer.ChildAdded:Connect(function(child)
+    	if child:IsA("Backpack") then
+    		hookBackpackSounds(child)
+    	end
+    end)
     
     -- Continuous high-frequency enforcer for airtight persistent sound volume and mute state
     task.spawn(function()

@@ -2273,6 +2273,7 @@ local audioSection = window:AddSection(sysRightCol, "Universal Game Audio Contro
 local masterVolumeScale = 1.0
 local isMasterMuted = false
 local soundConnections: {[Sound]: {RBXScriptConnection}} = {}
+local isUpdatingSound: {[Sound]: boolean} = {}
 
 local function cleanSoundConns(sound: Sound)
 	local conns = soundConnections[sound]
@@ -2280,12 +2281,15 @@ local function cleanSoundConns(sound: Sound)
 		for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
 		soundConnections[sound] = nil
 	end
+	isUpdatingSound[sound] = nil
 end
 
 local function applySoundVolume(sound: Sound)
 	if not sound or not sound.Parent then return end
 	if sound:IsDescendantOf(game:GetService("VoiceChatService")) then return end
+	if isUpdatingSound[sound] then return end
 
+	isUpdatingSound[sound] = true
 	local base = sound:GetAttribute("OrigVolume")
 	if not base then
 		base = if sound.Volume > 0 then sound.Volume else 1.0
@@ -2293,9 +2297,10 @@ local function applySoundVolume(sound: Sound)
 	end
 
 	local targetVol = if isMasterMuted then 0 else (base :: number) * masterVolumeScale
-	if sound.Volume ~= targetVol then
+	if math.abs(sound.Volume - targetVol) > 0.001 then
 		sound.Volume = targetVol
 	end
+	isUpdatingSound[sound] = nil
 end
 
 local function hookSound(sound: Sound)
@@ -2305,18 +2310,8 @@ local function hookSound(sound: Sound)
 	applySoundVolume(sound)
 
 	local conns: {RBXScriptConnection} = {}
-	
-	-- Intercept volume alterations by game scripts
-	local volConn = sound:GetPropertyChangedSignal("Volume"):Connect(function()
-		local base = sound:GetAttribute("OrigVolume") or 1.0
-		local targetVol = if isMasterMuted then 0 else (base :: number) * masterVolumeScale
-		if math.abs(sound.Volume - targetVol) > 0.01 then
-			applySoundVolume(sound)
-		end
-	end)
-	table.insert(conns, volConn)
 
-	-- Intercept when a sound starts playing
+	-- Intercept when a sound starts playing (no recursive volume signal listener)
 	local playConn = sound:GetPropertyChangedSignal("Playing"):Connect(function()
 		if sound.Playing then
 			applySoundVolume(sound)

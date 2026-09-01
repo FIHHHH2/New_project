@@ -21,7 +21,8 @@ local guiNames = {
 	"ModularPlayerListGui",
 	"ModularChatGui",
 	"ModularMusicTrackerGui",
-	"ModularHotbarGui"
+	"ModularHotbarGui",
+	"ModularLeaderstatsGui"
 }
 
 for _, name in ipairs(guiNames) do

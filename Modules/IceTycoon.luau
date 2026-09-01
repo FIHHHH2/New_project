@@ -598,106 +598,113 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 	camera.CameraType = Enum.CameraType.Scriptable
 	camera.CFrame = origCamCF
 
-	-- 1. All 3 Trophies on Pedestals (Camera-Frozen Instant Tap)
-	local pedFolder = map:FindFirstChild("Pedestals")
-	if pedFolder and type(fpp) == "function" then
-		for _, ped in ipairs(pedFolder:GetChildren()) do
-			local union = ped:FindFirstChild("Union") :: BasePart? or ped:FindFirstChildWhichIsA("BasePart")
-			local pr = ped:FindFirstChildWhichIsA("ProximityPrompt", true)
-			if union and pr and pr.Enabled then
-				hrp.CFrame = union.CFrame * CFrame.new(0, 2, 0)
-				task.wait(0.06)
-				pr.HoldDuration = 0
-				fpp(pr, 1, true)
-				task.wait(0.02)
-				fpp(pr, 1, true)
-				results.Trophies += 1
-			end
+	-- 1. All Trophies on Pedestals (Map & Tycoon Essentials)
+	local function checkPedestals(folder: Instance?)
+		if not folder then return end
+		for _, ped in ipairs(folder:GetChildren()) do
+			pcall(function()
+				local union = ped:FindFirstChild("Union") :: BasePart? or ped:FindFirstChildWhichIsA("BasePart")
+				local pr = ped:FindFirstChildWhichIsA("ProximityPrompt", true)
+				if union and pr and pr.Enabled and type(fpp) == "function" then
+					hrp.CFrame = union.CFrame * CFrame.new(0, 2, 0)
+					task.wait(0.06)
+					pr.HoldDuration = 0
+					fpp(pr, 1, true)
+					task.wait(0.02)
+					fpp(pr, 1, true)
+					results.Trophies += 1
+				elseif union then
+					hrp.CFrame = union.CFrame * CFrame.new(0, 2, 0)
+					task.wait(0.04)
+					results.Trophies += 1
+				end
+			end)
 		end
 	end
 
-	-- 2. All 5 Gem Pedestals (Camera-Frozen Instant Tap)
+	checkPedestals(map:FindFirstChild("Pedestals"))
+	local tycoon = Workspace:FindFirstChild("Tycoon")
+	if tycoon and tycoon:FindFirstChild("Essentials") then
+		checkPedestals(tycoon.Essentials:FindFirstChild("Pedestals"))
+	end
+
+	-- 2. All 5 Gem Pedestals
 	local troops = map:FindFirstChild("Troops")
 	local gemPed = troops and troops:FindFirstChild("GemPedestals")
-	if gemPed and type(fti) == "function" then
+	if gemPed then
 		for _, ped in ipairs(gemPed:GetChildren()) do
-			local hit = ped:FindFirstChild("Hitbox")
-			if hit and hit:IsA("BasePart") then
-				hrp.CFrame = hit.CFrame * CFrame.new(0, 2, 0)
-				task.wait(0.03)
-				fti(hrp, hit, 0)
-				task.wait(0.01)
-				fti(hrp, hit, 1)
-				results.Gems += 1
-			end
+			pcall(function()
+				local hit = ped:FindFirstChild("Hitbox")
+				if hit and hit:IsA("BasePart") then
+					hrp.CFrame = hit.CFrame * CFrame.new(0, 2, 0)
+					task.wait(0.04)
+					if type(fti) == "function" then
+						pcall(function()
+							fti(hrp, hit, 0)
+							task.wait(0.01)
+							fti(hrp, hit, 1)
+						end)
+					end
+					results.Gems += 1
+				end
+			end)
 		end
 	end
 
 	-- 3. KeyGiver, Secret House Door, and LittleThing
-	if troops and type(fti) == "function" then
-		local keyGiver = troops:FindFirstChild("KeyGiver")
-		if keyGiver and keyGiver:FindFirstChild("Hitbox") and keyGiver.Hitbox:IsA("BasePart") then
-			hrp.CFrame = keyGiver.Hitbox.CFrame * CFrame.new(0, 2, 0)
-			task.wait(0.03)
-			fti(hrp, keyGiver.Hitbox, 0)
-			task.wait(0.01)
-			fti(hrp, keyGiver.Hitbox, 1)
-			results.Secrets += 1
-		end
-
-		local house = troops:FindFirstChild("House")
-		local door = house and house:FindFirstChild("Door")
-		if door and door:FindFirstChild("Hitbox") and door.Hitbox:IsA("BasePart") then
-			hrp.CFrame = door.Hitbox.CFrame * CFrame.new(0, 2, 0)
-			task.wait(0.03)
-			fti(hrp, door.Hitbox, 0)
-			task.wait(0.01)
-			fti(hrp, door.Hitbox, 1)
-			results.Secrets += 1
-		end
-
-		local little = troops:FindFirstChild("JustALittleThing")
-		if little and little:FindFirstChild("Hitbox") and little.Hitbox:IsA("BasePart") then
-			hrp.CFrame = little.Hitbox.CFrame * CFrame.new(0, 2, 0)
-			task.wait(0.03)
-			fti(hrp, little.Hitbox, 0)
-			task.wait(0.01)
-			fti(hrp, little.Hitbox, 1)
-			results.Secrets += 1
+	if troops then
+		for _, name in ipairs({"KeyGiver", "House", "JustALittleThing"}) do
+			pcall(function()
+				local model = troops:FindFirstChild(name)
+				local hit = model and (model:FindFirstChild("Hitbox", true) or model:FindFirstChild("Door", true) or model:FindFirstChildOfClass("BasePart"))
+				if hit and hit:IsA("BasePart") then
+					hrp.CFrame = hit.CFrame * CFrame.new(0, 2, 0)
+					task.wait(0.04)
+					if type(fti) == "function" then
+						pcall(function()
+							fti(hrp, hit, 0)
+							task.wait(0.01)
+							fti(hrp, hit, 1)
+						end)
+					end
+					results.Secrets += 1
+				end
+			end)
 		end
 	end
 
 	-- 4. Hotel & IceHotel Hitboxes
-	if map and type(fti) == "function" then
-		for _, hName in ipairs({"HotelHitbox", "HotelHitbox2"}) do
+	for _, hName in ipairs({"HotelHitbox", "HotelHitbox2"}) do
+		pcall(function()
 			local h = map:FindFirstChild(hName)
 			if h and h:IsA("BasePart") then
-				fti(hrp, h, 0)
-				task.wait(0.01)
-				fti(hrp, h, 1)
+				hrp.CFrame = h.CFrame * CFrame.new(0, 2, 0)
+				task.wait(0.04)
 				results.Secrets += 1
 			end
+		end)
+	end
+
+	-- 5. Crystals in Map and Lava Hatch
+	pcall(function()
+		local bc = map:FindFirstChild("BuyCrystal")
+		if bc and bc:IsA("BasePart") then
+			hrp.CFrame = bc.CFrame * CFrame.new(0, 2, 0)
+			task.wait(0.04)
+			results.Gems += 1
 		end
-	end
+	end)
 
-	-- 5. Regular Crystals in Map and Lava Hatch
-	if map and map:FindFirstChild("BuyCrystal") and map.BuyCrystal:IsA("BasePart") and type(fti) == "function" then
-		fti(hrp, map.BuyCrystal, 0)
-		task.wait(0.01)
-		fti(hrp, map.BuyCrystal, 1)
-		results.Gems += 1
-	end
-
-	local tycoon = Workspace:FindFirstChild("Tycoon")
-	local lava = tycoon and tycoon:FindFirstChild("Essentials") and tycoon.Essentials:FindFirstChild("Lava")
-	local hatch = lava and lava:FindFirstChild("Hatch")
-	local crystal = hatch and hatch:FindFirstChild("Crystal")
-	if crystal and crystal:IsA("BasePart") and type(fti) == "function" then
-		fti(hrp, crystal, 0)
-		task.wait(0.01)
-		fti(hrp, crystal, 1)
-		results.Gems += 1
-	end
+	pcall(function()
+		local lava = tycoon and tycoon:FindFirstChild("Essentials") and tycoon.Essentials:FindFirstChild("Lava")
+		local hatch = lava and lava:FindFirstChild("Hatch")
+		local crystal = hatch and hatch:FindFirstChild("Crystal")
+		if crystal and crystal:IsA("BasePart") then
+			hrp.CFrame = crystal.CFrame * CFrame.new(0, 2, 0)
+			task.wait(0.04)
+			results.Gems += 1
+		end
+	end)
 
 	-- Restore position and camera
 	hrp.CFrame = origCF

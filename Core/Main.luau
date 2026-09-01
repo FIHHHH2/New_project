@@ -2235,6 +2235,7 @@ local masterVolumeScale = 1.0
 local isMasterMuted = false
 local soundConnections: {[Sound]: {RBXScriptConnection}} = {}
 local isUpdatingSound: {[Sound]: boolean} = {}
+local soundGroupOrigVolumes: {[SoundGroup]: number} = {}
 
 local function cleanSoundConns(sound: Sound)
 	local conns = soundConnections[sound]
@@ -2266,13 +2267,25 @@ end
 
 local function hookSound(sound: Sound)
 	if not sound:IsA("Sound") then return end
-	if soundConnections[sound] then return end
+	if soundConnections[sound] then
+		applySoundVolume(sound)
+		return
+	end
 
 	applySoundVolume(sound)
 
 	local conns: {RBXScriptConnection} = {}
 
-	-- Intercept when a sound starts playing (no recursive volume signal listener)
+	-- Intercept volume alterations by game scripts with re-entrancy protection
+	local volConn = sound:GetPropertyChangedSignal("Volume"):Connect(function()
+		if isUpdatingSound[sound] then return end
+		if isMasterMuted or masterVolumeScale < 0.99 then
+			applySoundVolume(sound)
+		end
+	end)
+	table.insert(conns, volConn)
+
+	-- Intercept when a sound starts playing
 	local playConn = sound:GetPropertyChangedSignal("Playing"):Connect(function()
 		if sound.Playing then
 			applySoundVolume(sound)
@@ -2294,6 +2307,22 @@ local function hookSound(sound: Sound)
 end
 
 local function sweepAllGameAudios()
+	-- Sweep SoundGroups for master channel silencing
+	pcall(function()
+		for _, sg in ipairs(SoundService:GetDescendants()) do
+			if sg:IsA("SoundGroup") then
+				if not soundGroupOrigVolumes[sg] then
+					soundGroupOrigVolumes[sg] = sg.Volume
+				end
+				local orig = soundGroupOrigVolumes[sg] or 1.0
+				local target = if isMasterMuted then 0 else orig * masterVolumeScale
+				if math.abs(sg.Volume - target) > 0.001 then
+					sg.Volume = target
+				end
+			end
+		end
+	end)
+
 	for _, service in ipairs({SoundService, Workspace, Players, ReplicatedStorage, CoreGui}) do
 		pcall(function()
 			for _, obj in ipairs(service:GetDescendants()) do
@@ -2311,6 +2340,11 @@ local function onDescendantAdded(obj: Instance)
 		task.defer(function()
 			hookSound(obj)
 		end)
+	elseif obj:IsA("SoundGroup") and isMasterMuted then
+		pcall(function()
+			if not soundGroupOrigVolumes[obj] then soundGroupOrigVolumes[obj] = obj.Volume end
+			obj.Volume = 0
+		end)
 	end
 end
 
@@ -2319,10 +2353,10 @@ Workspace.DescendantAdded:Connect(onDescendantAdded)
 Players.DescendantAdded:Connect(onDescendantAdded)
 ReplicatedStorage.DescendantAdded:Connect(onDescendantAdded)
 
--- Continuous enforcer for persistent sound volume and mute state
+-- Continuous high-frequency enforcer for airtight persistent sound volume and mute state
 task.spawn(function()
 	while true do
-		task.wait(0.5)
+		task.wait(0.25)
 		if isMasterMuted or masterVolumeScale < 0.99 then
 			sweepAllGameAudios()
 		end

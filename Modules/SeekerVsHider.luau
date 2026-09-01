@@ -45,6 +45,7 @@ local SeekerVsHider = {
 	NoBulletDrop = true,
 }
 
+local SHARED_RAY_PARAMS = RaycastParams.new()
 local origFireBullet: any = nil
 local hookInstalled = false
 local weaponConfigConn: RBXScriptConnection? = nil
@@ -84,10 +85,9 @@ local function getTargetCandidate(): (Player?, BasePart?, Vector3?)
 						local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
 						if dist <= bestDist then
 							if SeekerVsHider.WallCheck then
-								local rayParams = RaycastParams.new()
-								rayParams.FilterType = Enum.RaycastFilterType.Exclude
-								rayParams.FilterDescendantsInstances = {LocalPlayer.Character, char}
-								local res = Workspace:Raycast(Camera.CFrame.Position, part.Position - Camera.CFrame.Position, rayParams)
+								SHARED_RAY_PARAMS.FilterType = Enum.RaycastFilterType.Exclude
+								SHARED_RAY_PARAMS.FilterDescendantsInstances = {LocalPlayer.Character, char}
+								local res = Workspace:Raycast(Camera.CFrame.Position, part.Position - Camera.CFrame.Position, SHARED_RAY_PARAMS)
 								if not res then
 									bestDist = dist
 									bestPlayer = player

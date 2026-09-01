@@ -4695,9 +4695,9 @@ __MODULE_SOURCES__["UI/Hotbar.luau"] = [====[--!strict
 --[=[
     ✦ Squared Retro Hotbar & 3D Model Viewport Backpack Inventory Widget ✦
     Features:
-    - 10-slot bottom-center Hotbar HUD with live 3D ViewportFrame model previews
-    - Dedicated retro [ ≡ INV ] hamburger button to toggle the Backpack Inventory box
-    - Zero-lag debounced viewport caching & lazy-rendered inventory grid
+    - Instantaneous O(1) zero-lag tool equipping & unequipping
+    - Static 3D ViewportFrame caching (zero model re-cloning on equip/unequip)
+    - Dedicated retro [ ≡ INV ] hamburger button to toggle Backpack Inventory
     - Reliable 1-0 number key unequip toggling
     - Drag-to-sort slots: drag any hotbar item onto another slot to swap/reorder
     - Drag-to-drop: dragging an item outside the HUD drops the item into the world
@@ -5101,7 +5101,59 @@ function Hotbar.new(): HotbarWidget
 		return char ~= nil and (tool.Parent == char or char:FindFirstChild(tool.Name) == tool)
 	end
 
-	-- ── 4. Render Hotbar Slots Function ──────────────────────────────
+	-- ── 4. Instant O(1) Slot Highlight Updater (Zero Viewport Rebuild) ──
+	local function updateSlotHighlightsOnly()
+		for slotNum = 1, NUM_SLOTS do
+			local slotBtn = slotFrames[slotNum]
+			local tool = assignedSlots[slotNum]
+			local stroke = slotBtn:FindFirstChildWhichIsA("UIStroke")
+			local nameLabel = slotBtn:FindFirstChild("ToolName") :: TextLabel?
+
+			if tool and tool.Parent then
+				local equipped = isToolEquipped(tool)
+				if nameLabel then
+					nameLabel.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+				end
+				if equipped then
+					slotBtn.BackgroundColor3 = UI.Theme.Accent
+					slotBtn.BackgroundTransparency = 0.2
+					if stroke then
+						stroke.Color = UI.Theme.Border
+						stroke.Thickness = 2.0
+					end
+				else
+					slotBtn.BackgroundColor3 = UI.Theme.Container
+					slotBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
+					if stroke then
+						stroke.Color = UI.Theme.Border
+						stroke.Thickness = 1.2
+					end
+				end
+			else
+				slotBtn.BackgroundColor3 = UI.Theme.ContainerDark
+				slotBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+				if stroke then
+					stroke.Color = UI.Theme.BorderDim
+					stroke.Thickness = 1.0
+				end
+			end
+		end
+
+		-- If backpack is open, update its cards without rebuilding viewports
+		if isBackpackOpen then
+			for tool, card in pairs(backpackCards) do
+				if tool and tool.Parent and card and card.Parent then
+					local equipped = isToolEquipped(tool)
+					card.BackgroundColor3 = if equipped then UI.Theme.Accent else UI.Theme.ContainerDark
+					card.BackgroundTransparency = if equipped then 0.15 else UI.Theme.ContainerDarkTransparency
+					local badge = card:FindFirstChild("EquippedBadge") :: TextLabel?
+					if badge then badge.Text = if equipped then "EQUIPPED" else "" end
+				end
+			end
+		end
+	end
+
+	-- ── 5. Full Hotbar Viewport Render Function (Only Runs on Inventory Change) ──
 	local function updateHotbarVisuals()
 		local allTools = getAllTools()
 
@@ -5172,7 +5224,7 @@ function Hotbar.new(): HotbarWidget
 		end
 	end
 
-	-- ── 5. Render Backpack Grid Items Function ────────────────────────
+	-- ── 6. Render Backpack Grid Items Function ────────────────────────
 	local function updateBackpackGrid()
 		if not isBackpackOpen then return end
 		local allTools = getAllTools()
@@ -5302,16 +5354,13 @@ function Hotbar.new(): HotbarWidget
 						if not char or not hum then return end
 
 						if isToolEquipped(tool) then
-							pcall(function() hum:UnequipTools() end)
-							if bp and tool.Parent == char then pcall(function() tool.Parent = bp end) end
+							hum:UnequipTools()
+							if bp and tool.Parent == char then tool.Parent = bp end
 						else
-							pcall(function() hum:UnequipTools() end)
-							task.wait(0.01)
-							pcall(function() hum:EquipTool(tool) end)
-							if tool.Parent ~= char then pcall(function() tool.Parent = char end) end
+							hum:UnequipTools()
+							hum:EquipTool(tool)
 						end
-						updateHotbarVisuals()
-						updateBackpackGrid()
+						updateSlotHighlightsOnly()
 					end
 				end)
 
@@ -5330,12 +5379,12 @@ function Hotbar.new(): HotbarWidget
 		end
 	end
 
-	-- ── 6. Debounced Single-Flight Refresher ──────────────────────────
+	-- ── 7. Debounced Refresher for Inventory Add/Remove Events ─────────
 	local refreshScheduled = false
 	local function queueInventoryRefresh()
 		if refreshScheduled then return end
 		refreshScheduled = true
-		task.delay(0.03, function()
+		task.delay(0.08, function()
 			refreshScheduled = false
 			updateHotbarVisuals()
 			if isBackpackOpen then
@@ -5344,6 +5393,7 @@ function Hotbar.new(): HotbarWidget
 		end)
 	end
 
+	-- Instant O(1) Equip or Unequip Toggle Function
 	local function equipOrToggleTool(tool: Tool)
 		local char = LocalPlayer.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -5354,21 +5404,17 @@ function Hotbar.new(): HotbarWidget
 
 		if currentlyEquipped == tool or isToolEquipped(tool) then
 			-- Un-equip
-			pcall(function() hum:UnequipTools() end)
+			hum:UnequipTools()
 			if bp and tool.Parent == char then
-				pcall(function() tool.Parent = bp end)
+				tool.Parent = bp
 			end
 		else
 			-- Equip
-			pcall(function() hum:UnequipTools() end)
-			task.wait(0.01)
-			pcall(function() hum:EquipTool(tool) end)
-			if tool.Parent ~= char then
-				pcall(function() tool.Parent = char end)
-			end
+			hum:UnequipTools()
+			hum:EquipTool(tool)
 		end
 
-		queueInventoryRefresh()
+		updateSlotHighlightsOnly()
 	end
 
 	unequipAllBtn.MouseButton1Click:Connect(function()
@@ -5376,13 +5422,13 @@ function Hotbar.new(): HotbarWidget
 		local char = LocalPlayer.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-		if hum then pcall(function() hum:UnequipTools() end) end
+		if hum then hum:UnequipTools() end
 		if char and bp then
 			for _, c in ipairs(char:GetChildren()) do
-				if c:IsA("Tool") then pcall(function() c.Parent = bp end) end
+				if c:IsA("Tool") then c.Parent = bp end
 			end
 		end
-		queueInventoryRefresh()
+		updateSlotHighlightsOnly()
 	end)
 
 	-- ── Drop Item Function ───────────────────────────────────────────
@@ -5394,7 +5440,6 @@ function Hotbar.new(): HotbarWidget
 		pcall(function()
 			if isToolEquipped(tool) and hum then
 				hum:UnequipTools()
-				task.wait(0.02)
 			end
 			if hrp then
 				tool.Parent = Workspace
@@ -5412,6 +5457,9 @@ function Hotbar.new(): HotbarWidget
 				assignedSlots[i] = nil
 			end
 		end
+
+		updateHotbarVisuals()
+		if isBackpackOpen then updateBackpackGrid() end
 
 		pcall(function()
 			local Notification = require("UI/Notification.luau")
@@ -5464,7 +5512,8 @@ function Hotbar.new(): HotbarWidget
 				assignedSlots[targetSlot] = tool
 			end
 			Animations.popScale(slotFrames[targetSlot], 0.9, 1.08, 1.0, 0.18)
-			queueInventoryRefresh()
+			updateHotbarVisuals()
+			if isBackpackOpen then updateBackpackGrid() end
 			return
 		end
 
@@ -5472,7 +5521,8 @@ function Hotbar.new(): HotbarWidget
 		if bpWindow.Visible and isPointInsideGui(endMouse, bpGridScroll) then
 			if fromSlot then
 				assignedSlots[fromSlot] = nil
-				queueInventoryRefresh()
+				updateHotbarVisuals()
+				updateBackpackGrid()
 			end
 			return
 		end
@@ -5483,7 +5533,6 @@ function Hotbar.new(): HotbarWidget
 
 		if not inHotbar and not inBackpack then
 			dropTool(tool)
-			queueInventoryRefresh()
 		end
 	end
 
@@ -5500,7 +5549,7 @@ function Hotbar.new(): HotbarWidget
 		end
 	end)
 
-	-- ── 7. Create Slots in Hotbar HUD ─────────────────────────────────
+	-- ── 8. Create Slots in Hotbar HUD ─────────────────────────────────
 	for i = 1, NUM_SLOTS do
 		local slotBtn = Instance.new("TextButton")
 		slotBtn.Name = "Slot_" .. tostring(i)
@@ -5591,7 +5640,7 @@ function Hotbar.new(): HotbarWidget
 		slotFrames[i] = slotBtn
 	end
 
-	-- ── 8. Dedicated Hamburger [ ≡ INV ] Button on Toolbar ────────────
+	-- ── 9. Dedicated Hamburger [ ≡ INV ] Button on Toolbar ────────────
 	local function toggleBackpack()
 		isBackpackOpen = not isBackpackOpen
 		bpWindow.Visible = isBackpackOpen
@@ -5667,7 +5716,7 @@ function Hotbar.new(): HotbarWidget
 		toggleBackpack()
 	end)
 
-	-- ── 9. Search Filter & Events ─────────────────────────────────────
+	-- ── 10. Search Filter & Events ────────────────────────────────────
 	searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 		filterQuery = searchBox.Text
 		updateBackpackGrid()
@@ -5694,8 +5743,8 @@ function Hotbar.new(): HotbarWidget
 					else
 						local char = LocalPlayer.Character
 						local hum = char and char:FindFirstChildOfClass("Humanoid")
-						if hum then pcall(function() hum:UnequipTools() end) end
-						queueInventoryRefresh()
+						if hum then hum:UnequipTools() end
+						updateSlotHighlightsOnly()
 					end
 					break
 				end
@@ -5706,16 +5755,16 @@ function Hotbar.new(): HotbarWidget
 		end
 	end)
 
-	-- Debounced Inventory synchronization
+	-- Debounced Inventory synchronization for true add/remove items
 	local function bindCharEvents(char: Model)
 		char.ChildAdded:Connect(function(child)
 			if child:IsA("Tool") then
-				queueInventoryRefresh()
+				updateSlotHighlightsOnly()
 			end
 		end)
 		char.ChildRemoved:Connect(function(child)
 			if child:IsA("Tool") then
-				queueInventoryRefresh()
+				updateSlotHighlightsOnly()
 			end
 		end)
 	end
@@ -9708,13 +9757,13 @@ local function updateCachedParts(char: Model?)
 	if not char then return end
 
 	for _, inst in ipairs(char:GetDescendants()) do
-		if inst:IsA("BasePart") then
+		if inst:IsA("BasePart") and not inst:FindFirstAncestorWhichIsA("Tool") and not inst:FindFirstAncestorWhichIsA("Accessory") then
 			table.insert(cachedCharacterParts, inst)
 		end
 	end
 
 	charDescendantAddedConn = char.DescendantAdded:Connect(function(inst)
-		if inst:IsA("BasePart") then
+		if inst:IsA("BasePart") and not inst:FindFirstAncestorWhichIsA("Tool") and not inst:FindFirstAncestorWhichIsA("Accessory") then
 			table.insert(cachedCharacterParts, inst)
 		end
 	end)
@@ -12585,13 +12634,13 @@ local function updateCachedCharacterParts(char: Model?)
 	if not char then return end
 
 	for _, inst in ipairs(char:GetDescendants()) do
-		if inst:IsA("BasePart") then
+		if inst:IsA("BasePart") and not inst:FindFirstAncestorWhichIsA("Tool") and not inst:FindFirstAncestorWhichIsA("Accessory") then
 			table.insert(cachedCharacterParts, inst)
 		end
 	end
 
 	charDescendantAddedConn = char.DescendantAdded:Connect(function(inst)
-		if inst:IsA("BasePart") then
+		if inst:IsA("BasePart") and not inst:FindFirstAncestorWhichIsA("Tool") and not inst:FindFirstAncestorWhichIsA("Accessory") then
 			table.insert(cachedCharacterParts, inst)
 		end
 	end)

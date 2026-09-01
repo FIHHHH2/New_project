@@ -34,13 +34,13 @@ local function updateCachedParts(char: Model?)
 	if not char then return end
 
 	for _, inst in ipairs(char:GetDescendants()) do
-		if inst:IsA("BasePart") then
+		if inst:IsA("BasePart") and not inst:FindFirstAncestorWhichIsA("Tool") and not inst:FindFirstAncestorWhichIsA("Accessory") then
 			table.insert(cachedCharacterParts, inst)
 		end
 	end
 
 	charDescendantAddedConn = char.DescendantAdded:Connect(function(inst)
-		if inst:IsA("BasePart") then
+		if inst:IsA("BasePart") and not inst:FindFirstAncestorWhichIsA("Tool") and not inst:FindFirstAncestorWhichIsA("Accessory") then
 			table.insert(cachedCharacterParts, inst)
 		end
 	end)

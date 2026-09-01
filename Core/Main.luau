@@ -975,7 +975,7 @@ else
 	end)
 
 	local dragSection = window:AddSection(worldRightCol, "Object Interaction")
-	window:AddToggle(dragSection, "nds_obj_drag", "Loose Object Drag (E = grab/drop, RMB = release)", false, nil, function(enabled)
+	window:AddToggle(dragSection, "nds_obj_drag", "Loose Object Drag (LMB hold = grab, release = drop)", false, nil, function(enabled)
 		DisasterSurvival.setObjectDrag(enabled)
 	end)
 end

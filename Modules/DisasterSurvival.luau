@@ -394,20 +394,22 @@ function DisasterSurvival.setCarDriving(enabled: boolean)
     end
 end
 
+
 -- ── Loose Object Drag ─────────────────────────────────────────────
--- Controls: E = grab hovered object / release grabbed object
---           RMB = also release
--- Hover shows cyan Highlight + SelectionBox outline.
--- Grab shows orange Highlight. Mouse leave destroys hover highlight.
--- Physics ownership forced by touching AssemblyLinearVelocity before
--- inserting BodyPosition (Roblox grants client ownership on velocity write).
-local dragTarget:    BasePart? = nil
+-- Controls: LMB hold on part = grab and drag indefinitely
+--           Release LMB = drop
+-- Hover shows cyan Highlight. Grab shows orange Highlight.
+-- Mouse leave destroys hover highlight.
+-- Physics ownership forced before BodyPosition insertion.
+local dragTarget:    BasePart?  = nil
 local dragBodyPos:   BodyPosition? = nil
-local hoverTarget:   BasePart? = nil
-local hoverHL:       Highlight? = nil      -- hover glow
-local grabHL:        Highlight? = nil      -- grab glow
+local hoverTarget:   BasePart?  = nil
+local hoverHL:       Highlight? = nil
+local grabHL:        Highlight? = nil
 local dragHoverConn: RBXScriptConnection? = nil
-local DRAG_RANGE = 50
+local dragEndConn:   RBXScriptConnection? = nil
+local DRAG_RANGE     = 120   -- max raycast pick distance (studs)
+local dragDepth      = 60    -- distance from camera to hold part while dragging
 
 local function clearHover()
     if hoverHL and hoverHL.Parent then hoverHL:Destroy() end
@@ -421,6 +423,8 @@ local function clearDragTarget()
     dragBodyPos = nil
     dragTarget  = nil
     grabHL      = nil
+    -- disconnect the release listener when not dragging
+    if dragEndConn then dragEndConn:Disconnect() dragEndConn = nil end
 end
 
 local function isDraggable(part: BasePart): boolean
@@ -433,13 +437,13 @@ end
 
 local function makeHighlight(parent: BasePart, fill: Color3, outline: Color3, fillTrans: number): Highlight
     local hl = Instance.new("Highlight")
-    hl.FillColor        = fill
-    hl.OutlineColor     = outline
-    hl.FillTransparency = fillTrans
+    hl.FillColor           = fill
+    hl.OutlineColor        = outline
+    hl.FillTransparency    = fillTrans
     hl.OutlineTransparency = 0
-    hl.DepthMode        = Enum.HighlightDepthMode.Occluded
-    hl.Adornee          = parent
-    hl.Parent           = parent
+    hl.DepthMode           = Enum.HighlightDepthMode.Occluded
+    hl.Adornee             = parent
+    hl.Parent              = parent
     return hl
 end
 
@@ -448,27 +452,36 @@ local function grabObject(part: BasePart)
     clearHover()
     dragTarget = part
 
-    -- Touch velocity to force physics ownership transfer to local client
-    -- Without this the BodyPosition is rejected (server still owns the part)
+    -- Preserve the depth the part was at so it floats naturally
+    local camPos = Camera.CFrame.Position
+    dragDepth = math.clamp((part.Position - camPos).Magnitude, 5, DRAG_RANGE)
+
+    -- Touch velocity to claim physics ownership
     pcall(function() part.AssemblyLinearVelocity = part.AssemblyLinearVelocity end)
-    task.wait() -- yield one frame so ownership propagates
+    task.wait()
 
-    local bp = Instance.new("BodyPosition")
-    bp.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-    bp.D        = 500
-    bp.P        = 8000
-    bp.Position = part.Position
-    bp.Parent   = part
-    dragBodyPos = bp
+    local bp      = Instance.new("BodyPosition")
+    bp.MaxForce   = Vector3.new(4e5, 4e5, 4e5)  -- stronger pull for heavier parts
+    bp.D          = 800
+    bp.P          = 15000
+    bp.Position   = part.Position
+    bp.Parent     = part
+    dragBodyPos   = bp
 
-    -- Orange grabbed highlight
-    grabHL = makeHighlight(part, Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 200, 50), 0.35)
+    grabHL = makeHighlight(part, Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 200, 50), 0.3)
+
+    -- Release on LMB up — connected once per grab
+    dragEndConn = UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            clearDragTarget()
+        end
+    end)
 end
 
 function DisasterSurvival.setObjectDrag(enabled: boolean)
     DisasterSurvival.ObjectDrag = enabled
     if enabled then
-        -- ── Hover detection + drag position update on RenderStepped
+        -- ── RenderStepped: hover scan + drag position update
         dragHoverConn = RunService.RenderStepped:Connect(function()
             local mouseLoc = UserInputService:GetMouseLocation()
             local ray      = Camera:ScreenPointToRay(mouseLoc.X, mouseLoc.Y)
@@ -477,49 +490,37 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
             if char then params.FilterDescendantsInstances = {char} end
             params.FilterType = Enum.RaycastFilterType.Exclude
 
-            -- If currently dragging, update BodyPosition target
             if dragTarget and dragBodyPos and dragBodyPos.Parent then
-                local targetPos = Camera.CFrame.Position + ray.Direction * DRAG_RANGE
-                dragBodyPos.Position = targetPos
+                -- Move part along ray at preserved depth — unlimited duration
+                dragBodyPos.Position = Camera.CFrame.Position + ray.Direction * dragDepth
             else
-                -- Hover scan
-                local result = Workspace:Raycast(ray.Origin, ray.Direction * DRAG_RANGE * 2, params)
+                -- Hover highlight scan
+                local result = Workspace:Raycast(ray.Origin, ray.Direction * DRAG_RANGE, params)
                 if result and result.Instance and result.Instance:IsA("BasePart") then
                     local hit = result.Instance :: BasePart
                     if isDraggable(hit) then
                         if hoverTarget ~= hit then
                             clearHover()
                             hoverTarget = hit
-                            -- Cyan hover highlight
-                            hoverHL = makeHighlight(hit, Color3.fromRGB(0, 220, 255), Color3.fromRGB(255, 255, 255), 0.6)
+                            hoverHL = makeHighlight(hit, Color3.fromRGB(0, 220, 255), Color3.fromRGB(255, 255, 255), 0.55)
                         end
                     else
                         clearHover()
                     end
                 else
-                    -- Mouse left any object — destroy hover highlight
                     clearHover()
                 end
             end
         end)
 
-        -- ── Input: E = grab / release, RMB = release
+        -- ── LMB down on draggable = grab immediately
         dragInputConn = UserInputService.InputBegan:Connect(function(input, gp)
             if gp then return end
-
-            if input.KeyCode == Enum.KeyCode.E then
-                if dragTarget then
-                    -- Already holding something — release it
-                    clearDragTarget()
-                else
-                    -- Grab what the mouse is hovering over
-                    if hoverTarget and hoverTarget.Parent then
-                        grabObject(hoverTarget)
-                    end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                -- Only grab if hovering a draggable
+                if hoverTarget and hoverTarget.Parent then
+                    grabObject(hoverTarget)
                 end
-            elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-                -- RMB always releases
-                clearDragTarget()
             end
         end)
     else
@@ -529,6 +530,7 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
         if dragInputConn then dragInputConn:Disconnect() dragInputConn = nil end
     end
 end
+
 
 -- ── Player / Object Fling Engine ──────────────────────────────────
 function DisasterSurvival.setFling(enabled: boolean)
@@ -561,6 +563,7 @@ function DisasterSurvival.cleanup()
     dc(carDriveConn)   carDriveConn = nil
     dc(dragHoverConn)  dragHoverConn = nil
     dc(dragInputConn)  dragInputConn = nil
+    dc(dragEndConn)    dragEndConn   = nil
     dc(playerAddedConn) playerAddedConn = nil
     dc(playerRemovingConn) playerRemovingConn = nil
 

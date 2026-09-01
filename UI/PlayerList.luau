@@ -692,8 +692,15 @@ function PlayerList.new(): PlayerListWidget
 		local avatarImg = Instance.new("ImageLabel")
 		avatarImg.Size = UDim2.new(1, 0, 1, 0)
 		avatarImg.BackgroundTransparency = 1
-		avatarImg.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
 		avatarImg.Parent = avatarBox
+		task.spawn(function()
+			local ok, thumb = pcall(function()
+				return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
+			end)
+			if ok and thumb and avatarImg.Parent then
+				avatarImg.Image = thumb
+			end
+		end)
 
 		-- Name Label
 		local nameLabel = Instance.new("TextLabel")

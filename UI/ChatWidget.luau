@@ -156,8 +156,15 @@ function ChatWidget.new(): ChatWidgetInstance
 	local mugImg = Instance.new("ImageLabel")
 	mugImg.Size = UDim2.new(1, 0, 1, 0)
 	mugImg.BackgroundTransparency = 1
-	mugImg.Image = Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
 	mugImg.Parent = mugBox
+	task.spawn(function()
+		local ok, thumb = pcall(function()
+			return Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
+		end)
+		if ok and thumb and mugImg.Parent then
+			mugImg.Image = thumb
+		end
+	end)
 
 	-- Title: Chat : @Username
 	local titleLabel = Instance.new("TextLabel")

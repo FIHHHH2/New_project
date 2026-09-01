@@ -792,8 +792,15 @@ function UI.createBannerCard(parent: GuiObject): Frame
 	avatarImg.Size = UDim2.new(1, -4, 1, -4)
 	avatarImg.Position = UDim2.new(0, 2, 0, 2)
 	avatarImg.BackgroundTransparency = 1
-	avatarImg.Image = Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
 	avatarImg.Parent = mugshotBox
+	task.spawn(function()
+		local ok, thumb = pcall(function()
+			return Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+		end)
+		if ok and thumb and avatarImg.Parent then
+			avatarImg.Image = thumb
+		end
+	end)
 
 	local rightSide = Instance.new("Frame")
 	rightSide.Name = "RightSide"

@@ -14142,6 +14142,9 @@ local customMainEnv = setmetatable({
 }, { __index = mainEnv })
 
 setfenv(mainFunc, customMainEnv)
-task.spawn(mainFunc)
+local success, runErr = pcall(mainFunc)
+if not success then
+	warn(string.format("[Loader] Error executing Core/Main.luau: %s", tostring(runErr)))
+end
 
 print("[Loader] Modular Roblox UI successfully loaded and running.")

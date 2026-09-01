@@ -42,16 +42,59 @@ local function safeSetClipboard(text: string): boolean
 	return false
 end
 
-local function teleportToMouse()
-	local mouse = LocalPlayer:GetMouse()
-	if not mouse or not mouse.Hit then return end
+local function safeTeleport(targetCF: CFrame)
 	local char = LocalPlayer.Character
 	if not char then return end
 	local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not hrp then return end
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not hrp or not hum then return end
 
+	pcall(function()
+		hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+		hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+		hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+		hum.PlatformStand = false
+		hum.Sit = false
+	end)
+
+	hrp.AssemblyLinearVelocity = Vector3.zero
+	hrp.AssemblyAngularVelocity = Vector3.zero
+	hrp.Velocity = Vector3.zero
+	hrp.RotVelocity = Vector3.zero
+
+	hrp.CFrame = targetCF * CFrame.new(0, 0.5, 0)
+
+	for _, desc in ipairs(char:GetDescendants()) do
+		if desc:IsA("Motor6D") then
+			desc.Enabled = true
+		elseif desc:IsA("BallSocketConstraint") and desc.Name:lower():find("ragdoll") then
+			desc.Enabled = false
+		end
+	end
+
+	pcall(function()
+		hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+		hum:ChangeState(Enum.HumanoidStateType.Running)
+	end)
+
+	task.defer(function()
+		if hum and hum.Parent then
+			hum.PlatformStand = false
+			hum.Sit = false
+			hum:ChangeState(Enum.HumanoidStateType.Running)
+		end
+		if hrp and hrp.Parent then
+			hrp.AssemblyLinearVelocity = Vector3.zero
+			hrp.AssemblyAngularVelocity = Vector3.zero
+		end
+	end)
+end
+
+local function teleportToMouse()
+	local mouse = LocalPlayer:GetMouse()
+	if not mouse or not mouse.Hit then return end
 	local targetPos = mouse.Hit.Position + Vector3.new(0, 3, 0)
-	hrp.CFrame = CFrame.new(targetPos)
+	safeTeleport(CFrame.new(targetPos))
 end
 
 function PlayerUtilities.ServerHop(): (boolean, string)

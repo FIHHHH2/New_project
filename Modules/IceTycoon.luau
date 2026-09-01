@@ -59,6 +59,58 @@ local function getHrp(): BasePart?
 	return char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 end
 
+local function safeTeleport(targetCF: CFrame)
+	local char = LocalPlayer.Character
+	if not char then return end
+	local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not hrp or not hum then return end
+
+	-- Disable tripping and ragdoll physics states
+	pcall(function()
+		hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+		hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+		hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+		hum.PlatformStand = false
+		hum.Sit = false
+	end)
+
+	-- Zero linear and rotational momentum
+	hrp.AssemblyLinearVelocity = Vector3.zero
+	hrp.AssemblyAngularVelocity = Vector3.zero
+	hrp.Velocity = Vector3.zero
+	hrp.RotVelocity = Vector3.zero
+
+	-- Smooth placement with ground clearance
+	hrp.CFrame = targetCF * CFrame.new(0, 0.5, 0)
+
+	-- Re-enable motor joints if disabled by ragdoll scripts
+	for _, desc in ipairs(char:GetDescendants()) do
+		if desc:IsA("Motor6D") then
+			desc.Enabled = true
+		elseif desc:IsA("BallSocketConstraint") and desc.Name:lower():find("ragdoll") then
+			desc.Enabled = false
+		end
+	end
+
+	pcall(function()
+		hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+		hum:ChangeState(Enum.HumanoidStateType.Running)
+	end)
+
+	task.defer(function()
+		if hum and hum.Parent then
+			hum.PlatformStand = false
+			hum.Sit = false
+			hum:ChangeState(Enum.HumanoidStateType.Running)
+		end
+		if hrp and hrp.Parent then
+			hrp.AssemblyLinearVelocity = Vector3.zero
+			hrp.AssemblyAngularVelocity = Vector3.zero
+		end
+	end)
+end
+
 local function touchPart(targetPart: BasePart)
 	local hrp = getHrp()
 	if not hrp or not targetPart then return end
@@ -923,14 +975,14 @@ function IceTycoon.teleportTo(locName: string): boolean
 	end
 
 	if targetCF then
-		hrp.CFrame = targetCF
+		safeTeleport(targetCF)
 		return true
 	end
 
 	-- Fallback: If named location in TELEPORT_LOCATIONS exists
 	for name, cf in pairs(TELEPORT_LOCATIONS) do
 		if string.find(name:lower(), locName:lower()) then
-			hrp.CFrame = cf
+			safeTeleport(cf)
 			return true
 		end
 	end

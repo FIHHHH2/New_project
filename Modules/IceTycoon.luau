@@ -583,13 +583,15 @@ IceTycoon.AutoCollectSecrets = false
 
 function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Secrets: number }
 	local hrp = getHrp()
+	local char = LocalPlayer.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local camera = Workspace.CurrentCamera
 	local fti = firetouchinterest or (getgenv and getgenv().firetouchinterest)
 	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
 
 	local results = { Gems = 0, Trophies = 0, Secrets = 0 }
 	local map = Workspace:FindFirstChild("Map")
-	if not (map and hrp and camera) then return results end
+	if not (hrp and camera) then return results end
 
 	local origCF = hrp.CFrame
 	local origCamCF = camera.CFrame
@@ -598,43 +600,64 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 	camera.CameraType = Enum.CameraType.Scriptable
 	camera.CFrame = origCamCF
 
-	-- 1. All Trophies on Pedestals (Map & Tycoon Essentials)
-	local function checkPedestals(folder: Instance?)
-		if not folder then return end
-		for _, ped in ipairs(folder:GetChildren()) do
+	-- 1. All 3 World Pedestal Trophies (Grab from World Pedestals & Deposit to Tycoon Pedestals)
+	local worldPedFolder = Workspace:FindFirstChild("Pedestals")
+	local tycoon = Workspace:FindFirstChild("Tycoon")
+	local tycoonPedFolder = tycoon and tycoon:FindFirstChild("Essentials") and tycoon.Essentials:FindFirstChild("Pedestals")
+
+	if worldPedFolder and type(fpp) == "function" then
+		for _, pedName in ipairs({"TrianglePedestal", "CirclePedestal", "SquarePedestal"}) do
 			pcall(function()
-				local union = ped:FindFirstChild("Union") :: BasePart? or ped:FindFirstChildWhichIsA("BasePart")
-				local pr = ped:FindFirstChildWhichIsA("ProximityPrompt", true)
-				if union and pr and pr.Enabled and type(fpp) == "function" then
-					hrp.CFrame = union.CFrame * CFrame.new(0, 2, 0)
-					task.wait(0.06)
-					pr.HoldDuration = 0
-					fpp(pr, 1, true)
-					task.wait(0.02)
-					fpp(pr, 1, true)
-					results.Trophies += 1
-				elseif union then
-					hrp.CFrame = union.CFrame * CFrame.new(0, 2, 0)
+				local worldPed = worldPedFolder:FindFirstChild(pedName)
+				local prompt = worldPed and worldPed:FindFirstChildWhichIsA("ProximityPrompt", true)
+				local targetPart = worldPed and (worldPed:FindFirstChild("Union", true) or worldPed:FindFirstChildOfClass("BasePart", true))
+
+				if prompt and targetPart then
+					prompt.HoldDuration = 0
+					prompt.RequiresLineOfSight = false
+					prompt.MaxActivationDistance = 99999
+
+					-- Teleport to world pedestal and grab
+					hrp.CFrame = targetPart.CFrame * CFrame.new(0, 3, 0)
+					task.wait(0.08)
+					fpp(prompt, 1, true)
 					task.wait(0.04)
+					fpp(prompt, 1, true)
+					task.wait(0.08)
+
+					-- Deposit into tycoon pedestal
+					if tycoonPedFolder then
+						local tycoonPed = tycoonPedFolder:FindFirstChild(pedName)
+						local depositPart = tycoonPed and (tycoonPed:FindFirstChild("Main", true) or tycoonPed:FindFirstChildWhichIsA("BasePart", true))
+						if depositPart then
+							hrp.CFrame = depositPart.CFrame * CFrame.new(0, 3, 0)
+							task.wait(0.08)
+							-- Equip trophy tool if in backpack
+							local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+							if bp and hum then
+								for _, t in ipairs(bp:GetChildren()) do
+									if t:IsA("Tool") and t.Name:lower():find("trophy") then
+										hum:EquipTool(t)
+										task.wait(0.04)
+									end
+								end
+							end
+							task.wait(0.08)
+						end
+					end
 					results.Trophies += 1
 				end
 			end)
 		end
 	end
 
-	checkPedestals(map:FindFirstChild("Pedestals"))
-	local tycoon = Workspace:FindFirstChild("Tycoon")
-	if tycoon and tycoon:FindFirstChild("Essentials") then
-		checkPedestals(tycoon.Essentials:FindFirstChild("Pedestals"))
-	end
-
-	-- 2. All 5 Gem Pedestals
-	local troops = map:FindFirstChild("Troops")
+	-- 2. All 5 Gem Pedestals in Map Troops
+	local troops = map and map:FindFirstChild("Troops")
 	local gemPed = troops and troops:FindFirstChild("GemPedestals")
 	if gemPed then
 		for _, ped in ipairs(gemPed:GetChildren()) do
 			pcall(function()
-				local hit = ped:FindFirstChild("Hitbox")
+				local hit = ped:FindFirstChild("Hitbox") or ped:FindFirstChildOfClass("BasePart", true)
 				if hit and hit:IsA("BasePart") then
 					hrp.CFrame = hit.CFrame * CFrame.new(0, 2, 0)
 					task.wait(0.04)
@@ -656,7 +679,7 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 		for _, name in ipairs({"KeyGiver", "House", "JustALittleThing"}) do
 			pcall(function()
 				local model = troops:FindFirstChild(name)
-				local hit = model and (model:FindFirstChild("Hitbox", true) or model:FindFirstChild("Door", true) or model:FindFirstChildOfClass("BasePart"))
+				local hit = model and (model:FindFirstChild("Hitbox", true) or model:FindFirstChild("Door", true) or model:FindFirstChildOfClass("BasePart", true))
 				if hit and hit:IsA("BasePart") then
 					hrp.CFrame = hit.CFrame * CFrame.new(0, 2, 0)
 					task.wait(0.04)
@@ -674,26 +697,30 @@ function IceTycoon.collectAllSecretsNow(): { Gems: number, Trophies: number, Sec
 	end
 
 	-- 4. Hotel & IceHotel Hitboxes
-	for _, hName in ipairs({"HotelHitbox", "HotelHitbox2"}) do
-		pcall(function()
-			local h = map:FindFirstChild(hName)
-			if h and h:IsA("BasePart") then
-				hrp.CFrame = h.CFrame * CFrame.new(0, 2, 0)
-				task.wait(0.04)
-				results.Secrets += 1
-			end
-		end)
+	if map then
+		for _, hName in ipairs({"HotelHitbox", "HotelHitbox2"}) do
+			pcall(function()
+				local h = map:FindFirstChild(hName)
+				if h and h:IsA("BasePart") then
+					hrp.CFrame = h.CFrame * CFrame.new(0, 2, 0)
+					task.wait(0.04)
+					results.Secrets += 1
+				end
+			end)
+		end
 	end
 
 	-- 5. Crystals in Map and Lava Hatch
-	pcall(function()
-		local bc = map:FindFirstChild("BuyCrystal")
-		if bc and bc:IsA("BasePart") then
-			hrp.CFrame = bc.CFrame * CFrame.new(0, 2, 0)
-			task.wait(0.04)
-			results.Gems += 1
-		end
-	end)
+	if map then
+		pcall(function()
+			local bc = map:FindFirstChild("BuyCrystal")
+			if bc and bc:IsA("BasePart") then
+				hrp.CFrame = bc.CFrame * CFrame.new(0, 2, 0)
+				task.wait(0.04)
+				results.Gems += 1
+			end
+		end)
+	end
 
 	pcall(function()
 		local lava = tycoon and tycoon:FindFirstChild("Essentials") and tycoon.Essentials:FindFirstChild("Lava")

@@ -210,6 +210,10 @@ function Animations.openWindow(frame: GuiObject, uiScale: UIScale?, onComplete: 
 	end
 end
 
+function Animations.springOpen(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
+	Animations.openWindow(frame, uiScale, onComplete)
+end
+
 -- Window close transition (Spring scale 1.0 -> 0.92 Quad.In)
 function Animations.closeWindow(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
 	if uiScale then

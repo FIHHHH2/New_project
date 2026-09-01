@@ -1164,30 +1164,107 @@ function Hotbar.new(): HotbarWidget
 		end
 	end))
 
-	-- Smart Event Handling: only update highlights on equip/unequip, only refresh grid on real inventory changes
-	local function handleToolMove(tool: Instance)
-		if not tool:IsA("Tool") then return end
-		local p = tool.Parent
-		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-		local char = LocalPlayer.Character
-		if (bp and p == bp) or (char and p == char) then
-			updateSlotHighlightsOnly()
+	-- Real-Time Tool Acquisition & Inventory Sync Engine
+	local boundTools: {[Tool]: boolean} = {}
+
+	local function hookToolNameChange(tool: Tool)
+		if boundTools[tool] then return end
+		boundTools[tool] = true
+		table.insert(activeConnections, tool:GetPropertyChangedSignal("Name"):Connect(function()
+			for slotNum = 1, NUM_SLOTS do
+				if assignedSlots[slotNum] == tool then
+					local slotBtn = slotFrames[slotNum]
+					local nameLabel = slotBtn and slotBtn:FindFirstChild("ToolName") :: TextLabel?
+					if nameLabel then nameLabel.Text = tool.Name end
+					break
+				end
+			end
+			if isBackpackOpen then
+				local card = backpackCards[tool]
+				local tName = card and card:FindFirstChild("ToolLabel") :: TextLabel?
+				if tName then tName.Text = tool.Name end
+			end
+		end))
+	end
+
+	local function onToolAdded(child: Instance)
+		if not child:IsA("Tool") then return end
+		local tool = child :: Tool
+		hookToolNameChange(tool)
+
+		-- Check if tool is already assigned to a toolbar slot
+		local alreadyAssigned = false
+		for i = 1, NUM_SLOTS do
+			if assignedSlots[i] == tool then
+				alreadyAssigned = true
+				break
+			end
+		end
+
+		if not alreadyAssigned then
+			-- Assign to first available empty slot
+			for i = 1, NUM_SLOTS do
+				if not assignedSlots[i] then
+					assignedSlots[i] = tool
+					break
+				end
+			end
+			updateHotbarVisuals()
 		else
-			queueInventoryRefresh()
+			updateSlotHighlightsOnly()
+		end
+
+		if isBackpackOpen then
+			updateBackpackGrid()
 		end
 	end
 
+	local function onToolRemoved(child: Instance)
+		if not child:IsA("Tool") then return end
+		local tool = child :: Tool
+
+		-- Wait a frame to see if tool was simply equipped (moved from Backpack to Character) or genuinely removed
+		task.defer(function()
+			local char = LocalPlayer.Character
+			local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+			local stillInInventory = (char and tool.Parent == char) or (bp and tool.Parent == bp)
+
+			if not stillInInventory then
+				boundTools[tool] = nil
+				for i = 1, NUM_SLOTS do
+					if assignedSlots[i] == tool then
+						assignedSlots[i] = nil
+					end
+				end
+				updateHotbarVisuals()
+				if isBackpackOpen then updateBackpackGrid() end
+			else
+				updateSlotHighlightsOnly()
+			end
+		end)
+	end
+
 	local function bindCharEvents(char: Model)
-		table.insert(activeConnections, char.ChildAdded:Connect(handleToolMove))
-		table.insert(activeConnections, char.ChildRemoved:Connect(handleToolMove))
+		for _, item in ipairs(char:GetChildren()) do
+			if item:IsA("Tool") then
+				hookToolNameChange(item)
+			end
+		end
+		table.insert(activeConnections, char.ChildAdded:Connect(onToolAdded))
+		table.insert(activeConnections, char.ChildRemoved:Connect(onToolRemoved))
 	end
 
 	if LocalPlayer.Character then bindCharEvents(LocalPlayer.Character) end
 	table.insert(activeConnections, LocalPlayer.CharacterAdded:Connect(bindCharEvents))
 
 	local function bindBpEvents(bp: Backpack)
-		table.insert(activeConnections, bp.ChildAdded:Connect(handleToolMove))
-		table.insert(activeConnections, bp.ChildRemoved:Connect(handleToolMove))
+		for _, item in ipairs(bp:GetChildren()) do
+			if item:IsA("Tool") then
+				hookToolNameChange(item)
+			end
+		end
+		table.insert(activeConnections, bp.ChildAdded:Connect(onToolAdded))
+		table.insert(activeConnections, bp.ChildRemoved:Connect(onToolRemoved))
 	end
 
 	local bp = LocalPlayer:FindFirstChildOfClass("Backpack")

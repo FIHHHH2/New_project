@@ -1,13 +1,14 @@
 --!strict
 --[=[
-    ✦ Squared Retro Music Tracker Widget with Continuous Fluid Visualizer Physics ✦
+    ✦ Squared Retro Music Tracker & Dynamic Lyrics Player HUD ✦
     Features:
-    - Continuous 60+ FPS spring-damper harmonic wave physics (no stepped sizing or stutter)
-    - Full-bleed album artwork box (no black borders or padding gaps)
-    - Expanded multi-line lyrics container with ample reading space
-    - Proportioned, compact square playback controls in correct order: [ « ] [ ❚❚ / ▶ ] [ » ]
-    - Multi-source Synced Lyrics engine & live UTC timestamp tracking
-    - Full IgnoreGuiInset dragging and minimize controls
+    - Zero placeholders: Real-time dynamic detection of Spotify, YouTube, and In-Game Game Audio
+    - Generous 460x190 high-contrast HUD canvas with full-bleed cover art
+    - Multi-source IPC & WebNowPlaying / Desktop bridge integration (Ports 8974, 8888, 3000, 9863, 1609)
+    - In-Game Roblox Audio Scanner (MarketplaceService title/artist resolution & PlaybackLoudness wave physics)
+    - Synced multi-line LRCLIB Cloud Lyrics engine with millisecond precision
+    - Continuous fluid 60+ FPS spring-damper visualizer bars
+    - Full volume control and seekbar scrubbing
 ]=]
 
 local Players = game:GetService("Players")
@@ -16,6 +17,9 @@ local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
+local MarketplaceService = game:GetService("MarketplaceService")
+local SoundService = game:GetService("SoundService")
+local Workspace = game:GetService("Workspace")
 
 local UI = require("UI/UI.luau")
 local Animations = require("UI/Animations.luau")
@@ -26,24 +30,20 @@ MusicTracker.__index = MusicTracker
 local BRIDGE_URLS = {
 	"http://127.0.0.1:8974",
 	"http://127.0.0.1:8888",
-	"https://steering-liberal-bucks-arrived.trycloudflare.com"
+	"http://127.0.0.1:3000",
+	"http://127.0.0.1:9863",
+	"http://127.0.0.1:1609"
 }
 local BRIDGE_URL = BRIDGE_URLS[1]
-local MUSIC_NOTE_ICON = "rbxassetid://10888371919" 
+local MUSIC_NOTE_ICON = "rbxassetid://10888371919"
 
-local DEMO_TRACKS = {
-	{
-		title = "Starboy",
-		artist = "The Weeknd ft. Daft Punk",
-		cover = "rbxassetid://13470984852",
-		lyrics = "I'm tryna put you in the worst mood, ah"
-	},
-	{
-		title = "Blinding Lights",
-		artist = "The Weeknd",
-		cover = "rbxassetid://13470984852",
-		lyrics = "Where are you now when I need you most?"
-	}
+local IPC_FILES = {
+	"fih_bridge_state.json",
+	"FihSuite/fih_bridge_state.json",
+	"spotify_state.json",
+	"now_playing.json",
+	"music.json",
+	"music_state.json"
 }
 
 function MusicTracker.new()
@@ -72,14 +72,14 @@ function MusicTracker.new()
 		end)
 	end
 
-	local DEFAULT_W, DEFAULT_H = 400, 160
+	local DEFAULT_W, DEFAULT_H = 460, 190
 	local TOPBAR_H = 28
 
 	-- ── Main Widget Frame ─────────────────────────────────────────────
 	local widget = Instance.new("Frame")
 	widget.Name = "MusicTrackerWidget"
 	widget.Size = UDim2.new(0, DEFAULT_W, 0, DEFAULT_H)
-	widget.Position = UDim2.new(0, 18, 1, -185)
+	widget.Position = UDim2.new(0, 18, 1, -215)
 	widget.Visible = true
 	widget.ZIndex = 50
 	widget.BackgroundColor3 = UI.Theme.Background
@@ -112,7 +112,7 @@ function MusicTracker.new()
 	uiScale.Scale = 1.0
 	uiScale.Parent = widget
 
-	-- ── Topbar (Drag Handle) ──────────────────────────────────────────
+	-- ── Topbar (Drag Handle & Controls) ───────────────────────────────
 	local topbar = Instance.new("Frame")
 	topbar.Name = "TopBar"
 	topbar.Size = UDim2.new(1, -12, 0, TOPBAR_H)
@@ -143,7 +143,7 @@ function MusicTracker.new()
 	titleLabel.Size = UDim2.new(1, -70, 1, 0)
 	titleLabel.Position = UDim2.new(0, 8, 0, 0)
 	titleLabel.BackgroundTransparency = 1
-	titleLabel.Text = "Music Tracker"
+	titleLabel.Text = "Music Tracker & Lyrics HUD"
 	titleLabel.TextColor3 = UI.Theme.TextPrimary
 	titleLabel.Font = UI.Fonts.Header
 	titleLabel.TextSize = 11
@@ -155,7 +155,7 @@ function MusicTracker.new()
 	local minBtn = Instance.new("TextButton")
 	minBtn.Name = "MinBtn"
 	minBtn.Size = UDim2.new(0, 20, 0, 18)
-	minBtn.Position = UDim2.new(1, -50, 0, 4)
+	minBtn.Position = UDim2.new(1, -50, 0, 5)
 	minBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	minBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	minBtn.BorderSizePixel = 0
@@ -177,7 +177,7 @@ function MusicTracker.new()
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.Name = "CloseBtn"
 	closeBtn.Size = UDim2.new(0, 20, 0, 18)
-	closeBtn.Position = UDim2.new(1, -26, 0, 4)
+	closeBtn.Position = UDim2.new(1, -26, 0, 5)
 	closeBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	closeBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	closeBtn.BorderSizePixel = 0
@@ -205,10 +205,10 @@ function MusicTracker.new()
 	body.BorderSizePixel = 0
 	body.Parent = widget
 
-	-- ── Left Column: Song Cover (Full Bleed) ──────────────────────────
+	-- ── Left Column: Album Cover (Full Bleed 140px) ───────────────────
 	local coverBox = Instance.new("Frame")
 	coverBox.Name = "SongCoverBox"
-	coverBox.Size = UDim2.new(0, 142, 1, 0)
+	coverBox.Size = UDim2.new(0, 140, 1, 0)
 	coverBox.Position = UDim2.new(0, 0, 0, 0)
 	coverBox.BackgroundColor3 = UI.Theme.ContainerDark
 	coverBox.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
@@ -230,10 +230,11 @@ function MusicTracker.new()
 	coverImg.Position = UDim2.new(0, 0, 0, 0)
 	coverImg.BackgroundTransparency = 1
 	coverImg.Image = MUSIC_NOTE_ICON
-	coverImg.ScaleType = Enum.ScaleType.Crop
+	coverImg.ImageColor3 = UI.Theme.Accent
+	coverImg.ScaleType = Enum.ScaleType.Fit
 	coverImg.Parent = coverBox
 
-	-- ── Right Column: Stack (Title, Expanded Lyrics, Visualizer & Controls) ──
+	-- ── Right Column: Metadata, Lyrics, Seekbar & Controls ───────────
 	local rightCol = Instance.new("Frame")
 	rightCol.Name = "RightColumn"
 	rightCol.Size = UDim2.new(1, -150, 1, 0)
@@ -243,14 +244,14 @@ function MusicTracker.new()
 	rightCol.Parent = body
 
 	local rightLayout = Instance.new("UIListLayout")
-	rightLayout.Padding = UDim.new(0, 5)
+	rightLayout.Padding = UDim.new(0, 6)
 	rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	rightLayout.Parent = rightCol
 
-	-- Box 1: Song Title
+	-- Box 1: Song Title & Artist
 	local titleBox = Instance.new("Frame")
 	titleBox.Name = "SongTitleBox"
-	titleBox.Size = UDim2.new(1, 0, 0, 26)
+	titleBox.Size = UDim2.new(1, 0, 0, 28)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
@@ -270,19 +271,19 @@ function MusicTracker.new()
 	songTitleLabel.Size = UDim2.new(1, -12, 1, 0)
 	songTitleLabel.Position = UDim2.new(0, 6, 0, 0)
 	songTitleLabel.BackgroundTransparency = 1
-	songTitleLabel.Text = "Waiting for Media..."
+	songTitleLabel.Text = "Waiting for Audio Session..."
 	songTitleLabel.TextColor3 = UI.Theme.TextPrimary
 	songTitleLabel.Font = UI.Fonts.Header
-	songTitleLabel.TextSize = 11
+	songTitleLabel.TextSize = 12
 	songTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	songTitleLabel.TextTruncate = Enum.TextTruncate.AtEnd
 	songTitleLabel.Parent = titleBox
 	UI.registerThemeElement(songTitleLabel, "TextPrimary")
 
-	-- Box 2: Expanded Lyrics (Generous 48px space for full 2-line reading)
+	-- Box 2: Dedicated Lyrics Container
 	local lyricsBox = Instance.new("Frame")
 	lyricsBox.Name = "LyricsBox"
-	lyricsBox.Size = UDim2.new(1, 0, 0, 48)
+	lyricsBox.Size = UDim2.new(1, 0, 0, 46)
 	lyricsBox.BackgroundColor3 = UI.Theme.ContainerDark
 	lyricsBox.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	lyricsBox.BorderSizePixel = 0
@@ -303,29 +304,76 @@ function MusicTracker.new()
 	lyricsLabel.Size = UDim2.new(1, -12, 1, -4)
 	lyricsLabel.Position = UDim2.new(0, 6, 0, 2)
 	lyricsLabel.BackgroundTransparency = 1
-	lyricsLabel.Text = "♫ Play a track on Spotify / SoundCloud / YouTube"
+	lyricsLabel.Text = "♫ Play a song on Spotify, YouTube, or In-Game Audio"
 	lyricsLabel.TextColor3 = UI.Theme.TextPrimary
 	lyricsLabel.Font = UI.Fonts.Body
-	lyricsLabel.TextSize = 10
+	lyricsLabel.TextSize = 11
 	lyricsLabel.TextXAlignment = Enum.TextXAlignment.Left
 	lyricsLabel.TextYAlignment = Enum.TextYAlignment.Center
 	lyricsLabel.TextWrapped = true
 	lyricsLabel.Parent = lyricsBox
 	UI.registerThemeElement(lyricsLabel, "TextPrimary")
 
-	-- Box 3: Visualizer Spectrum & Media Controls
+	-- Box 3: Seek Track Bar & Timestamps
+	local seekRow = Instance.new("Frame")
+	seekRow.Name = "SeekRow"
+	seekRow.Size = UDim2.new(1, 0, 0, 16)
+	seekRow.BackgroundTransparency = 1
+	seekRow.BorderSizePixel = 0
+	seekRow.LayoutOrder = 3
+	seekRow.Parent = rightCol
+
+	local timeLabel = Instance.new("TextLabel")
+	timeLabel.Name = "TimeLabel"
+	timeLabel.Size = UDim2.new(0, 75, 1, 0)
+	timeLabel.Position = UDim2.new(1, -75, 0, 0)
+	timeLabel.BackgroundTransparency = 1
+	timeLabel.Text = "0:00 / 0:00"
+	timeLabel.TextColor3 = UI.Theme.TextSecondary
+	timeLabel.Font = UI.Fonts.Mono
+	timeLabel.TextSize = 10
+	timeLabel.TextXAlignment = Enum.TextXAlignment.Right
+	timeLabel.Parent = seekRow
+	UI.registerThemeElement(timeLabel, "TextSecondary")
+
+	local seekTrack = Instance.new("Frame")
+	seekTrack.Name = "SeekTrack"
+	seekTrack.Size = UDim2.new(1, -85, 0, 6)
+	seekTrack.Position = UDim2.new(0, 0, 0.5, -3)
+	seekTrack.BackgroundColor3 = UI.Theme.ContainerDark
+	seekTrack.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	seekTrack.BorderSizePixel = 0
+	seekTrack.Parent = seekRow
+	UI.registerThemeElement(seekTrack, "ContainerDark")
+
+	local seekTrackStroke = Instance.new("UIStroke")
+	seekTrackStroke.Color = UI.Theme.Border
+	seekTrackStroke.Thickness = 1
+	seekTrackStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	seekTrackStroke.Parent = seekTrack
+	UI.registerThemeElement(seekTrackStroke, "Border")
+
+	local seekFill = Instance.new("Frame")
+	seekFill.Name = "Fill"
+	seekFill.Size = UDim2.new(0, 0, 1, 0)
+	seekFill.BackgroundColor3 = UI.Theme.Accent
+	seekFill.BorderSizePixel = 0
+	seekFill.Parent = seekTrack
+	UI.registerThemeElement(seekFill, "Accent")
+
+	-- Box 4: Visualizer Spectrum & Media Controls
 	local bottomControls = Instance.new("Frame")
 	bottomControls.Name = "BottomControls"
-	bottomControls.Size = UDim2.new(1, 0, 1, -84)
+	bottomControls.Size = UDim2.new(1, 0, 0, 36)
 	bottomControls.BackgroundTransparency = 1
 	bottomControls.BorderSizePixel = 0
-	bottomControls.LayoutOrder = 3
+	bottomControls.LayoutOrder = 4
 	bottomControls.Parent = rightCol
 
 	-- Visualizer Container
 	local visualizerBox = Instance.new("Frame")
 	visualizerBox.Name = "VisualizerBox"
-	visualizerBox.Size = UDim2.new(1, -94, 1, 0)
+	visualizerBox.Size = UDim2.new(1, -145, 1, 0)
 	visualizerBox.Position = UDim2.new(0, 0, 0, 0)
 	visualizerBox.BackgroundColor3 = UI.Theme.Container
 	visualizerBox.BackgroundTransparency = UI.Theme.ContainerTransparency
@@ -342,8 +390,8 @@ function MusicTracker.new()
 
 	local visBarsContainer = Instance.new("Frame")
 	visBarsContainer.Name = "BarsContainer"
-	visBarsContainer.Size = UDim2.new(1, -12, 1, -8)
-	visBarsContainer.Position = UDim2.new(0, 6, 0, 4)
+	visBarsContainer.Size = UDim2.new(1, -8, 1, -6)
+	visBarsContainer.Position = UDim2.new(0, 4, 0, 3)
 	visBarsContainer.BackgroundTransparency = 1
 	visBarsContainer.Parent = visualizerBox
 
@@ -363,143 +411,114 @@ function MusicTracker.new()
 		bar.BorderSizePixel = 0
 		bar.Parent = visBarsContainer
 		UI.registerThemeElement(bar, "Accent")
-		table.insert(visualizerBars, bar)
+		visualizerBars[i] = bar
 	end
 
-	-- Control Buttons & Audio Slider Container
-	local ctrlFrame = Instance.new("Frame")
-	ctrlFrame.Name = "Controls"
-	ctrlFrame.Size = UDim2.new(0, 94, 1, 0)
-	ctrlFrame.Position = UDim2.new(1, -94, 0, 0)
-	ctrlFrame.BackgroundTransparency = 1
-	ctrlFrame.Parent = bottomControls
+	-- Media Action Buttons & Volume
+	local controlsBox = Instance.new("Frame")
+	controlsBox.Name = "ControlsBox"
+	controlsBox.Size = UDim2.new(0, 138, 1, 0)
+	controlsBox.Position = UDim2.new(1, -138, 0, 0)
+	controlsBox.BackgroundTransparency = 1
+	controlsBox.BorderSizePixel = 0
+	controlsBox.Parent = bottomControls
 
-	local ctrlLayout = Instance.new("UIListLayout")
-	ctrlLayout.FillDirection = Enum.FillDirection.Vertical
-	ctrlLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	ctrlLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	ctrlLayout.Padding = UDim.new(0, 4)
-	ctrlLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	ctrlLayout.Parent = ctrlFrame
+	local prevBtn = Instance.new("TextButton")
+	prevBtn.Name = "PrevBtn"
+	prevBtn.Size = UDim2.new(0, 24, 0, 24)
+	prevBtn.Position = UDim2.new(0, 0, 0.5, -12)
+	prevBtn.BackgroundColor3 = UI.Theme.Container
+	prevBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
+	prevBtn.BorderSizePixel = 0
+	prevBtn.Text = "«"
+	prevBtn.TextColor3 = UI.Theme.TextPrimary
+	prevBtn.Font = UI.Fonts.Header
+	prevBtn.TextSize = 13
+	prevBtn.Parent = controlsBox
+	UI.registerThemeElement(prevBtn, "Container")
+	UI.registerThemeElement(prevBtn, "TextPrimary")
 
-	-- 1. Buttons Row (Prev, Play/Pause, Next)
-	local btnsRow = Instance.new("Frame")
-	btnsRow.Name = "ButtonsRow"
-	btnsRow.Size = UDim2.new(1, 0, 0, 22)
-	btnsRow.BackgroundTransparency = 1
-	btnsRow.LayoutOrder = 1
-	btnsRow.Parent = ctrlFrame
+	local prevStroke = Instance.new("UIStroke")
+	prevStroke.Color = UI.Theme.Border
+	prevStroke.Thickness = 1
+	prevStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	prevStroke.Parent = prevBtn
+	UI.registerThemeElement(prevStroke, "Border")
 
-	local btnsLayout = Instance.new("UIListLayout")
-	btnsLayout.FillDirection = Enum.FillDirection.Horizontal
-	btnsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	btnsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	btnsLayout.Padding = UDim.new(0, 4)
-	btnsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	btnsLayout.Parent = btnsRow
+	local playBtn = Instance.new("TextButton")
+	playBtn.Name = "PlayBtn"
+	playBtn.Size = UDim2.new(0, 26, 0, 24)
+	playBtn.Position = UDim2.new(0, 28, 0.5, -12)
+	playBtn.BackgroundColor3 = UI.Theme.Accent
+	playBtn.BorderSizePixel = 0
+	playBtn.Text = "▶"
+	playBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	playBtn.Font = UI.Fonts.Header
+	playBtn.TextSize = 12
+	playBtn.Parent = controlsBox
+	UI.registerThemeElement(playBtn, "Accent")
 
-	local function makeCtrlBtn(name: string, symbol: string, order: number): TextButton
-		local btn = Instance.new("TextButton")
-		btn.Name = name
-		btn.Size = UDim2.new(0, 26, 0, 20)
-		btn.BackgroundColor3 = UI.Theme.ContainerDark
-		btn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
-		btn.BorderSizePixel = 0
-		btn.Text = symbol
-		btn.TextColor3 = UI.Theme.TextPrimary
-		btn.Font = UI.Fonts.Header
-		btn.TextSize = 11
-		btn.LayoutOrder = order
-		btn.Parent = btnsRow
-		UI.registerThemeElement(btn, "ContainerDark")
-		UI.registerThemeElement(btn, "TextPrimary")
+	local playStroke = Instance.new("UIStroke")
+	playStroke.Color = UI.Theme.Border
+	playStroke.Thickness = 1
+	playStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	playStroke.Parent = playBtn
+	UI.registerThemeElement(playStroke, "Border")
 
-		local bStroke = Instance.new("UIStroke")
-		bStroke.Color = UI.Theme.Border
-		bStroke.Thickness = 1
-		bStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		bStroke.Parent = btn
-		UI.registerThemeElement(bStroke, "Border")
+	local skipBtn = Instance.new("TextButton")
+	skipBtn.Name = "SkipBtn"
+	skipBtn.Size = UDim2.new(0, 24, 0, 24)
+	skipBtn.Position = UDim2.new(0, 58, 0.5, -12)
+	skipBtn.BackgroundColor3 = UI.Theme.Container
+	skipBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
+	skipBtn.BorderSizePixel = 0
+	skipBtn.Text = "»"
+	skipBtn.TextColor3 = UI.Theme.TextPrimary
+	skipBtn.Font = UI.Fonts.Header
+	skipBtn.TextSize = 13
+	skipBtn.Parent = controlsBox
+	UI.registerThemeElement(skipBtn, "Container")
+	UI.registerThemeElement(skipBtn, "TextPrimary")
 
-		btn.MouseEnter:Connect(function()
-			TweenService:Create(bStroke, TweenInfo.new(0.12), { Thickness = 1.6, Color = UI.Theme.Accent }):Play()
-			TweenService:Create(btn, TweenInfo.new(0.12), { TextColor3 = UI.Theme.Accent }):Play()
-		end)
-		btn.MouseLeave:Connect(function()
-			TweenService:Create(bStroke, TweenInfo.new(0.12), { Thickness = 1, Color = UI.Theme.Border }):Play()
-			TweenService:Create(btn, TweenInfo.new(0.12), { TextColor3 = UI.Theme.TextPrimary }):Play()
-		end)
+	local skipStroke = Instance.new("UIStroke")
+	skipStroke.Color = UI.Theme.Border
+	skipStroke.Thickness = 1
+	skipStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	skipStroke.Parent = skipBtn
+	UI.registerThemeElement(skipStroke, "Border")
 
-		return btn
-	end
-
-	local prevBtn = makeCtrlBtn("PrevBtn", "«", 1)
-	local playBtn = makeCtrlBtn("PlayBtn", "❚❚", 2)
-	local skipBtn = makeCtrlBtn("SkipBtn", "»", 3)
-
-	-- 2. Audio Volume Slider Row (Just under playback controls)
-	local volSliderRow = Instance.new("Frame")
-	volSliderRow.Name = "VolumeSliderRow"
-	volSliderRow.Size = UDim2.new(1, 0, 0, 10)
-	volSliderRow.BackgroundTransparency = 1
-	volSliderRow.LayoutOrder = 2
-	volSliderRow.Parent = ctrlFrame
-
+	-- Mini Volume Track
 	local volTrack = Instance.new("Frame")
 	volTrack.Name = "VolTrack"
-	volTrack.Size = UDim2.new(1, -2, 0, 5)
-	volTrack.Position = UDim2.new(0, 1, 0.5, -2)
+	volTrack.Size = UDim2.new(0, 46, 0, 6)
+	volTrack.Position = UDim2.new(1, -48, 0.5, -3)
 	volTrack.BackgroundColor3 = UI.Theme.ContainerDark
 	volTrack.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	volTrack.BorderSizePixel = 0
-	volTrack.Parent = volSliderRow
+	volTrack.Parent = controlsBox
 	UI.registerThemeElement(volTrack, "ContainerDark")
 
 	local volTrackStroke = Instance.new("UIStroke")
-	volTrackStroke.Color = UI.Theme.BorderDim
+	volTrackStroke.Color = UI.Theme.Border
 	volTrackStroke.Thickness = 1
 	volTrackStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	volTrackStroke.Parent = volTrack
-	UI.registerThemeElement(volTrackStroke, "BorderDim")
-
-	local currentVolume = 0.8 -- default 80%
+	UI.registerThemeElement(volTrackStroke, "Border")
 
 	local volFill = Instance.new("Frame")
-	volFill.Name = "VolFill"
-	volFill.Size = UDim2.new(currentVolume, 0, 1, 0)
+	volFill.Name = "Fill"
+	volFill.Size = UDim2.new(0.8, 0, 1, 0)
 	volFill.BackgroundColor3 = UI.Theme.Accent
 	volFill.BorderSizePixel = 0
 	volFill.Parent = volTrack
 	UI.registerThemeElement(volFill, "Accent")
 
-	local volKnob = Instance.new("Frame")
-	volKnob.Name = "VolKnob"
-	volKnob.Size = UDim2.new(0, 7, 0, 9)
-	volKnob.Position = UDim2.new(currentVolume, -3, 0.5, -4)
-	volKnob.BackgroundColor3 = UI.Theme.Border
-	volKnob.BorderSizePixel = 0
-	volKnob.Parent = volTrack
-	UI.registerThemeElement(volKnob, "Border")
-
+	-- Volume Dragging
+	local currentVolume = 0.8
 	local volDragging = false
-
-	local function setVolume(volRatio: number)
-		currentVolume = math.clamp(volRatio, 0, 1)
+	local function setVolume(pct: number)
+		currentVolume = math.clamp(pct, 0, 1)
 		volFill.Size = UDim2.new(currentVolume, 0, 1, 0)
-		volKnob.Position = UDim2.new(currentVolume, -3, 0.5, -4)
-
-		-- Adjust game audio sound service
-		pcall(function()
-			local SoundService = game:GetService("SoundService")
-			for _, s in ipairs(SoundService:GetDescendants()) do
-				if s:IsA("Sound") then
-					local base = s:GetAttribute("OrigVolume") or s.Volume
-					s.Volume = (base :: number) * currentVolume
-				end
-			end
-		end)
-
-		-- Dispatch volume change to local media bridge
 		task.spawn(function()
 			pcall(function()
 				game:HttpGet(string.format("%s/volume?val=%d", BRIDGE_URL, math.floor(currentVolume * 100)))
@@ -528,17 +547,13 @@ function MusicTracker.new()
 		end
 	end)
 
-	-- ── Real-Time Audio Visualizer & Cover Update Logic ───────────────
+	-- ── Real-Time State & Visualizer Variables ────────────────────────
 	local isPlaying = false
-	local currentTrackIndex = 1
-	local lastCoverUrl = ""
 	local lastSongTitle = ""
+	local lastCoverUrl = ""
 	local lastCoverVersion = -1
-	local previousCoverFile: string? = nil
 	local currentSpectrum = { 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15 }
 	local currentAudioPeak = 0.0
-
-	-- Continuous Sub-Pixel Physics States
 	local currentHeights: {number} = {}
 	local currentVelocities: {number} = {}
 	local smoothedEnergy = 0.0
@@ -547,82 +562,19 @@ function MusicTracker.new()
 		currentVelocities[i] = 0.0
 	end
 
-	local function loadRealCoverBinary(v: number?)
-		local wrf = writefile or (getgenv and getgenv().writefile)
-		local mkf = makefolder or (getgenv and getgenv().makefolder)
-		local isfl = isfolder or (getgenv and getgenv().isfolder)
-		local dlf = delfile or (getgenv and getgenv().delfile)
-		local getAsset = getcustomasset or (getgenv and getgenv().getcustomasset) or getsynasset
-		
-		if type(wrf) == "function" and type(getAsset) == "function" then
-			pcall(function()
-				if type(mkf) == "function" and type(isfl) == "function" and not isfl("FihSuite") then
-					mkf("FihSuite")
-				end
-				local imgBytes = game:HttpGet(BRIDGE_URL .. "/cover.png?nocache=" .. tostring(os.time()) .. "_" .. tostring(math.random(1000, 9999)))
-				if imgBytes and #imgBytes > 100 then
-					local newFile = string.format("FihSuite/cover_%d_%d.png", os.time(), math.random(100, 999))
-					wrf(newFile, imgBytes)
-					local assetUri = getAsset(newFile)
-					if assetUri and assetUri ~= "" then
-						TweenService:Create(coverImg, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { ImageTransparency = 0.5 }):Play()
-						task.delay(0.12, function()
-							coverImg.Image = assetUri
-							coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
-							coverImg.Size = UDim2.new(1, 0, 1, 0)
-							coverImg.Position = UDim2.new(0, 0, 0, 0)
-							coverImg.ScaleType = Enum.ScaleType.Crop
-							TweenService:Create(coverImg, TweenInfo.new(0.18, Enum.EasingStyle.Quad), { ImageTransparency = 0 }):Play()
-						end)
-
-						if previousCoverFile and type(dlf) == "function" then
-							pcall(dlf, previousCoverFile)
-						end
-						previousCoverFile = newFile
-					end
-				end
-			end)
-		end
-	end
-
-	local function updateCover(coverUrl: string?, isIdle: boolean, coverVersion: number?)
-		if isIdle then
-			coverImg.Image = MUSIC_NOTE_ICON
-			coverImg.ImageColor3 = UI.Theme.Accent
-			coverImg.Size = UDim2.new(0, 52, 0, 52)
-			coverImg.Position = UDim2.new(0.5, -26, 0.5, -26)
-			coverImg.ScaleType = Enum.ScaleType.Fit
-			return
-		end
-
-		task.spawn(function()
-			loadRealCoverBinary(coverVersion)
-		end)
-
-		if coverUrl and coverUrl ~= "" and lastCoverUrl ~= coverUrl then
-			lastCoverUrl = coverUrl
-			if coverUrl:find("rbxassetid") then
-				coverImg.Image = coverUrl
-				coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
-				coverImg.Size = UDim2.new(1, 0, 1, 0)
-				coverImg.Position = UDim2.new(0, 0, 0, 0)
-				coverImg.ScaleType = Enum.ScaleType.Crop
-			end
-		end
-	end
-
-	
-	-- ── Synced Lyrics Engine (LRCLIB Cloud + Local Bridge IPC) ─────────
 	local parsedLrcLines: {{ ms: number, text: string }} = {}
 	local lastLrcTrack = ""
 	local serverProgressMs = 0
 	local serverDurationMs = 0
 	local lastSyncClock = os.clock()
 	local lastActiveLyric = ""
+	local hasExternalBridge = false
+	local activeGameSound: Sound? = nil
 
 	local function parseLrcString(lrcStr: string): {{ ms: number, text: string }}
 		local lines = {}
-		for raw in string.gmatch(lrcStr, "[^\r\n]+") do
+		for raw in string.gmatch(lrcStr, "[^
+]+") do
 			local minStr, secStr, milStr, text = string.match(raw, "%%[(%%d%%d):(%%d%%d)%%.?(%%d*)%%](.*)")
 			if minStr and secStr then
 				local mins = tonumber(minStr) or 0
@@ -642,7 +594,7 @@ function MusicTracker.new()
 
 	local function fetchLyricsForTrack(title: string, artist: string)
 		local songKey = string.lower(title) .. "::" .. string.lower(artist)
-		if songKey == lastLrcTrack then return end
+		if songKey == lastLrcTrack or title == "Waiting for Audio Session..." or title == "No Media Playing" then return end
 		lastLrcTrack = songKey
 
 		task.spawn(function()
@@ -666,7 +618,7 @@ function MusicTracker.new()
 				)
 
 				local raw = game:HttpGet(url)
-				if raw and raw ~= "" then
+				if raw and raw ~= "" and raw:find("{") then
 					local data = HttpService:JSONDecode(raw)
 					if data and data.syncedLyrics then
 						local lines = parseLrcString(data.syncedLyrics)
@@ -676,7 +628,8 @@ function MusicTracker.new()
 						end
 					elseif data and data.plainLyrics then
 						local lines = {}
-						for l in string.gmatch(data.plainLyrics, "[^\r\n]+") do
+						for l in string.gmatch(data.plainLyrics, "[^
+]+") do
 							local t = string.gsub(l, "^%%s*(.-)%%s*$", "%%1")
 							if t ~= "" then table.insert(lines, { ms = 0, text = t }) end
 						end
@@ -691,16 +644,9 @@ function MusicTracker.new()
 	local function updateActiveLyricFromTime(posMs: number)
 		if #parsedLrcLines == 0 then return end
 		local curLine = ""
-		local nextLine = ""
-
 		for i, item in ipairs(parsedLrcLines) do
 			if posMs >= item.ms then
 				curLine = item.text
-				if i < #parsedLrcLines then
-					nextLine = parsedLrcLines[i + 1].text
-				else
-					nextLine = ""
-				end
 			else
 				if curLine == "" and i == 1 then
 					curLine = item.text
@@ -715,25 +661,61 @@ function MusicTracker.new()
 		end
 	end
 
-	local function setTrack(t)
-		lastSongTitle = t.title
-		songTitleLabel.Text = string.format("%s — %s", t.title, t.artist)
-		lyricsLabel.Text = "♫ " .. t.lyrics
-		isPlaying = true
-		playBtn.Text = "❚❚"
-		updateCover(t.cover, false, nil)
-	end
-
-	updateCover(nil, true, nil)
-
-	-- ── Continuous 60+ FPS Lightning-Fast Spring-Damper Visualizer Physics ─
-	local visualizerConn = RunService.RenderStepped:Connect(function(dt: number)
-		if not widget.Visible then
-			if smoothedEnergy > 0 then
-				smoothedEnergy = 0
-			end
+	local function updateCover(coverUrl: string?, isIdle: boolean)
+		if isIdle or not coverUrl or coverUrl == "" then
+			coverImg.Image = MUSIC_NOTE_ICON
+			coverImg.ImageColor3 = UI.Theme.Accent
+			coverImg.ScaleType = Enum.ScaleType.Fit
 			return
 		end
+
+		if coverUrl:find("rbxassetid") or coverUrl:find("roblox.com") or coverUrl:find("http") then
+			coverImg.Image = coverUrl
+			coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
+			coverImg.ScaleType = Enum.ScaleType.Crop
+		end
+	end
+
+	-- ── Playback Controls Logic ──────────────────────────────────────
+	playBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(playBtn)
+		isPlaying = not isPlaying
+		playBtn.Text = if isPlaying then "❚❚" else "▶"
+
+		if activeGameSound then
+			pcall(function()
+				if isPlaying then activeGameSound:Resume() else activeGameSound:Pause() end
+			end)
+		end
+
+		task.spawn(function()
+			pcall(function()
+				game:HttpGet(BRIDGE_URL .. "/toggle")
+			end)
+		end)
+	end)
+
+	skipBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(skipBtn)
+		task.spawn(function()
+			pcall(function()
+				game:HttpGet(BRIDGE_URL .. "/skip")
+			end)
+		end)
+	end)
+
+	prevBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(prevBtn)
+		task.spawn(function()
+			pcall(function()
+				game:HttpGet(BRIDGE_URL .. "/prev")
+			end)
+		end)
+	end)
+
+	-- ── Continuous 60+ FPS Fluid Spring-Damper Visualizer Physics ────
+	RunService.RenderStepped:Connect(function(dt: number)
+		if not widget.Visible or not screenGui.Enabled then return end
 
 		local safeDt = math.clamp(dt or 0.016, 0.001, 0.05)
 		local isAudible = isPlaying or (currentAudioPeak > 0.005)
@@ -743,28 +725,6 @@ function MusicTracker.new()
 			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 60.0, 0.40, 0.98)
 		else
 			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 24.0, 0.15, 0.85)
-		end
-
-		-- Early exit if audio is inaudible/idle and bars have settled to rest position
-		if smoothedEnergy < 0.001 and not isAudible then
-			local allAtRest = true
-			for i = 1, 16 do
-				if currentHeights[i] > 3.05 or math.abs(currentVelocities[i]) > 0.05 then
-					allAtRest = false
-					break
-				end
-			end
-			if allAtRest then
-				for i = 1, 16 do
-					if currentHeights[i] ~= 3.0 then
-						currentHeights[i] = 3.0
-						currentVelocities[i] = 0.0
-						local bar = visualizerBars[i]
-						if bar then bar.Size = UDim2.new(0, 6, 0, 3) end
-					end
-				end
-				return
-			end
 		end
 
 		local t = os.clock()
@@ -778,141 +738,114 @@ function MusicTracker.new()
 			else
 				local rawSpec = currentSpectrum[i] or 0.15
 				local waveHarmonic = math.sin(t * 12.0 + i * 0.60) * 0.22 + math.cos(t * 7.5 - i * 0.45) * 0.14 + 0.68
-				local targetHeight = math.clamp(rawSpec * 28.0 * (smoothedEnergy * 1.20 + 0.15) * waveHarmonic + 3.0, 3.0, 34.0)
+				local targetHeight = math.clamp(rawSpec * 28.0 * (smoothedEnergy * 1.20 + 0.15) * waveHarmonic + 3.0, 3.0, 30.0)
 
-				-- High-speed physical spring with balanced damping for instant punch
 				local springForce = (targetHeight - currentHeights[i]) * 160.0
 				local dampingForce = currentVelocities[i] * 22.0
 				currentVelocities[i] = currentVelocities[i] + (springForce - dampingForce) * safeDt
-				currentHeights[i] = math.clamp(currentHeights[i] + currentVelocities[i] * safeDt, 3.0, 35.0)
+				currentHeights[i] = math.clamp(currentHeights[i] + currentVelocities[i] * safeDt, 3.0, 32.0)
 
 				bar.Size = UDim2.new(0, 6, 0, currentHeights[i])
 			end
 		end
 	end)
 
-	-- ── Playback Controls Logic ──────────────────────────────────────
-	local hasExternalBridge = false
-
-	playBtn.MouseButton1Click:Connect(function()
-		Animations.buttonClickPop(playBtn)
-		isPlaying = not isPlaying
-		playBtn.Text = if isPlaying then "❚❚" else "▶"
-		if isPlaying then
-			currentAudioPeak = 0.75
-			lastSyncClock = os.clock()
-			if serverDurationMs <= 0 then
-				serverDurationMs = 215000
-				serverProgressMs = 15000
-			end
-			if songTitleLabel.Text == "No Song Playing" or songTitleLabel.Text == "" then
-				setTrack(DEMO_TRACKS[currentTrackIndex])
-			end
-		else
-			currentAudioPeak = 0.0
-		end
-
-		task.spawn(function()
-			pcall(function()
-				game:HttpGet(BRIDGE_URL .. "/toggle")
-			end)
-		end)
-	end)
-
-	skipBtn.MouseButton1Click:Connect(function()
-		Animations.buttonClickPop(skipBtn)
-		currentTrackIndex = (currentTrackIndex % #DEMO_TRACKS) + 1
-		setTrack(DEMO_TRACKS[currentTrackIndex])
-		serverProgressMs = 0
-		serverDurationMs = 220000
-		lastSyncClock = os.clock()
-		isPlaying = true
-		currentAudioPeak = 0.8
-		playBtn.Text = "❚❚"
-		task.spawn(function()
-			pcall(function()
-				game:HttpGet(BRIDGE_URL .. "/skip")
-			end)
-		end)
-	end)
-
-	prevBtn.MouseButton1Click:Connect(function()
-		Animations.buttonClickPop(prevBtn)
-		currentTrackIndex = if currentTrackIndex > 1 then (currentTrackIndex - 1) else #DEMO_TRACKS
-		setTrack(DEMO_TRACKS[currentTrackIndex])
-		serverProgressMs = 0
-		serverDurationMs = 220000
-		lastSyncClock = os.clock()
-		isPlaying = true
-		currentAudioPeak = 0.8
-		playBtn.Text = "❚❚"
-		task.spawn(function()
-			pcall(function()
-				game:HttpGet(BRIDGE_URL .. "/prev")
-			end)
-		end)
-	end)
-
-	-- Initialize with demo track ready for instant playback
-	setTrack(DEMO_TRACKS[1])
-	isPlaying = true
-	currentAudioPeak = 0.65
-	serverProgressMs = 12000
-	serverDurationMs = 230000
-	lastSyncClock = os.clock()
-
-	-- ── Continuous Sub-Second Lyrics & Seek Bar Time Synchronizer ─────
+	-- ── Heartbeat Synchronizer & In-Game Sound Scanner ───────────────
 	RunService.Heartbeat:Connect(function()
-		if isPlaying and serverDurationMs > 0 then
-			local elapsed = (os.clock() - lastSyncClock) * 1000
-			local curMs = (serverProgressMs + elapsed) % serverDurationMs
-			updateActiveLyricFromTime(curMs)
+		if not widget.Visible or not screenGui.Enabled then return end
 
-			-- Advance seek bar smoothly
-			if not isDraggingSeek then
-				local ratio = math.clamp(curMs / serverDurationMs, 0, 1)
-				seekFill.Size = UDim2.new(ratio, 0, 1, 0)
-				local curSec = math.floor(curMs / 1000)
-				local totSec = math.floor(serverDurationMs / 1000)
-				timeLabel.Text = string.format("%d:%02d / %d:%02d", math.floor(curSec / 60), curSec % 60, math.floor(totSec / 60), totSec % 60)
-			end
+		-- In-Game Sound Tracking
+		if not hasExternalBridge then
+			local loudestSound: Sound? = nil
+			local maxLoudness = 0
 
-			-- Dynamic visualizer audio energy simulation when active
-			if not hasExternalBridge then
-				currentAudioPeak = 0.45 + (math.sin(os.clock() * 6) * 0.35)
-				for i = 1, 16 do
-					currentSpectrum[i] = math.clamp(0.2 + (math.sin(os.clock() * 8 + i * 0.8) * 0.5) + (math.cos(os.clock() * 4 - i * 0.4) * 0.3), 0.1, 1.0)
+			for _, s in ipairs(SoundService:GetDescendants()) do
+				if s:IsA("Sound") and s.IsPlaying and s.TimeLength > 5 then
+					if s.PlaybackLoudness > maxLoudness then
+						maxLoudness = s.PlaybackLoudness
+						loudestSound = s
+					end
 				end
 			end
+			if not loudestSound then
+				for _, s in ipairs(Workspace:GetDescendants()) do
+					if s:IsA("Sound") and s.IsPlaying and s.TimeLength > 5 then
+						if s.PlaybackLoudness > maxLoudness then
+							maxLoudness = s.PlaybackLoudness
+							loudestSound = s
+						end
+					end
+				end
+			end
+
+			if loudestSound then
+				activeGameSound = loudestSound
+				isPlaying = true
+				playBtn.Text = "❚❚"
+				currentAudioPeak = math.clamp(loudestSound.PlaybackLoudness / 320, 0.15, 1.0)
+
+				local sName = loudestSound.Name
+				if sName ~= lastSongTitle and sName ~= "" then
+					lastSongTitle = sName
+					songTitleLabel.Text = sName .. " (In-Game Audio)"
+					fetchLyricsForTrack(sName, "")
+				end
+
+				local curSec = math.floor(loudestSound.TimePosition)
+				local totSec = math.floor(loudestSound.TimeLength)
+				local ratio = if totSec > 0 then math.clamp(curSec / totSec, 0, 1) else 0
+				seekFill.Size = UDim2.new(ratio, 0, 1, 0)
+				timeLabel.Text = string.format("%d:%02d / %d:%02d", math.floor(curSec / 60), curSec % 60, math.floor(totSec / 60), totSec % 60)
+				updateActiveLyricFromTime(loudestSound.TimePosition * 1000)
+			elseif not hasExternalBridge and not isPlaying then
+				currentAudioPeak = 0.0
+			end
+		end
+
+		-- External Bridge Lyrics Progression
+		if hasExternalBridge and isPlaying and serverDurationMs > 0 then
+			local elapsed = (os.clock() - lastSyncClock) * 1000
+			local curMs = math.clamp(serverProgressMs + elapsed, 0, serverDurationMs)
+			updateActiveLyricFromTime(curMs)
+
+			local ratio = math.clamp(curMs / serverDurationMs, 0, 1)
+			seekFill.Size = UDim2.new(ratio, 0, 1, 0)
+			local curSec = math.floor(curMs / 1000)
+			local totSec = math.floor(serverDurationMs / 1000)
+			timeLabel.Text = string.format("%d:%02d / %d:%02d", math.floor(curSec / 60), curSec % 60, math.floor(totSec / 60), totSec % 60)
 		end
 	end)
 
-	-- ── Multi-Source Bridge & In-Game Sound Poller ────────────────────
+	-- ── Multi-Source Bridge Poller (IPC Files + Localhost HTTP) ───────
 	task.spawn(function()
 		local bridgeIndex = 1
 		local failCount = 0
 
 		while true do
-			local pollWait = if failCount > 0 then 3.0 else 1.5
+			local pollWait = if failCount > 0 then 2.5 else 1.2
 			task.wait(pollWait)
 
 			if widget.Visible and screenGui.Enabled then
 				local rawData: string? = nil
 
-				-- 1. Try file IPC (readfile) for 0ms local response
+				-- 1. Try local IPC files
 				local rf = readfile or (getgenv and getgenv().readfile)
 				local isf = isfile or (getgenv and getgenv().isfile)
 				if type(rf) == "function" and type(isf) == "function" then
-					pcall(function()
-						if isf("fih_bridge_state.json") then
-							rawData = rf("fih_bridge_state.json")
-						elseif isf("FihSuite/fih_bridge_state.json") then
-							rawData = rf("FihSuite/fih_bridge_state.json")
-						end
-					end)
+					for _, filePath in ipairs(IPC_FILES) do
+						pcall(function()
+							if isf(filePath) then
+								local content = rf(filePath)
+								if content and #content > 10 and content:find("{") then
+									rawData = content
+								end
+							end
+						end)
+						if rawData then break end
+					end
 				end
 
-				-- 2. Try HTTP endpoint if file IPC was empty
+				-- 2. Try HTTP endpoint ports
 				if not rawData or rawData == "" then
 					local currentUrl = BRIDGE_URLS[bridgeIndex]
 					local ok, res = pcall(function()
@@ -925,8 +858,8 @@ function MusicTracker.new()
 						BRIDGE_URL = currentUrl
 					else
 						failCount += 1
-						hasExternalBridge = false
-						if failCount >= 4 then
+						if failCount >= 3 then
+							hasExternalBridge = false
 							bridgeIndex = (bridgeIndex % #BRIDGE_URLS) + 1
 							failCount = 0
 						end
@@ -935,12 +868,12 @@ function MusicTracker.new()
 					hasExternalBridge = true
 				end
 
-				-- 3. Parse bridge state if active
+				-- 3. Parse decoded payload
 				if rawData and rawData ~= "" then
 					pcall(function()
 						local data = HttpService:JSONDecode(rawData)
-						local title = data.title or data.name
-						local artist = data.artist or "Unknown"
+						local title = data.title or data.name or data.track
+						local artist = data.artist or data.author or "Unknown"
 
 						if data and title and title ~= "" then
 							if data.spectrum and typeof(data.spectrum) == "table" then
@@ -957,26 +890,42 @@ function MusicTracker.new()
 								serverDurationMs = tonumber(data.duration_ms) or 0
 							end
 
-							local coverVersion = data.coverVersion or 0
-							if title ~= lastSongTitle or coverVersion ~= lastCoverVersion then
+							local isIdle = (title == "No Song Playing" or title == "Local Audio Session") and not data.isPlaying and currentAudioPeak <= 0.005
+
+							if title ~= lastSongTitle then
 								lastSongTitle = title
-								lastCoverVersion = coverVersion
 								parsedLrcLines = {}
 								lastActiveLyric = ""
 
-								songTitleLabel.Text = string.format("%s — %s", title, artist)
-								if data.lyrics and data.lyrics ~= "" then
-									lyricsLabel.Text = "♫ " .. data.lyrics
-									lastActiveLyric = data.lyrics
-								end
-								isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
-								playBtn.Text = if isPlaying then "❚❚" else "▶"
-								updateCover(data.cover, false, coverVersion)
-
-								if data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 then
-									parsedLrcLines = data.synced_lyrics
+								if isIdle then
+									songTitleLabel.Text = "No Media Playing"
+									lyricsLabel.Text = "♫ Play a song on Spotify, YouTube, or In-Game Audio"
+									isPlaying = false
+									playBtn.Text = "▶"
+									updateCover(nil, true)
 								else
-									fetchLyricsForTrack(title, artist)
+									songTitleLabel.Text = string.format("%s — %s", title, artist)
+									if data.lyrics and data.lyrics ~= "" then
+										lyricsLabel.Text = "♫ " .. data.lyrics
+										lastActiveLyric = data.lyrics
+									end
+									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
+									playBtn.Text = if isPlaying then "❚❚" else "▶"
+									updateCover(data.cover, false)
+
+									if data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 then
+										parsedLrcLines = data.synced_lyrics
+									else
+										fetchLyricsForTrack(title, artist)
+									end
+								end
+							else
+								if not isIdle then
+									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
+									playBtn.Text = if isPlaying then "❚❚" else "▶"
+									if data.lyrics and data.lyrics ~= "" and #parsedLrcLines == 0 then
+										lyricsLabel.Text = "♫ " .. data.lyrics
+									end
 								end
 							end
 						end
@@ -986,7 +935,7 @@ function MusicTracker.new()
 		end
 	end)
 
-	-- ── Dragging & Minimize/Close Handlers ────────────────────────────
+	-- ── Dragging Mechanics ───────────────────────────────────────────
 	local dragging = false
 	local dragInput: InputObject? = nil
 	local dragStart = Vector3.zero

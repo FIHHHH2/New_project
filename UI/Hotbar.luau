@@ -795,11 +795,44 @@ function Hotbar.new(): HotbarWidget
 		end)
 	end
 
-	-- ── Drag & Drop Handlers (Toolbar Moving / Sorting) ───────────────
+	-- ── Drag & Drop Handlers (Toolbar Moving / Sorting / Dropping) ───
 	local function isPointInsideGui(point: Vector2, gui: GuiObject): boolean
 		local pos = gui.AbsolutePosition
 		local size = gui.AbsoluteSize
 		return point.X >= pos.X and point.X <= (pos.X + size.X) and point.Y >= pos.Y and point.Y <= (pos.Y + size.Y)
+	end
+
+	local function findSlotUnderOrNearMouse(mousePos: Vector2): number?
+		-- 1. Exact hit test on individual slot buttons
+		for slotIdx = 1, NUM_SLOTS do
+			local slotFrame = slotFrames[slotIdx]
+			if slotFrame and isPointInsideGui(mousePos, slotFrame) then
+				return slotIdx
+			end
+		end
+
+		-- 2. Magnetic snap if released anywhere along the toolbar HUD (generous Y +/- 40px and X +/- 20px tolerance)
+		local hPos = hotbarFrame.AbsolutePosition
+		local hSize = hotbarFrame.AbsoluteSize
+		if mousePos.Y >= (hPos.Y - 45) and mousePos.Y <= (hPos.Y + hSize.Y + 45) and
+		   mousePos.X >= (hPos.X - 25) and mousePos.X <= (hPos.X + hSize.X + 25) then
+			local closestSlot: number? = nil
+			local minDist = math.huge
+			for slotIdx = 1, NUM_SLOTS do
+				local slotFrame = slotFrames[slotIdx]
+				if slotFrame then
+					local center = slotFrame.AbsolutePosition + slotFrame.AbsoluteSize / 2
+					local dist = math.abs(mousePos.X - center.X)
+					if dist < minDist then
+						minDist = dist
+						closestSlot = slotIdx
+					end
+				end
+			end
+			return closestSlot
+		end
+
+		return nil
 	end
 
 	local function startDragging(tool: Tool, fromSlot: number?, startMouse: Vector2)
@@ -836,15 +869,8 @@ function Hotbar.new(): HotbarWidget
 			slotFrames[fromSlot].BackgroundTransparency = UI.Theme.ContainerTransparency
 		end
 
-		-- 1. Check if dropped over a Hotbar Slot (Move / Swap Object in Toolbar)
-		local targetSlot: number? = nil
-		for slotIdx = 1, NUM_SLOTS do
-			local slotFrame = slotFrames[slotIdx]
-			if slotFrame and isPointInsideGui(endMouse, slotFrame) then
-				targetSlot = slotIdx
-				break
-			end
-		end
+		-- 1. Check if dropped over or near any Hotbar Slot (Move / Swap Object in Toolbar)
+		local targetSlot = findSlotUnderOrNearMouse(endMouse)
 
 		if targetSlot then
 			if fromSlot then
@@ -887,13 +913,18 @@ function Hotbar.new(): HotbarWidget
 			return
 		end
 
-		-- 3. Dropped OUTSIDE both Hotbar and Backpack -> Drop Tool into 3D world!
-		local inHotbar = isPointInsideGui(endMouse, hotbarFrame)
+		-- 3. Dropped OUTSIDE the entire toolbar region -> Drop Tool into 3D world!
+		local hPos = hotbarFrame.AbsolutePosition
+		local hSize = hotbarFrame.AbsoluteSize
+		local isNearHotbar = endMouse.Y >= (hPos.Y - 60) and endMouse.Y <= (hPos.Y + hSize.Y + 60) and
+		                     endMouse.X >= (hPos.X - 40) and endMouse.X <= (hPos.X + hSize.X + 40)
 		local inBackpack = bpWindow.Visible and isPointInsideGui(endMouse, bpWindow)
 
-		if not inHotbar and not inBackpack then
+		if not isNearHotbar and not inBackpack then
+			-- Dragged far out into the 3D world: drop the tool!
 			dropTool(tool)
 		else
+			-- Released slightly off-target near toolbar: safely snap back without dropping
 			updateHotbarVisuals()
 		end
 	end

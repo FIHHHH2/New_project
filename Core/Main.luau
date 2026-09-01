@@ -605,7 +605,7 @@ statsContainer.Size = UDim2.new(1, 0, 0, 0)
 statsContainer.AutomaticSize = Enum.AutomaticSize.Y
 statsContainer.BackgroundTransparency = 1
 statsContainer.BorderSizePixel = 0
-statsContainer.Parent = statsSection.Container
+statsContainer.Parent = statsSection
 
 local statsLayout = Instance.new("UIListLayout")
 statsLayout.Padding = UDim.new(0, 4)

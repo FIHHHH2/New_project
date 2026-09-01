@@ -406,6 +406,7 @@ function Hotbar.new(): HotbarWidget
 	local dragStartPos = Vector2.zero
 	local isDraggingActive = false
 	local justFinishedDrag = false
+	local equipOrToggleTool: ((Tool) -> ())
 
 	local function getAllTools(): {Tool}
 		local tools: {Tool} = {}
@@ -580,19 +581,19 @@ function Hotbar.new(): HotbarWidget
 			local equipped = isToolEquipped(tool)
 
 			if existingCard and existingCard.Parent == bpGridScroll then
-				existingCard.BackgroundColor3 = if equipped then UI.Theme.Accent else UI.Theme.ContainerDark
-				existingCard.BackgroundTransparency = if equipped then 0.15 else UI.Theme.ContainerDarkTransparency
+				existingCard.BackgroundColor3 = UI.Theme.ContainerDark
+				existingCard.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 
 				local itemStroke = existingCard:FindFirstChildWhichIsA("UIStroke")
 				if itemStroke then
-					itemStroke.Color = if equipped then UI.Theme.Border else UI.Theme.BorderDim
-					itemStroke.Thickness = if equipped then 1.8 else 1.0
+					itemStroke.Color = if equipped then UI.Theme.Accent else UI.Theme.BorderDim
+					itemStroke.Thickness = if equipped then 2.5 else 1.0
 				end
 
 				local tName = existingCard:FindFirstChild("ToolLabel") :: TextLabel?
 				if tName then
 					tName.Text = tool.Name
-					tName.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+					tName.TextColor3 = if equipped then UI.Theme.Accent else UI.Theme.TextPrimary
 				end
 
 				local badge = existingCard:FindFirstChild("EquippedBadge") :: TextLabel?
@@ -613,8 +614,8 @@ function Hotbar.new(): HotbarWidget
 				local itemCard = Instance.new("TextButton")
 				itemCard.Name = "Item_" .. tool.Name
 				itemCard.Size = UDim2.new(0, 84, 0, 74)
-				itemCard.BackgroundColor3 = if equipped then UI.Theme.Accent else UI.Theme.ContainerDark
-				itemCard.BackgroundTransparency = if equipped then 0.15 else UI.Theme.ContainerDarkTransparency
+				itemCard.BackgroundColor3 = UI.Theme.ContainerDark
+				itemCard.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 				itemCard.BorderSizePixel = 0
 				itemCard.Text = ""
 				itemCard.AutoButtonColor = false
@@ -624,8 +625,8 @@ function Hotbar.new(): HotbarWidget
 				Animations.buttonHoverPush(itemCard)
 
 				local itemStroke = Instance.new("UIStroke")
-				itemStroke.Color = if equipped then UI.Theme.Border else UI.Theme.BorderDim
-				itemStroke.Thickness = if equipped then 1.8 else 1.0
+				itemStroke.Color = if equipped then UI.Theme.Accent else UI.Theme.BorderDim
+				itemStroke.Thickness = if equipped then 2.5 else 1.0
 				itemStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 				itemStroke.Parent = itemCard
 				UI.registerThemeElement(itemStroke, "BorderDim")
@@ -714,7 +715,7 @@ function Hotbar.new(): HotbarWidget
 	end
 
 	-- Instant O(1) Equip or Unequip Toggle Function
-	local function equipOrToggleTool(tool: Tool)
+	equipOrToggleTool = function(tool: Tool)
 		local char = LocalPlayer.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")

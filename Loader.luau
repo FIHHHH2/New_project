@@ -15712,13 +15712,13 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     local require = requireModule
     --!strict
     --[=[
-        ✦ Seeker vs Hider Complete Automation & Combat Suite ✦
+        ✦ Seeker vs Hider High-Performance Combat & Exploit Suite ✦
         Features:
-        - True Silent Aim (Dual-Hook on FastCast:Fire & BulletHandler.FireBullet)
+        - True Silent Aim (Zero-lag FastCast:Fire & BulletHandler.FireBullet redirection)
         - Predictive 3D Trajectory Solver (Target Velocity * lead factor)
         - Target Part Selector (Head / Torso / HumanoidRootPart / Random)
         - FOV Check & Visualizer Integration
-        - Weapon Overclocks:
+        - Zero-Overhead Weapon Overclocks:
             - Zero Recoil & Zero Pushback
             - Zero Spread & Perfect Accuracy
             - Full Auto Conversion (fireMode = 2)
@@ -15726,7 +15726,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
             - Rapid Fire Rate Overclock
             - Instant Auto-Chamber
         - Environment & Boundary Exploits:
-            - Remove Map Death Barriers & Killbricks (killbrick, death, lava, hazard parts)
+            - Remove Map Death Barriers & Killbricks
             - Anti-Void Floating Safety Floor (5000x5000)
             - Auto / Manual Break All Map Glass
             - No Fall Damage & No Screen Blur / Suppression
@@ -15781,8 +15781,9 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     local hookInstalled = false
     local weaponConfigConn: RBXScriptConnection? = nil
     local barrierWatcherConn: RBXScriptConnection? = nil
-    local glassLoopConn: RBXScriptConnection? = nil
-    local speedLoopConn: RBXScriptConnection? = nil
+    local glassLoopThread: thread? = nil
+    local cachedWeaponStats: {any} = {}
+    local lastGcScan = 0
     
     -- ── 1. Target Acquisition & Trajectory Solver ─────────────────────────
     local function getScreenCenter(): Vector2
@@ -15815,7 +15816,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     				local part = char:FindFirstChild(targetPartName) or char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildWhichIsA("BasePart")
     				if part and part:IsA("BasePart") then
     					local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-    					if onScreen then
+    					if onScreen or screenPos.Z > 0 then
     						local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
     						if dist <= bestDist then
     							if SeekerVsHider.WallCheck then
@@ -15872,6 +15873,8 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     							if typeof(velocity) == "Vector3" then
     								local spd = velocity.Magnitude
     								velocity = newDir * (if spd > 10 then spd else 1000)
+    							elseif typeof(velocity) == "number" then
+    								velocity = if velocity > 10 then velocity else 1000
     							end
     						end
     					end
@@ -15918,49 +15921,59 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	hookInstalled = true
     end
     
-    -- ── 3. Weapon Stats Overclocker (Recoil, Spread, FireRate, Auto) ──────
-    function SeekerVsHider.applyWeaponConfigs()
-    	-- 1. Scan getgc for active weapon stats tables
+    -- ── 3. Zero-Allocation Weapon Stats Overclocker (Cached Tables) ───────
+    local function scanWeaponStats()
+    	if tick() - lastGcScan < 2.0 and #cachedWeaponStats > 0 then return end
+    	lastGcScan = tick()
     	if type(getgc) == "function" then
-    		for _, obj in ipairs(getgc(true)) do
-    			if type(obj) == "table" then
-    				local hasRecoil = rawget(obj, "recoil") ~= nil
-    				local hasSpread = rawget(obj, "spread") ~= nil
-    				local hasFireRate = rawget(obj, "fireRate") ~= nil or rawget(obj, "rpm") ~= nil
-    				local hasAmmo = rawget(obj, "startAmmoPool") ~= nil or rawget(obj, "magazineCapacity") ~= nil
-    
-    				if hasRecoil or hasSpread or hasFireRate or hasAmmo then
-    					if SeekerVsHider.NoSpread then
-    						rawset(obj, "spread", 0)
-    						rawset(obj, "minSpread", 0)
-    						rawset(obj, "maxSpread", 0)
+    		pcall(function()
+    			for _, obj in ipairs(getgc(true)) do
+    				if type(obj) == "table" then
+    					local hasRecoil = rawget(obj, "recoil") ~= nil
+    					local hasSpread = rawget(obj, "spread") ~= nil
+    					local hasFireRate = rawget(obj, "fireRate") ~= nil or rawget(obj, "rpm") ~= nil
+    					local hasAmmo = rawget(obj, "startAmmoPool") ~= nil or rawget(obj, "magazineCapacity") ~= nil
+    					if (hasRecoil or hasSpread or hasFireRate or hasAmmo) and not table.find(cachedWeaponStats, obj) then
+    						table.insert(cachedWeaponStats, obj)
     					end
-    					if SeekerVsHider.NoRecoil then
-    						rawset(obj, "recoil", 0)
-    						rawset(obj, "kickUp", 0)
-    						rawset(obj, "kickRight", 0)
-    						rawset(obj, "maxPushback", 0)
-    					end
-    					if SeekerVsHider.FullAuto then
-    						rawset(obj, "fireMode", 2)
-    						rawset(obj, "auto", true)
-    					end
-    					if SeekerVsHider.NoBulletDrop then
-    						rawset(obj, "bulletDrop", false)
-    					end
-    					if SeekerVsHider.FastFireRate then
-    						local rate = rawget(obj, "fireRate")
-    						if type(rate) == "number" and rate < 1200 then
-    							rawset(obj, "fireRate", math.floor(rate * SeekerVsHider.FireRateMultiplier))
-    						end
-    					end
-    					rawset(obj, "autoChamber", true)
     				end
     			end
+    		end)
+    	end
+    end
+    
+    function SeekerVsHider.applyWeaponConfigs()
+    	scanWeaponStats()
+    
+    	for _, obj in ipairs(cachedWeaponStats) do
+    		if SeekerVsHider.NoSpread then
+    			rawset(obj, "spread", 0)
+    			rawset(obj, "minSpread", 0)
+    			rawset(obj, "maxSpread", 0)
     		end
+    		if SeekerVsHider.NoRecoil then
+    			rawset(obj, "recoil", 0)
+    			rawset(obj, "kickUp", 0)
+    			rawset(obj, "kickRight", 0)
+    			rawset(obj, "maxPushback", 0)
+    		end
+    		if SeekerVsHider.FullAuto then
+    			rawset(obj, "fireMode", 2)
+    			rawset(obj, "auto", true)
+    		end
+    		if SeekerVsHider.NoBulletDrop then
+    			rawset(obj, "bulletDrop", false)
+    		end
+    		if SeekerVsHider.FastFireRate then
+    			local rate = rawget(obj, "fireRate")
+    			if type(rate) == "number" and rate < 1200 then
+    				rawset(obj, "fireRate", math.floor(rate * SeekerVsHider.FireRateMultiplier))
+    			end
+    		end
+    		rawset(obj, "autoChamber", true)
     	end
     
-    	-- 2. Modify SPH_Assets.GameConfig
+    	-- Modify SPH_Assets.GameConfig
     	local sphAssets = ReplicatedStorage:FindFirstChild("SPH_Assets")
     	local gameCfgMod = sphAssets and sphAssets:FindFirstChild("GameConfig")
     	if gameCfgMod and gameCfgMod:IsA("ModuleScript") then
@@ -15980,6 +15993,14 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     				end
     			end
     		end)
+    	end
+    
+    	-- Apply walk speed directly to Humanoid
+    	if LocalPlayer.Character then
+    		local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    		if hum and SeekerVsHider.SpeedBoost then
+    			hum.WalkSpeed = math.floor(16 * SeekerVsHider.SpeedMultiplier)
+    		end
     	end
     end
     
@@ -16079,8 +16100,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     			return selectgun:InvokeServer(gunName)
     		end)
     		if ok then
-    			task.defer(function()
-    				task.wait(0.15)
+    			task.delay(0.2, function()
     				SeekerVsHider.applyWeaponConfigs()
     			end)
     			return true
@@ -16164,16 +16184,18 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     
     function SeekerVsHider.setAutoBreakGlass(enabled: boolean)
     	SeekerVsHider.AutoBreakGlass = enabled
+    	if glassLoopThread then
+    		task.cancel(glassLoopThread)
+    		glassLoopThread = nil
+    	end
+    
     	if enabled then
-    		SeekerVsHider.breakAllGlass()
-    		if not glassLoopConn then
-    			glassLoopConn = task.spawn(function()
-    				while SeekerVsHider.AutoBreakGlass do
-    					SeekerVsHider.breakAllGlass()
-    					task.wait(2.5)
-    				end
-    			end) :: any
-    		end
+    		glassLoopThread = task.spawn(function()
+    			while SeekerVsHider.AutoBreakGlass do
+    				SeekerVsHider.breakAllGlass()
+    				task.wait(4.0)
+    			end
+    		end)
     	end
     end
     
@@ -16237,18 +16259,32 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     
     -- Initialize FastCast & BulletHandler hooks
     installBulletHook()
-    SeekerVsHider.applyWeaponConfigs()
+    task.spawn(function()
+    	task.wait(0.5)
+    	SeekerVsHider.applyWeaponConfigs()
+    end)
     
-    -- Continuous WeaponConfig Watcher
+    -- Hook character/backpack added to re-apply weapon configs on weapon equip (Zero per-frame loop)
+    if LocalPlayer.Character then
+    	LocalPlayer.Character.ChildAdded:Connect(function()
+    		task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
+    	end)
+    end
+    
+    LocalPlayer.CharacterAdded:Connect(function(char)
+    	task.delay(0.5, SeekerVsHider.applyWeaponConfigs)
+    	char.ChildAdded:Connect(function()
+    		task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
+    	end)
+    end)
+    
+    -- Lightweight Anti-Ragdoll watcher (Only active when enabled)
     if weaponConfigConn then
     	weaponConfigConn:Disconnect()
     	weaponConfigConn = nil
     end
     
     weaponConfigConn = RunService.Heartbeat:Connect(function()
-    	if SeekerVsHider.NoRecoil or SeekerVsHider.NoSpread or SeekerVsHider.FullAuto or SeekerVsHider.SpeedBoost then
-    		SeekerVsHider.applyWeaponConfigs()
-    	end
     	if SeekerVsHider.AntiRagdoll then
     		local char = LocalPlayer.Character
     		local hum = char and char:FindFirstChildOfClass("Humanoid")

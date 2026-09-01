@@ -168,7 +168,8 @@ function HealthWidget.new(): HealthWidgetInstance
 	local hudFrame = Instance.new("Frame")
 	hudFrame.Name = "HealthWidgetFrame"
 	hudFrame.Size = UDim2.new(0, HUD_WIDTH, 0, HUD_HEIGHT)
-	hudFrame.Position = UDim2.new(0, 16, 1, -(HUD_HEIGHT + 24))
+	hudFrame.AnchorPoint = Vector2.new(0.5, 0)
+	hudFrame.Position = UDim2.new(0.5, 0, 0, 10)
 	hudFrame.BackgroundColor3 = UI.Theme.Background
 	hudFrame.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	hudFrame.BorderSizePixel = 0

@@ -34,7 +34,8 @@ export type PlayerListWidget = {
 	Toggle: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
 	SetVisible: (selfOrVal: any, maybeVal: any) -> (),
 	OnClose: (() -> ())?,
-	OnOpen: (() -> ())?
+	OnOpen: (() -> ())?,
+	OnMinimize: ((isMin: boolean) -> ())?
 }
 
 local ROW_H = 38
@@ -357,6 +358,9 @@ function PlayerList.new(): PlayerListWidget
 		else
 			container.Visible = true
 			updateWidgetHeight()
+		end
+		if widgetObj and widgetObj.OnMinimize then
+			pcall(function() widgetObj.OnMinimize(minimized) end)
 		end
 	end)
 
@@ -821,6 +825,7 @@ function PlayerList.new(): PlayerListWidget
 		SetVisible = setWidgetVisible,
 		OnClose = nil,
 		OnOpen = nil,
+		OnMinimize = nil,
 	}
 	return widgetObj
 end

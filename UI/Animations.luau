@@ -214,11 +214,11 @@ function Animations.springOpen(frame: GuiObject, uiScale: UIScale?, onComplete: 
 	Animations.openWindow(frame, uiScale, onComplete)
 end
 
--- Window close transition (Spring scale 1.0 -> 0.92 Quad.In)
+-- Window close transition (Smooth cinematic zoom-out 1.0 -> 0.05 Back.In)
 function Animations.closeWindow(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
 	if uiScale then
-		local tween = TweenService:Create(uiScale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Scale = 0.92
+		local tween = TweenService:Create(uiScale, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+			Scale = 0.05
 		})
 		tween:Play()
 		tween.Completed:Connect(function()
@@ -236,11 +236,11 @@ function Animations.closeWindow(frame: GuiObject, uiScale: UIScale?, onComplete:
 	end
 end
 
--- Popup / context menu spring pop-in (0.88 -> 1.0 Back.Out)
+-- Popup / context menu spring pop-in (0.85 -> 1.0 Back.Out)
 function Animations.popIn(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
 	frame.Visible = true
 	if uiScale then
-		uiScale.Scale = 0.88
+		uiScale.Scale = 0.85
 		local tween = TweenService:Create(uiScale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 			Scale = 1.0
 		})
@@ -253,11 +253,11 @@ function Animations.popIn(frame: GuiObject, uiScale: UIScale?, onComplete: (() -
 	end
 end
 
--- Popup / context menu pop-out (1.0 -> 0.88 Quad.In)
+-- Popup / context menu pop-out (1.0 -> 0.05 Back.In)
 function Animations.popOut(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
 	if uiScale then
-		local tween = TweenService:Create(uiScale, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Scale = 0.88
+		local tween = TweenService:Create(uiScale, TweenInfo.new(0.20, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+			Scale = 0.05
 		})
 		tween:Play()
 		tween.Completed:Connect(function()

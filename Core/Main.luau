@@ -200,6 +200,12 @@ playerListWidget.OnOpen = function()
 	end
 end
 
+playerListWidget.OnMinimize = function(isMin: boolean)
+	if leaderstatsWidget and typeof(leaderstatsWidget.SetMinimized) == "function" then
+		leaderstatsWidget.SetMinimized(isMin)
+	end
+end
+
 _G.__ToggleProjectFihBackpack = function()
 	if hotbarWidget then
 		hotbarWidget.ToggleBackpack()

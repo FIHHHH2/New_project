@@ -912,24 +912,56 @@ function LeaderstatsWidget.new()
 		widget.Visible = false
 	end)
 
+	local isOpen = true
+	local isTransitioning = false
+
+	local function openWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
+		if isOpen or isTransitioning then return end
+		isTransitioning = true
+		pcall(autoDockNextToPlayerList)
+		Animations.openWindow(widget, uiScale, function()
+			isOpen = true
+			isTransitioning = false
+			if onComplete then onComplete() end
+		end)
+	end
+
+	local function closeWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
+		if not isOpen or isTransitioning then return end
+		isTransitioning = true
+		Animations.closeWindow(widget, uiScale, function()
+			isOpen = false
+			isTransitioning = false
+			if onComplete then onComplete() end
+		end)
+	end
+
+	local function toggleWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
+		if isOpen then
+			closeWidget(onComplete)
+		else
+			openWidget(onComplete)
+		end
+	end
+
 	self.Widget = widget
 	self.ScreenGui = screenGui
 	self.Dock = autoDockNextToPlayerList
+	self.Open = openWidget
+	self.Close = closeWidget
+	self.Toggle = toggleWidget
+	self.IsOpen = function() return isOpen end
+	self.SetMinimized = function(isMin: boolean)
+		minimized = isMin
+		body.Visible = not isMin
+	end
 	self.SetVisible = function(selfOrVal: any, maybeVal: any)
 		local vis = if typeof(selfOrVal) == "boolean" then selfOrVal else maybeVal
 		if typeof(vis) ~= "boolean" then vis = true end
-		widget.Visible = vis
-		if vis then
-			pcall(autoDockNextToPlayerList)
-			pcall(function()
-				if uiScale then
-					uiScale.Scale = 0.92
-					TweenService:Create(uiScale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-						Scale = 1.0
-					}):Play()
-				end
-			end)
-		end
+		if vis then openWidget() else closeWidget() end
 	end
 
 	return self

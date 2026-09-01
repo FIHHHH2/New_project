@@ -1126,49 +1126,58 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 		TweenService:Create(barStroke, TweenInfo.new(0.12), { Color = UI.Theme.Border, Thickness = 1.2 }):Play()
 	end)
 
-	local sliding = false
 	local currentVal = initialValue
+	local dragConn: RBXScriptConnection? = nil
+	local releaseConn: RBXScriptConnection? = nil
 
-	local function applyValue(val: number)
+	local function applyValue(val: number, isDragging: boolean?)
 		if val ~= currentVal then
 			currentVal = val
 			valLabel.Text = tostring(val)
 			valLabel.TextColor3 = UI.Theme.Accent
-			Animations.popScale(valLabel, 1.15, nil, 1.0, 0.15)
 		end
 		local ratio = math.clamp((val - min) / (max - min), 0, 1)
-		TweenService:Create(fill, TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = UDim2.new(ratio, 0, 1, 0)
-		}):Play()
+		if isDragging then
+			fill.Size = UDim2.new(ratio, 0, 1, 0)
+		else
+			fill.Size = UDim2.new(ratio, 0, 1, 0)
+		end
 	end
 
 	local function update(input: InputObject)
-		local ratio = math.clamp((input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+		local barWidth = bar.AbsoluteSize.X
+		if barWidth <= 0 then return end
+		local ratio = math.clamp((input.Position.X - bar.AbsolutePosition.X) / barWidth, 0, 1)
 		local rawVal = min + (max - min) * ratio
 		local val = math.floor(rawVal + 0.5)
-		applyValue(val)
-		FeatureManager.setSliderValue(name, val)
+		if val ~= currentVal then
+			applyValue(val, true)
+			FeatureManager.setSliderValue(name, val)
+		end
 	end
 
 	sliderRecord.onValueChanged = function(newVal: number)
-		applyValue(newVal)
+		applyValue(newVal, false)
 	end
 
 	bar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			sliding = true
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			update(input)
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					sliding = false
+			if dragConn then dragConn:Disconnect() end
+			if releaseConn then releaseConn:Disconnect() end
+
+			dragConn = UserInputService.InputChanged:Connect(function(moveInput)
+				if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
+					update(moveInput)
 				end
 			end)
-		end
-	end)
 
-	UserInputService.InputChanged:Connect(function(input)
-		if sliding and input.UserInputType == Enum.UserInputType.MouseMovement then
-			update(input)
+			releaseConn = UserInputService.InputEnded:Connect(function(endInput)
+				if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+					if dragConn then dragConn:Disconnect() dragConn = nil end
+					if releaseConn then releaseConn:Disconnect() releaseConn = nil end
+				end
+			end)
 		end
 	end)
 end
@@ -1206,22 +1215,37 @@ function CoreUI:AddButton(section: Frame, name: string, callback: () -> ())
 	btnStroke.Parent = btn
 	UI.registerThemeElement(btnStroke, "Border")
 
-	-- Micro-squash and border glow on hover/click with instant response (UIScale 0.96 down, 1.0 Back.Out up)
-	Animations.attachMicroSquash(
-		btn,
-		btnStroke,
-		function() return UI.Theme.Container end,
-		function() return UI.Theme.ContainerDark end,
-		function() return UI.Theme.Accent end,
-		function() return UI.Theme.Border end,
-		function() return UI.Theme.Accent end
-	)
+	-- Zero-lag instant button micro-squash and border feedback
+	local btnScale = Instance.new("UIScale")
+	btnScale.Scale = 1.0
+	btnScale.Parent = btn
+
+	btn.MouseEnter:Connect(function()
+		btn.BackgroundColor3 = UI.Theme.ContainerDark
+		btnStroke.Color = UI.Theme.Accent
+		btnStroke.Thickness = 1.6
+	end)
+
+	btn.MouseLeave:Connect(function()
+		btn.BackgroundColor3 = UI.Theme.Container
+		btnStroke.Color = UI.Theme.Border
+		btnStroke.Thickness = 1.2
+		btnScale.Scale = 1.0
+	end)
+
+	btn.MouseButton1Down:Connect(function()
+		btnScale.Scale = 0.95
+		btn.BackgroundColor3 = UI.Theme.Accent
+		btn.TextColor3 = UI.Theme.AccentText
+	end)
+
+	btn.MouseButton1Up:Connect(function()
+		btnScale.Scale = 1.0
+		btn.BackgroundColor3 = UI.Theme.ContainerDark
+		btn.TextColor3 = UI.Theme.TextPrimary
+	end)
 
 	btn.MouseButton1Click:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.08), { BackgroundColor3 = UI.Theme.Accent, TextColor3 = UI.Theme.AccentText }):Play()
-		task.delay(0.15, function()
-			TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = UI.Theme.Container, TextColor3 = UI.Theme.TextPrimary }):Play()
-		end)
 		callback()
 	end)
 end

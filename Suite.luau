@@ -5264,8 +5264,8 @@ Modules["UI/Hotbar.luau"] = function()
     	hotbarList.Parent = hotbarFrame
     
     	-- ── 2. Backpack Inventory Window ──────────────────────────────────
-    	local BP_WIDTH = 660
-    	local BP_HEIGHT = 340
+    	local BP_WIDTH = 700
+    	local BP_HEIGHT = 480
     	local bpWindow = Instance.new("Frame")
     	bpWindow.Name = "BackpackWindow"
     	bpWindow.Size = UDim2.new(0, BP_WIDTH, 0, BP_HEIGHT)
@@ -5277,6 +5277,11 @@ Modules["UI/Hotbar.luau"] = function()
     	bpWindow.Visible = false
     	bpWindow.Parent = screenGui
     	UI.registerThemeElement(bpWindow, "Background")
+    
+    	local bpUiScale = Instance.new("UIScale")
+    	bpUiScale.Name = "BpScale"
+    	bpUiScale.Scale = 1.0
+    	bpUiScale.Parent = bpWindow
     
     	local bpStroke = Instance.new("UIStroke")
     	bpStroke.Color = UI.Theme.Border
@@ -5312,6 +5317,39 @@ Modules["UI/Hotbar.luau"] = function()
     	bpTitle.TextXAlignment = Enum.TextXAlignment.Left
     	bpTitle.Parent = bpTopBar
     	UI.registerThemeElement(bpTitle, "TextPrimary")
+    
+    	-- Enable Dragging for Backpack Window
+    	local isBpDragging = false
+    	local bpDragStart = Vector2.zero
+    	local bpStartPos = UDim2.new()
+    
+    	bpTopBar.InputBegan:Connect(function(input)
+    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    			isBpDragging = true
+    			bpDragStart = input.Position
+    			bpStartPos = bpWindow.Position
+    			
+    			local conn: RBXScriptConnection
+    			conn = input.Changed:Connect(function()
+    				if input.UserInputState == Enum.UserInputState.End then
+    					isBpDragging = false
+    					conn:Disconnect()
+    				end
+    			end)
+    		end
+    	end)
+    
+    	UserInputService.InputChanged:Connect(function(input)
+    		if isBpDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+    			local delta = input.Position - bpDragStart
+    			bpWindow.Position = UDim2.new(
+    				bpStartPos.X.Scale,
+    				bpStartPos.X.Offset + delta.X,
+    				bpStartPos.Y.Scale,
+    				bpStartPos.Y.Offset + delta.Y
+    			)
+    		end
+    	end)
     
     	local bpCloseBtn = Instance.new("TextButton")
     	bpCloseBtn.Size = UDim2.new(0, 24, 1, -4)

@@ -4666,19 +4666,20 @@ __MODULE_SOURCES__["UI/Hotbar.luau"] = [====[--!strict
     ✦ Squared Retro Hotbar & 3D Model Viewport Backpack Inventory Widget ✦
     Features:
     - 10-slot bottom-center Hotbar HUD with live 3D ViewportFrame model previews
+    - Drag-to-sort slots: drag any hotbar item onto another slot to swap/reorder
+    - Drag-to-drop: dragging an item outside the HUD drops the item into the world
+    - Floating Drag Ghost cursor follower with tactile drop animations
     - Direct 1-0 keybind tool equipping with tactile spring micro-interactions
     - Full-featured expandable Backpack Grid with real-time 3D tool model viewports
-    - Live tool search, filtering, and [ Unequip All ] action
-    - Real-time inventory synchronization with Backpack and Character events
     - 100% Theme-reactive (Dark, Light, Translucent Dark, Translucent Light, Adaptive)
 ]=]
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local StarterGui = game:GetService("StarterGui")
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 local UI = require("UI/UI.luau")
 local Animations = require("UI/Animations.luau")
@@ -4725,14 +4726,11 @@ function Hotbar.getToolSignature(tool: Tool?): string
 	return string.format("%s_%s_%s", tool.Name, tool.TextureId, tostring(tool))
 end
 
--- ── 3D Viewport Helper for Tool Models with Explicit Part & Camera Cleanup ──
 local function cleanViewport(container: GuiObject)
 	local oldVp = container:FindFirstChild("ModelViewport")
 	if oldVp then
 		local oldCam = oldVp:FindFirstChildWhichIsA("Camera")
-		if oldCam then
-			oldCam:Destroy()
-		end
+		if oldCam then oldCam:Destroy() end
 		for _, child in ipairs(oldVp:GetChildren()) do
 			child:Destroy()
 		end
@@ -4756,12 +4754,10 @@ local function renderToolViewportCached(
 	local cached = cacheStore[cacheKey]
 	local existingVp = container:FindFirstChild("ModelViewport")
 
-	-- If cached tool state matches and ModelViewport instance already exists, skip re-cloning
 	if cached and existingVp and cached.Tool == tool and cached.Name == tool.Name and cached.TextureId == tool.TextureId and cached.Signature == sig then
 		return
 	end
 
-	-- Tool state is dirty: cleanly destroy old ViewportFrame, Camera, and Cloned Parts
 	cleanViewport(container)
 
 	local vp = Instance.new("ViewportFrame")
@@ -4787,7 +4783,7 @@ local function renderToolViewportCached(
 			clone.CanCollide = false
 			clone.Anchored = true
 			clone.Parent = vp
-			
+
 			local p = desc.Position
 			local sz = desc.Size
 			minBounds = Vector3.new(
@@ -4818,28 +4814,14 @@ local function renderToolViewportCached(
 
 	if count > 0 then
 		local center = (minBounds + maxBounds) / 2
-		local size = maxBounds - minBounds
-		local maxDim = math.max(size.X, size.Y, size.Z, 1.2)
+		local size = (maxBounds - minBounds)
+		local maxDim = math.max(size.X, size.Y, size.Z, 0.8)
 
 		local cam = Instance.new("Camera")
-		cam.FieldOfView = 42
-		local dist = maxDim * 1.65
-		local camOffset = Vector3.new(dist * 0.7, dist * 0.52, dist * 0.82)
-		cam.CFrame = CFrame.new(center + camOffset, center)
+		cam.FieldOfView = 50
+		cam.CFrame = CFrame.new(center + Vector3.new(maxDim * 1.3, maxDim * 0.9, maxDim * 1.3), center)
 		cam.Parent = vp
 		vp.CurrentCamera = cam
-	else
-		-- Fallback to tool icon texture if no 3D geometry exists
-		if tool.TextureId ~= "" then
-			local img = Instance.new("ImageLabel")
-			img.Size = UDim2.new(0.65, 0, 0.65, 0)
-			img.Position = UDim2.new(0.175, 0, 0.1, 0)
-			img.BackgroundTransparency = 1
-			img.Image = tool.TextureId
-			img.ScaleType = Enum.ScaleType.Fit
-			img.ZIndex = 4
-			img.Parent = vp
-		end
 	end
 
 	cacheStore[cacheKey] = {
@@ -4854,7 +4836,7 @@ function Hotbar.new(): HotbarWidget
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ModularHotbarGui"
 	screenGui.ResetOnSpawn = false
-	screenGui.DisplayOrder = 550
+	screenGui.DisplayOrder = 610
 	screenGui.IgnoreGuiInset = true
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -4863,35 +4845,45 @@ function Hotbar.new(): HotbarWidget
 		screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 	end
 
-	-- Disable default Roblox Backpack CoreGui safely
-	pcall(function()
-		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
-	end)
+	-- ── Drag Ghost Icon ───────────────────────────────────────────────
+	local dragGhost = Instance.new("Frame")
+	dragGhost.Name = "DragGhost"
+	dragGhost.Size = UDim2.new(0, 52, 0, 52)
+	dragGhost.BackgroundColor3 = UI.Theme.Accent
+	dragGhost.BackgroundTransparency = 0.3
+	dragGhost.BorderSizePixel = 0
+	dragGhost.Visible = false
+	dragGhost.ZIndex = 100
+	dragGhost.Parent = screenGui
 
-	-- ── 1. Hotbar HUD Container (Bottom-Center Dock) ──────────────────
-	local hotbarTotalW = (NUM_SLOTS * SLOT_SIZE) + ((NUM_SLOTS - 1) * SLOT_GAP) + 38
+	local ghostStroke = Instance.new("UIStroke")
+	ghostStroke.Color = UI.Theme.Border
+	ghostStroke.Thickness = 2
+	ghostStroke.Parent = dragGhost
+
+	local ghostLabel = Instance.new("TextLabel")
+	ghostLabel.Size = UDim2.new(1, -4, 0, 16)
+	ghostLabel.Position = UDim2.new(0, 2, 1, -18)
+	ghostLabel.BackgroundTransparency = 1
+	ghostLabel.TextColor3 = UI.Theme.AccentText
+	ghostLabel.Font = UI.Fonts.Header
+	ghostLabel.TextSize = 9
+	ghostLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	ghostLabel.ZIndex = 101
+	ghostLabel.Parent = dragGhost
+
+	-- ── 1. Hotbar HUD Container ───────────────────────────────────────
+	local totalWidth = (NUM_SLOTS * SLOT_SIZE) + ((NUM_SLOTS - 1) * SLOT_GAP) + 12
 	local hotbarFrame = Instance.new("Frame")
-	hotbarFrame.Name = "HotbarHUD"
-	hotbarFrame.Size = UDim2.new(0, hotbarTotalW, 0, SLOT_SIZE + 8)
-	hotbarFrame.Position = UDim2.new(0.5, -hotbarTotalW / 2, 1, -(SLOT_SIZE + 16))
+	hotbarFrame.Name = "HotbarFrame"
+	hotbarFrame.Size = UDim2.new(0, totalWidth, 0, SLOT_SIZE + 10)
+	hotbarFrame.Position = UDim2.new(0.5, -totalWidth / 2, 1, -(SLOT_SIZE + 24))
 	hotbarFrame.BackgroundColor3 = UI.Theme.Background
 	hotbarFrame.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	hotbarFrame.BorderSizePixel = 0
 	hotbarFrame.ClipsDescendants = false
 	hotbarFrame.Parent = screenGui
 	UI.registerThemeElement(hotbarFrame, "Background")
-
-	local hotbarGrad = Instance.new("UIGradient")
-	hotbarGrad.Rotation = 90
-	hotbarGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 210))
-	})
-	hotbarGrad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0),
-		NumberSequenceKeypoint.new(1, 0.15)
-	})
-	hotbarGrad.Parent = hotbarFrame
 
 	local hotbarStroke = Instance.new("UIStroke")
 	hotbarStroke.Color = UI.Theme.Border
@@ -4900,49 +4892,28 @@ function Hotbar.new(): HotbarWidget
 	hotbarStroke.Parent = hotbarFrame
 	UI.registerThemeElement(hotbarStroke, "Border")
 
-	local hotbarScale = Instance.new("UIScale")
-	hotbarScale.Scale = 1.0
-	hotbarScale.Parent = hotbarFrame
+	local hotbarList = Instance.new("UIListLayout")
+	hotbarList.FillDirection = Enum.FillDirection.Horizontal
+	hotbarList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	hotbarList.VerticalAlignment = Enum.VerticalAlignment.Center
+	hotbarList.Padding = UDim.new(0, SLOT_GAP)
+	hotbarList.SortOrder = Enum.SortOrder.LayoutOrder
+	hotbarList.Parent = hotbarFrame
 
-	local hotbarPad = Instance.new("UIPadding")
-	hotbarPad.PaddingLeft = UDim.new(0, 4)
-	hotbarPad.PaddingRight = UDim.new(0, 4)
-	hotbarPad.PaddingTop = UDim.new(0, 4)
-	hotbarPad.PaddingBottom = UDim.new(0, 4)
-	hotbarPad.Parent = hotbarFrame
-
-	local hotbarLayout = Instance.new("UIListLayout")
-	hotbarLayout.FillDirection = Enum.FillDirection.Horizontal
-	hotbarLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	hotbarLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	hotbarLayout.Padding = UDim.new(0, SLOT_GAP)
-	hotbarLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	hotbarLayout.Parent = hotbarFrame
-
-	-- ── 2. Full Backpack Inventory Window (Popup Grid) ────────────────
+	-- ── 2. Backpack Inventory Window ──────────────────────────────────
+	local BP_WIDTH = 480
+	local BP_HEIGHT = 340
 	local bpWindow = Instance.new("Frame")
-	bpWindow.Name = "BackpackInventoryWindow"
-	bpWindow.Size = UDim2.new(0, 470, 0, 320)
-	bpWindow.Position = UDim2.new(0.5, -235, 0.5, -160)
+	bpWindow.Name = "BackpackWindow"
+	bpWindow.Size = UDim2.new(0, BP_WIDTH, 0, BP_HEIGHT)
+	bpWindow.Position = UDim2.new(0.5, -BP_WIDTH / 2, 0.5, -BP_HEIGHT / 2)
 	bpWindow.BackgroundColor3 = UI.Theme.Background
 	bpWindow.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	bpWindow.BorderSizePixel = 0
+	bpWindow.ClipsDescendants = false
 	bpWindow.Visible = false
-	bpWindow.ZIndex = 80
 	bpWindow.Parent = screenGui
 	UI.registerThemeElement(bpWindow, "Background")
-
-	local bpGrad = Instance.new("UIGradient")
-	bpGrad.Rotation = 90
-	bpGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 210))
-	})
-	bpGrad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0),
-		NumberSequenceKeypoint.new(1, 0.15)
-	})
-	bpGrad.Parent = bpWindow
 
 	local bpStroke = Instance.new("UIStroke")
 	bpStroke.Color = UI.Theme.Border
@@ -4951,92 +4922,62 @@ function Hotbar.new(): HotbarWidget
 	bpStroke.Parent = bpWindow
 	UI.registerThemeElement(bpStroke, "Border")
 
-	local bpScale = Instance.new("UIScale")
-	bpScale.Scale = 1.0
-	bpScale.Parent = bpWindow
-
-	-- Backpack TopBar
-	local bpTopbar = Instance.new("Frame")
-	bpTopbar.Name = "TopBar"
-	bpTopbar.Size = UDim2.new(1, -12, 0, 28)
-	bpTopbar.Position = UDim2.new(0, 6, 0, 6)
-	bpTopbar.BackgroundColor3 = UI.Theme.Container
-	bpTopbar.BackgroundTransparency = UI.Theme.ContainerTransparency
-	bpTopbar.BorderSizePixel = 0
-	bpTopbar.Parent = bpWindow
-	UI.registerThemeElement(bpTopbar, "Container")
-
-	local bpTopGrad = Instance.new("UIGradient")
-	bpTopGrad.Rotation = 45
-	bpTopGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 230))
-	})
-	bpTopGrad.Parent = bpTopbar
+	local bpTopBar = Instance.new("Frame")
+	bpTopBar.Name = "TopBar"
+	bpTopBar.Size = UDim2.new(1, 0, 0, 28)
+	bpTopBar.BackgroundColor3 = UI.Theme.Container
+	bpTopBar.BackgroundTransparency = UI.Theme.ContainerTransparency
+	bpTopBar.BorderSizePixel = 0
+	bpTopBar.Parent = bpWindow
+	UI.registerThemeElement(bpTopBar, "Container")
 
 	local bpTopStroke = Instance.new("UIStroke")
-	bpTopStroke.Color = UI.Theme.Border
-	bpTopStroke.Thickness = 1.5
+	bpTopStroke.Color = UI.Theme.BorderDim
+	bpTopStroke.Thickness = 1
 	bpTopStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	bpTopStroke.Parent = bpTopbar
-	UI.registerThemeElement(bpTopStroke, "Border")
+	bpTopStroke.Parent = bpTopBar
+	UI.registerThemeElement(bpTopStroke, "BorderDim")
 
 	local bpTitle = Instance.new("TextLabel")
 	bpTitle.Size = UDim2.new(1, -60, 1, 0)
-	bpTitle.Position = UDim2.new(0, 8, 0, 0)
+	bpTitle.Position = UDim2.new(0, 10, 0, 0)
 	bpTitle.BackgroundTransparency = 1
-	bpTitle.Text = "Backpack Inventory (3D Preview) >>>>>"
+	bpTitle.Text = "Backpack Inventory (Sort & Drag)"
 	bpTitle.TextColor3 = UI.Theme.TextPrimary
 	bpTitle.Font = UI.Fonts.Header
 	bpTitle.TextSize = 11
 	bpTitle.TextXAlignment = Enum.TextXAlignment.Left
-	bpTitle.Parent = bpTopbar
+	bpTitle.Parent = bpTopBar
 	UI.registerThemeElement(bpTitle, "TextPrimary")
 
 	local bpCloseBtn = Instance.new("TextButton")
-	bpCloseBtn.Size = UDim2.new(0, 20, 0, 18)
-	bpCloseBtn.Position = UDim2.new(1, -24, 0, 5)
+	bpCloseBtn.Size = UDim2.new(0, 24, 1, -4)
+	bpCloseBtn.Position = UDim2.new(1, -26, 0, 2)
 	bpCloseBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	bpCloseBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	bpCloseBtn.BorderSizePixel = 0
 	bpCloseBtn.Text = "X"
 	bpCloseBtn.TextColor3 = UI.Theme.TextPrimary
 	bpCloseBtn.Font = UI.Fonts.Header
-	bpCloseBtn.TextSize = 10
-	bpCloseBtn.Parent = bpTopbar
+	bpCloseBtn.TextSize = 11
+	bpCloseBtn.Parent = bpTopBar
 	UI.registerThemeElement(bpCloseBtn, "ContainerDark")
 	UI.registerThemeElement(bpCloseBtn, "TextPrimary")
-
-	local bpCloseStroke = Instance.new("UIStroke")
-	bpCloseStroke.Color = UI.Theme.Border
-	bpCloseStroke.Thickness = 1
-	bpCloseStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	bpCloseStroke.Parent = bpCloseBtn
-	UI.registerThemeElement(bpCloseStroke, "Border")
+	Animations.buttonHoverPush(bpCloseBtn)
 
 	-- Search & Action Bar
 	local searchFrame = Instance.new("Frame")
-	searchFrame.Name = "SearchFrame"
 	searchFrame.Size = UDim2.new(1, -12, 0, 26)
-	searchFrame.Position = UDim2.new(0, 6, 0, 40)
-	searchFrame.BackgroundColor3 = UI.Theme.Container
-	searchFrame.BackgroundTransparency = UI.Theme.ContainerTransparency
+	searchFrame.Position = UDim2.new(0, 6, 0, 36)
+	searchFrame.BackgroundTransparency = 1
 	searchFrame.BorderSizePixel = 0
 	searchFrame.Parent = bpWindow
-	UI.registerThemeElement(searchFrame, "Container")
-
-	local searchStroke = Instance.new("UIStroke")
-	searchStroke.Color = UI.Theme.Border
-	searchStroke.Thickness = 1.2
-	searchStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	searchStroke.Parent = searchFrame
-	UI.registerThemeElement(searchStroke, "Border")
 
 	local searchBox = Instance.new("TextBox")
 	searchBox.Size = UDim2.new(1, -110, 1, 0)
-	searchBox.Position = UDim2.new(0, 8, 0, 0)
-	searchBox.BackgroundTransparency = 1
-	searchBox.Text = ""
+	searchBox.BackgroundColor3 = UI.Theme.Container
+	searchBox.BackgroundTransparency = UI.Theme.ContainerTransparency
+	searchBox.BorderSizePixel = 0
 	searchBox.PlaceholderText = "Search inventory tools..."
 	searchBox.PlaceholderColor3 = UI.Theme.TextSecondary
 	searchBox.TextColor3 = UI.Theme.TextPrimary
@@ -5048,8 +4989,8 @@ function Hotbar.new(): HotbarWidget
 	UI.registerThemeElement(searchBox, "TextPrimary")
 
 	local unequipAllBtn = Instance.new("TextButton")
-	unequipAllBtn.Size = UDim2.new(0, 96, 1, -4)
-	unequipAllBtn.Position = UDim2.new(1, -100, 0, 2)
+	unequipAllBtn.Size = UDim2.new(0, 96, 1, 0)
+	unequipAllBtn.Position = UDim2.new(1, -100, 0, 0)
 	unequipAllBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	unequipAllBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	unequipAllBtn.BorderSizePixel = 0
@@ -5060,19 +5001,14 @@ function Hotbar.new(): HotbarWidget
 	unequipAllBtn.Parent = searchFrame
 	UI.registerThemeElement(unequipAllBtn, "ContainerDark")
 	UI.registerThemeElement(unequipAllBtn, "TextPrimary")
-
-	local unequipStroke = Instance.new("UIStroke")
-	unequipStroke.Color = UI.Theme.Border
-	unequipStroke.Thickness = 1
-	unequipStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	unequipStroke.Parent = unequipAllBtn
-	UI.registerThemeElement(unequipStroke, "Border")
+	Animations.buttonHoverPush(unequipAllBtn)
 
 	unequipAllBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(unequipAllBtn)
 		local char = LocalPlayer.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		if hum then
-			hum:UnequipTools()
+			pcall(function() hum:UnequipTools() end)
 		end
 	end)
 
@@ -5090,13 +5026,6 @@ function Hotbar.new(): HotbarWidget
 	bpGridScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	bpGridScroll.Parent = bpWindow
 	UI.registerThemeElement(bpGridScroll, "Container")
-
-	local bpGridStroke = Instance.new("UIStroke")
-	bpGridStroke.Color = UI.Theme.Border
-	bpGridStroke.Thickness = 1.5
-	bpGridStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	bpGridStroke.Parent = bpGridScroll
-	UI.registerThemeElement(bpGridStroke, "Border")
 
 	local bpGridPad = Instance.new("UIPadding")
 	bpGridPad.PaddingLeft = UDim.new(0, 6)
@@ -5119,6 +5048,10 @@ function Hotbar.new(): HotbarWidget
 	local backpackCaches: {[Tool]: ToolViewportCache} = {}
 	local isBackpackOpen = false
 	local filterQuery = ""
+
+	local draggingTool: Tool? = nil
+	local draggingFromSlot: number? = nil
+	local dragStartPos = Vector2.zero
 
 	local function getAllTools(): {Tool}
 		local tools: {Tool} = {}
@@ -5159,8 +5092,133 @@ function Hotbar.new(): HotbarWidget
 		end
 	end
 
+	-- ── Drop Item Function ───────────────────────────────────────────
+	local function dropTool(tool: Tool)
+		local char = LocalPlayer.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+		-- Unequip first or drop in world
+		pcall(function()
+			if isToolEquipped(tool) and hum then
+				hum:UnequipTools()
+				task.wait(0.02)
+			end
+			if hrp then
+				tool.Parent = Workspace
+				local handle = tool:FindFirstChild("Handle") :: BasePart? or tool:FindFirstChildWhichIsA("BasePart")
+				if handle then
+					handle.CFrame = hrp.CFrame * CFrame.new(0, 0, -3)
+				end
+			else
+				tool.Parent = Workspace
+			end
+		end)
+
+		-- Unassign from slots
+		for i = 1, NUM_SLOTS do
+			if assignedSlots[i] == tool then
+				assignedSlots[i] = nil
+			end
+		end
+
+		pcall(function()
+			local Notification = require("UI/Notification.luau")
+			Notification.new("Inventory", string.format("Dropped '%s'", tool.Name), 2)
+		end)
+	end
+
+	-- ── Drag & Drop Handlers ─────────────────────────────────────────
+	local updateHotbarVisuals: () -> ()
+	local updateBackpackGrid: () -> ()
+
+	local function isPointInsideGui(point: Vector2, gui: GuiObject): boolean
+		local pos = gui.AbsolutePosition
+		local size = gui.AbsoluteSize
+		return point.X >= pos.X and point.X <= (pos.X + size.X) and point.Y >= pos.Y and point.Y <= (pos.Y + size.Y)
+	end
+
+	local function startDragging(tool: Tool, fromSlot: number?, startMouse: Vector2)
+		draggingTool = tool
+		draggingFromSlot = fromSlot
+		dragStartPos = startMouse
+
+		dragGhost.Position = UDim2.new(0, startMouse.X - 26, 0, startMouse.Y - 26)
+		ghostLabel.Text = tool.Name
+		dragGhost.Visible = true
+	end
+
+	local function finishDragging(endMouse: Vector2)
+		if not draggingTool then return end
+		local tool = draggingTool
+		local fromSlot = draggingFromSlot
+
+		dragGhost.Visible = false
+		draggingTool = nil
+		draggingFromSlot = nil
+
+		-- 1. Check if dropped over a Hotbar Slot (Swap / Reorder)
+		local targetSlot: number? = nil
+		for slotIdx = 1, NUM_SLOTS do
+			local slotFrame = slotFrames[slotIdx]
+			if slotFrame and isPointInsideGui(endMouse, slotFrame) then
+				targetSlot = slotIdx
+				break
+			end
+		end
+
+		if targetSlot then
+			if fromSlot then
+				-- Swap slot contents
+				local oldTargetTool = assignedSlots[targetSlot]
+				assignedSlots[targetSlot] = tool
+				assignedSlots[fromSlot] = oldTargetTool
+			else
+				-- From backpack onto hotbar slot
+				assignedSlots[targetSlot] = tool
+			end
+			Animations.popScale(slotFrames[targetSlot], 0.9, 1.08, 1.0, 0.18)
+			updateHotbarVisuals()
+			updateBackpackGrid()
+			return
+		end
+
+		-- 2. Check if dropped over Backpack Grid
+		if bpWindow.Visible and isPointInsideGui(endMouse, bpGridScroll) then
+			if fromSlot then
+				assignedSlots[fromSlot] = nil
+				updateHotbarVisuals()
+				updateBackpackGrid()
+			end
+			return
+		end
+
+		-- 3. Dropped OUTSIDE both Hotbar and Backpack -> Drop Tool into world!
+		local inHotbar = isPointInsideGui(endMouse, hotbarFrame)
+		local inBackpack = bpWindow.Visible and isPointInsideGui(endMouse, bpWindow)
+
+		if not inHotbar and not inBackpack then
+			dropTool(tool)
+			updateHotbarVisuals()
+			updateBackpackGrid()
+		end
+	end
+
+	UserInputService.InputChanged:Connect(function(input)
+		if draggingTool and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local mousePos = UserInputService:GetMouseLocation()
+			dragGhost.Position = UDim2.new(0, mousePos.X - 26, 0, mousePos.Y - 26)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if draggingTool and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+			finishDragging(UserInputService:GetMouseLocation())
+		end
+	end)
+
 	-- ── 4. Render Hotbar Slots ────────────────────────────────────────
-	local function updateHotbarVisuals()
+	updateHotbarVisuals = function()
 		local allTools = getAllTools()
 
 		for i = 1, NUM_SLOTS do
@@ -5215,9 +5273,6 @@ function Hotbar.new(): HotbarWidget
 							Thickness = 2.0
 						}):Play()
 					end
-					if uiScale and uiScale.Scale < 1.05 then
-						Animations.popScale(slotBtn, 0.95, 1.05, 1.0, 0.16)
-					end
 				else
 					TweenService:Create(slotBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 						BackgroundColor3 = UI.Theme.Container,
@@ -5247,7 +5302,7 @@ function Hotbar.new(): HotbarWidget
 	end
 
 	-- ── 5. Render Backpack Grid Items ─────────────────────────────────
-	local function updateBackpackGrid()
+	updateBackpackGrid = function()
 		local allTools = getAllTools()
 		local activeToolSet: {[Tool]: boolean} = {}
 
@@ -5270,7 +5325,6 @@ function Hotbar.new(): HotbarWidget
 			local equipped = isToolEquipped(tool)
 
 			if existingCard and existingCard.Parent == bpGridScroll then
-				-- Update visual state on existing card without destroying/re-cloning
 				existingCard.BackgroundColor3 = if equipped then UI.Theme.Accent else UI.Theme.ContainerDark
 				existingCard.BackgroundTransparency = if equipped then 0.15 else UI.Theme.ContainerDarkTransparency
 				UI.registerThemeElement(existingCard, if equipped then "Accent" else "ContainerDark")
@@ -5313,63 +5367,76 @@ function Hotbar.new(): HotbarWidget
 				itemCard.ClipsDescendants = true
 				itemCard.Parent = bpGridScroll
 				UI.registerThemeElement(itemCard, if equipped then "Accent" else "ContainerDark")
+				Animations.buttonHoverPush(itemCard)
 
 				local itemStroke = Instance.new("UIStroke")
 				itemStroke.Color = if equipped then UI.Theme.Border else UI.Theme.BorderDim
 				itemStroke.Thickness = if equipped then 1.8 else 1.0
 				itemStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 				itemStroke.Parent = itemCard
-				UI.registerThemeElement(itemStroke, "Border")
+				UI.registerThemeElement(itemStroke, "BorderDim")
 
-				-- 3D Model Viewport inside Backpack Item Card (with dirty checking)
+				local tLabel = Instance.new("TextLabel")
+				tLabel.Name = "ToolLabel"
+				tLabel.Size = UDim2.new(1, -6, 0, 16)
+				tLabel.Position = UDim2.new(0, 3, 1, -18)
+				tLabel.BackgroundTransparency = 1
+				tLabel.Text = tool.Name
+				tLabel.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+				tLabel.Font = UI.Fonts.Header
+				tLabel.TextSize = 9
+				tLabel.TextTruncate = Enum.TextTruncate.AtEnd
+				tLabel.ZIndex = 5
+				tLabel.Parent = itemCard
+				UI.registerThemeElement(tLabel, "TextPrimary")
+
+				local eqBadge = Instance.new("TextLabel")
+				eqBadge.Name = "EquippedBadge"
+				eqBadge.Size = UDim2.new(1, -6, 0, 12)
+				eqBadge.Position = UDim2.new(0, 3, 0, 2)
+				eqBadge.BackgroundTransparency = 1
+				eqBadge.Text = if equipped then "EQUIPPED" else ""
+				eqBadge.TextColor3 = UI.Theme.AccentText
+				eqBadge.Font = UI.Fonts.Mono
+				eqBadge.TextSize = 8
+				eqBadge.ZIndex = 5
+				eqBadge.Parent = itemCard
+				UI.registerThemeElement(eqBadge, "AccentText")
+
 				renderToolViewportCached(itemCard, tool, tool, backpackCaches)
 
-				local tName = Instance.new("TextLabel")
-				tName.Name = "ToolLabel"
-				tName.Size = UDim2.new(1, -6, 0, 14)
-				tName.Position = UDim2.new(0, 3, 1, -24)
-				tName.BackgroundTransparency = 1
-				tName.Text = tool.Name
-				tName.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
-				tName.Font = UI.Fonts.Header
-				tName.TextSize = 9
-				tName.TextTruncate = Enum.TextTruncate.AtEnd
-				tName.ZIndex = 10
-				tName.Parent = itemCard
-				UI.registerThemeElement(tName, "TextPrimary")
+				-- Drag start or Click equip
+				local cardPressPos = Vector2.zero
+				itemCard.InputBegan:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						cardPressPos = UserInputService:GetMouseLocation()
+					end
+				end)
 
-				local badge = Instance.new("TextLabel")
-				badge.Name = "EquippedBadge"
-				badge.Size = UDim2.new(1, 0, 0, 10)
-				badge.Position = UDim2.new(0, 0, 1, -11)
-				badge.BackgroundTransparency = 1
-				badge.Text = if equipped then "EQUIPPED" else ""
-				badge.TextColor3 = UI.Theme.AccentText
-				badge.Font = UI.Fonts.Mono
-				badge.TextSize = 8
-				badge.ZIndex = 10
-				badge.Parent = itemCard
-
-				Animations.attachMicroSquash(itemCard, itemStroke, function()
-					return if isToolEquipped(tool) then UI.Theme.Accent else UI.Theme.ContainerDark
-				end, function()
-					return UI.Theme.Accent
-				end, function()
-					return UI.Theme.AccentDark
+				itemCard.InputChanged:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+						if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and not draggingTool then
+							local curPos = UserInputService:GetMouseLocation()
+							if (curPos - cardPressPos).Magnitude > 8 then
+								startDragging(tool, nil, curPos)
+							end
+						end
+					end
 				end)
 
 				itemCard.MouseButton1Click:Connect(function()
-					equipOrToggleTool(tool)
-					task.wait(0.04)
-					updateHotbarVisuals()
-					updateBackpackGrid()
+					if not draggingTool then
+						equipOrToggleTool(tool)
+						task.wait(0.04)
+						updateHotbarVisuals()
+						updateBackpackGrid()
+					end
 				end)
 
 				backpackCards[tool] = itemCard
 			end
 		end
 
-		-- Clean up cards for tools that were removed from inventory
 		for oldTool, oldCard in pairs(backpackCards) do
 			if not activeToolSet[oldTool] then
 				cleanViewport(oldCard)
@@ -5423,8 +5490,8 @@ function Hotbar.new(): HotbarWidget
 
 		local nameLabel = Instance.new("TextLabel")
 		nameLabel.Name = "ToolName"
-		nameLabel.Size = UDim2.new(1, -4, 0, 14)
-		nameLabel.Position = UDim2.new(0, 2, 1, -15)
+		nameLabel.Size = UDim2.new(1, -4, 0, 12)
+		nameLabel.Position = UDim2.new(0, 2, 1, -14)
 		nameLabel.BackgroundTransparency = 1
 		nameLabel.Text = ""
 		nameLabel.TextColor3 = UI.Theme.TextPrimary
@@ -5435,210 +5502,159 @@ function Hotbar.new(): HotbarWidget
 		nameLabel.Parent = slotBtn
 		UI.registerThemeElement(nameLabel, "TextPrimary")
 
-		Animations.attachMicroSquash(slotBtn, slotStroke, function()
-			local tool = assignedSlots[i]
-			if tool and isToolEquipped(tool) then
-				return UI.Theme.Accent
+		Animations.buttonHoverPush(slotBtn)
+
+		-- Slot Dragging & Clicking
+		local slotPressPos = Vector2.zero
+		slotBtn.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				slotPressPos = UserInputService:GetMouseLocation()
 			end
-			return UI.Theme.Container
-		end, function()
-			return UI.Theme.ContainerDark
-		end, function()
-			return UI.Theme.Accent
+		end)
+
+		slotBtn.InputChanged:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+				if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and not draggingTool then
+					local curTool = assignedSlots[i]
+					if curTool then
+						local curPos = UserInputService:GetMouseLocation()
+						if (curPos - slotPressPos).Magnitude > 8 then
+							startDragging(curTool, i, curPos)
+						end
+					end
+				end
+			end
 		end)
 
 		slotBtn.MouseButton1Click:Connect(function()
-			local tool = assignedSlots[i]
-			if tool then
-				equipOrToggleTool(tool)
-				task.wait(0.02)
-				updateHotbarVisuals()
+			if not draggingTool then
+				local tool = assignedSlots[i]
+				if tool then
+					Animations.buttonClickPop(slotBtn)
+					equipOrToggleTool(tool)
+					task.wait(0.04)
+					updateHotbarVisuals()
+					updateBackpackGrid()
+				end
 			end
 		end)
 
 		slotFrames[i] = slotBtn
 	end
 
-	-- ── 7. Backpack Expand Button on Hotbar [ ≡ ] ─────────────────────
-	local bpToggleBtn = Instance.new("TextButton")
-	bpToggleBtn.Name = "BackpackToggleBtn"
-	bpToggleBtn.Size = UDim2.new(0, 30, 0, SLOT_SIZE)
-	bpToggleBtn.BackgroundColor3 = UI.Theme.ContainerDark
-	bpToggleBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
-	bpToggleBtn.BorderSizePixel = 0
-	bpToggleBtn.Text = "≡"
-	bpToggleBtn.TextColor3 = UI.Theme.TextPrimary
-	bpToggleBtn.Font = UI.Fonts.Header
-	bpToggleBtn.TextSize = 14
-	bpToggleBtn.LayoutOrder = NUM_SLOTS + 1
-	bpToggleBtn.Parent = hotbarFrame
-	UI.registerThemeElement(bpToggleBtn, "ContainerDark")
-	UI.registerThemeElement(bpToggleBtn, "TextPrimary")
-
-	local bpToggleStroke = Instance.new("UIStroke")
-	bpToggleStroke.Color = UI.Theme.Border
-	bpToggleStroke.Thickness = 1.2
-	bpToggleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	bpToggleStroke.Parent = bpToggleBtn
-	UI.registerThemeElement(bpToggleStroke, "Border")
-
-	local function openBackpackWindow()
-		if isBackpackOpen then return end
-		isBackpackOpen = true
-		updateBackpackGrid()
-		Animations.popIn(bpWindow, bpScale)
-	end
-
-	local function closeBackpackWindow()
-		if not isBackpackOpen then return end
-		isBackpackOpen = false
-		Animations.popOut(bpWindow, bpScale)
-	end
-
-	local function toggleBackpackWindow()
-		if isBackpackOpen then
-			closeBackpackWindow()
-		else
-			openBackpackWindow()
-		end
-	end
-
-	bpToggleBtn.MouseButton1Click:Connect(toggleBackpackWindow)
-	bpCloseBtn.MouseButton1Click:Connect(closeBackpackWindow)
-
-	-- TopBar drag on Backpack Window
-	local bpDragging = false
-	local bpDragStart = Vector3.zero
-	local bpStartAbsPos = Vector2.zero
-	local bpDragInput: InputObject? = nil
-
-	bpTopbar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			bpDragging = true
-			bpDragStart = input.Position
-			bpStartAbsPos = bpWindow.AbsolutePosition
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					bpDragging = false
-				end
-			end)
-		end
-	end)
-
-	bpTopbar.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			bpDragInput = input
-		end
-	end)
-
-	UserInputService.InputChanged:Connect(function(input)
-		if bpDragging and input == bpDragInput then
-			local delta = input.Position - bpDragStart
-			local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-			local posX = math.clamp(bpStartAbsPos.X + delta.X, 4, math.max(4, vp.X - bpWindow.AbsoluteSize.X - 4))
-			local posY = math.clamp(bpStartAbsPos.Y + delta.Y, 4, math.max(4, vp.Y - bpWindow.AbsoluteSize.Y - 4))
-			bpWindow.Position = UDim2.new(0, posX, 0, posY)
-		end
-	end)
-
+	-- ── 7. Search Filter & Events ─────────────────────────────────────
 	searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 		filterQuery = searchBox.Text
 		updateBackpackGrid()
 	end)
 
-	-- ── 8. Number Key & Tilde Listeners (1-0, `) ──────────────────────
+	bpCloseBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(bpCloseBtn)
+		isBackpackOpen = false
+		bpWindow.Visible = false
+	end)
+
+	local function toggleBackpack()
+		isBackpackOpen = not isBackpackOpen
+		bpWindow.Visible = isBackpackOpen
+		if isBackpackOpen then
+			updateBackpackGrid()
+			Animations.springOpen(bpWindow)
+		end
+	end
+
+	-- Keybinds for 1-0 hotbar selection
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
-
-		-- Tilde / Backquote opens backpack grid
-		if input.KeyCode == Enum.KeyCode.Backquote or input.KeyCode == Enum.KeyCode.Tilde then
-			toggleBackpackWindow()
-			return
-		end
-
-		for slotNum, key in ipairs(KEYCODES) do
-			if input.KeyCode == key then
-				local tool = assignedSlots[slotNum]
-				if tool then
-					equipOrToggleTool(tool)
-					task.wait(0.02)
-					updateHotbarVisuals()
+		if input.UserInputType == Enum.UserInputType.Keyboard then
+			for slotNum, key in ipairs(KEYCODES) do
+				if input.KeyCode == key then
+					local tool = assignedSlots[slotNum]
+					if tool then
+						local btn = slotFrames[slotNum]
+						if btn then Animations.buttonClickPop(btn) end
+						equipOrToggleTool(tool)
+						task.wait(0.04)
+						updateHotbarVisuals()
+						updateBackpackGrid()
+					end
+					break
 				end
-				break
+			end
+			if input.KeyCode == Enum.KeyCode.Backquote then
+				toggleBackpack()
 			end
 		end
 	end)
 
-	-- ── 9. Backpack & Character Event Hooks ───────────────────────────
-	local invConnections: {RBXScriptConnection} = {}
-	local function disconnectInventoryEvents()
-		for _, conn in ipairs(invConnections) do
-			pcall(function() conn:Disconnect() end)
-		end
-		table.clear(invConnections)
+	-- Inventory changes
+	local function bindCharEvents(char: Model)
+		char.ChildAdded:Connect(function(child)
+			if child:IsA("Tool") then
+				task.wait(0.02)
+				updateHotbarVisuals()
+				updateBackpackGrid()
+			end
+		end)
+		char.ChildRemoved:Connect(function(child)
+			if child:IsA("Tool") then
+				task.wait(0.02)
+				updateHotbarVisuals()
+				updateBackpackGrid()
+			end
+		end)
 	end
 
-	local function hookInventoryEvents()
-		disconnectInventoryEvents()
-		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-		if bp then
-			table.insert(invConnections, bp.ChildAdded:Connect(function()
-				task.wait(0.03)
-				updateHotbarVisuals()
-				if isBackpackOpen then updateBackpackGrid() end
-			end))
-			table.insert(invConnections, bp.ChildRemoved:Connect(function()
-				task.wait(0.03)
-				updateHotbarVisuals()
-				if isBackpackOpen then updateBackpackGrid() end
-			end))
-		end
+	if LocalPlayer.Character then bindCharEvents(LocalPlayer.Character) end
+	LocalPlayer.CharacterAdded:Connect(bindCharEvents)
 
-		local char = LocalPlayer.Character
-		if char then
-			table.insert(invConnections, char.ChildAdded:Connect(function(child)
-				if child:IsA("Tool") then
-					task.wait(0.03)
-					updateHotbarVisuals()
-					if isBackpackOpen then updateBackpackGrid() end
-				end
-			end))
-			table.insert(invConnections, char.ChildRemoved:Connect(function(child)
-				if child:IsA("Tool") then
-					task.wait(0.03)
-					updateHotbarVisuals()
-					if isBackpackOpen then updateBackpackGrid() end
-				end
-			end))
-		end
+	local function bindBpEvents(bp: Backpack)
+		bp.ChildAdded:Connect(function(child)
+			if child:IsA("Tool") then
+				task.wait(0.02)
+				updateHotbarVisuals()
+				updateBackpackGrid()
+			end
+		end)
+		bp.ChildRemoved:Connect(function(child)
+			if child:IsA("Tool") then
+				task.wait(0.02)
+				updateHotbarVisuals()
+				updateBackpackGrid()
+			end
+		end)
 	end
 
-	LocalPlayer.CharacterAdded:Connect(function()
-		task.wait(0.3)
-		hookInventoryEvents()
-		updateHotbarVisuals()
+	local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+	if bp then bindBpEvents(bp) end
+	LocalPlayer.ChildAdded:Connect(function(child)
+		if child:IsA("Backpack") then bindBpEvents(child :: Backpack) end
 	end)
 
-	hookInventoryEvents()
-	updateHotbarVisuals()
+	-- Initial render
+	task.spawn(function()
+		task.wait(0.3)
+		updateHotbarVisuals()
+		updateBackpackGrid()
+	end)
 
-	return {
+	local widgetObj: HotbarWidget = {
 		HotbarFrame = hotbarFrame,
 		BackpackWindow = bpWindow,
 		SetVisible = function(selfOrVal: any, maybeVal: any)
-			local v = if type(selfOrVal) == "boolean" then selfOrVal elseif type(maybeVal) == "boolean" then maybeVal else true
-			hotbarFrame.Visible = v
-			if not v and isBackpackOpen then
-				closeBackpackWindow()
-			end
+			local val = if typeof(selfOrVal) == "boolean" then selfOrVal else maybeVal
+			hotbarFrame.Visible = val
+			if not val then bpWindow.Visible = false end
 		end,
-		ToggleBackpack = toggleBackpackWindow,
-		IsOpen = function() return hotbarFrame.Visible end,
+		ToggleBackpack = toggleBackpack,
+		IsOpen = function() return isBackpackOpen end,
 		Refresh = function()
 			updateHotbarVisuals()
-			if isBackpackOpen then updateBackpackGrid() end
+			updateBackpackGrid()
 		end
 	}
+
+	return widgetObj
 end
 
 return Hotbar

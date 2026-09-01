@@ -19,16 +19,7 @@ local function safeParentGui(gui: ScreenGui)
 	local pgui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui", 5))
 
 	local parented = false
-	if type(gethui) == "function" then
-		pcall(function()
-			local h = gethui()
-			if h then
-				gui.Parent = h
-				parented = (gui.Parent == h)
-			end
-		end)
-	end
-	if not parented and CoreGui then
+	if CoreGui then
 		pcall(function()
 			gui.Parent = CoreGui
 			parented = (gui.Parent == CoreGui)
@@ -38,6 +29,15 @@ local function safeParentGui(gui: ScreenGui)
 		pcall(function()
 			gui.Parent = pgui
 			parented = (gui.Parent == pgui)
+		end)
+	end
+	if not parented and type(gethui) == "function" then
+		pcall(function()
+			local h = gethui()
+			if h and not h:IsA("ScreenGui") then
+				gui.Parent = h
+				parented = (gui.Parent == h)
+			end
 		end)
 	end
 end

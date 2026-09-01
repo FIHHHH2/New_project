@@ -1315,10 +1315,19 @@ elseif gameTabTitle == "Ice Tycoon" then
 	-- ── 2. RESOURCES & FARMING ───────────────────────────────────
 	local farmLeftCol, farmRightCol = window:CreateColumns(farmSubTab)
 
-	local toolSection = window:AddSection(farmLeftCol, "Tools & Dispensers")
+	local toolSection = window:AddSection(farmLeftCol, "Tools & Farm Automation")
 	window:AddButton(toolSection, "Claim Starter Tools & Keys", function()
 		local count = IceTycoon.claimAllTools()
 		window:Notify("Ice Tycoon", string.format("Claimed %d tools/keys (Pickaxe, Key, Lever)", count), 3)
+	end)
+
+	window:AddToggle(toolSection, "ice_auto_harvest", "Auto-Harvest Ice Flowers", false, nil, function(enabled)
+		IceTycoon.setAutoHarvestFlowers(enabled)
+	end)
+
+	window:AddButton(toolSection, "Harvest All Ice Flowers Now", function()
+		local count = IceTycoon.harvestFlowersNow()
+		window:Notify("Ice Tycoon", string.format("Harvested %d mature flower plots", count), 2.5)
 	end)
 
 	window:AddToggle(toolSection, "ice_auto_water", "Auto-Fill Water Reservoir", false, nil, function(enabled)

@@ -200,16 +200,19 @@ local function getAvailableButtons(): {Instance}
 	local extraFolder = tycoon:FindFirstChild("ExtraButtons")
 
 	local allButtons: {Instance} = {}
-	if buttonsFolder then
-		for _, b in ipairs(buttonsFolder:GetChildren()) do
-			table.insert(allButtons, b)
+	local function checkFolder(folder: Instance?)
+		if not folder then return end
+		for _, b in ipairs(folder:GetChildren()) do
+			local touch = b:FindFirstChild("Touch") or b:FindFirstChild("Head") or b:FindFirstChildWhichIsA("BasePart")
+			-- Only collect buttons that are active on the surface (not hidden underground)
+			if touch and touch.Position.Y > -50 then
+				table.insert(allButtons, b)
+			end
 		end
 	end
-	if extraFolder then
-		for _, b in ipairs(extraFolder:GetChildren()) do
-			table.insert(allButtons, b)
-		end
-	end
+
+	checkFolder(buttonsFolder)
+	checkFolder(extraFolder)
 	return allButtons
 end
 
@@ -1410,6 +1413,52 @@ function IceTycoon.setAutoArmyFight(enabled: boolean)
 	end
 end
 
+
+-- ── 10. Auto-Harvest Ice Flowers (Without Farmer NPC) ─────────────
+local harvestConn: thread? = nil
+
+function IceTycoon.harvestFlowersNow(): number
+	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
+	local tycoon = Workspace:FindFirstChild("Tycoon")
+	if not (tycoon and tycoon:FindFirstChild("Bought")) or type(fpp) ~= "function" then return 0 end
+
+	local harvested = 0
+	for _, item in ipairs(tycoon.Bought:GetChildren()) do
+		if item.Name:lower():find("dome") or item.Name:lower():find("farm") then
+			for _, p in ipairs(item:GetDescendants()) do
+				if p:IsA("ProximityPrompt") and p.Enabled and p.ActionText:lower():find("harvest") then
+					p.HoldDuration = 0
+					p.RequiresLineOfSight = false
+					p.MaxActivationDistance = 99999
+					fpp(p, 1, true)
+					harvested += 1
+				end
+			end
+		end
+	end
+	return harvested
+end
+
+function IceTycoon.setAutoHarvestFlowers(enabled: boolean)
+	IceTycoon.AutoHarvestFlowers = enabled
+
+	if harvestConn then
+		task.cancel(harvestConn)
+		harvestConn = nil
+	end
+
+	if enabled then
+		harvestConn = task.spawn(function()
+			while IceTycoon.AutoHarvestFlowers do
+				pcall(function()
+					IceTycoon.harvestFlowersNow()
+				end)
+				task.wait(1.2)
+			end
+		end)
+	end
+end
+
 -- ── Cleanup ─────────────────────────────────────────────────────────
 function IceTycoon.cleanup()
 	IceTycoon.AutoCollect = false
@@ -1425,6 +1474,7 @@ function IceTycoon.cleanup()
 	IceTycoon.setOreMagnet(false)
 	IceTycoon.setDuplicatedSellNodes(false)
 	IceTycoon.setAutoArmyFight(false)
+	IceTycoon.setAutoHarvestFlowers(false)
 
 	if collectConn then collectConn:Disconnect() collectConn = nil end
 	if buyConn then buyConn:Disconnect() buyConn = nil end

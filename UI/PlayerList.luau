@@ -1,7 +1,4 @@
 --!strict
-local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
-
 --[=[
     ✦ Squared Retro Player List Widget with Auto-Positioned Context Menu ✦
     Features:
@@ -15,41 +12,6 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
-
-local function destroyExistingGuis(name: string)
-	local containers = {
-		(type(gethui) == "function" and gethui()),
-		CoreGui,
-		CoreGui:FindFirstChild("RobloxGui"),
-		(Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui"))
-	}
-	for _, c in ipairs(containers) do
-		if c then
-			for _, child in ipairs(c:GetChildren()) do
-				if child.Name == name then
-					pcall(function() child:Destroy() end)
-				end
-			end
-		end
-	end
-end
-
-local function safeParentGui(gui: ScreenGui)
-	local targetParent = nil
-	if type(gethui) == "function" then
-		pcall(function() targetParent = gethui() end)
-	end
-	if not targetParent and CoreGui then
-		pcall(function() targetParent = CoreGui end)
-	end
-	if not targetParent and Players.LocalPlayer then
-		targetParent = Players.LocalPlayer:FindFirstChild("PlayerGui")
-	end
-	pcall(function() gui.Parent = targetParent end)
-	if not gui.Parent and Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then
-		gui.Parent = Players.LocalPlayer.PlayerGui
-	end
-end
 local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -83,7 +45,6 @@ local POPUP_W = 220
 local POPUP_H = 254
 
 function PlayerList.new(): PlayerListWidget
-	destroyExistingGuis("ModularPlayerListGui")
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ModularPlayerListGui"
 	screenGui.ResetOnSpawn = false

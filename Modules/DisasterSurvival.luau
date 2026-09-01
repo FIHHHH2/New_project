@@ -415,10 +415,41 @@ local dragHoverConn: RBXScriptConnection? = nil
 local dragEndConn:   RBXScriptConnection? = nil
 local dragDepth      = 60
 
+-- Track parts whose CanCollide we suppressed during drag so we can restore them
+local dragSuppressedParts: {[BasePart]: boolean} = {}
+
 local function clearHover()
     if hoverHL and hoverHL.Parent then hoverHL:Destroy() end
     hoverHL     = nil
     hoverTarget = nil
+end
+
+local function suppressDragCollision(part: BasePart)
+    -- Collect the root model (or the part itself) and disable collision on all BaseParts
+    local root: Instance = part
+    if part.Parent and part.Parent:IsA("Model") then
+        root = part.Parent
+    end
+    table.clear(dragSuppressedParts)
+    for _, inst in ipairs(root:GetDescendants()) do
+        if inst:IsA("BasePart") then
+            local bp = inst :: BasePart
+            dragSuppressedParts[bp] = bp.CanCollide
+            bp.CanCollide = false
+        end
+    end
+    -- Also suppress the part itself
+    dragSuppressedParts[part] = part.CanCollide
+    part.CanCollide = false
+end
+
+local function restoreDragCollision()
+    for bp, original in pairs(dragSuppressedParts) do
+        if bp and bp.Parent then
+            pcall(function() bp.CanCollide = original end)
+        end
+    end
+    table.clear(dragSuppressedParts)
 end
 
 local function clearDragTarget()
@@ -426,6 +457,7 @@ local function clearDragTarget()
     if dragTarget and dragTarget.Parent then
         pcall(function() dragTarget.AssemblyLinearVelocity = Vector3.zero end)
     end
+    restoreDragCollision()
     if grabHL and grabHL.Parent then grabHL:Destroy() end
     dragTarget = nil
     grabHL     = nil
@@ -456,6 +488,8 @@ local function grabObject(part: BasePart)
     clearDragTarget()
     clearHover()
     dragTarget = part
+    -- Disable collision on the object so it can't physically throw the player
+    suppressDragCollision(part)
     -- Lock depth at grab distance so part stays at same Z while dragging
     dragDepth = math.clamp((part.Position - Camera.CFrame.Position).Magnitude, 4, 150)
     grabHL = makeHighlight(part, Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 200, 50), 0.28)
@@ -466,6 +500,7 @@ local function grabObject(part: BasePart)
         end
     end)
 end
+
 
 function DisasterSurvival.setObjectDrag(enabled: boolean)
     DisasterSurvival.ObjectDrag = enabled
@@ -483,7 +518,7 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
                 local dist      = diff.Magnitude
 
                 -- Spring-damper velocity: proportional to distance, damps at close range
-                local speed = math.clamp(dist * 18, 0, 280)
+                local speed = math.clamp(dist * 14, 0, 100)
                 pcall(function()
                     dragTarget.AssemblyLinearVelocity = if dist > 0.05
                         then diff.Unit * speed

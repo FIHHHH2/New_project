@@ -914,6 +914,7 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	end)
 
 	local function toggleAction()
+		Animations.buttonClickPop(checkBtn)
 		local nextState = not feature.state
 		FeatureManager.setFeatureState(featureId, nextState)
 	end

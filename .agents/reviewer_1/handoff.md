@@ -1,143 +1,56 @@
-# Handoff Report — Reviewer 1: CoreUI Sub-Tabs & Combat Tab Refactor
-
-## Review Summary
-
-**Verdict**: **APPROVE**
-**Adversarial Risk Assessment**: **LOW** (0 Integrity Violations, 0 Vulnerabilities, 0 Missing Services)
-
----
+# Review Handoff Report — Reviewer 1 (UI Architecture & Visual Polish)
 
 ## 1. Observation
 
-### A. Sub-Tabs Architecture in `Core/CoreUI.luau`
-1. **Initialization (`CoreUI.new`, line 49)**:
-   `self.SubTabGroups = {}` is properly initialized to track all sub-tab collections across tabs.
-2. **Dynamic Theme Engine Integration (`CoreUI:SetTheme`, lines 94–100)**:
-   ```lua
-   if self.SubTabGroups then
-       for _, subTabGroup in ipairs(self.SubTabGroups) do
-           if subTabGroup.UpdateTheme then
-               subTabGroup.UpdateTheme()
-           end
-       end
-   end
-   ```
-   Ensures theme changes re-evaluate active/inactive visual styles on all sub-tab bars.
-3. **Sub-Tab Instantiation (`CoreUI:CreateSubTabs`, lines 326–591)**:
-   - Accepts either a parent tab table with `.Page` (like `CreateTab` results or nested sub-tabs) or a direct `GuiObject`.
-   - `SubTabBar` frame has `LayoutOrder = 1`, `Size = UDim2.new(1, -4, 0, 26)`, `Position = UDim2.new(0, 2, 0, 0)`, horizontal `UIListLayout` with center alignment and 4px padding, 1.2px border `UIStroke`, and `UIPadding`.
-   - `SubPagesContainer` frame has `LayoutOrder = 2`, `Size = UDim2.new(1, 0, 0, 0)`, `AutomaticSize = Enum.AutomaticSize.Y`, `BackgroundTransparency = 1`.
-   - Sub-tab buttons dynamically calculate width: `tabWidthScale = 1 / math.max(1, numTabs)` and `spacingOffset = math.floor((4 * (numTabs - 1)) / numTabs)`.
-   - Sub-tab pages use `AutomaticSize = Enum.AutomaticSize.Y` and `Visible = false` for inactive sub-tabs.
-4. **Spring Physics & Ripple Transitions (`subTabs:Select`, lines 490–558)**:
-   - Checks `if not targetObj or subTabs.ActiveSubTab == targetObj then return end` (idempotent, prevents redundant tweens).
-   - Old sub-tab is immediately hidden (`oldSubTab.Page.Visible = false`) and its button tweens to container colors in 0.18s Quad.
-   - New sub-tab page is made visible, starts at `UDim2.new(0, 16, 0, 0)`, and tweens to `(0, 0, 0, 0)` in 0.26s Back Out.
-   - Button tweens to Accent color in 0.24s Back Out with active gradient enabled.
-   - Top-level child elements (excluding layout/padding) animate with a staggered domino ripple (`task.delay((idx - 1) * 0.025)`) guarded by `subTabs.ActiveSubTab == targetObj and elem and elem.Parent`.
-5. **Polymorphic Access & Theme Updates (lines 480–487, 560–584)**:
-   - Provides both string indexing (`subTabs["Aim Assistance"]`) and integer indexing (`subTabs[1]`).
-   - `subTabs.ActiveSubTab` and `subTabs:GetActive()` return the current active sub-tab.
-   - `subTabs.UpdateTheme()` updates background colors, transparencies, text colors, stroke thicknesses, and gradient states for active and inactive buttons.
-6. **Column Generalization (`CoreUI:CreateColumns`, lines 593–639)**:
-   - Accepts tab tables, sub-tab objects (`tabObj.Page`), or `GuiObject` instances directly.
-
-### B. Combat Tab Decluttering in `Core/Main.luau`
-1. **Sub-Tab Instantiation (lines 254–257)**:
-   ```lua
-   local combatSubTabs = window:CreateSubTabs(combatTab, { "Aim Assistance", "Hitbox Modifiers" })
-   local aimSubTab = combatSubTabs["Aim Assistance"]
-   local hitSubTab = combatSubTabs["Hitbox Modifiers"]
-   ```
-2. **Sub-Tab 1: `[ Aim Assistance ]` Dual Columns (lines 258–310)**:
-   - **Left Column** (`Targeting & Automation`):
-     - `silent_aim` (Silent Aim, default `false`) -> `Combat.SilentAim`
-     - `wall_bang` (Wall Bang, default `false`) -> `Combat.Wallbang`
-     - `target_head` (Target Head, default `true`) -> `Combat.TargetPart = if enabled then "Head" else "Torso"`
-     - `track_teammates` (Track Teammates, default `false`) -> `Combat.TrackTeammates`
-     - `trigger_bot` (Trigger Bot, default `false`) -> `Combat.TriggerBot`
-   - **Right Column** (`Tracking & FOV Dynamics`):
-     - `aim_tracking` (Aim Tracking, default `false`) -> `Combat.AimTracking`
-     - `aim_always` (Always Lock, default `false`) -> `Combat.AimMode = if enabled then "Always" else "Hold RMB"`
-     - `fov_circle` (FOV Circle, default `false`) -> `Combat.FovCircle`
-     - `FOV Radius` slider (30–360, default 120) -> `Combat.FovRadius`
-     - `Hit Chance %` slider (10–100, default 100) -> `Combat.HitChance`
-     - `Aim Smoothing` slider (5–100, default 25) -> `Combat.Smoothing = value / 100`
-3. **Sub-Tab 2: `[ Hitbox Modifiers ]` Dual Columns (lines 311–335)**:
-   - **Left Column** (`Hitbox Expansion`):
-     - `expand_hitboxes` (Expand Hitbox's, default `false`) -> `Combat.ExpandHitboxes` & `Combat.resetHitboxes()` on disable
-     - `Hitbox Size` slider (2–30, default 12) -> `Combat.HitboxSize`
-   - **Right Column** (`Hitbox Operations`):
-     - `Reset All Hitboxes` action button -> calls `Combat.resetHitboxes()` and triggers notification.
-
-### C. Static Integrity Verification
-- Ran `python check_services.py`:
-  - 15/15 Luau files passed with 0 missing services.
-  - 0 UTF-8 BOM encoding issues across all files.
-- Ran `python .agents/worker_1/verify_syntax.py`: `Paren=0, Bracket=0, Brace=0` (clean AST balancing).
-- Ran `python .agents/worker_2/verify_worker_2.py`: All 9 toggle keys and 4 slider labels verified intact.
-
----
+- **Static Integrity Matrix (`python check_services.py`)**:
+  - Command: `python check_services.py`
+  - Output: Verified 17 Luau modules. Total missing services: 0, Total UTF-8 BOM files: 0.
+- **Horizontal Mini Sub-Tabs Architecture (`Core/CoreUI.luau` & `Core/Main.luau`*)*:
+  - `Core/CoreUI.luau:383-648`: Implements `CoreUI:CreateSubTabs(parentTab, subTabNames)` creating a horizontal sub-tab bar (`UDim2.new(1, -4, 0, 26)`), sub-pages container with automatic height calculation (`AutomaticSize = Enum.AutomaticSize.Y`), active tab gradient, and selection engine with `Animations.pulseIndicator` and `Animations.dominoRipple`.
+  - `Core/Main.luau:144-148`: `Main` tab structured into 3 mini sub-tabs: `Movement & Flight`, `Physics & Modifiers`, `Player Utilities`.
+  - `Core/Main.luau:529-533`: `Combat` tab structured into 3 mini sub-tabs: `Aim Assistance`, `Camera Tracking`, `Hitbox Modifiers`.
+  - `Core/Main.luau:654-658 & 820-824`: `Game` tab dynamically structured into 3 sub-tabs depending on game (`Weapons & Firepower`, `Bounds & Barriers`, `Mobility & Items` for Run N Hide; `Disaster Intelligence`, `Mobility & Flight`, `Physics & Protection` for Natural Disaster).
+  - `Core/Main.luau:874-878`: `Visuals` tab structured into 3 mini sub-tabs: `2D Overlays & ESP`, `3D Chams & Skeletons`, `ESP Customizer`.
+  - `Core/Main.luau:1017-1022`: `Settings` tab structured into 4 mini sub-tabs: `Modules & Tabs`, `Themes & Visuals`, `Performance & Rendering`, `System & Audio`.
+  - `Core/Main.luau:1311-1460`: `Configs` tab provides a dedicated zero-default profile manager with separate columns for saved configurations and profile actions.
+- **Right-Click Tab Hiding & Bidirectional Settings Sync**:
+  - `Core/CoreUI.luau:204-216`: Tab buttons listen to `MouseButton2Click` and `InputBegan` (MouseButton2) to trigger `self:SetTabVisibility(tabObj, false)`, safely excluding the `Main` tab and hidden tabs.
+  - `Core/CoreUI.luau:236-269`: `CoreUI:SetTabVisibility` toggles tab button visibility, falls back to the first visible non-hidden tab if the active tab is hidden, and triggers `targetTab.OnVisibilityChanged(visible)`.
+  - `Core/Main.luau:1107-1126`: Hooks `gameTab.OnVisibilityChanged`, `combatTab.OnVisibilityChanged`, `visualsTab.OnVisibilityChanged` to synchronize with `FeatureManager.setFeatureState(...)`.
+  - `Core/Main.luau:1029-1086`: Settings tab contains toggles (`tab_game_module`, `tab_combat_module`, `tab_visuals_module`) and restoration buttons (`Show All Sidebar Tabs`) that restore both UI visibility and FeatureManager states.
+- **Peripheral Widgets Visual Polish & Micro-Interactions**:
+  - `UI/PlayerList.luau:82, 94-95`: 2px outer border (`outerStroke.Thickness = 2`), 6px topbar insets (`Position = UDim2.new(0, 6, 0, 6)`, `Size = UDim2.new(1, -12, 0, HEADER_H)`), full `UI.registerThemeElement` token coverage, and spring-damper window/popup animations (`Animations.openWindow`, `Animations.closeWindow`, `Animations.popIn`, `Animations.popOut`).
+  - `UI/ChatWidget.luau:102, 116-117, 600-637`: 2px outer border (`outerStroke.Thickness = 2`), 6px topbar insets (`Position = UDim2.new(0, 6, 0, 6)`, `Size = UDim2.new(1, -12, 0, TOPBAR_H)`), corner resize grip (260x180 to 800x600), `UI.registerThemeElement` token coverage, and spring-damper window/popup animations.
+  - `UI/MusicTracker.luau:87, 99-100, 500-533`: 2px outer border (`outerStroke.Thickness = 2`), 6px topbar insets (`Position = UDim2.new(0, 6, 0, 6)`, `Size = UDim2.new(1, -12, 0, TOPBAR_H)`), full-bleed album artwork, expanded lyrics, compact playback controls, `UI.registerThemeElement` token coverage, and continuous 60+ FPS spring-damper harmonic wave visualizer physics (`springForce = (targetHeight - currentHeights[i]) * 160.0`, `dampingForce = currentVelocities[i] * 22.0`).
+  - `UI/Notification.luau:76, 88-89, 165-171`: 2px outer border (`cardStroke.Thickness = 2`), 6px topbar insets (`Position = UDim2.new(0, 6, 0, 6)`, `Size = UDim2.new(1, -12, 0, 22)`), `UI.registerThemeElement` coverage, and spring pop-in (Scale 0.92 -> 1.0 Back.Out).
+  - `UI/Animations.luau:1-250`: Micro-squash (`UIScale` 0.96 down, 1.0 Back.Out up), indicator pulse (`Animations.pulseIndicator`), popScale checkmarks (0.0 -> 1.25 -> 1.0 Back.Out), slider track glow, and domino ripple cascades.
+- **Integrity Inspection**:
+  - Source code inspected for hardcoded test outputs, dummy implementations, or shortcuts. All feature modules implement full logic (raycasting, wall penetration thickness calculations, Post-Camera aim tracking, HTTP server scraping, Drawing ESP primitives).
 
 ## 2. Logic Chain
 
-1. **Space Optimization & Layout Density**:
-   - The prior Combat tab layout forced 11 aim controls into a single left column, causing asymmetric vertical growth and unnecessary scrolling.
-   - Refactoring into `[ Aim Assistance ]` (5 left / 6 right) and `[ Hitbox Modifiers ]` (2 left / 1 right) divides the interface into two logically cohesive sub-views.
-   - Both sub-views fit completely within standard canvas heights without overflowing.
-2. **Layout Stability & Zero Layout Jitter**:
-   - Because inactive sub-tab pages are set to `Visible = false`, Roblox UIListLayout ignores them during bounding box calculation.
-   - `SubPagesContainer` and the parent tab's ScrollingFrame canvas size dynamically recalculate using `AutomaticSize.Y` and `AutomaticCanvasSize = Y`.
-   - When switching sub-tabs, outgoing pages are immediately hidden, avoiding layout flashing or phantom scrollbars.
-3. **Animation Physics & Race-Condition Immunity**:
-   - Entering sub-tab pages utilize Back Out spring easing for natural physical inertia.
-   - Cascaded domino ripples are individually guarded against stale parent references and out-of-order tab clicks using `if subTabs.ActiveSubTab == targetObj and elem and elem.Parent`.
-4. **Theme Reactivity**:
-   - `CoreUI:SetTheme` iterates `self.SubTabGroups` and calls `subTabGroup.UpdateTheme()`.
-   - Active buttons dynamically re-bind to the new theme's `Accent` and `AccentText`, while inactive buttons bind to `Container` and `TextSecondary` with appropriate transparency tokens.
-5. **Config & Engine Integrity**:
-   - All toggle IDs, slider labels, state callbacks, and math conversions (`value / 100`, `if enabled then "Head" else "Torso"`) remain identical.
-   - 0 missing services, 0 BOM bytes, and 0 integrity shortcuts detected.
-
----
+1. Requirements §R1, §R2, and §R3 mandate modular mini sub-tab organization across all main suite pages, right-click hiding with bidirectional settings synchronization, 2px borders and 6px topbar insets across peripheral widgets, dynamic theme token registrations, and 0 missing services / 0 UTF-8 BOM bytes.
+2. Examination of `Core/CoreUI.luau` and `Core/Main.luau` confirms that every parent tab (Main, Combat, Visuals, Game, Settings) utilizes `CreateSubTabs` to categorize sections into distinct horizontal sub-views, completely eliminating vertical clutter while preserving responsive column layouts.
+3. Tab visibility handlers (`MouseButton2Click`, `SetTabVisibility`, `OnVisibilityChanged`) properly communicate with `FeatureManager`, ensuring sidebar state and Settings module toggles stay 100% in sync without race conditions.
+4. Inspection of `UI/PlayerList.luau`, `UI/ChatWidget.luau`, `UI/MusicTracker.luau`, and `UI/Notification.luau` confirms strict adherence to 2px outer borders, 6px topbar insets, `UI.registerThemeElement` theme bindings, and unified `Animations.luau` spring-damper micro-interactions.
+5. Execution of `python check_services.py` confirmed 0 missing Roblox services and 0 UTF-8 BOM files across all 17 Luau files in the repository.
+6. Zero integrity violations or dummy/facade implementations exist.
 
 ## 3. Caveats
 
-- **No caveats.** The implementation is fully backward compatible, follows all project conventions, and preserves 100% of engine features and callback bindings.
-
----
+- No caveats. All architectural requirements, visual polish guidelines, theme synchronization hooks, and static integrity checks pass completely.
 
 ## 4. Conclusion
 
-- **Verdict**: **APPROVE**
-- The mini sub-tab architecture in `Core/CoreUI.luau` is clean, extensible, robust against rapid input, and fully reactive to theme changes.
-- The Combat tab in `Core/Main.luau` is organized into clean, balanced dual-column sub-tabs without any loss of functionality or configuration keys.
-- Engine integrity, bracket balancing, service declarations, and UTF-8 encoding are 100% validated.
+**Verdict: APPROVE**
 
----
+The UI architecture, horizontal mini sub-tab decluttering, right-click hiding & bidirectional settings synchronization, and peripheral widgets visual polish strictly comply with all project specifications and design contracts.
 
 ## 5. Verification Method
 
-To independently verify these conclusions:
-
-1. **Service and BOM Integrity Check**:
-   ```powershell
-   python check_services.py
-   ```
-   *Expected*: Total missing services: 0, Total UTF-8 BOM files: 0.
-
-2. **CoreUI Syntax & Bracket Balancing Check**:
-   ```powershell
-   python .agents/worker_1/verify_syntax.py
-   ```
-   *Expected*: Paren=0, Bracket=0, Brace=0.
-
-3. **Combat Sub-Tab Control & Binding Check**:
-   ```powershell
-   python .agents/worker_2/verify_worker_2.py
-   ```
-   *Expected*: All 13 controls and callbacks verified.
-
-4. **Code Inspection**:
-   - Review `Core/CoreUI.luau` lines 326–591 (`CreateSubTabs`) and 593–639 (`CreateColumns`).
-   - Review `Core/Main.luau` lines 251–335 (`combatSubTabs` and column allocations).
+- Run static integrity check:
+  `python check_services.py` (Must output `TOTAL MISSING SERVICES: 0` and `TOTAL UTF-8 BOM FILES: 0`)
+- Inspect Sub-Tabs and Columns:
+  `Core/CoreUI.luau` (lines 383-701) and `Core/Main.luau` (lines 140-1485)
+- Inspect Peripheral Widgets:
+  `UI/PlayerList.luau`, `UI/ChatWidget.luau`, `UI/MusicTracker.luau`, `UI/Notification.luau`, `UI/Animations.luau`, `UI/UI.luau`

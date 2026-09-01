@@ -364,10 +364,14 @@ function ChatWidget.new(): ChatWidgetInstance
 	end
 
 	createDropItem("Backpack", function()
-		bpActive = not bpActive
-		pcall(function()
-			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, bpActive)
-		end)
+		if _G.__ToggleProjectFihBackpack then
+			_G.__ToggleProjectFihBackpack()
+		else
+			bpActive = not bpActive
+			pcall(function()
+				StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, bpActive)
+			end)
+		end
 	end)
 
 	createDropItem("Music Tracker", function()
@@ -1081,8 +1085,27 @@ function ChatWidget.new(): ChatWidgetInstance
 		toggleQuickPhrases()
 	end)
 
-	-- ── Message Line Constructor (Seamless RichText Flow + Profile Hook + Slide Animation) ──
-	local function addMessage(sender: string, text: string)
+	-- ── Message Line Constructor (With Robust Deduplication + Profile Hook + Slide Animation) ──
+	local seenMessageMap: {[string]: number} = {}
+	local function addMessage(sender: string, text: string, msgId: string?)
+		if not text or text == "" then return end
+		local now = tick()
+
+		-- Message ID deduplication
+		if msgId and msgId ~= "" then
+			if seenMessageMap[msgId] and (now - seenMessageMap[msgId] < 8) then
+				return
+			end
+			seenMessageMap[msgId] = now
+		end
+
+		-- Content + Sender deduplication window (prevents duplicate local echo / server echo)
+		local dedupeKey = string.format("%s:%s", sender, text)
+		if seenMessageMap[dedupeKey] and (now - seenMessageMap[dedupeKey] < 0.9) then
+			return
+		end
+		seenMessageMap[dedupeKey] = now
+
 		local isSystem = (sender == "System")
 		local targetPlayer: Player? = nil
 		if not isSystem then
@@ -1257,9 +1280,13 @@ function ChatWidget.new(): ChatWidgetInstance
 		pcall(function()
 			TextChatService.OnIncomingMessage = function(msg)
 				if not msg.TextSource then return end
+				-- Ignore initial Sending state to prevent duplicate with local echo/server delivery
+				if msg.Status == Enum.TextChatMessageStatus.Sending then
+					return
+				end
 				local player = Players:GetPlayerByUserId(msg.TextSource.UserId)
 				local name = if player then (player.DisplayName ~= "" and player.DisplayName or player.Name) else "Server"
-				addMessage(name, msg.Text)
+				addMessage(name, msg.Text, msg.MessageId)
 			end
 		end)
 	else

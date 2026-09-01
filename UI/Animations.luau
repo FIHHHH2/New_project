@@ -2,7 +2,7 @@
 --[=[
     ✦ Animation Suite for Modular Retro UI ✦
     High-performance spring-damper & TweenService helpers for micro-interactions,
-    window/popup transitions, indicator pulses, button squash, and domino ripples.
+    tactile button squashes, slider track glow, window/popup transitions, indicator pulses, and domino ripples.
 ]=]
 
 local TweenService = game:GetService("TweenService")
@@ -28,11 +28,27 @@ function Animations.tween(instance: Instance, properties: {[string]: any}, confi
 	return tween
 end
 
--- Spring pop scale for checkmarks, badges, icons, and value labels
+-- Tactile instant button squash
+function Animations.buttonClickPop(guiObject: GuiObject)
+	local uiScale = guiObject:FindFirstChildWhichIsA("UIScale")
+	if not uiScale then
+		uiScale = Instance.new("UIScale")
+		uiScale.Scale = 1.0
+		uiScale.Parent = guiObject
+	end
+
+	uiScale.Scale = 0.92
+	local tween = TweenService:Create(uiScale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1.0
+	})
+	tween:Play()
+end
+
+-- Spring pop scale for checkmarks, badges, icons, and value labels (0.0 -> 1.15 -> 1.0 Back.Out)
 function Animations.popScale(guiObject: GuiObject, startScale: number?, peakScale: number?, endScale: number?, duration: number?): Tween
 	local targetStart = if startScale ~= nil then startScale else 0.0
 	local targetEnd = if endScale ~= nil then endScale else 1.0
-	local targetDur = if duration ~= nil then duration else 0.20
+	local targetDur = if duration ~= nil then duration else 0.22
 
 	local uiScale = guiObject:FindFirstChildWhichIsA("UIScale")
 	if not uiScale then
@@ -75,10 +91,13 @@ function Animations.attachMicroSquash(
 			if glowColor then
 				strokeProps.Color = glowColor
 			end
-			Animations.tween(targetStroke, strokeProps, { duration = 0.12 })
+			Animations.tween(targetStroke, strokeProps, { duration = 0.12, easingStyle = Enum.EasingStyle.Quad })
 		end
 		if getHoverBg then
 			Animations.tween(button, { BackgroundColor3 = getHoverBg() }, { duration = 0.12 })
+		end
+		if uiScale then
+			Animations.tween(uiScale, { Scale = 1.02 }, { duration = 0.12, easingStyle = Enum.EasingStyle.Quad })
 		end
 	end)
 
@@ -89,19 +108,19 @@ function Animations.attachMicroSquash(
 			if normalColor then
 				strokeProps.Color = normalColor
 			end
-			Animations.tween(targetStroke, strokeProps, { duration = 0.12 })
+			Animations.tween(targetStroke, strokeProps, { duration = 0.12, easingStyle = Enum.EasingStyle.Quad })
 		end
 		if getNormalBg then
 			Animations.tween(button, { BackgroundColor3 = getNormalBg() }, { duration = 0.12 })
 		end
 		if uiScale then
-			Animations.tween(uiScale, { Scale = 1.0 }, { duration = 0.12 })
+			Animations.tween(uiScale, { Scale = 1.0 }, { duration = 0.12, easingStyle = Enum.EasingStyle.Quad })
 		end
 	end)
 
 	button.MouseButton1Down:Connect(function()
 		if uiScale then
-			Animations.tween(uiScale, { Scale = 0.96 }, { duration = 0.06, easingStyle = Enum.EasingStyle.Quad, easingDirection = Enum.EasingDirection.Out })
+			Animations.tween(uiScale, { Scale = 0.94 }, { duration = 0.06, easingStyle = Enum.EasingStyle.Quad, easingDirection = Enum.EasingDirection.Out })
 		end
 		if getActiveBg then
 			Animations.tween(button, { BackgroundColor3 = getActiveBg() }, { duration = 0.06 })
@@ -110,7 +129,7 @@ function Animations.attachMicroSquash(
 
 	button.MouseButton1Up:Connect(function()
 		if uiScale then
-			Animations.tween(uiScale, { Scale = 1.0 }, { duration = 0.14, easingStyle = Enum.EasingStyle.Back, easingDirection = Enum.EasingDirection.Out })
+			Animations.tween(uiScale, { Scale = 1.02 }, { duration = 0.16, easingStyle = Enum.EasingStyle.Back, easingDirection = Enum.EasingDirection.Out })
 		end
 		if getHoverBg then
 			Animations.tween(button, { BackgroundColor3 = getHoverBg() }, { duration = 0.12 })
@@ -128,7 +147,7 @@ end
 -- Slider track hover glow and fill feedback
 function Animations.attachSliderGlow(track: Frame, stroke: UIStroke, fill: Frame, valLabel: TextLabel?)
 	track.MouseEnter:Connect(function()
-		Animations.tween(stroke, { Thickness = 1.6 }, { duration = 0.12 })
+		Animations.tween(stroke, { Thickness = 1.8 }, { duration = 0.12 })
 	end)
 
 	track.MouseLeave:Connect(function()
@@ -138,22 +157,22 @@ end
 
 -- Tab and sub-tab selection active indicator pulse
 function Animations.pulseIndicator(stroke: UIStroke, pulseColor: Color3, normalColor: Color3, peakThickness: number?, normalThickness: number?)
-	local peak = if peakThickness ~= nil then peakThickness else 2.2
+	local peak = if peakThickness ~= nil then peakThickness else 2.4
 	local norm = if normalThickness ~= nil then normalThickness else 1.5
 
 	stroke.Color = pulseColor
-	local surgeTween = Animations.tween(stroke, { Thickness = peak, Color = pulseColor }, { duration = 0.09, easingStyle = Enum.EasingStyle.Quad, easingDirection = Enum.EasingDirection.Out })
+	local surgeTween = Animations.tween(stroke, { Thickness = peak, Color = pulseColor }, { duration = 0.08, easingStyle = Enum.EasingStyle.Quad, easingDirection = Enum.EasingDirection.Out })
 	surgeTween.Completed:Connect(function()
-		Animations.tween(stroke, { Thickness = norm, Color = normalColor }, { duration = 0.15, easingStyle = Enum.EasingStyle.Quad, easingDirection = Enum.EasingDirection.Out })
+		Animations.tween(stroke, { Thickness = norm, Color = normalColor }, { duration = 0.18, easingStyle = Enum.EasingStyle.Quad, easingDirection = Enum.EasingDirection.Out })
 	end)
 end
 
--- Window open transition (Spring scale 0.95 -> 1.0 Back.Out)
+-- Window open transition (Spring scale 0.92 -> 1.0 Back.Out)
 function Animations.openWindow(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
 	frame.Visible = true
 	if uiScale then
-		uiScale.Scale = 0.95
-		local tween = TweenService:Create(uiScale, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		uiScale.Scale = 0.92
+		local tween = TweenService:Create(uiScale, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 			Scale = 1.0
 		})
 		tween:Play()
@@ -165,11 +184,11 @@ function Animations.openWindow(frame: GuiObject, uiScale: UIScale?, onComplete: 
 	end
 end
 
--- Window close transition (Spring scale 1.0 -> 0.95 Quad.In)
+-- Window close transition (Spring scale 1.0 -> 0.92 Quad.In)
 function Animations.closeWindow(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
 	if uiScale then
-		local tween = TweenService:Create(uiScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Scale = 0.95
+		local tween = TweenService:Create(uiScale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Scale = 0.92
 		})
 		tween:Play()
 		tween.Completed:Connect(function()
@@ -187,12 +206,12 @@ function Animations.closeWindow(frame: GuiObject, uiScale: UIScale?, onComplete:
 	end
 end
 
--- Popup / context menu spring pop-in (0.90 -> 1.0 Back.Out)
+-- Popup / context menu spring pop-in (0.88 -> 1.0 Back.Out)
 function Animations.popIn(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
 	frame.Visible = true
 	if uiScale then
-		uiScale.Scale = 0.90
-		local tween = TweenService:Create(uiScale, TweenInfo.new(0.20, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		uiScale.Scale = 0.88
+		local tween = TweenService:Create(uiScale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 			Scale = 1.0
 		})
 		tween:Play()
@@ -204,11 +223,11 @@ function Animations.popIn(frame: GuiObject, uiScale: UIScale?, onComplete: (() -
 	end
 end
 
--- Popup / context menu pop-out (1.0 -> 0.90 Quad.In)
+-- Popup / context menu pop-out (1.0 -> 0.88 Quad.In)
 function Animations.popOut(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
 	if uiScale then
 		local tween = TweenService:Create(uiScale, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Scale = 0.90
+			Scale = 0.88
 		})
 		tween:Play()
 		tween.Completed:Connect(function()
@@ -228,8 +247,8 @@ end
 
 -- Cascaded domino ripple for child elements
 function Animations.dominoRipple(elements: {GuiObject}, baseDelay: number?, offsetDistance: number?, duration: number?)
-	local delayStep = if baseDelay ~= nil then baseDelay else 0.03
-	local offset = if offsetDistance ~= nil then offsetDistance else 12
+	local delayStep = if baseDelay ~= nil then baseDelay else 0.025
+	local offset = if offsetDistance ~= nil then offsetDistance else 14
 	local dur = if duration ~= nil then duration else 0.24
 
 	for idx, element in ipairs(elements) do
@@ -247,4 +266,3 @@ function Animations.dominoRipple(elements: {GuiObject}, baseDelay: number?, offs
 end
 
 return Animations
-

@@ -1,25 +1,15 @@
 # Dispatch for Reviewer 2
 
-## Objective
-Independently review engine system integrity, services checking, and UTF-8 encoding across the repository.
+## 2026-08-31T23:39:32Z
+You are teamwork_preview_reviewer (Reviewer 2 - Gameplay & Utility Systems).
+Your working directory is `A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_2`.
+You MUST read `A:\Potassium\Modular-Roblox-Menu\.agents\ORIGINAL_REQUEST.md` and `A:\Potassium\Modular-Roblox-Menu\.agents\orchestrator_3\PROJECT.md`.
 
-## References & Inputs
-- `ORIGINAL_REQUEST.md`: `A:\Potassium\Modular-Roblox-Menu\.agents\ORIGINAL_REQUEST.md`
-- `PROJECT.md`: `A:\Potassium\Modular-Roblox-Menu\.agents\PROJECT.md`
-- `check_services.py`: `A:\Potassium\Modular-Roblox-Menu\check_services.py`
-- Worker 3 handoff: `A:\Potassium\Modular-Roblox-Menu\.agents\worker_3\handoff.md`
+Review Objectives:
+1. Examine `Modules/Visuals.luau`: Box ESP outlines (secondary Drawing square Thickness 3.5), Tracer origin calculation ("Bottom", "Center", "Mouse"), Distance tags (3D distance label), and customizable Chams colors (fill/outline Color3).
+2. Examine `Modules/PlayerUtilities.luau`: Server Hop (`game:HttpGet` + `HttpService:JSONDecode` + `TeleportService:TeleportToPlaceInstance`), Rejoin Server, Copy Place/Game/Job IDs, Anti-AFK preventer (`Idled` event + `VirtualUser`), Click Teleport tool + Ctrl+Click binding.
+3. Examine `Modules/Combat.luau`: FOV circle color customizer, TriggerBot delay slider integration, Wallbang thickness tolerance via bidirectional raycasting.
+4. Run `python check_services.py` to verify 0 missing services and 0 UTF-8 BOM bytes.
 
-## Review Focus
-1. Run and review `python check_services.py` (verify 0 missing services across all 15 files).
-2. Binary check of all 15 `.luau` files for 0 UTF-8 BOM bytes.
-3. Verification of 5 core engine subsystems:
-   - Post-Camera BindToRenderStep aim tracking (`Modules/Combat.luau`)
-   - Walk Fling collision torque (`Core/Main.luau`, `Modules/DisasterSurvival.luau`, `UI/PlayerList.luau`)
-   - PlayerList context menu with Roblox actions (`UI/PlayerList.luau`)
-   - Continuous 60+ FPS spring-damper visualizer (`UI/MusicTracker.luau`)
-   - Persistent theme & dynamic config manager (`UI/UI.luau`, `Core/FeatureManager.luau`)
-4. Verify fixes in `UI/ChatWidget.luau` and `UI/MusicTracker.luau`.
+Produce `handoff.md` with your explicit verdict (APPROVE or REQUEST_CHANGES) and notify the orchestrator via send_message.
 
-## Handoff
-Write your review report and verdict (`APPROVE` or `REQUEST_CHANGES`) to `A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_2\handoff.md`.
-Send a message back when complete.

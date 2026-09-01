@@ -1,22 +1,13 @@
-# Dispatch for Forensic Auditor
+## 2026-08-31T23:39:32Z
+You are teamwork_preview_auditor (Forensic Integrity Auditor).
+Your working directory is A:\Potassium\Modular-Roblox-Menu\.agents\auditor_1.
+You MUST read A:\Potassium\Modular-Roblox-Menu\.agents\ORIGINAL_REQUEST.md and A:\Potassium\Modular-Roblox-Menu\.agents\orchestrator_3\PROJECT.md.
 
-## Objective
-Conduct an independent forensic integrity audit on all changes made during this refactor.
+Audit Objectives:
+Perform exhaustive forensic integrity verification on all recent modifications:
+1. Confirm that ALL implementations in Core/CoreUI.luau, Core/Main.luau, Modules/Visuals.luau, Modules/PlayerUtilities.luau, Modules/Combat.luau, UI/PlayerList.luau, UI/ChatWidget.luau, UI/MusicTracker.luau, UI/Notification.luau are GENUINE and fully functional.
+2. Verify there are NO hardcoded test results, NO dummy/facade implementations, NO fake stubs, and NO circumvented logic.
+3. Verify that all features (Box outlines, Tracer origins, Distance tags, Chams colors, Server Hop, Rejoin, Copy IDs, Anti-AFK, Click TP, FOV color, TriggerBot delay, Wallbang thickness tolerance, mini sub-tabs) contain authentic, executable Luau code.
+4. Run python check_services.py and inspect files.
 
-## References & Inputs
-- `ORIGINAL_REQUEST.md`: `A:\Potassium\Modular-Roblox-Menu\.agents\ORIGINAL_REQUEST.md`
-- `PROJECT.md`: `A:\Potassium\Modular-Roblox-Menu\.agents\PROJECT.md`
-- Codebase: All 15 `.luau` files in `A:\Potassium\Modular-Roblox-Menu` and `check_services.py`
-- Worker reports: `worker_1/handoff.md`, `worker_2/handoff.md`, `worker_3/handoff.md`
-
-## Forensic Audit Checklist
-1. Cheating / Dummy Facade Detection: Verify that `CoreUI:CreateSubTabs` and Combat sub-views are genuine, fully functional, and not mocked or stubbed.
-2. UTF-8 BOM Audit: Independently scan all 15 `.luau` files for `0xEF, 0xBB, 0xBF` bytes.
-3. Services Audit: Independently execute and verify `check_services.py` with 0 missing service declarations.
-4. Engine Subsystems Integrity Audit: Inspect `Combat.luau`, `Main.luau`, `PlayerList.luau`, `MusicTracker.luau`, `FeatureManager.luau`, and `UI.luau` to confirm zero broken hooks or missing logic.
-5. Luau Static Balance: Verify matching blocks (`do/then/function` vs `end`, parentheses, brackets, braces) across modified files.
-
-## Verdict
-Your verdict must be explicitly either `CLEAN` or `INTEGRITY VIOLATION`.
-Write your full forensic audit report to `A:\Potassium\Modular-Roblox-Menu\.agents\auditor_1\handoff.md`.
-Send a message back when complete.
+Produce handoff.md with your explicit verdict (CLEAN or INTEGRITY VIOLATION) and notify orchestrator via send_message.

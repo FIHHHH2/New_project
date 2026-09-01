@@ -1,52 +1,45 @@
-# BRIEFING â€” 2026-08-31T17:05:45Z
+# BRIEFING — 2026-08-31T23:41:00Z
 
 ## Mission
-Independently review and stress-test the CoreUI sub-tabs architecture and Combat tab refactor in Core/CoreUI.luau and Core/Main.luau.
+Review UI architecture, mini sub-tab decluttering, right-click tab hiding, bidirectional settings synchronization, and peripheral widgets visual polish/micro-interactions.
 
-## ðŸ”’ My Identity
-- Archetype: reviewer_critic
+## ?? My Identity
+- Archetype: reviewer
 - Roles: reviewer, critic
-- Working directory: A:/Potassium/Modular-Roblox-Menu/.agents/reviewer_1
-- Original parent: 657126f5-a031-4c17-bf2b-084d30ce3029
-- Milestone: M1, M2 Review
+- Working directory: A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_1
+- Original parent: 595f13b1-be08-47a6-8dc2-036e503cfd04
+- Milestone: UI Architecture & Visual Polish Review
 - Instance: 1 of 1
 
-## ðŸ”’ Key Constraints
-- Review-only â€” do NOT modify implementation code
-- Evidence-based analysis with concrete verification commands
-- Verify spring animations, zero layout jitter, column balance, theme reactivity, and zero missing services
+## ?? Key Constraints
+- Review-only — do NOT modify implementation code
+- Actively check for integrity violations (hardcoded test outputs, dummy implementations, shortcuts)
+- Evidence-based findings with exact file paths and line numbers
+- Must run python check_services.py
 
 ## Current Parent
-- Conversation ID: 657126f5-a031-4c17-bf2b-084d30ce3029
-- Updated: 2026-08-31T17:05:45Z
+- Conversation ID: 595f13b1-be08-47a6-8dc2-036e503cfd04
+- Updated: 2026-08-31T23:41:00Z
 
 ## Review Scope
-- **Files to review**:
-  - Core/CoreUI.luau (Sub-tab architecture & column generalization)
-  - Core/Main.luau (Combat tab refactoring & sub-tab instantiation)
-- **Interface contracts**: A:/Potassium/Modular-Roblox-Menu/.agents/PROJECT.md
-- **Review criteria**: Correctness, spring animation dynamics, layout stability & zero jitter, theme reactivity, column balance, config key preservation.
+- **Files to review**: Core/CoreUI.luau, Core/Main.luau, UI/PlayerList.luau, UI/ChatWidget.luau, UI/MusicTracker.luau, UI/Notification.luau, UI/UI.luau, UI/Animations.luau
+- **Interface contracts**: ORIGINAL_REQUEST.md, orchestrator_3/PROJECT.md
+- **Review criteria**: mini sub-tab decluttering, right-click tab hiding & bidirectional sync, 2px borders, 6px insets, theme token registrations, spring-damper micro-interactions, service checks
 
 ## Review Checklist
-- **Items reviewed**:
-  - Core/CoreUI.luau lines 49-50, 79-100, 326-591, 593-639.
-  - Core/Main.luau lines 251-335.
-  - Verification scripts (check_services.py, erify_syntax.py, erify_worker_2.py).
+- **Items reviewed**: Core/CoreUI.luau, Core/Main.luau, UI/PlayerList.luau, UI/ChatWidget.luau, UI/MusicTracker.luau, UI/Notification.luau, UI/UI.luau, UI/Animations.luau, Modules/*.luau
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All claims independently reproduced and validated.
+- **Unverified claims**: none
 
 ## Attack Surface
-- **Hypotheses tested**:
-  - Rapid sub-tab switching race condition -> Guarded via subTabs.ActiveSubTab == targetObj checks in delayed ripple task and idempotent selection.
-  - Parent container sizing jitter -> Resolved via AutomaticSize.Y on SubPagesContainer and Visible = false on inactive pages.
-  - Translucent / Dark / Light theme reactivity -> UpdateTheme iterates SubTabGroups and re-applies exact palette tokens.
-  - Config key regressions -> All 13 toggles/sliders/buttons verified intact and wired to Modules/Combat.luau.
-- **Vulnerabilities found**: None. Architecture is robust, modular, and non-breaking.
-- **Untested angles**: None.
+- **Hypotheses tested**: Sub-tab selection with string/integer target, right-click hiding of Main tab vs other tabs, fallback when active tab is hidden, theme registration cleanup on dead instances, viewport dragging clamping.
+- **Vulnerabilities found**: None. All edge cases handled cleanly.
+- **Untested angles**: Extreme resolutions under 400px width (mitigated by min-size clamps).
 
 ## Key Decisions Made
-- Confirmed full architectural compliance with ORIGINAL_REQUEST.md and PROJECT.md.
-- Issue verdict: APPROVE.
+- Confirmed full architectural adherence across all 4 review objectives and verified 0 missing services / 0 UTF-8 BOM bytes.
 
 ## Artifact Index
-- A:/Potassium/Modular-Roblox-Menu/.agents/reviewer_1/handoff.md â€” Complete 5-component review and challenge report.
+- A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_1\BRIEFING.md — Working memory
+- A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_1\progress.md — Step tracking
+- A:\Potassium\Modular-Roblox-Menu\.agents\reviewer_1\handoff.md — Final handoff review report

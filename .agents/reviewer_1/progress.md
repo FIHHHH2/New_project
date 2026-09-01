@@ -1,12 +1,11 @@
-# Progress — Reviewer 1
+# Progress Log
 
-- Mission: CoreUI sub-tabs architecture & Combat tab refactoring review
-- Last visited: 2026-08-31T17:06:00Z
-- Status: Review & Stress-Testing Complete
-- Verdict: APPROVE
-- Step 1: Read DISPATCH.md and ORIGINAL_REQUEST.md — DONE
-- Step 2: Static analysis & check_services.py — DONE (0 missing services, 0 BOM)
-- Step 3: Architecture & spring transition review in CoreUI.luau — DONE
-- Step 4: Combat tab column balancing & callback verification in Main.luau — DONE
-- Step 5: Adversarial stress testing & edge-case mining — DONE
-- Step 6: Briefing updated & handoff report preparation — IN PROGRESS
+Last visited: 2026-08-31T23:41:00Z
+
+- [x] Initialized DISPATCH.md, BRIEFING.md, and progress.md
+- [x] Read ORIGINAL_REQUEST.md and orchestrator_3/PROJECT.md
+- [x] Run python check_services.py (0 missing services, 0 UTF-8 BOM files)
+- [x] Review Core/CoreUI.luau and Core/Main.luau (mini sub-tab decluttering, right-click tab hiding, bidirectional settings sync)
+- [x] Review UI/PlayerList.luau, UI/ChatWidget.luau, UI/MusicTracker.luau, UI/Notification.luau (borders, insets, theme tokens, spring-damper)
+- [x] Perform adversarial stress-testing / integrity checks
+- [x] Compile handoff.md and send completion message

@@ -102,6 +102,13 @@ local window = CoreUI.new("Project Fih Menu")
 local playerListWidget = PlayerList.new()
 local chatWidgetInstance = ChatWidget.new()
 local musicTrackerWidget = MusicTracker.new()
+local hotbarWidget = Hotbar.new()
+
+_G.__ToggleProjectFihBackpack = function()
+	if hotbarWidget then
+		hotbarWidget.ToggleBackpack()
+	end
+end
 
 _G.__ToggleProjectFihMenu = function()
 	window:Toggle()
@@ -1101,6 +1108,11 @@ end)
 window:AddToggle(widgetSection, "mod_chat_widget", "Chat Widget", true, nil, function(enabled)
 	FeatureManager.setModuleState("chat_widget", enabled)
 	chatWidgetInstance.Frame.Visible = enabled
+end)
+
+window:AddToggle(widgetSection, "mod_custom_hotbar", "Custom Hotbar & Backpack HUD", true, nil, function(enabled)
+	FeatureManager.setModuleState("custom_hotbar", enabled)
+	hotbarWidget.SetVisible(enabled)
 end)
 
 -- Hook tab right-click sync to update settings toggles

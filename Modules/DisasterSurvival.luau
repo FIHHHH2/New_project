@@ -213,12 +213,9 @@ function DisasterSurvival.setFlight(enabled: boolean)
 end
 
 -- ── Anti-Fling (pre-emptive CFrame anchor prevents self-fling) ────
---  The bug that caused self-fling: zeroing AssemblyLinearVelocity on
---  the local HRP on every Stepped tick conflicted with Humanoid motor
---  forces and ended up propelling the player erratically.
---  Fix: only clamp when magnitude exceeds a reasonable sprint cap (60),
---  and guard the clamp with a "last safe CFrame" teleport rather than
---  zeroing the full velocity vector (which disrupts normal locomotion).
+-- When FlingMode is ALSO active, angular velocity is intentionally at
+-- 10M rad/s. Anti-fling skips the angular check in that case so the
+-- two systems don't fight each other and the player can still walk.
 function DisasterSurvival.setAntiFling(enabled: boolean)
     DisasterSurvival.AntiFling = enabled
     if enabled then
@@ -228,26 +225,30 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
         antiFlingConn = RunService.Stepped:Connect(function()
             local char = LocalPlayer.Character
             local hrp  = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-            local hum  = char and char:FindFirstChildOfClass("Humanoid")
             if not hrp then return end
 
-            local linVel = hrp.AssemblyLinearVelocity
-            local angVel = hrp.AssemblyAngularVelocity
-            local now    = tick()
+            local linVel    = hrp.AssemblyLinearVelocity
+            local angVel    = hrp.AssemblyAngularVelocity
+            local now       = tick()
+            local flingOn   = DisasterSurvival.FlingMode
 
-            -- Record a safe position once per 0.25s when velocity is normal
-            if linVel.Magnitude < 60 and angVel.Magnitude < 10 then
+            -- Angular threshold: ignored when FlingMode owns angular velocity
+            local angSpike  = if flingOn then false else (angVel.Magnitude > 10)
+            local linSpike  = linVel.Magnitude > 60
+
+            -- Record safe position when velocity is normal
+            if not linSpike and not angSpike then
                 if now - lastSafeTime > 0.25 then
                     lastSafeCF   = hrp.CFrame
                     lastSafeTime = now
                 end
-            else
-                -- Velocity spike detected — snap back to last safe position
-                if lastSafeCF then
-                    hrp.CFrame = lastSafeCF
+            elseif linSpike then
+                -- Only snap+zero on LINEAR spikes — don't touch angular when fling is on
+                if lastSafeCF then hrp.CFrame = lastSafeCF end
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                if not flingOn then
+                    hrp.AssemblyAngularVelocity = Vector3.zero
                 end
-                hrp.AssemblyLinearVelocity  = Vector3.zero
-                hrp.AssemblyAngularVelocity = Vector3.zero
             end
 
             -- Always disable collision with other player characters

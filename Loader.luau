@@ -6554,10 +6554,15 @@ function LeaderstatsWidget.new()
 	self.SetVisible = function(vis: boolean)
 		widget.Visible = vis
 		if vis then
-			autoDockNextToPlayerList()
-			if Animations and typeof(Animations.openWindow) == "function" then
-				Animations.openWindow(widget, uiScale)
-			end
+			pcall(autoDockNextToPlayerList)
+			pcall(function()
+				if uiScale then
+					uiScale.Scale = 0.92
+					TweenService:Create(uiScale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+						Scale = 1.0
+					}):Play()
+				end
+			end)
 		end
 	end
 

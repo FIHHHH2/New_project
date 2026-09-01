@@ -5151,11 +5151,11 @@ function Hotbar.new(): HotbarWidget
 		if not char or not hum then return end
 
 		if isToolEquipped(tool) then
-			hum:UnequipTools()
+			pcall(function() hum:UnequipTools() end)
 		else
-			hum:UnequipTools()
+			pcall(function() hum:UnequipTools() end)
 			task.wait(0.02)
-			hum:EquipTool(tool)
+			pcall(function() hum:EquipTool(tool) end)
 		end
 	end
 

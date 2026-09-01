@@ -66,6 +66,15 @@ function Hotbar.getToolSignature(tool: Tool?): string
 	return string.format("%s_%s_%s", tool.Name, tool.TextureId, tostring(tool))
 end
 
+local function cleanAssetId(raw: string?): string
+	if not raw or raw == "" then return "" end
+	local id = string.match(raw, "(%d+)")
+	if id then
+		return "rbxassetid://" .. id
+	end
+	return raw
+end
+
 local function cleanViewport(container: GuiObject)
 	local oldVp = container:FindFirstChild("ModelViewport")
 	if oldVp then
@@ -75,6 +84,10 @@ local function cleanViewport(container: GuiObject)
 			child:Destroy()
 		end
 		oldVp:Destroy()
+	end
+	local oldImg = container:FindFirstChild("ToolIcon2D")
+	if oldImg then
+		oldImg:Destroy()
 	end
 end
 
@@ -93,75 +106,99 @@ local function renderToolViewportCached(
 	local sig = Hotbar.getToolSignature(tool)
 	local cached = cacheStore[cacheKey]
 	local existingVp = container:FindFirstChild("ModelViewport")
+	local existingImg = container:FindFirstChild("ToolIcon2D")
 
-	if cached and existingVp and cached.Tool == tool and cached.Name == tool.Name and cached.TextureId == tool.TextureId and cached.Signature == sig then
+	if cached and (existingVp or existingImg) and cached.Tool == tool and cached.Name == tool.Name and cached.TextureId == tool.TextureId and cached.Signature == sig then
 		return
 	end
 
 	cleanViewport(container)
 
-	local vp = Instance.new("ViewportFrame")
-	vp.Name = "ModelViewport"
-	vp.Size = UDim2.new(1, 0, 1, 0)
-	vp.Position = UDim2.new(0, 0, 0, 0)
-	vp.BackgroundTransparency = 1
-	vp.BorderSizePixel = 0
-	vp.Ambient = Color3.fromRGB(200, 200, 210)
-	vp.LightColor = Color3.fromRGB(255, 255, 255)
-	vp.LightDirection = Vector3.new(-1, -1.6, -1).Unit
-	vp.ZIndex = 3
-	vp.Parent = container
+	-- 1. Check for valid 2D TextureId (Primary for Roblox Gears / Weapons / Items)
+	local cleanedTexture = cleanAssetId(tool.TextureId)
+	if cleanedTexture ~= "" then
+		local imgLabel = Instance.new("ImageLabel")
+		imgLabel.Name = "ToolIcon2D"
+		imgLabel.Size = UDim2.new(0.72, 0, 0.72, 0)
+		imgLabel.Position = UDim2.new(0.14, 0, 0.14, 0)
+		imgLabel.BackgroundTransparency = 1
+		imgLabel.BorderSizePixel = 0
+		imgLabel.Image = cleanedTexture
+		imgLabel.ScaleType = Enum.ScaleType.Fit
+		imgLabel.ZIndex = 3
+		imgLabel.Parent = container
+	else
+		-- 2. Fallback to 3D ViewportFrame with intelligent multi-mesh and SpecialMesh scaling
+		local vp = Instance.new("ViewportFrame")
+		vp.Name = "ModelViewport"
+		vp.Size = UDim2.new(1, 0, 1, 0)
+		vp.Position = UDim2.new(0, 0, 0, 0)
+		vp.BackgroundTransparency = 1
+		vp.BorderSizePixel = 0
+		vp.Ambient = Color3.fromRGB(220, 220, 230)
+		vp.LightColor = Color3.fromRGB(255, 255, 255)
+		vp.LightDirection = Vector3.new(-1, -1.6, -1).Unit
+		vp.ZIndex = 3
+		vp.Parent = container
 
-	local parts: {BasePart} = {}
-	local handle = tool:FindFirstChild("Handle") :: BasePart?
-	for _, desc in ipairs(tool:GetDescendants()) do
-		if desc:IsA("BasePart") then
-			table.insert(parts, desc)
-		end
-	end
-
-	if #parts > 0 then
-		local refPart = handle or parts[1]
-		local refCF = refPart.CFrame
-		local minBounds = Vector3.new(math.huge, math.huge, math.huge)
-		local maxBounds = Vector3.new(-math.huge, -math.huge, -math.huge)
-
-		local model = Instance.new("Model")
-		model.Name = "ClonedTool"
-
-		for _, p in ipairs(parts) do
-			local clone = p:Clone()
-			clone.CanCollide = false
-			clone.Anchored = true
-			local relCF = refCF:ToObjectSpace(p.CFrame)
-			clone.CFrame = relCF
-			clone.Parent = model
-
-			local cp = relCF.Position
-			local sz = clone.Size
-			minBounds = Vector3.new(
-				math.min(minBounds.X, cp.X - sz.X / 2),
-				math.min(minBounds.Y, cp.Y - sz.Y / 2),
-				math.min(minBounds.Z, cp.Z - sz.Z / 2)
-			)
-			maxBounds = Vector3.new(
-				math.max(maxBounds.X, cp.X + sz.X / 2),
-				math.max(maxBounds.Y, cp.Y + sz.Y / 2),
-				math.max(maxBounds.Z, cp.Z + sz.Z / 2)
-			)
+		local parts: {BasePart} = {}
+		local handle = tool:FindFirstChild("Handle") :: BasePart?
+		for _, desc in ipairs(tool:GetDescendants()) do
+			if desc:IsA("BasePart") then
+				table.insert(parts, desc)
+			end
 		end
 
-		model.Parent = vp
+		if #parts > 0 then
+			local refPart = handle or parts[1]
+			local refCF = refPart.CFrame
+			local minBounds = Vector3.new(math.huge, math.huge, math.huge)
+			local maxBounds = Vector3.new(-math.huge, -math.huge, -math.huge)
 
-		local center = (minBounds + maxBounds) / 2
-		local size = (maxBounds - minBounds)
-		local maxDim = math.max(size.X, size.Y, size.Z, 0.8)
+			local model = Instance.new("Model")
+			model.Name = "ClonedTool"
 
-		local cam = Instance.new("Camera")
-		cam.FieldOfView = 50
-		cam.CFrame = CFrame.new(center + Vector3.new(maxDim * 1.35, maxDim * 0.95, maxDim * 1.35), center)
-		cam.Parent = vp
-		vp.CurrentCamera = cam
+			for _, p in ipairs(parts) do
+				local clone = p:Clone()
+				clone.CanCollide = false
+				clone.Anchored = true
+				local relCF = refCF:ToObjectSpace(p.CFrame)
+				clone.CFrame = relCF
+				clone.Parent = model
+
+				local cp = relCF.Position
+				local sz = clone.Size
+
+				-- Check if SpecialMesh scale enlarges the visual size
+				local sm = clone:FindFirstChildOfClass("SpecialMesh")
+				if sm then
+					sz = Vector3.new(sz.X * math.abs(sm.Scale.X), sz.Y * math.abs(sm.Scale.Y), sz.Z * math.abs(sm.Scale.Z))
+				end
+
+				minBounds = Vector3.new(
+					math.min(minBounds.X, cp.X - sz.X / 2),
+					math.min(minBounds.Y, cp.Y - sz.Y / 2),
+					math.min(minBounds.Z, cp.Z - sz.Z / 2)
+				)
+				maxBounds = Vector3.new(
+					math.max(maxBounds.X, cp.X + sz.X / 2),
+					math.max(maxBounds.Y, cp.Y + sz.Y / 2),
+					math.max(maxBounds.Z, cp.Z + sz.Z / 2)
+				)
+			end
+
+			model.Parent = vp
+
+			local center = (minBounds + maxBounds) / 2
+			local size = (maxBounds - minBounds)
+			local maxDim = math.max(size.X, size.Y, size.Z, 0.8)
+
+			local cam = Instance.new("Camera")
+			cam.FieldOfView = 50
+			cam.CFrame = CFrame.new(center + Vector3.new(maxDim * 1.35, maxDim * 0.95, maxDim * 1.35), center)
+			cam.Parent = vp
+			vp.CurrentCamera = cam
+		end
 	end
 
 	cacheStore[cacheKey] = {

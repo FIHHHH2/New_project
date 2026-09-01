@@ -1891,8 +1891,71 @@ window:AddButton(configActionsSection, "Refresh Config List", function()
 	window:Notify("Configs", "Config list refreshed", 2)
 end)
 
+-- Auto-Load on Startup Section
+local autoLoadSection = window:AddSection(confRightCol, "Auto-Load on Startup")
+
+local autoLoadData = FeatureManager.getAutoLoadConfig()
+
+local autoLoadStatusLabel = Instance.new("TextLabel")
+autoLoadStatusLabel.Name = "AutoLoadStatus"
+autoLoadStatusLabel.Size = UDim2.new(1, -4, 0, 24)
+autoLoadStatusLabel.BackgroundTransparency = 1
+autoLoadStatusLabel.Text = if autoLoadData.enabled and autoLoadData.configName ~= "" then string.format("Default Startup Config: [%s]", autoLoadData.configName) else "Default Startup Config: [ None ]"
+autoLoadStatusLabel.TextColor3 = if autoLoadData.enabled then UI.Theme.Accent else UI.Theme.TextSecondary
+autoLoadStatusLabel.Font = UI.Fonts.Mono
+autoLoadStatusLabel.TextSize = 10
+autoLoadStatusLabel.Parent = autoLoadSection
+UI.registerThemeElement(autoLoadStatusLabel, "TextSecondary")
+
+window:AddToggle(autoLoadSection, "autoload_startup_enabled", "Enable Auto-Load on Startup", autoLoadData.enabled, nil, function(enabled)
+	local cur = FeatureManager.getAutoLoadConfig()
+	FeatureManager.setAutoLoadConfig(enabled, cur.configName)
+	autoLoadStatusLabel.TextColor3 = if enabled then UI.Theme.Accent else UI.Theme.TextSecondary
+	window:Notify("Auto-Load", if enabled then "Auto-load on startup enabled" else "Auto-load on startup disabled", 2)
+end)
+
+window:AddButton(autoLoadSection, "Set Selected as Startup Profile", function()
+	if not selectedConfigName or selectedConfigName == "" then
+		window:Notify("Auto-Load", "Please select a profile on the left first", 3)
+		return
+	end
+	FeatureManager.setAutoLoadConfig(true, selectedConfigName)
+	local tgl = FeatureManager.getFeature("autoload_startup_enabled")
+	if tgl and not tgl.state then
+		FeatureManager.setFeatureState("autoload_startup_enabled", true)
+	end
+	autoLoadStatusLabel.Text = string.format("Default Startup Config: [%s]", selectedConfigName)
+	autoLoadStatusLabel.TextColor3 = UI.Theme.Accent
+	window:Notify("Auto-Load", string.format("Set '%s' to load automatically on startup", selectedConfigName), 3)
+end)
+
+window:AddButton(autoLoadSection, "Clear Startup Profile", function()
+	FeatureManager.setAutoLoadConfig(false, "")
+	local tgl = FeatureManager.getFeature("autoload_startup_enabled")
+	if tgl and tgl.state then
+		FeatureManager.setFeatureState("autoload_startup_enabled", false)
+	end
+	autoLoadStatusLabel.Text = "Default Startup Config: [ None ]"
+	autoLoadStatusLabel.TextColor3 = UI.Theme.TextSecondary
+	window:Notify("Auto-Load", "Startup auto-load profile cleared", 2)
+end)
+
 -- Initial scan of configs on startup
 task.spawn(refreshProfilesList)
+
+-- Auto-load configuration profile on startup if configured
+task.spawn(function()
+	task.wait(1.0)
+	pcall(function()
+		local auto = FeatureManager.getAutoLoadConfig()
+		if auto.enabled and auto.configName ~= "" then
+			local ok = FeatureManager.loadConfig(auto.configName)
+			if ok then
+				window:Notify("Auto-Load", string.format("Auto-loaded startup config '%s'", auto.configName), 4)
+			end
+		end
+	end)
+end)
 
 -- Ensure saved theme is applied and saved on leave
 pcall(function()

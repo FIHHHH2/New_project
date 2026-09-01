@@ -4130,26 +4130,42 @@ function MusicTracker.new()
 		table.insert(visualizerBars, bar)
 	end
 
-	-- Control Buttons (Compact Square Buttons in Correct Order: Prev, Play/Pause, Next)
+	-- Control Buttons & Audio Slider Container
 	local ctrlFrame = Instance.new("Frame")
 	ctrlFrame.Name = "Controls"
-	ctrlFrame.Size = UDim2.new(0, 88, 1, 0)
-	ctrlFrame.Position = UDim2.new(1, -88, 0, 0)
+	ctrlFrame.Size = UDim2.new(0, 94, 1, 0)
+	ctrlFrame.Position = UDim2.new(1, -94, 0, 0)
 	ctrlFrame.BackgroundTransparency = 1
 	ctrlFrame.Parent = bottomControls
 
 	local ctrlLayout = Instance.new("UIListLayout")
-	ctrlLayout.FillDirection = Enum.FillDirection.Horizontal
+	ctrlLayout.FillDirection = Enum.FillDirection.Vertical
 	ctrlLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 	ctrlLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	ctrlLayout.Padding = UDim.new(0, 3)
+	ctrlLayout.Padding = UDim.new(0, 4)
 	ctrlLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	ctrlLayout.Parent = ctrlFrame
+
+	-- 1. Buttons Row (Prev, Play/Pause, Next)
+	local btnsRow = Instance.new("Frame")
+	btnsRow.Name = "ButtonsRow"
+	btnsRow.Size = UDim2.new(1, 0, 0, 22)
+	btnsRow.BackgroundTransparency = 1
+	btnsRow.LayoutOrder = 1
+	btnsRow.Parent = ctrlFrame
+
+	local btnsLayout = Instance.new("UIListLayout")
+	btnsLayout.FillDirection = Enum.FillDirection.Horizontal
+	btnsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	btnsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	btnsLayout.Padding = UDim.new(0, 4)
+	btnsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	btnsLayout.Parent = btnsRow
 
 	local function makeCtrlBtn(name: string, symbol: string, order: number): TextButton
 		local btn = Instance.new("TextButton")
 		btn.Name = name
-		btn.Size = UDim2.new(0, 26, 0, 24)
+		btn.Size = UDim2.new(0, 26, 0, 20)
 		btn.BackgroundColor3 = UI.Theme.ContainerDark
 		btn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 		btn.BorderSizePixel = 0
@@ -4158,7 +4174,7 @@ function MusicTracker.new()
 		btn.Font = UI.Fonts.Header
 		btn.TextSize = 11
 		btn.LayoutOrder = order
-		btn.Parent = ctrlFrame
+		btn.Parent = btnsRow
 		UI.registerThemeElement(btn, "ContainerDark")
 		UI.registerThemeElement(btn, "TextPrimary")
 
@@ -4184,6 +4200,97 @@ function MusicTracker.new()
 	local prevBtn = makeCtrlBtn("PrevBtn", "«", 1)
 	local playBtn = makeCtrlBtn("PlayBtn", "❚❚", 2)
 	local skipBtn = makeCtrlBtn("SkipBtn", "»", 3)
+
+	-- 2. Audio Volume Slider Row (Just under playback controls)
+	local volSliderRow = Instance.new("Frame")
+	volSliderRow.Name = "VolumeSliderRow"
+	volSliderRow.Size = UDim2.new(1, 0, 0, 10)
+	volSliderRow.BackgroundTransparency = 1
+	volSliderRow.LayoutOrder = 2
+	volSliderRow.Parent = ctrlFrame
+
+	local volTrack = Instance.new("Frame")
+	volTrack.Name = "VolTrack"
+	volTrack.Size = UDim2.new(1, -2, 0, 5)
+	volTrack.Position = UDim2.new(0, 1, 0.5, -2)
+	volTrack.BackgroundColor3 = UI.Theme.ContainerDark
+	volTrack.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	volTrack.BorderSizePixel = 0
+	volTrack.Parent = volSliderRow
+	UI.registerThemeElement(volTrack, "ContainerDark")
+
+	local volTrackStroke = Instance.new("UIStroke")
+	volTrackStroke.Color = UI.Theme.BorderDim
+	volTrackStroke.Thickness = 1
+	volTrackStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	volTrackStroke.Parent = volTrack
+	UI.registerThemeElement(volTrackStroke, "BorderDim")
+
+	local currentVolume = 0.8 -- default 80%
+
+	local volFill = Instance.new("Frame")
+	volFill.Name = "VolFill"
+	volFill.Size = UDim2.new(currentVolume, 0, 1, 0)
+	volFill.BackgroundColor3 = UI.Theme.Accent
+	volFill.BorderSizePixel = 0
+	volFill.Parent = volTrack
+	UI.registerThemeElement(volFill, "Accent")
+
+	local volKnob = Instance.new("Frame")
+	volKnob.Name = "VolKnob"
+	volKnob.Size = UDim2.new(0, 7, 0, 9)
+	volKnob.Position = UDim2.new(currentVolume, -3, 0.5, -4)
+	volKnob.BackgroundColor3 = UI.Theme.Border
+	volKnob.BorderSizePixel = 0
+	volKnob.Parent = volTrack
+	UI.registerThemeElement(volKnob, "Border")
+
+	local volDragging = false
+
+	local function setVolume(volRatio: number)
+		currentVolume = math.clamp(volRatio, 0, 1)
+		volFill.Size = UDim2.new(currentVolume, 0, 1, 0)
+		volKnob.Position = UDim2.new(currentVolume, -3, 0.5, -4)
+
+		-- Adjust game audio sound service
+		pcall(function()
+			local SoundService = game:GetService("SoundService")
+			for _, s in ipairs(SoundService:GetDescendants()) do
+				if s:IsA("Sound") then
+					local base = s:GetAttribute("OrigVolume") or s.Volume
+					s.Volume = (base :: number) * currentVolume
+				end
+			end
+		end)
+
+		-- Dispatch volume change to local media bridge
+		task.spawn(function()
+			pcall(function()
+				game:HttpGet(string.format("%s/volume?val=%d", BRIDGE_URL, math.floor(currentVolume * 100)))
+			end)
+		end)
+	end
+
+	volTrack.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			volDragging = true
+			local relX = math.clamp((input.Position.X - volTrack.AbsolutePosition.X) / volTrack.AbsoluteSize.X, 0, 1)
+			setVolume(relX)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if volDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local relX = math.clamp((input.Position.X - volTrack.AbsolutePosition.X) / volTrack.AbsoluteSize.X, 0, 1)
+			setVolume(relX)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			volDragging = false
+		end
+	end)
 
 	-- ── Real-Time Audio Visualizer & Cover Update Logic ───────────────
 	local isPlaying = false
@@ -6527,6 +6634,36 @@ function FeatureManager.deleteConfig(name: string): boolean
 	local ok = deleteConfigFile(cleanName)
 	if activeConfigName == cleanName then activeConfigName = nil end
 	return ok
+end
+
+-- ── Auto-Load on Startup Persistence ─────────────────────────────────
+local AUTOLOAD_FILE = "autoload_profile.json"
+
+function FeatureManager.getAutoLoadConfig(): { enabled: boolean, configName: string }
+	local raw = readConfigFile(AUTOLOAD_FILE)
+	if raw then
+		local ok, data = pcall(function() return HttpService:JSONDecode(raw) end)
+		if ok and type(data) == "table" and data.configName then
+			return {
+				enabled = (data.enabled == true),
+				configName = tostring(data.configName)
+			}
+		end
+	end
+	return { enabled = false, configName = "" }
+end
+
+function FeatureManager.setAutoLoadConfig(enabled: boolean, configName: string): boolean
+	local cleanName = sanitizeConfigName(configName)
+	local payload = {
+		enabled = enabled,
+		configName = cleanName
+	}
+	local ok, encoded = pcall(function() return HttpService:JSONEncode(payload) end)
+	if ok and encoded then
+		return writeConfigFile(AUTOLOAD_FILE, encoded)
+	end
+	return false
 end
 
 return FeatureManager
@@ -13668,8 +13805,71 @@ window:AddButton(configActionsSection, "Refresh Config List", function()
 	window:Notify("Configs", "Config list refreshed", 2)
 end)
 
+-- Auto-Load on Startup Section
+local autoLoadSection = window:AddSection(confRightCol, "Auto-Load on Startup")
+
+local autoLoadData = FeatureManager.getAutoLoadConfig()
+
+local autoLoadStatusLabel = Instance.new("TextLabel")
+autoLoadStatusLabel.Name = "AutoLoadStatus"
+autoLoadStatusLabel.Size = UDim2.new(1, -4, 0, 24)
+autoLoadStatusLabel.BackgroundTransparency = 1
+autoLoadStatusLabel.Text = if autoLoadData.enabled and autoLoadData.configName ~= "" then string.format("Default Startup Config: [%s]", autoLoadData.configName) else "Default Startup Config: [ None ]"
+autoLoadStatusLabel.TextColor3 = if autoLoadData.enabled then UI.Theme.Accent else UI.Theme.TextSecondary
+autoLoadStatusLabel.Font = UI.Fonts.Mono
+autoLoadStatusLabel.TextSize = 10
+autoLoadStatusLabel.Parent = autoLoadSection
+UI.registerThemeElement(autoLoadStatusLabel, "TextSecondary")
+
+window:AddToggle(autoLoadSection, "autoload_startup_enabled", "Enable Auto-Load on Startup", autoLoadData.enabled, nil, function(enabled)
+	local cur = FeatureManager.getAutoLoadConfig()
+	FeatureManager.setAutoLoadConfig(enabled, cur.configName)
+	autoLoadStatusLabel.TextColor3 = if enabled then UI.Theme.Accent else UI.Theme.TextSecondary
+	window:Notify("Auto-Load", if enabled then "Auto-load on startup enabled" else "Auto-load on startup disabled", 2)
+end)
+
+window:AddButton(autoLoadSection, "Set Selected as Startup Profile", function()
+	if not selectedConfigName or selectedConfigName == "" then
+		window:Notify("Auto-Load", "Please select a profile on the left first", 3)
+		return
+	end
+	FeatureManager.setAutoLoadConfig(true, selectedConfigName)
+	local tgl = FeatureManager.getFeature("autoload_startup_enabled")
+	if tgl and not tgl.state then
+		FeatureManager.setFeatureState("autoload_startup_enabled", true)
+	end
+	autoLoadStatusLabel.Text = string.format("Default Startup Config: [%s]", selectedConfigName)
+	autoLoadStatusLabel.TextColor3 = UI.Theme.Accent
+	window:Notify("Auto-Load", string.format("Set '%s' to load automatically on startup", selectedConfigName), 3)
+end)
+
+window:AddButton(autoLoadSection, "Clear Startup Profile", function()
+	FeatureManager.setAutoLoadConfig(false, "")
+	local tgl = FeatureManager.getFeature("autoload_startup_enabled")
+	if tgl and tgl.state then
+		FeatureManager.setFeatureState("autoload_startup_enabled", false)
+	end
+	autoLoadStatusLabel.Text = "Default Startup Config: [ None ]"
+	autoLoadStatusLabel.TextColor3 = UI.Theme.TextSecondary
+	window:Notify("Auto-Load", "Startup auto-load profile cleared", 2)
+end)
+
 -- Initial scan of configs on startup
 task.spawn(refreshProfilesList)
+
+-- Auto-load configuration profile on startup if configured
+task.spawn(function()
+	task.wait(1.0)
+	pcall(function()
+		local auto = FeatureManager.getAutoLoadConfig()
+		if auto.enabled and auto.configName ~= "" then
+			local ok = FeatureManager.loadConfig(auto.configName)
+			if ok then
+				window:Notify("Auto-Load", string.format("Auto-loaded startup config '%s'", auto.configName), 4)
+			end
+		end
+	end)
+end)
 
 -- Ensure saved theme is applied and saved on leave
 pcall(function()

@@ -379,4 +379,34 @@ function FeatureManager.deleteConfig(name: string): boolean
 	return ok
 end
 
+-- ── Auto-Load on Startup Persistence ─────────────────────────────────
+local AUTOLOAD_FILE = "autoload_profile.json"
+
+function FeatureManager.getAutoLoadConfig(): { enabled: boolean, configName: string }
+	local raw = readConfigFile(AUTOLOAD_FILE)
+	if raw then
+		local ok, data = pcall(function() return HttpService:JSONDecode(raw) end)
+		if ok and type(data) == "table" and data.configName then
+			return {
+				enabled = (data.enabled == true),
+				configName = tostring(data.configName)
+			}
+		end
+	end
+	return { enabled = false, configName = "" }
+end
+
+function FeatureManager.setAutoLoadConfig(enabled: boolean, configName: string): boolean
+	local cleanName = sanitizeConfigName(configName)
+	local payload = {
+		enabled = enabled,
+		configName = cleanName
+	}
+	local ok, encoded = pcall(function() return HttpService:JSONEncode(payload) end)
+	if ok and encoded then
+		return writeConfigFile(AUTOLOAD_FILE, encoded)
+	end
+	return false
+end
+
 return FeatureManager

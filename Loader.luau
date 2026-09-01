@@ -8517,6 +8517,39 @@ Modules["Core/CoreUI.luau"] = function()
     local function safeParentGui(gui: ScreenGui)
     	local targetParent = nil
     	if type(gethui) == "function" then
+    		pcall(function() targetParent = gethui() end)
+    	end
+    	if not targetParent and CoreGui then
+    		pcall(function() targetParent = CoreGui end)
+    	end
+    	if not targetParent and Players.LocalPlayer then
+    		targetParent = Players.LocalPlayer:FindFirstChild("PlayerGui")
+    	end
+    	pcall(function() gui.Parent = targetParent end)
+    	if not gui.Parent and Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then
+    		gui.Parent = Players.LocalPlayer.PlayerGui
+    	end
+    end
+    
+    --!strict
+    local Players = game:GetService("Players")
+    local UserInputService = game:GetService("UserInputService")
+    local TweenService = game:GetService("TweenService")
+    local CoreGui = game:GetService("CoreGui")
+    local RunService = game:GetService("RunService")
+    local HttpService = game:GetService("HttpService")
+    local GuiService = game:GetService("GuiService")
+    local TeleportService = game:GetService("TeleportService")
+    local StarterGui = game:GetService("StarterGui")
+    
+    local UI = require("UI/UI.luau")
+    local Animations = require("UI/Animations.luau")
+    local FeatureManager = require("Core/FeatureManager.luau")
+    local Notification = require("UI/Notification.luau")
+    
+    local function safeParentGui(gui: ScreenGui)
+    	local targetParent = nil
+    	if type(gethui) == "function" then
     		pcall(function()
     			local h = gethui()
     			if h and not h:IsA("ScreenGui") then
@@ -8534,9 +8567,7 @@ Modules["Core/CoreUI.luau"] = function()
     	pcall(function() gui.Parent = targetParent end)
     	if not gui.Parent and Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then
     		gui.Parent = Players.LocalPlayer.PlayerGui
-    	end
-    end
-    
+    	
     local CoreUI = {}
     CoreUI.__index = CoreUI
     
@@ -8666,9 +8697,7 @@ Modules["Core/CoreUI.luau"] = function()
     		if fill and fill.Parent then
     			fill.BackgroundColor3 = theme.Accent
     		end
-    	end
-    end
-    
+    	
     function CoreUI:SetTheme(themeName: string)
     	UI.setTheme(themeName)
     end
@@ -8827,9 +8856,7 @@ Modules["Core/CoreUI.luau"] = function()
     
     	if targetTab.OnVisibilityChanged then
     		targetTab.OnVisibilityChanged(visible)
-    	end
-    end
-    
+    	
     function CoreUI:SelectTab(tabObj)
     	if not tabObj then return end
     	if self.ActiveTab == tabObj then return end
@@ -8901,9 +8928,7 @@ Modules["Core/CoreUI.luau"] = function()
     
     	if tabObj.OnSelected then
     		pcall(tabObj.OnSelected)
-    	end
-    end
-    
+    	
     function CoreUI:BindSettingsTab(settingsTabObj)
     	self.SettingsTab = settingsTabObj
     end
@@ -9811,17 +9836,13 @@ Modules["Core/CoreUI.luau"] = function()
     		self:Close(onComplete)
     	else
     		self:Open(onComplete)
-    	end
-    end
-    
+    	
     function CoreUI:SetVisible(state: boolean, onComplete: (() -> ())?)
     	if state then
     		self:Open(onComplete)
     	else
     		self:Close(onComplete)
-    	end
-    end
-    
+    	
     return CoreUI
 end
 

@@ -10490,6 +10490,7 @@ Modules["Modules/Combat.luau"] = function()
     end
     
     local originalHitboxSizes: {[BasePart]: Vector3} = {}
+    local originalProperties: {[BasePart]: {Size: Vector3, Transparency: number, CanCollide: boolean, Massless: boolean}} = {}
     local lastTriggerTime = 0
     local lastTriggerCheck = 0
     local cachedTargetPlayer: Player? = nil
@@ -10934,7 +10935,6 @@ Modules["Modules/Combat.luau"] = function()
     
     -- ── Universal Multi-Part Bullet & Touch Hitbox Expander Engine ────────
     local EXPAND_PART_NAMES = {"HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Head"}
-    local originalProperties: {[BasePart]: {Size: Vector3, Transparency: number, CanCollide: boolean, Massless: boolean}} = {}
     
     local function updateHitboxes()
     	if not Combat.ExpandHitboxes then return end

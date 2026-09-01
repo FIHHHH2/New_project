@@ -5647,11 +5647,11 @@ __MODULE_SOURCES__["UI/LeaderstatsWidget.luau"] = [====[--!strict
 --[=[
     ✦ Retro Leaderstats & Universal Currency HUD Widget ✦
     Features:
-    - Dedicated draggable on-screen ScreenGui widget
-    - Multi-mode display: [ My Currencies ] & [ Server Players Leaderboard ]
-    - Real-time live polling of player leaderstats, Data folders, and game remotes
-    - Inspect any player in the server to see all their stats & values
-    - Full drag handle, minimize, close, and theme reactivity
+    - Auto-arranges next to the PlayerList tab widget
+    - Clean currency separation: [ Currencies ] vs [ Other Values ] vs [ Server Players ]
+    - Full theme reactivity with instant dynamic recoloring
+    - Real-time live polling of leaderstats, Data folders, and game remotes
+    - Drag handle, minimize controls, and snap-to-dock button
 ]=]
 
 local Players = game:GetService("Players")
@@ -5668,6 +5668,26 @@ local LocalPlayer = Players.LocalPlayer
 local LeaderstatsWidget = {}
 LeaderstatsWidget.__index = LeaderstatsWidget
 
+local PRIMARY_KEYWORDS = {
+	"coin", "cash", "money", "gem", "diamond", "crystal", "gold", "silver",
+	"point", "ruby", "water", "rebirth", "level", "lvl", "kill", "win",
+	"score", "token", "credit", "energy", "star", "shard", "xp", "exp",
+	"tank", "streak", "bounty", "rank", "prestige", "essence", "power", "strength"
+}
+
+local function isPrimaryCurrency(name: string, val: any): boolean
+	local lower = name:lower()
+	for _, kw in ipairs(PRIMARY_KEYWORDS) do
+		if string.find(lower, kw) then
+			return true
+		end
+	end
+	if tonumber(val) ~= nil and #name <= 14 then
+		return true
+	end
+	return false
+end
+
 local function formatNum(strVal: string): string
 	local num = tonumber(strVal)
 	if not num then return strVal end
@@ -5683,19 +5703,36 @@ local function formatNum(strVal: string): string
 	return tostring(num)
 end
 
-local function getPlayerStats(player: Player): {{ Name: string, Value: string, Formatted: string }}
-	local list: {{ Name: string, Value: string, Formatted: string }} = {}
+type StatItem = {
+	Name: string,
+	Value: string,
+	Formatted: string,
+	IsPrimary: boolean
+}
+
+local function getAllPlayerStats(player: Player): { Primaries: {StatItem}, Others: {StatItem} }
+	local primaries: {StatItem} = {}
+	local others: {StatItem} = {}
 	local seen: {[string]: boolean} = {}
 
-	local function add(name: string, val: any)
+	local function add(name: string, val: any, forcePrimary: boolean?)
 		local sVal = tostring(val)
-		if seen[name] or sVal == "" or #sVal > 40 then return end
+		if seen[name] or sVal == "" or #sVal > 50 then return end
 		seen[name] = true
-		table.insert(list, {
+
+		local primary = if forcePrimary ~= nil then forcePrimary else isPrimaryCurrency(name, val)
+		local item: StatItem = {
 			Name = name,
 			Value = sVal,
-			Formatted = formatNum(sVal)
-		})
+			Formatted = formatNum(sVal),
+			IsPrimary = primary
+		}
+
+		if primary then
+			table.insert(primaries, item)
+		else
+			table.insert(others, item)
+		end
 	end
 
 	-- 1. leaderstats folder
@@ -5703,7 +5740,7 @@ local function getPlayerStats(player: Player): {{ Name: string, Value: string, F
 	if ls then
 		for _, v in ipairs(ls:GetChildren()) do
 			if v:IsA("ValueBase") then
-				add(v.Name, (v :: any).Value)
+				add(v.Name, (v :: any).Value, true)
 			end
 		end
 	end
@@ -5737,7 +5774,7 @@ local function getPlayerStats(player: Player): {{ Name: string, Value: string, F
 		end)
 	end
 
-	return list
+	return { Primaries = primaries, Others = others }
 end
 
 function LeaderstatsWidget.new()
@@ -5746,6 +5783,7 @@ function LeaderstatsWidget.new()
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ModularLeaderstatsGui"
 	screenGui.ResetOnSpawn = false
+	screenGui.DisplayOrder = 605
 	screenGui.IgnoreGuiInset = true
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -5754,15 +5792,15 @@ function LeaderstatsWidget.new()
 		screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 	end
 
-	local WIDGET_W = 240
+	local WIDGET_W = 248
 	local TOPBAR_H = 26
 
-	-- ── Main Widget Frame ─────────────────────────────────────────────
+	-- Default position: Auto-arranged directly to the left of the PlayerList widget
 	local widget = Instance.new("Frame")
 	widget.Name = "LeaderstatsWidgetFrame"
 	widget.Size = UDim2.new(0, WIDGET_W, 0, 0)
 	widget.AutomaticSize = Enum.AutomaticSize.Y
-	widget.Position = UDim2.new(1, -254, 0, 48)
+	widget.Position = UDim2.new(1, -(270 + WIDGET_W + 8), 0, 10)
 	widget.BackgroundColor3 = UI.Theme.Background
 	widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	widget.BorderSizePixel = 0
@@ -5781,7 +5819,7 @@ function LeaderstatsWidget.new()
 	uiScale.Scale = 1.0
 	uiScale.Parent = widget
 
-	-- ── Topbar (Drag Handle) ──────────────────────────────────────────
+	-- ── Topbar (Drag Handle & Controls) ──────────────────────────────
 	local topbar = Instance.new("Frame")
 	topbar.Name = "TopBar"
 	topbar.Size = UDim2.new(1, -8, 0, TOPBAR_H)
@@ -5792,7 +5830,7 @@ function LeaderstatsWidget.new()
 
 	local titleBox = Instance.new("Frame")
 	titleBox.Name = "TitleBox"
-	titleBox.Size = UDim2.new(1, -56, 1, 0)
+	titleBox.Size = UDim2.new(1, -78, 1, 0)
 	titleBox.Position = UDim2.new(0, 0, 0, 0)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
@@ -5810,7 +5848,7 @@ function LeaderstatsWidget.new()
 	local liveDot = Instance.new("Frame")
 	liveDot.Size = UDim2.new(0, 6, 0, 6)
 	liveDot.Position = UDim2.new(0, 6, 0.5, -3)
-	liveDot.BackgroundColor3 = Color3.fromRGB(50, 220, 90)
+	liveDot.BackgroundColor3 = Color3.fromRGB(50, 225, 100)
 	liveDot.BorderSizePixel = 0
 	liveDot.Parent = titleBox
 
@@ -5822,7 +5860,7 @@ function LeaderstatsWidget.new()
 	titleLabel.Size = UDim2.new(1, -20, 1, 0)
 	titleLabel.Position = UDim2.new(0, 16, 0, 0)
 	titleLabel.BackgroundTransparency = 1
-	titleLabel.Text = "Stats & Currencies"
+	titleLabel.Text = "Leaderstats HUD"
 	titleLabel.TextColor3 = UI.Theme.TextPrimary
 	titleLabel.Font = UI.Fonts.Header
 	titleLabel.TextSize = 10
@@ -5830,11 +5868,34 @@ function LeaderstatsWidget.new()
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
+	-- Dock Button (Snaps directly next to PlayerList)
+	local dockBtn = Instance.new("TextButton")
+	dockBtn.Name = "DockBtn"
+	dockBtn.Size = UDim2.new(0, 22, 1, 0)
+	dockBtn.Position = UDim2.new(1, -74, 0, 0)
+	dockBtn.BackgroundColor3 = UI.Theme.Container
+	dockBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
+	dockBtn.BorderSizePixel = 0
+	dockBtn.Text = "⇲"
+	dockBtn.TextColor3 = UI.Theme.TextSecondary
+	dockBtn.Font = UI.Fonts.Header
+	dockBtn.TextSize = 11
+	dockBtn.Parent = topbar
+	UI.registerThemeElement(dockBtn, "Container")
+	UI.registerThemeElement(dockBtn, "TextSecondary")
+
+	local dockStroke = Instance.new("UIStroke")
+	dockStroke.Color = UI.Theme.BorderDim
+	dockStroke.Thickness = 1.0
+	dockStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	dockStroke.Parent = dockBtn
+	UI.registerThemeElement(dockStroke, "BorderDim")
+
 	-- Minimize & Close Buttons
 	local minBtn = Instance.new("TextButton")
 	minBtn.Name = "MinBtn"
-	minBtn.Size = UDim2.new(0, 24, 1, 0)
-	minBtn.Position = UDim2.new(1, -52, 0, 0)
+	minBtn.Size = UDim2.new(0, 22, 1, 0)
+	minBtn.Position = UDim2.new(1, -48, 0, 0)
 	minBtn.BackgroundColor3 = UI.Theme.Container
 	minBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
 	minBtn.BorderSizePixel = 0
@@ -5848,15 +5909,15 @@ function LeaderstatsWidget.new()
 
 	local minStroke = Instance.new("UIStroke")
 	minStroke.Color = UI.Theme.Border
-	minStroke.Thickness = 1.2
+	minStroke.Thickness = 1.0
 	minStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	minStroke.Parent = minBtn
 	UI.registerThemeElement(minStroke, "Border")
 
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.Name = "CloseBtn"
-	closeBtn.Size = UDim2.new(0, 24, 1, 0)
-	closeBtn.Position = UDim2.new(1, -24, 0, 0)
+	closeBtn.Size = UDim2.new(0, 22, 1, 0)
+	closeBtn.Position = UDim2.new(1, -22, 0, 0)
 	closeBtn.BackgroundColor3 = UI.Theme.Container
 	closeBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
 	closeBtn.BorderSizePixel = 0
@@ -5870,7 +5931,7 @@ function LeaderstatsWidget.new()
 
 	local closeStroke = Instance.new("UIStroke")
 	closeStroke.Color = UI.Theme.Border
-	closeStroke.Thickness = 1.2
+	closeStroke.Thickness = 1.0
 	closeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	closeStroke.Parent = closeBtn
 	UI.registerThemeElement(closeStroke, "Border")
@@ -5894,7 +5955,7 @@ function LeaderstatsWidget.new()
 	bodyLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	bodyLayout.Parent = body
 
-	-- Mode Selector: [ My Stats ] [ Server Players ]
+	-- Mode Selector: [ Currencies ] [ Other Values ] [ Server ]
 	local modeBar = Instance.new("Frame")
 	modeBar.Name = "ModeBar"
 	modeBar.Size = UDim2.new(1, 0, 0, 22)
@@ -5905,69 +5966,79 @@ function LeaderstatsWidget.new()
 
 	local modeList = Instance.new("UIListLayout")
 	modeList.FillDirection = Enum.FillDirection.Horizontal
-	modeList.Padding = UDim.new(0, 4)
+	modeList.Padding = UDim.new(0, 3)
 	modeList.Parent = modeBar
 
-	local myStatsBtn = Instance.new("TextButton")
-	myStatsBtn.Name = "MyStatsBtn"
-	myStatsBtn.Size = UDim2.new(0.5, -2, 1, 0)
-	myStatsBtn.BackgroundColor3 = UI.Theme.Accent
-	myStatsBtn.BorderSizePixel = 0
-	myStatsBtn.Text = "[ My Stats ]"
-	myStatsBtn.TextColor3 = UI.Theme.AccentText
-	myStatsBtn.Font = UI.Fonts.Header
-	myStatsBtn.TextSize = 10
-	myStatsBtn.Parent = modeBar
+	local function makeModeBtn(name: string, text: string): (TextButton, UIStroke)
+		local btn = Instance.new("TextButton")
+		btn.Name = name
+		btn.Size = UDim2.new(0.333, -2, 1, 0)
+		btn.BackgroundColor3 = UI.Theme.Container
+		btn.BackgroundTransparency = UI.Theme.ContainerTransparency
+		btn.BorderSizePixel = 0
+		btn.Text = text
+		btn.TextColor3 = UI.Theme.TextSecondary
+		btn.Font = UI.Fonts.Header
+		btn.TextSize = 9
+		btn.Parent = modeBar
+		UI.registerThemeElement(btn, "Container")
+		UI.registerThemeElement(btn, "TextSecondary")
 
-	local myStroke = Instance.new("UIStroke")
-	myStroke.Color = UI.Theme.Border
-	myStroke.Thickness = 1.2
-	myStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	myStroke.Parent = myStatsBtn
+		local st = Instance.new("UIStroke")
+		st.Color = UI.Theme.BorderDim
+		st.Thickness = 1.0
+		st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		st.Parent = btn
+		UI.registerThemeElement(st, "BorderDim")
 
-	local svrBtn = Instance.new("TextButton")
-	svrBtn.Name = "ServerBtn"
-	svrBtn.Size = UDim2.new(0.5, -2, 1, 0)
-	svrBtn.BackgroundColor3 = UI.Theme.Container
-	svrBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
-	svrBtn.BorderSizePixel = 0
-	svrBtn.Text = "[ Server Players ]"
-	svrBtn.TextColor3 = UI.Theme.TextSecondary
-	svrBtn.Font = UI.Fonts.Header
-	svrBtn.TextSize = 10
-	svrBtn.Parent = modeBar
-	UI.registerThemeElement(svrBtn, "Container")
-	UI.registerThemeElement(svrBtn, "TextSecondary")
+		return btn, st
+	end
 
-	local svrStroke = Instance.new("UIStroke")
-	svrStroke.Color = UI.Theme.BorderDim
-	svrStroke.Thickness = 1.0
-	svrStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	svrStroke.Parent = svrBtn
-	UI.registerThemeElement(svrStroke, "BorderDim")
+	local curBtn, curStroke = makeModeBtn("CurrenciesBtn", "Currencies")
+	local othBtn, othStroke = makeModeBtn("OthersBtn", "Other Values")
+	local svrBtn, svrStroke = makeModeBtn("ServerBtn", "Server")
 
-	-- Container for My Stats
-	local myStatsContainer = Instance.new("ScrollingFrame")
-	myStatsContainer.Name = "MyStatsContainer"
-	myStatsContainer.Size = UDim2.new(1, 0, 0, 160)
-	myStatsContainer.BackgroundTransparency = 1
-	myStatsContainer.BorderSizePixel = 0
-	myStatsContainer.ScrollBarThickness = 2
-	myStatsContainer.ScrollBarImageColor3 = UI.Theme.Accent
-	myStatsContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
-	myStatsContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	myStatsContainer.LayoutOrder = 2
-	myStatsContainer.Parent = body
+	-- 1. Currencies Container
+	local curContainer = Instance.new("ScrollingFrame")
+	curContainer.Name = "CurrenciesContainer"
+	curContainer.Size = UDim2.new(1, 0, 0, 168)
+	curContainer.BackgroundTransparency = 1
+	curContainer.BorderSizePixel = 0
+	curContainer.ScrollBarThickness = 2
+	curContainer.ScrollBarImageColor3 = UI.Theme.Accent
+	curContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+	curContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	curContainer.LayoutOrder = 2
+	curContainer.Parent = body
 
-	local myLayout = Instance.new("UIListLayout")
-	myLayout.Padding = UDim.new(0, 3)
-	myLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	myLayout.Parent = myStatsContainer
+	local curLayout = Instance.new("UIListLayout")
+	curLayout.Padding = UDim.new(0, 3)
+	curLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	curLayout.Parent = curContainer
 
-	-- Container for Server Players
+	-- 2. Other Values Container
+	local othContainer = Instance.new("ScrollingFrame")
+	othContainer.Name = "OthersContainer"
+	othContainer.Size = UDim2.new(1, 0, 0, 168)
+	othContainer.BackgroundTransparency = 1
+	othContainer.BorderSizePixel = 0
+	othContainer.ScrollBarThickness = 2
+	othContainer.ScrollBarImageColor3 = UI.Theme.Accent
+	othContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+	othContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	othContainer.LayoutOrder = 2
+	othContainer.Visible = false
+	othContainer.Parent = body
+
+	local othLayout = Instance.new("UIListLayout")
+	othLayout.Padding = UDim.new(0, 3)
+	othLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	othLayout.Parent = othContainer
+
+	-- 3. Server Players Container
 	local svrContainer = Instance.new("ScrollingFrame")
 	svrContainer.Name = "ServerContainer"
-	svrContainer.Size = UDim2.new(1, 0, 0, 160)
+	svrContainer.Size = UDim2.new(1, 0, 0, 168)
 	svrContainer.BackgroundTransparency = 1
 	svrContainer.BorderSizePixel = 0
 	svrContainer.ScrollBarThickness = 2
@@ -5983,85 +6054,73 @@ function LeaderstatsWidget.new()
 	svrLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	svrLayout.Parent = svrContainer
 
-	local activeMode = "mine" -- "mine" or "server"
+	local activeMode = "currencies"
 
-	local function setMode(mode: string)
-		activeMode = mode
-		if mode == "mine" then
-			myStatsBtn.BackgroundColor3 = UI.Theme.Accent
-			myStatsBtn.TextColor3 = UI.Theme.AccentText
-			myStroke.Color = UI.Theme.Border
-			myStroke.Thickness = 1.2
-
-			svrBtn.BackgroundColor3 = UI.Theme.Container
-			svrBtn.TextColor3 = UI.Theme.TextSecondary
-			svrStroke.Color = UI.Theme.BorderDim
-			svrStroke.Thickness = 1.0
-
-			myStatsContainer.Visible = true
-			svrContainer.Visible = false
-			renderMyStats()
-		else
-			svrBtn.BackgroundColor3 = UI.Theme.Accent
-			svrBtn.TextColor3 = UI.Theme.AccentText
-			svrStroke.Color = UI.Theme.Border
-			svrStroke.Thickness = 1.2
-
-			myStatsBtn.BackgroundColor3 = UI.Theme.Container
-			myStatsBtn.TextColor3 = UI.Theme.TextSecondary
-			myStroke.Color = UI.Theme.BorderDim
-			myStroke.Thickness = 1.0
-
-			myStatsContainer.Visible = false
-			svrContainer.Visible = true
-			renderServerPlayers()
+	local function updateTabStyles()
+		local theme = UI.Theme
+		local function setStyle(btn: TextButton, st: UIStroke, isActive: boolean)
+			if isActive then
+				btn.BackgroundColor3 = theme.Accent
+				btn.BackgroundTransparency = 0
+				btn.TextColor3 = theme.AccentText
+				st.Color = theme.Border
+				st.Thickness = 1.2
+			else
+				btn.BackgroundColor3 = theme.Container
+				btn.BackgroundTransparency = theme.ContainerTransparency
+				btn.TextColor3 = theme.TextSecondary
+				st.Color = theme.BorderDim
+				st.Thickness = 1.0
+			end
 		end
+
+		setStyle(curBtn, curStroke, activeMode == "currencies")
+		setStyle(othBtn, othStroke, activeMode == "others")
+		setStyle(svrBtn, svrStroke, activeMode == "server")
 	end
 
-	myStatsBtn.MouseButton1Click:Connect(function() setMode("mine") end)
-	svrBtn.MouseButton1Click:Connect(function() setMode("server") end)
-
 	-- ── Render Functions ─────────────────────────────────────────────
-	local myRowFrames: {[string]: {Row: Frame, ValLabel: TextLabel}} = {}
+	local curRowFrames: {[string]: {Row: Frame, ValLabel: TextLabel}} = {}
+	local othRowFrames: {[string]: {Row: Frame, ValLabel: TextLabel}} = {}
+	local serverRowFrames: {[string]: Frame} = {}
 
-	local function renderMyStats()
-		local stats = getPlayerStats(LocalPlayer)
-		if #stats == 0 then
-			local empty = myRowFrames["_empty"]
+	local function renderCurrenciesList(items: {StatItem}, container: ScrollingFrame, cache: {[string]: {Row: Frame, ValLabel: TextLabel}}, emptyText: string)
+		if #items == 0 then
+			local empty = cache["_empty"]
 			if not empty then
 				local row = Instance.new("Frame")
 				row.Size = UDim2.new(1, -2, 0, 22)
 				row.BackgroundColor3 = UI.Theme.ContainerDark
 				row.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 				row.BorderSizePixel = 0
-				row.Parent = myStatsContainer
+				row.Parent = container
 				UI.registerThemeElement(row, "ContainerDark")
 
 				local lbl = Instance.new("TextLabel")
 				lbl.Size = UDim2.new(1, -8, 1, 0)
 				lbl.Position = UDim2.new(0, 4, 0, 0)
 				lbl.BackgroundTransparency = 1
-				lbl.Text = "No active leaderstats found"
+				lbl.Text = emptyText
 				lbl.TextColor3 = UI.Theme.TextSecondary
 				lbl.Font = UI.Fonts.Body
 				lbl.TextSize = 10
 				lbl.Parent = row
 				UI.registerThemeElement(lbl, "TextSecondary")
 
-				myRowFrames["_empty"] = {Row = row, ValLabel = lbl}
+				cache["_empty"] = {Row = row, ValLabel = lbl}
 			end
 			return
 		end
 
-		if myRowFrames["_empty"] then
-			if myRowFrames["_empty"].Row and myRowFrames["_empty"].Row.Parent then
-				myRowFrames["_empty"].Row:Destroy()
+		if cache["_empty"] then
+			if cache["_empty"].Row and cache["_empty"].Row.Parent then
+				cache["_empty"].Row:Destroy()
 			end
-			myRowFrames["_empty"] = nil
+			cache["_empty"] = nil
 		end
 
-		for idx, s in ipairs(stats) do
-			local existing = myRowFrames[s.Name]
+		for idx, s in ipairs(items) do
+			local existing = cache[s.Name]
 			if existing and existing.Row and existing.Row.Parent then
 				existing.ValLabel.Text = s.Formatted
 			else
@@ -6072,7 +6131,7 @@ function LeaderstatsWidget.new()
 				row.BackgroundTransparency = UI.Theme.ContainerTransparency
 				row.BorderSizePixel = 0
 				row.LayoutOrder = idx
-				row.Parent = myStatsContainer
+				row.Parent = container
 				UI.registerThemeElement(row, "Container")
 
 				local rStroke = Instance.new("UIStroke")
@@ -6108,12 +6167,16 @@ function LeaderstatsWidget.new()
 				valLabel.Parent = row
 				UI.registerThemeElement(valLabel, "AccentText")
 
-				myRowFrames[s.Name] = {Row = row, ValLabel = valLabel}
+				cache[s.Name] = {Row = row, ValLabel = valLabel}
 			end
 		end
 	end
 
-	local serverRowFrames: {[string]: Frame} = {}
+	local function renderAllStats()
+		local data = getAllPlayerStats(LocalPlayer)
+		renderCurrenciesList(data.Primaries, curContainer, curRowFrames, "No active currencies found")
+		renderCurrenciesList(data.Others, othContainer, othRowFrames, "No secondary values found")
+	end
 
 	local function renderServerPlayers()
 		local plrs = Players:GetPlayers()
@@ -6121,17 +6184,23 @@ function LeaderstatsWidget.new()
 			local pKey = "P_" .. tostring(p.UserId)
 			local existing = serverRowFrames[pKey]
 
-			local pStats = getPlayerStats(p)
-			local statsSummary = ""
-			for _, st in ipairs(pStats) do
-				if #statsSummary > 0 then statsSummary = statsSummary .. " | " end
-				statsSummary = statsSummary .. string.format("%s: %s", st.Name, st.Formatted)
+			local pStats = getAllPlayerStats(p)
+			local summary = ""
+			for _, st in ipairs(pStats.Primaries) do
+				if #summary > 0 then summary = summary .. " | " end
+				summary = summary .. string.format("%s: %s", st.Name, st.Formatted)
 			end
-			if statsSummary == "" then statsSummary = "No public stats" end
+			if summary == "" then
+				for _, st in ipairs(pStats.Others) do
+					if #summary > 0 then summary = summary .. " | " end
+					summary = summary .. string.format("%s: %s", st.Name, st.Formatted)
+				end
+			end
+			if summary == "" then summary = "No public stats" end
 
 			if existing and existing.Parent then
 				local statLbl = existing:FindFirstChild("StatSummary") :: TextLabel?
-				if statLbl then statLbl.Text = statsSummary end
+				if statLbl then statLbl.Text = summary end
 			else
 				local row = Instance.new("Frame")
 				row.Name = pKey
@@ -6168,7 +6237,7 @@ function LeaderstatsWidget.new()
 				statLbl.Size = UDim2.new(1, -12, 0, 14)
 				statLbl.Position = UDim2.new(0, 6, 0, 16)
 				statLbl.BackgroundTransparency = 1
-				statLbl.Text = statsSummary
+				statLbl.Text = summary
 				statLbl.TextColor3 = UI.Theme.TextSecondary
 				statLbl.Font = UI.Fonts.Mono
 				statLbl.TextSize = 9
@@ -6182,14 +6251,60 @@ function LeaderstatsWidget.new()
 		end
 	end
 
+	local function setMode(mode: string)
+		activeMode = mode
+		updateTabStyles()
+
+		curContainer.Visible = (mode == "currencies")
+		othContainer.Visible = (mode == "others")
+		svrContainer.Visible = (mode == "server")
+
+		if mode == "currencies" or mode == "others" then
+			renderAllStats()
+		else
+			renderServerPlayers()
+		end
+	end
+
+	curBtn.MouseButton1Click:Connect(function() setMode("currencies") end)
+	othBtn.MouseButton1Click:Connect(function() setMode("others") end)
+	svrBtn.MouseButton1Click:Connect(function() setMode("server") end)
+
+	setMode("currencies")
+
+	-- ── Auto-Arranging & Docking Next to PlayerList ──────────────────
+	local function autoDockNextToPlayerList()
+		local pListGui = CoreGui:FindFirstChild("ModularPlayerListGui") or (LocalPlayer and LocalPlayer.PlayerGui:FindFirstChild("ModularPlayerListGui"))
+		local pListFrame = pListGui and pListGui:FindFirstChild("PlayerListWidget")
+		if pListFrame and pListFrame:IsA("GuiObject") then
+			local pListAbsPos = pListFrame.AbsolutePosition
+			local pListPos = pListFrame.Position
+			widget.Position = UDim2.new(
+				pListPos.X.Scale,
+				pListPos.X.Offset - WIDGET_W - 8,
+				pListPos.Y.Scale,
+				pListPos.Y.Offset
+			)
+		else
+			widget.Position = UDim2.new(1, -(270 + WIDGET_W + 8), 0, 10)
+		end
+	end
+
+	dockBtn.MouseButton1Click:Connect(autoDockNextToPlayerList)
+
+	-- ── Theme Change Listener ────────────────────────────────────────
+	UI.onThemeChanged(function(targetTheme)
+		updateTabStyles()
+	end)
+
 	-- ── Continuous Polling Loop ───────────────────────────────────────
 	task.spawn(function()
 		task.wait(0.5)
 		while true do
 			pcall(function()
 				if widget.Visible then
-					if activeMode == "mine" then
-						renderMyStats()
+					if activeMode == "currencies" or activeMode == "others" then
+						renderAllStats()
 					else
 						renderServerPlayers()
 					end
@@ -6245,8 +6360,10 @@ function LeaderstatsWidget.new()
 
 	self.Widget = widget
 	self.ScreenGui = screenGui
+	self.Dock = autoDockNextToPlayerList
 	self.SetVisible = function(vis: boolean)
 		widget.Visible = vis
+		if vis then autoDockNextToPlayerList() end
 	end
 
 	return self

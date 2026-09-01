@@ -1,3 +1,21 @@
+local function destroyExistingGuis(name: string)
+	local containers = {
+		(type(gethui) == "function" and gethui()),
+		CoreGui,
+		CoreGui:FindFirstChild("RobloxGui"),
+		(Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui"))
+	}
+	for _, c in ipairs(containers) do
+		if c then
+			for _, child in ipairs(c:GetChildren()) do
+				if child.Name == name then
+					pcall(function() child:Destroy() end)
+				end
+			end
+		end
+	end
+end
+
 --!strict
 --[=[
     ✦ Squared Retro Health HUD & Damage Visual Indicator Widget ✦
@@ -60,6 +78,7 @@ function HealthWidget.new(): HealthWidgetInstance
 
 	local activeConns: {RBXScriptConnection} = {}
 
+	destroyExistingGuis("ModularHealthGui")
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ModularHealthGui"
 	screenGui.ResetOnSpawn = false

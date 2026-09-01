@@ -1,3 +1,21 @@
+local function destroyExistingGuis(name: string)
+	local containers = {
+		(type(gethui) == "function" and gethui()),
+		CoreGui,
+		CoreGui:FindFirstChild("RobloxGui"),
+		(Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui"))
+	}
+	for _, c in ipairs(containers) do
+		if c then
+			for _, child in ipairs(c:GetChildren()) do
+				if child.Name == name then
+					pcall(function() child:Destroy() end)
+				end
+			end
+		end
+	end
+end
+
 --!strict
 --[=[
     ✦ Squared Retro Chat Widget with Scaling Grip & Player Profile Action Popup ✦
@@ -42,6 +60,7 @@ export type ChatWidgetInstance = {
 }
 
 function ChatWidget.new(): ChatWidgetInstance
+	destroyExistingGuis("ModularChatGui")
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ModularChatGui"
 	screenGui.ResetOnSpawn = false

@@ -11,6 +11,10 @@ local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 
 -- ── EXHAUSTIVE MULTI-EXECUTION PURGE & CLEANUP ───────────────────────
+if type(cleardrawcache) == "function" then
+	pcall(cleardrawcache)
+end
+
 if _G.__ModularSuite_Cleanup then
 	pcall(_G.__ModularSuite_Cleanup)
 	_G.__ModularSuite_Cleanup = nil
@@ -19,19 +23,17 @@ end
 local function purgeModularInstances(container: Instance?)
 	if not container then return end
 	pcall(function()
+		for _, child in ipairs(container:GetChildren()) do
+			local name = child.Name
+			if name:sub(1, 7) == "Modular" or name:find("Modular") or name:find("Chams") or name:find("ESP") or name == "ScreenGui" then
+				pcall(function() child:Destroy() end)
+			end
+		end
 		for _, desc in ipairs(container:GetDescendants()) do
 			if desc:IsA("ScreenGui") or desc:IsA("BillboardGui") or desc:IsA("SurfaceGui") or desc:IsA("Highlight") then
 				local name = desc.Name
 				if name:sub(1, 7) == "Modular" or name:find("Modular") or name:find("Chams") or name:find("ESP") then
 					pcall(function() desc:Destroy() end)
-				end
-			end
-		end
-		for _, child in ipairs(container:GetChildren()) do
-			if child:IsA("ScreenGui") or child:IsA("BillboardGui") or child:IsA("SurfaceGui") or child:IsA("Highlight") then
-				local name = child.Name
-				if name:sub(1, 7) == "Modular" or name:find("Modular") or name:find("Chams") or name:find("ESP") then
-					pcall(function() child:Destroy() end)
 				end
 			end
 		end
@@ -1464,6 +1466,24 @@ end
 
 Modules["UI/Notification.luau"] = function()
     local require = requireModule
+    local function destroyExistingGuis(name: string)
+    	local containers = {
+    		(type(gethui) == "function" and gethui()),
+    		CoreGui,
+    		CoreGui:FindFirstChild("RobloxGui"),
+    		(Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui"))
+    	}
+    	for _, c in ipairs(containers) do
+    		if c then
+    			for _, child in ipairs(c:GetChildren()) do
+    				if child.Name == name then
+    					pcall(function() child:Destroy() end)
+    				end
+    			end
+    		end
+    	end
+    end
+    
     --!strict
     --[=[
         ✦ Squared Retro Notification System ✦
@@ -1712,6 +1732,24 @@ end
 
 Modules["UI/PlayerList.luau"] = function()
     local require = requireModule
+    local function destroyExistingGuis(name: string)
+    	local containers = {
+    		(type(gethui) == "function" and gethui()),
+    		CoreGui,
+    		CoreGui:FindFirstChild("RobloxGui"),
+    		(Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui"))
+    	}
+    	for _, c in ipairs(containers) do
+    		if c then
+    			for _, child in ipairs(c:GetChildren()) do
+    				if child.Name == name then
+    					pcall(function() child:Destroy() end)
+    				end
+    			end
+    		end
+    	end
+    end
+    
     --!strict
     --[=[
         ✦ Squared Retro Player List Widget with Auto-Positioned Context Menu ✦
@@ -1759,6 +1797,7 @@ Modules["UI/PlayerList.luau"] = function()
     local POPUP_H = 254
     
     function PlayerList.new(): PlayerListWidget
+    	destroyExistingGuis("ModularPlayerListGui")
     	local screenGui = Instance.new("ScreenGui")
     	screenGui.Name = "ModularPlayerListGui"
     	screenGui.ResetOnSpawn = false
@@ -2549,6 +2588,24 @@ end
 
 Modules["UI/ChatWidget.luau"] = function()
     local require = requireModule
+    local function destroyExistingGuis(name: string)
+    	local containers = {
+    		(type(gethui) == "function" and gethui()),
+    		CoreGui,
+    		CoreGui:FindFirstChild("RobloxGui"),
+    		(Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui"))
+    	}
+    	for _, c in ipairs(containers) do
+    		if c then
+    			for _, child in ipairs(c:GetChildren()) do
+    				if child.Name == name then
+    					pcall(function() child:Destroy() end)
+    				end
+    			end
+    		end
+    	end
+    end
+    
     --!strict
     --[=[
         ✦ Squared Retro Chat Widget with Scaling Grip & Player Profile Action Popup ✦
@@ -2593,6 +2650,7 @@ Modules["UI/ChatWidget.luau"] = function()
     }
     
     function ChatWidget.new(): ChatWidgetInstance
+    	destroyExistingGuis("ModularChatGui")
     	local screenGui = Instance.new("ScreenGui")
     	screenGui.Name = "ModularChatGui"
     	screenGui.ResetOnSpawn = false
@@ -3911,6 +3969,24 @@ end
 
 Modules["UI/MusicTracker.luau"] = function()
     local require = requireModule
+    local function destroyExistingGuis(name: string)
+    	local containers = {
+    		(type(gethui) == "function" and gethui()),
+    		CoreGui,
+    		CoreGui:FindFirstChild("RobloxGui"),
+    		(Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui"))
+    	}
+    	for _, c in ipairs(containers) do
+    		if c then
+    			for _, child in ipairs(c:GetChildren()) do
+    				if child.Name == name then
+    					pcall(function() child:Destroy() end)
+    				end
+    			end
+    		end
+    	end
+    end
+    
     --!strict
     --[=[
         ✦ Squared Retro Music Tracker Widget with Continuous Fluid Visualizer Physics ✦
@@ -3960,6 +4036,7 @@ Modules["UI/MusicTracker.luau"] = function()
     }
     
     function MusicTracker.new()
+    	destroyExistingGuis("ModularMusicTrackerGui")
     	local screenGui = Instance.new("ScreenGui")
     	screenGui.Name = "ModularMusicTrackerGui"
     	screenGui.ResetOnSpawn = false
@@ -4961,6 +5038,24 @@ end
 
 Modules["UI/Hotbar.luau"] = function()
     local require = requireModule
+    local function destroyExistingGuis(name: string)
+    	local containers = {
+    		(type(gethui) == "function" and gethui()),
+    		CoreGui,
+    		CoreGui:FindFirstChild("RobloxGui"),
+    		(Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui"))
+    	}
+    	for _, c in ipairs(containers) do
+    		if c then
+    			for _, child in ipairs(c:GetChildren()) do
+    				if child.Name == name then
+    					pcall(function() child:Destroy() end)
+    				end
+    			end
+    		end
+    	end
+    end
+    
     --!strict
     --[=[
         ✦ Squared Retro Hotbar & 3D Model Viewport Backpack Inventory Widget ✦
@@ -5181,6 +5276,7 @@ Modules["UI/Hotbar.luau"] = function()
     
     	local activeConnections: {RBXScriptConnection} = {}
     
+    	destroyExistingGuis("ModularHotbarGui")
     	local screenGui = Instance.new("ScreenGui")
     	screenGui.Name = "ModularHotbarGui"
     	screenGui.ResetOnSpawn = false
@@ -6387,6 +6483,24 @@ end
 
 Modules["UI/LeaderstatsWidget.luau"] = function()
     local require = requireModule
+    local function destroyExistingGuis(name: string)
+    	local containers = {
+    		(type(gethui) == "function" and gethui()),
+    		CoreGui,
+    		CoreGui:FindFirstChild("RobloxGui"),
+    		(Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui"))
+    	}
+    	for _, c in ipairs(containers) do
+    		if c then
+    			for _, child in ipairs(c:GetChildren()) do
+    				if child.Name == name then
+    					pcall(function() child:Destroy() end)
+    				end
+    			end
+    		end
+    	end
+    end
+    
     --!strict
     --[=[
         ✦ Retro Leaderstats & Universal Currency HUD Widget ✦
@@ -6589,6 +6703,7 @@ Modules["UI/LeaderstatsWidget.luau"] = function()
     function LeaderstatsWidget.new()
     	local self = setmetatable({}, LeaderstatsWidget)
     
+    	destroyExistingGuis("ModularLeaderstatsGui")
     	local screenGui = Instance.new("ScreenGui")
     	screenGui.Name = "ModularLeaderstatsGui"
     	screenGui.ResetOnSpawn = false
@@ -7361,6 +7476,24 @@ end
 
 Modules["UI/HealthWidget.luau"] = function()
     local require = requireModule
+    local function destroyExistingGuis(name: string)
+    	local containers = {
+    		(type(gethui) == "function" and gethui()),
+    		CoreGui,
+    		CoreGui:FindFirstChild("RobloxGui"),
+    		(Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui"))
+    	}
+    	for _, c in ipairs(containers) do
+    		if c then
+    			for _, child in ipairs(c:GetChildren()) do
+    				if child.Name == name then
+    					pcall(function() child:Destroy() end)
+    				end
+    			end
+    		end
+    	end
+    end
+    
     --!strict
     --[=[
         ✦ Squared Retro Health HUD & Damage Visual Indicator Widget ✦
@@ -7423,6 +7556,7 @@ Modules["UI/HealthWidget.luau"] = function()
     
     	local activeConns: {RBXScriptConnection} = {}
     
+    	destroyExistingGuis("ModularHealthGui")
     	local screenGui = Instance.new("ScreenGui")
     	screenGui.Name = "ModularHealthGui"
     	screenGui.ResetOnSpawn = false
@@ -8346,6 +8480,24 @@ end
 
 Modules["Core/CoreUI.luau"] = function()
     local require = requireModule
+    local function destroyExistingGuis(name: string)
+    	local containers = {
+    		(type(gethui) == "function" and gethui()),
+    		CoreGui,
+    		CoreGui:FindFirstChild("RobloxGui"),
+    		(Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui"))
+    	}
+    	for _, c in ipairs(containers) do
+    		if c then
+    			for _, child in ipairs(c:GetChildren()) do
+    				if child.Name == name then
+    					pcall(function() child:Destroy() end)
+    				end
+    			end
+    		end
+    	end
+    end
+    
     --!strict
     local Players = game:GetService("Players")
     local UserInputService = game:GetService("UserInputService")
@@ -8391,6 +8543,7 @@ Modules["Core/CoreUI.luau"] = function()
     function CoreUI.new(titleText: string)
     	local self = setmetatable({}, CoreUI)
     	
+    	destroyExistingGuis("ModularEngineGui")
     	local screenGui = Instance.new("ScreenGui")
     	screenGui.Name = "ModularEngineGui"
     	screenGui.ResetOnSpawn = false
@@ -9674,6 +9827,9 @@ end
 
 Modules["Modules/Visuals.luau"] = function()
     local require = requireModule
+    if type(cleardrawcache) == "function" then
+    	pcall(cleardrawcache)
+    end
     --!strict
     --[=[
         ✦ Visuals Rendering Engine ✦

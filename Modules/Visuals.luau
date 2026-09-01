@@ -1,3 +1,6 @@
+if type(cleardrawcache) == "function" then
+	pcall(cleardrawcache)
+end
 --!strict
 --[=[
     ✦ Visuals Rendering Engine ✦

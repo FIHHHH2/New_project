@@ -1,3 +1,21 @@
+local function destroyExistingGuis(name: string)
+	local containers = {
+		(type(gethui) == "function" and gethui()),
+		CoreGui,
+		CoreGui:FindFirstChild("RobloxGui"),
+		(Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui"))
+	}
+	for _, c in ipairs(containers) do
+		if c then
+			for _, child in ipairs(c:GetChildren()) do
+				if child.Name == name then
+					pcall(function() child:Destroy() end)
+				end
+			end
+		end
+	end
+end
+
 --!strict
 --[=[
     ✦ Squared Retro Hotbar & 3D Model Viewport Backpack Inventory Widget ✦
@@ -218,6 +236,7 @@ function Hotbar.new(): HotbarWidget
 
 	local activeConnections: {RBXScriptConnection} = {}
 
+	destroyExistingGuis("ModularHotbarGui")
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ModularHotbarGui"
 	screenGui.ResetOnSpawn = false

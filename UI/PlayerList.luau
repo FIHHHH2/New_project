@@ -1,3 +1,21 @@
+--!strict
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+
+--[=[
+    ✦ Squared Retro Player List Widget with Auto-Positioned Context Menu ✦
+    Features:
+    - Interactive player rows with hover FX and click-to-open context menu
+    - Smart auto-positioning popup (anchors dynamically to the left or right of clicked row, clamped to viewport)
+    - Full Roblox player actions: Profile view, Add/Unfriend, Block, Report/Inspect, Teleport, Fling, Spectate, Copy ID
+    - Domino sliding animations and auto-scaling list height
+]=]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local StarterGui = game:GetService("StarterGui")
+
 local function destroyExistingGuis(name: string)
 	local containers = {
 		(type(gethui) == "function" and gethui()),
@@ -16,20 +34,22 @@ local function destroyExistingGuis(name: string)
 	end
 end
 
---!strict
---[=[
-    ✦ Squared Retro Player List Widget with Auto-Positioned Context Menu ✦
-    Features:
-    - Interactive player rows with hover FX and click-to-open context menu
-    - Smart auto-positioning popup (anchors dynamically to the left or right of clicked row, clamped to viewport)
-    - Full Roblox player actions: Profile view, Add/Unfriend, Block, Report/Inspect, Teleport, Fling, Spectate, Copy ID
-    - Domino sliding animations and auto-scaling list height
-]=]
-
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local StarterGui = game:GetService("StarterGui")
+local function safeParentGui(gui: ScreenGui)
+	local targetParent = nil
+	if type(gethui) == "function" then
+		pcall(function() targetParent = gethui() end)
+	end
+	if not targetParent and CoreGui then
+		pcall(function() targetParent = CoreGui end)
+	end
+	if not targetParent and Players.LocalPlayer then
+		targetParent = Players.LocalPlayer:FindFirstChild("PlayerGui")
+	end
+	pcall(function() gui.Parent = targetParent end)
+	if not gui.Parent and Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then
+		gui.Parent = Players.LocalPlayer.PlayerGui
+	end
+end
 local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")

@@ -1,3 +1,25 @@
+--!strict
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+
+--[=[
+    ✦ Squared Retro Chat Widget with Scaling Grip & Player Profile Action Popup ✦
+    Features:
+    - Corner resize grip: smooth scaling from 260x180 to 800x600
+    - Player Name Click: opens sleek Player Profile & Action Popup (Teleport, Spectate, Friend, Block, Report, Copy ID)
+    - Full IgnoreGuiInset dragging
+    - RichText seamless message flow
+    - Action Header: [ ⯎ ] Roblox Menu, [ ≡ ] Hamburger Dropdown, [ 🎙 ] VoiceChat Mic Toggle
+]=]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local TextChatService = game:GetService("TextChatService")
+local VoiceChatService = pcall(function() return game:GetService("VoiceChatService") end) and game:GetService("VoiceChatService") or nil
+local GuiService = game:GetService("GuiService")
+local StarterGui = game:GetService("StarterGui")
+
 local function destroyExistingGuis(name: string)
 	local containers = {
 		(type(gethui) == "function" and gethui()),
@@ -16,24 +38,22 @@ local function destroyExistingGuis(name: string)
 	end
 end
 
---!strict
---[=[
-    ✦ Squared Retro Chat Widget with Scaling Grip & Player Profile Action Popup ✦
-    Features:
-    - Corner resize grip: smooth scaling from 260x180 to 800x600
-    - Player Name Click: opens sleek Player Profile & Action Popup (Teleport, Spectate, Friend, Block, Report, Copy ID)
-    - Full IgnoreGuiInset dragging
-    - RichText seamless message flow
-    - Action Header: [ ⯎ ] Roblox Menu, [ ≡ ] Hamburger Dropdown, [ 🎙 ] VoiceChat Mic Toggle
-]=]
-
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local TextChatService = game:GetService("TextChatService")
-local VoiceChatService = pcall(function() return game:GetService("VoiceChatService") end) and game:GetService("VoiceChatService") or nil
-local GuiService = game:GetService("GuiService")
-local StarterGui = game:GetService("StarterGui")
+local function safeParentGui(gui: ScreenGui)
+	local targetParent = nil
+	if type(gethui) == "function" then
+		pcall(function() targetParent = gethui() end)
+	end
+	if not targetParent and CoreGui then
+		pcall(function() targetParent = CoreGui end)
+	end
+	if not targetParent and Players.LocalPlayer then
+		targetParent = Players.LocalPlayer:FindFirstChild("PlayerGui")
+	end
+	pcall(function() gui.Parent = targetParent end)
+	if not gui.Parent and Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then
+		gui.Parent = Players.LocalPlayer.PlayerGui
+	end
+end
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 

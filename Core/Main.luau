@@ -923,14 +923,60 @@ else
 	end)
 
 	local phyLeftCol, phyRightCol = window:CreateColumns(phySubTab)
-	local protSection = window:AddSection(phyLeftCol, "Protection")
+	local protSection = window:AddSection(phyLeftCol, "Protection & Physics")
 	window:AddToggle(protSection, "anti_fling", "Anti-Fling Protection", false, nil, function(enabled)
 		DisasterSurvival.setAntiFling(enabled)
+	end)
+
+	window:AddToggle(protSection, "anti_object_kill", "Anti-Object-Kill Shield", false, nil, function(enabled)
+		DisasterSurvival.setAntiObjectKill(enabled)
 	end)
 
 	local flngSection = window:AddSection(phyRightCol, "Physics Fling")
 	window:AddToggle(flngSection, "player_fling", "Object / Player Fling", false, nil, function(enabled)
 		DisasterSurvival.setFling(enabled)
+	end)
+
+	-- ── CAR DRIVING & OBJECT DRAG ──────────────────────
+	-- Additional sub-tab: [ Car Driving & World Interaction ]
+	local ndsWorldSubTabs = window:CreateSubTabs(gameTab, { "World & Vehicles" })
+	local worldSubTab = ndsWorldSubTabs["World & Vehicles"]
+	local worldLeftCol, worldRightCol = window:CreateColumns(worldSubTab)
+
+	local carSection = window:AddSection(worldLeftCol, "Vehicle Exploits")
+	window:AddToggle(carSection, "nds_car_drive", "Custom Car Driving (W/A/S/D/F)", false, nil, function(enabled)
+		DisasterSurvival.setCarDriving(enabled)
+	end)
+
+	window:AddButton(carSection, "Scan & List All Cars", function()
+		local cars = DisasterSurvival.scanCars()
+		if #cars == 0 then
+			window:Notify("Cars", "No VehicleSeats found in map", 3)
+		else
+			window:Notify("Cars", string.format("Found %d vehicle seat(s) — approach and press F to enter", #cars), 4)
+			-- Auto-sit in nearest unoccupied seat
+			local char = localPlayer.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if hrp then
+				local best: VehicleSeat? = nil
+				local bestDist = math.huge
+				for _, seat in ipairs(cars) do
+					if not seat.Occupant then
+						local d = (seat.Position - hrp.Position).Magnitude
+						if d < bestDist then bestDist = d best = seat end
+					end
+				end
+				if best and bestDist < 50 then
+					DisasterSurvival.sitInCar(best)
+					window:Notify("Cars", "Entered nearest car — W/A/S/D to drive, F to exit", 3)
+				end
+			end
+		end
+	end)
+
+	local dragSection = window:AddSection(worldRightCol, "Object Interaction")
+	window:AddToggle(dragSection, "nds_obj_drag", "Loose Object Drag (RMB = grab, LMB = drop)", false, nil, function(enabled)
+		DisasterSurvival.setObjectDrag(enabled)
 	end)
 end
 

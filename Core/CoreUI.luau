@@ -155,46 +155,42 @@ function CoreUI:SetTheme(themeName: string)
 end
 
 function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
-	local tabButton: TextButton? = nil
-	local tabStroke: UIStroke? = nil
+	local tabButton = Instance.new("TextButton")
+	tabButton.Name = name .. "TabBtn"
+	tabButton.Size = UDim2.new(1, -4, 0, 30)
+	tabButton.Position = UDim2.new(0, 2, 0, 0)
+	tabButton.BackgroundColor3 = UI.Theme.Container
+	tabButton.BackgroundTransparency = UI.Theme.ContainerTransparency
+	tabButton.BorderSizePixel = 0
+	tabButton.Text = name
+	tabButton.TextColor3 = UI.Theme.TextSecondary
+	tabButton.Font = UI.Fonts.Header
+	tabButton.TextSize = 12
+	tabButton.TextTruncate = Enum.TextTruncate.AtEnd
+	tabButton.ClipsDescendants = true
+	tabButton.LayoutOrder = #self.Tabs + 1
+	tabButton.Visible = not (isHiddenFromSidebar or false)
+	tabButton.Parent = self.Sidebar
+	UI.registerThemeElement(tabButton, "Container")
+	UI.registerThemeElement(tabButton, "TextSecondary")
 	
-	if not isHiddenFromSidebar then
-		tabButton = Instance.new("TextButton")
-		tabButton.Name = name .. "TabBtn"
-		tabButton.Size = UDim2.new(1, -4, 0, 30)
-		tabButton.Position = UDim2.new(0, 2, 0, 0)
-		tabButton.BackgroundColor3 = UI.Theme.Container
-		tabButton.BackgroundTransparency = UI.Theme.ContainerTransparency
-		tabButton.BorderSizePixel = 0
-		tabButton.Text = name
-		tabButton.TextColor3 = UI.Theme.TextSecondary
-		tabButton.Font = UI.Fonts.Header
-		tabButton.TextSize = 12
-		tabButton.TextTruncate = Enum.TextTruncate.AtEnd
-		tabButton.ClipsDescendants = true
-		tabButton.LayoutOrder = #self.Tabs + 1
-		tabButton.Parent = self.Sidebar
-		UI.registerThemeElement(tabButton, "Container")
-		UI.registerThemeElement(tabButton, "TextSecondary")
-		
-		-- Active tab gradient overlay
-		local tabGrad = Instance.new("UIGradient")
-		tabGrad.Name = "ActiveGradient"
-		tabGrad.Rotation = 90
-		tabGrad.Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 220))
-		})
-		tabGrad.Enabled = false
-		tabGrad.Parent = tabButton
-		
-		tabStroke = Instance.new("UIStroke")
-		tabStroke.Color = UI.Theme.Border
-		tabStroke.Thickness = 1.5
-		tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		tabStroke.Parent = tabButton
-		UI.registerThemeElement(tabStroke, "Border")
-	end
+	-- Active tab gradient overlay
+	local tabGrad = Instance.new("UIGradient")
+	tabGrad.Name = "ActiveGradient"
+	tabGrad.Rotation = 90
+	tabGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 220))
+	})
+	tabGrad.Enabled = false
+	tabGrad.Parent = tabButton
+	
+	local tabStroke = Instance.new("UIStroke")
+	tabStroke.Color = UI.Theme.Border
+	tabStroke.Thickness = 1.5
+	tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	tabStroke.Parent = tabButton
+	UI.registerThemeElement(tabStroke, "Border")
 	
 	local tabContent = Instance.new("ScrollingFrame")
 	tabContent.Name = name .. "Page"
@@ -233,36 +229,34 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 		OnVisibilityChanged = nil
 	}
 	
-	if tabButton then
-		tabButton.MouseEnter:Connect(function()
-			if self.ActiveTab ~= tabObj then
-				if tabStroke then TweenService:Create(tabStroke, TweenInfo.new(0.12), { Thickness = 2 }):Play() end
-				TweenService:Create(tabButton, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark, TextColor3 = UI.Theme.TextPrimary }):Play()
-			end
-		end)
-		tabButton.MouseLeave:Connect(function()
-			if self.ActiveTab ~= tabObj then
-				if tabStroke then TweenService:Create(tabStroke, TweenInfo.new(0.12), { Thickness = 1.5 }):Play() end
-				TweenService:Create(tabButton, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container, TextColor3 = UI.Theme.TextSecondary }):Play()
-			end
-		end)
-		tabButton.MouseButton1Click:Connect(function()
-			self:SelectTab(tabObj)
-		end)
-
-		local function handleRightClick()
-			if tabObj.Name == "Main" or tabObj.IsHidden then return end
-			self:SetTabVisibility(tabObj, false)
-			self:Notify("Module Hidden", string.format("'%s' tab hidden. Re-enable in Settings > Modules & Tabs.", tabObj.Name), 3.5)
+	tabButton.MouseEnter:Connect(function()
+		if self.ActiveTab ~= tabObj then
+			if tabStroke then TweenService:Create(tabStroke, TweenInfo.new(0.12), { Thickness = 2 }):Play() end
+			TweenService:Create(tabButton, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark, TextColor3 = UI.Theme.TextPrimary }):Play()
 		end
+	end)
+	tabButton.MouseLeave:Connect(function()
+		if self.ActiveTab ~= tabObj then
+			if tabStroke then TweenService:Create(tabStroke, TweenInfo.new(0.12), { Thickness = 1.5 }):Play() end
+			TweenService:Create(tabButton, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container, TextColor3 = UI.Theme.TextSecondary }):Play()
+		end
+	end)
+	tabButton.MouseButton1Click:Connect(function()
+		self:SelectTab(tabObj)
+	end)
 
-		tabButton.MouseButton2Click:Connect(handleRightClick)
-		tabButton.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton2 then
-				handleRightClick()
-			end
-		end)
+	local function handleRightClick()
+		if tabObj.Name == "Main" or tabObj.IsHidden then return end
+		self:SetTabVisibility(tabObj, false)
+		self:Notify("Module Hidden", string.format("'%s' tab hidden. Re-enable in Settings > Modules & Tabs.", tabObj.Name), 3.5)
 	end
+
+	tabButton.MouseButton2Click:Connect(handleRightClick)
+	tabButton.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton2 then
+			handleRightClick()
+		end
+	end)
 	
 	table.insert(self.Tabs, tabObj)
 	
@@ -335,8 +329,8 @@ function CoreUI:SelectTab(tabObj)
 			tab.Page.Visible = false
 			tab.Page.Position = UDim2.new(0, 0, 0, 0)
 			if tab.Button and tab.Stroke then
-				tab.Button.Size = UDim2.new(1, -6, 0, 29)
-				tab.Button.Position = UDim2.new(0, 3, 0, 0)
+				tab.Button.Size = UDim2.new(1, -4, 0, 30)
+				tab.Button.Position = UDim2.new(0, 2, 0, 0)
 				tab.Button.BackgroundColor3 = UI.Theme.Container
 				tab.Button.BackgroundTransparency = UI.Theme.ContainerTransparency
 				tab.Button.TextColor3 = UI.Theme.TextSecondary
@@ -348,41 +342,23 @@ function CoreUI:SelectTab(tabObj)
 		end
 	end
 
-	-- 2. Animate Incoming Tab Page
+	-- 2. Show Incoming Tab Page
 	tabObj.Page.Visible = true
-	tabObj.Page.Position = UDim2.new(0, 16, 0, 0)
-	local enterTween = TweenService:Create(tabObj.Page, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0, 0, 0, 0)
-	})
-	enterTween:Play()
+	tabObj.Page.Position = UDim2.new(0, 0, 0, 0)
 
-	-- 3. Animate Tab Button Spring & Indicator Pulse
+	-- 3. Highlight Tab Button if present
 	if tabObj.Button and tabObj.Stroke then
-		tabObj.Button.Size = UDim2.new(1, -8, 0, 27)
-		TweenService:Create(tabObj.Button, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			Size = UDim2.new(1, -2, 0, 31),
-			Position = UDim2.new(0, 1, 0, 0),
-			BackgroundColor3 = UI.Theme.Accent,
-			BackgroundTransparency = 0,
-			TextColor3 = UI.Theme.AccentText
-		}):Play()
-		
-		-- Indicator pulse on active tab stroke
-		Animations.pulseIndicator(tabObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.2, 1.6)
+		tabObj.Button.Size = UDim2.new(1, -4, 0, 30)
+		tabObj.Button.Position = UDim2.new(0, 2, 0, 0)
+		tabObj.Button.BackgroundColor3 = UI.Theme.Accent
+		tabObj.Button.BackgroundTransparency = 0
+		tabObj.Button.TextColor3 = UI.Theme.AccentText
+		tabObj.Stroke.Color = UI.Theme.Border
+		tabObj.Stroke.Thickness = 1.8
 		
 		local grad = tabObj.Button:FindFirstChild("ActiveGradient") :: UIGradient?
 		if grad then grad.Enabled = true end
 	end
-
-	-- 4. Cascaded Domino Ripple for Elements inside Incoming Tab Page
-	local elementsToAnimate: {GuiObject} = {}
-	for _, child in ipairs(tabObj.Page:GetChildren()) do
-		if child:IsA("GuiObject") and child.Name ~= "ActiveGradient" and not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
-			table.insert(elementsToAnimate, child)
-		end
-	end
-
-	Animations.dominoRipple(elementsToAnimate, 0.03, 12, 0.24)
 
 	self.ActiveTab = tabObj
 	if self.ActiveTagLabel then
@@ -390,22 +366,18 @@ function CoreUI:SelectTab(tabObj)
 	end
 
 	-- Subheader buttons active state
-	if self.SettingsBtn and self.SettingsBtn:FindFirstChild("UIStroke") then
+	if self.SettingsBtn then
 		local isSet = (tabObj == self.SettingsTab)
-		TweenService:Create(self.SettingsBtn, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			BackgroundColor3 = if isSet then UI.Theme.Accent else UI.Theme.Container,
-			BackgroundTransparency = if isSet then 0 else UI.Theme.ContainerTransparency,
-			TextColor3 = if isSet then UI.Theme.AccentText else UI.Theme.TextPrimary
-		}):Play()
+		self.SettingsBtn.BackgroundColor3 = if isSet then UI.Theme.Accent else UI.Theme.Container
+		self.SettingsBtn.BackgroundTransparency = if isSet then 0 else UI.Theme.ContainerTransparency
+		self.SettingsBtn.TextColor3 = if isSet then UI.Theme.AccentText else UI.Theme.TextPrimary
 	end
 
-	if self.ConfigsBtn and self.ConfigsBtn:FindFirstChild("UIStroke") then
+	if self.ConfigsBtn then
 		local isConf = (tabObj == self.ConfigsTab)
-		TweenService:Create(self.ConfigsBtn, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			BackgroundColor3 = if isConf then UI.Theme.Accent else UI.Theme.Container,
-			BackgroundTransparency = if isConf then 0 else UI.Theme.ContainerTransparency,
-			TextColor3 = if isConf then UI.Theme.AccentText else UI.Theme.TextPrimary
-		}):Play()
+		self.ConfigsBtn.BackgroundColor3 = if isConf then UI.Theme.Accent else UI.Theme.Container
+		self.ConfigsBtn.BackgroundTransparency = if isConf then 0 else UI.Theme.ContainerTransparency
+		self.ConfigsBtn.TextColor3 = if isConf then UI.Theme.AccentText else UI.Theme.TextPrimary
 	end
 end
 

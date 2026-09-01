@@ -1815,28 +1815,102 @@ local sysSubTab = setSubTabs["System & Audio"]
 -- ── SETTINGS SUB-TAB 1: MODULES & TABS ───────────────────────
 local modLeftCol, modRightCol = window:CreateColumns(modSubTab)
 
--- Left Column: Sidebar Tab Visibility
-local moduleSection = window:AddSection(modLeftCol, "Sidebar Tab Visibility")
+-- Left Column: Game Suite Modules (Execution / De-execution)
+local gameModuleSection = window:AddSection(modLeftCol, "Game Suite Modules (Mount & Execute)")
 
-window:AddToggle(moduleSection, "tab_game_module", string.format("%s (Game Tab)", gameTabTitle), true, nil, function(enabled)
-	FeatureManager.setModuleState("game_module", enabled)
-	window:SetTabVisibility(gameTab, enabled)
+window:AddToggle(gameModuleSection, "mod_exec_rt", "Restaurant Tycoon 3 Suite", gameTabTitle == "Restaurant Tycoon", nil, function(enabled)
+	window:SetTabVisibility(restTab, enabled)
+	if not enabled then
+		RestaurantTycoon.setAutoGrabCash(false)
+		RestaurantTycoon.setAutoServe(false)
+		RestaurantTycoon.setAutoCollectTips(false)
+		RestaurantTycoon.setAutoCatchDineAndDash(false)
+		RestaurantTycoon.setFastCooking(false)
+	end
+end)
+
+window:AddToggle(gameModuleSection, "mod_exec_lucky", "Lucky Blocks Battlegrounds Suite", gameTabTitle == "Lucky Blocks", nil, function(enabled)
+	window:SetTabVisibility(luckyTab, enabled)
+	if not enabled then
+		LuckyBlocks.setAutoClaim(false)
+		LuckyBlocks.setAutoOpen(false)
+		LuckyBlocks.setTurboSword(false)
+		LuckyBlocks.setAntiVoid(false)
+	end
+end)
+
+window:AddToggle(gameModuleSection, "mod_exec_ice", "Ice Tycoon 2 Suite", gameTabTitle == "Ice Tycoon", nil, function(enabled)
+	window:SetTabVisibility(iceTab, enabled)
+	if not enabled then
+		IceTycoon.setAutoCollect(false)
+		IceTycoon.setAutoHarvestFlowers(false)
+		IceTycoon.setAutoBuy(false)
+		IceTycoon.setAutoFillWater(false)
+		IceTycoon.setFastConveyors(false)
+		IceTycoon.setFastGenerators(false)
+	end
+end)
+
+window:AddToggle(gameModuleSection, "mod_exec_rnh", "Run N Hide Suite", gameTabTitle == "Run N Hide", nil, function(enabled)
+	window:SetTabVisibility(rnhTab, enabled)
 	if not enabled then
 		RunNHide.SilentGunAudio = false
 		RunNHide.QuickReload = false
 		RunNHide.CompleteAuto = false
-		RunNHide.DisableBarriers = false
-		RunNHide.DisableKillbricks = false
+		RunNHide.NoRecoil = false
+		RunNHide.FastFireRate = false
+		RunNHide.RemoveSpawnWalls = false
+		RunNHide.RemoveInvisibleWalls = false
+	end
+end)
+
+window:AddToggle(gameModuleSection, "mod_exec_nds", "Natural Disaster Survival Suite", gameTabTitle == "Natural Disaster", nil, function(enabled)
+	window:SetTabVisibility(disTab, enabled)
+	if not enabled then
 		DisasterSurvival.DisasterTracker = false
 		DisasterSurvival.setNoFallDamage(false)
 		DisasterSurvival.setFlight(false)
 		DisasterSurvival.setAntiFling(false)
 		DisasterSurvival.setFling(false)
-		IceTycoon.cleanup()
+		DisasterSurvival.setCarDriving(false)
+		DisasterSurvival.setObjectDrag(false)
 	end
 end)
 
-window:AddToggle(moduleSection, "tab_combat_module", "Combat (Aim & Hitboxes)", true, nil, function(enabled)
+local actionSection = window:AddSection(modLeftCol, "Suite Batch Operations")
+
+window:AddButton(actionSection, "Execute All Game Modules", function()
+	window:SetTabVisibility(restTab, true)
+	window:SetTabVisibility(luckyTab, true)
+	window:SetTabVisibility(iceTab, true)
+	window:SetTabVisibility(rnhTab, true)
+	window:SetTabVisibility(disTab, true)
+	FeatureManager.setFeatureState("mod_exec_rt", true)
+	FeatureManager.setFeatureState("mod_exec_lucky", true)
+	FeatureManager.setFeatureState("mod_exec_ice", true)
+	FeatureManager.setFeatureState("mod_exec_rnh", true)
+	FeatureManager.setFeatureState("mod_exec_nds", true)
+	window:Notify("Modules Executed", "Mounted all 5 game suites to sidebar", 3)
+end)
+
+window:AddButton(actionSection, "De-execute Inactive Games", function()
+	window:SetTabVisibility(restTab, gameTabTitle == "Restaurant Tycoon")
+	window:SetTabVisibility(luckyTab, gameTabTitle == "Lucky Blocks")
+	window:SetTabVisibility(iceTab, gameTabTitle == "Ice Tycoon")
+	window:SetTabVisibility(rnhTab, gameTabTitle == "Run N Hide")
+	window:SetTabVisibility(disTab, gameTabTitle == "Natural Disaster")
+	FeatureManager.setFeatureState("mod_exec_rt", gameTabTitle == "Restaurant Tycoon")
+	FeatureManager.setFeatureState("mod_exec_lucky", gameTabTitle == "Lucky Blocks")
+	FeatureManager.setFeatureState("mod_exec_ice", gameTabTitle == "Ice Tycoon")
+	FeatureManager.setFeatureState("mod_exec_rnh", gameTabTitle == "Run N Hide")
+	FeatureManager.setFeatureState("mod_exec_nds", gameTabTitle == "Natural Disaster")
+	window:Notify("Modules Cleaned", "Sidebar filtered to active game only", 3)
+end)
+
+-- Right Column: Core Modules & Peripheral HUDs
+local coreModSection = window:AddSection(modRightCol, "Core Engine Modules")
+
+window:AddToggle(coreModSection, "tab_combat_module", "Combat Module (Aim & Hitboxes)", true, nil, function(enabled)
 	FeatureManager.setModuleState("combat", enabled)
 	window:SetTabVisibility(combatTab, enabled)
 	if not enabled then
@@ -1848,7 +1922,7 @@ window:AddToggle(moduleSection, "tab_combat_module", "Combat (Aim & Hitboxes)", 
 	end
 end)
 
-window:AddToggle(moduleSection, "tab_visuals_module", "Visuals (ESP & Chams)", true, nil, function(enabled)
+window:AddToggle(coreModSection, "tab_visuals_module", "Visuals Module (ESP & Chams)", true, nil, function(enabled)
 	FeatureManager.setModuleState("visuals", enabled)
 	window:SetTabVisibility(visualsTab, enabled)
 	if not enabled then
@@ -1862,24 +1936,7 @@ window:AddToggle(moduleSection, "tab_visuals_module", "Visuals (ESP & Chams)", t
 	end
 end)
 
-window:AddButton(moduleSection, string.format("Hide %s Tab", gameTabTitle), function()
-	window:SetTabVisibility(gameTab, false)
-	FeatureManager.setFeatureState("tab_game_module", false)
-	window:Notify("Tab Hidden", string.format("%s tab hidden from sidebar", gameTabTitle), 2.5)
-end)
-
-window:AddButton(moduleSection, "Show All Sidebar Tabs", function()
-	window:SetTabVisibility(gameTab, true)
-	window:SetTabVisibility(combatTab, true)
-	window:SetTabVisibility(visualsTab, true)
-	FeatureManager.setFeatureState("tab_game_module", true)
-	FeatureManager.setFeatureState("tab_combat_module", true)
-	FeatureManager.setFeatureState("tab_visuals_module", true)
-	window:Notify("Tabs Restored", "All sidebar tabs are now visible", 2.5)
-end)
-
--- Right Column: Peripheral Widgets
-local widgetSection = window:AddSection(modRightCol, "Peripheral Widgets")
+local widgetSection = window:AddSection(modRightCol, "Peripheral HUD Widgets")
 
 window:AddToggle(widgetSection, "mod_music_tracker", "Music Tracker Widget", true, nil, function(enabled)
 	FeatureManager.setModuleState("music_tracker", enabled)
@@ -1906,26 +1963,15 @@ window:AddToggle(widgetSection, "mod_leaderstats_widget", "Live Leaderstats & Cu
 	leaderstatsWidget.SetVisible(enabled)
 end)
 
--- Hook tab right-click sync to update settings toggles
-gameTab.OnVisibilityChanged = function(vis: boolean)
-	local feat = FeatureManager.getFeature("tab_game_module")
-	if feat and feat.state ~= vis then
-		FeatureManager.setFeatureState("tab_game_module", vis)
-	end
-end
-
+-- Hook tab right-click sync
 combatTab.OnVisibilityChanged = function(vis: boolean)
 	local feat = FeatureManager.getFeature("tab_combat_module")
-	if feat and feat.state ~= vis then
-		FeatureManager.setFeatureState("tab_combat_module", vis)
-	end
+	if feat and feat.state ~= vis then FeatureManager.setFeatureState("tab_combat_module", vis) end
 end
 
 visualsTab.OnVisibilityChanged = function(vis: boolean)
 	local feat = FeatureManager.getFeature("tab_visuals_module")
-	if feat and feat.state ~= vis then
-		FeatureManager.setFeatureState("tab_visuals_module", vis)
-	end
+	if feat and feat.state ~= vis then FeatureManager.setFeatureState("tab_visuals_module", vis) end
 end
 
 -- ── SETTINGS SUB-TAB 2: THEMES & VISUALS ─────────────────────

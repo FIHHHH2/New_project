@@ -3,11 +3,11 @@
     ✦ Squared Retro Hotbar & 3D Model Viewport Backpack Inventory Widget ✦
     Features:
     - 10-slot bottom-center Hotbar HUD with live 3D ViewportFrame model previews
+    - Dedicated [ 🎒 INV ] Toolbar button to toggle the Backpack Inventory box
+    - Lag-free debounced viewport caching & lazy-rendered inventory grid
+    - Reliable 1-0 number key unequip toggling
     - Drag-to-sort slots: drag any hotbar item onto another slot to swap/reorder
     - Drag-to-drop: dragging an item outside the HUD drops the item into the world
-    - Floating Drag Ghost cursor follower with tactile drop animations
-    - Direct 1-0 keybind tool equipping with tactile spring micro-interactions
-    - Full-featured expandable Backpack Grid with real-time 3D tool model viewports
     - 100% Theme-reactive (Dark, Light, Translucent Dark, Translucent Light, Adaptive)
 ]=]
 
@@ -209,8 +209,9 @@ function Hotbar.new(): HotbarWidget
 	ghostLabel.ZIndex = 101
 	ghostLabel.Parent = dragGhost
 
-	-- ── 1. Hotbar HUD Container ───────────────────────────────────────
-	local totalWidth = (NUM_SLOTS * SLOT_SIZE) + ((NUM_SLOTS - 1) * SLOT_GAP) + 12
+	-- ── 1. Hotbar HUD Container (Includes 10 Tool Slots + 1 Inventory Button) ──
+	local totalSlotsCount = NUM_SLOTS + 1
+	local totalWidth = (totalSlotsCount * SLOT_SIZE) + ((totalSlotsCount - 1) * SLOT_GAP) + 12
 	local hotbarFrame = Instance.new("Frame")
 	hotbarFrame.Name = "HotbarFrame"
 	hotbarFrame.Size = UDim2.new(0, totalWidth, 0, SLOT_SIZE + 10)
@@ -340,15 +341,6 @@ function Hotbar.new(): HotbarWidget
 	UI.registerThemeElement(unequipAllBtn, "TextPrimary")
 	Animations.buttonHoverPush(unequipAllBtn)
 
-	unequipAllBtn.MouseButton1Click:Connect(function()
-		Animations.buttonClickPop(unequipAllBtn)
-		local char = LocalPlayer.Character
-		local hum = char and char:FindFirstChildOfClass("Humanoid")
-		if hum then
-			pcall(function() hum:UnequipTools() end)
-		end
-	end)
-
 	-- Backpack Inventory Grid Container
 	local bpGridScroll = Instance.new("ScrollingFrame")
 	bpGridScroll.Name = "InventoryGrid"
@@ -412,7 +404,26 @@ function Hotbar.new(): HotbarWidget
 	end
 
 	local function isToolEquipped(tool: Tool): boolean
-		return tool.Parent == LocalPlayer.Character
+		local char = LocalPlayer.Character
+		return char ~= nil and (tool.Parent == char or char:FindFirstChild(tool.Name) == tool)
+	end
+
+	-- Forward declarations
+	local updateHotbarVisuals: () -> ()
+	local updateBackpackGrid: () -> ()
+	local queueInventoryRefresh: () -> ()
+
+	local refreshScheduled = false
+	queueInventoryRefresh = function()
+		if refreshScheduled then return end
+		refreshScheduled = true
+		task.delay(0.03, function()
+			refreshScheduled = false
+			updateHotbarVisuals()
+			if isBackpackOpen then
+				updateBackpackGrid()
+			end
+		end)
 	end
 
 	local function equipOrToggleTool(tool: Tool)
@@ -421,31 +432,40 @@ function Hotbar.new(): HotbarWidget
 		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
 		if not char or not hum then return end
 
-		if isToolEquipped(tool) then
-			-- Un-equip currently held tool
+		local currentlyEquipped = char:FindFirstChildOfClass("Tool")
+
+		if currentlyEquipped == tool or isToolEquipped(tool) then
+			-- Un-equip
 			pcall(function() hum:UnequipTools() end)
-			if tool.Parent == char and bp then
+			if bp and tool.Parent == char then
 				pcall(function() tool.Parent = bp end)
 			end
 		else
-			-- Un-equip any other equipped tools first
+			-- Equip
 			pcall(function() hum:UnequipTools() end)
-			for _, c in ipairs(char:GetChildren()) do
-				if c:IsA("Tool") and bp then
-					pcall(function() c.Parent = bp end)
-				end
-			end
-			task.wait(0.02)
+			task.wait(0.01)
 			pcall(function() hum:EquipTool(tool) end)
 			if tool.Parent ~= char then
 				pcall(function() tool.Parent = char end)
 			end
 		end
 
-		task.wait(0.02)
-		updateHotbarVisuals()
-		updateBackpackGrid()
+		queueInventoryRefresh()
 	end
+
+	unequipAllBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(unequipAllBtn)
+		local char = LocalPlayer.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+		if hum then pcall(function() hum:UnequipTools() end) end
+		if char and bp then
+			for _, c in ipairs(char:GetChildren()) do
+				if c:IsA("Tool") then pcall(function() c.Parent = bp end) end
+			end
+		end
+		queueInventoryRefresh()
+	end)
 
 	-- ── Drop Item Function ───────────────────────────────────────────
 	local function dropTool(tool: Tool)
@@ -453,7 +473,6 @@ function Hotbar.new(): HotbarWidget
 		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-		-- Unequip first or drop in world
 		pcall(function()
 			if isToolEquipped(tool) and hum then
 				hum:UnequipTools()
@@ -470,7 +489,6 @@ function Hotbar.new(): HotbarWidget
 			end
 		end)
 
-		-- Unassign from slots
 		for i = 1, NUM_SLOTS do
 			if assignedSlots[i] == tool then
 				assignedSlots[i] = nil
@@ -484,9 +502,6 @@ function Hotbar.new(): HotbarWidget
 	end
 
 	-- ── Drag & Drop Handlers ─────────────────────────────────────────
-	local updateHotbarVisuals: () -> ()
-	local updateBackpackGrid: () -> ()
-
 	local function isPointInsideGui(point: Vector2, gui: GuiObject): boolean
 		local pos = gui.AbsolutePosition
 		local size = gui.AbsoluteSize
@@ -524,17 +539,14 @@ function Hotbar.new(): HotbarWidget
 
 		if targetSlot then
 			if fromSlot then
-				-- Swap slot contents
 				local oldTargetTool = assignedSlots[targetSlot]
 				assignedSlots[targetSlot] = tool
 				assignedSlots[fromSlot] = oldTargetTool
 			else
-				-- From backpack onto hotbar slot
 				assignedSlots[targetSlot] = tool
 			end
 			Animations.popScale(slotFrames[targetSlot], 0.9, 1.08, 1.0, 0.18)
-			updateHotbarVisuals()
-			updateBackpackGrid()
+			queueInventoryRefresh()
 			return
 		end
 
@@ -542,8 +554,7 @@ function Hotbar.new(): HotbarWidget
 		if bpWindow.Visible and isPointInsideGui(endMouse, bpGridScroll) then
 			if fromSlot then
 				assignedSlots[fromSlot] = nil
-				updateHotbarVisuals()
-				updateBackpackGrid()
+				queueInventoryRefresh()
 			end
 			return
 		end
@@ -554,8 +565,7 @@ function Hotbar.new(): HotbarWidget
 
 		if not inHotbar and not inBackpack then
 			dropTool(tool)
-			updateHotbarVisuals()
-			updateBackpackGrid()
+			queueInventoryRefresh()
 		end
 	end
 
@@ -606,7 +616,6 @@ function Hotbar.new(): HotbarWidget
 			local tool = assignedSlots[slotNum]
 			local stroke = slotBtn:FindFirstChildWhichIsA("UIStroke")
 			local nameLabel = slotBtn:FindFirstChild("ToolName") :: TextLabel?
-			local uiScale = slotBtn:FindFirstChildWhichIsA("UIScale")
 
 			renderToolViewportCached(slotBtn, tool, slotNum, slotCaches)
 
@@ -618,46 +627,35 @@ function Hotbar.new(): HotbarWidget
 				end
 
 				if equipped then
-					TweenService:Create(slotBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-						BackgroundColor3 = UI.Theme.Accent,
-						BackgroundTransparency = 0.2
-					}):Play()
+					slotBtn.BackgroundColor3 = UI.Theme.Accent
+					slotBtn.BackgroundTransparency = 0.2
 					if stroke then
-						TweenService:Create(stroke, TweenInfo.new(0.15), {
-							Color = UI.Theme.Border,
-							Thickness = 2.0
-						}):Play()
+						stroke.Color = UI.Theme.Border
+						stroke.Thickness = 2.0
 					end
 				else
-					TweenService:Create(slotBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-						BackgroundColor3 = UI.Theme.Container,
-						BackgroundTransparency = UI.Theme.ContainerTransparency
-					}):Play()
+					slotBtn.BackgroundColor3 = UI.Theme.Container
+					slotBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
 					if stroke then
-						TweenService:Create(stroke, TweenInfo.new(0.15), {
-							Color = UI.Theme.Border,
-							Thickness = 1.2
-						}):Play()
+						stroke.Color = UI.Theme.Border
+						stroke.Thickness = 1.2
 					end
 				end
 			else
 				if nameLabel then nameLabel.Text = "" end
-				TweenService:Create(slotBtn, TweenInfo.new(0.15), {
-					BackgroundColor3 = UI.Theme.ContainerDark,
-					BackgroundTransparency = UI.Theme.ContainerDarkTransparency
-				}):Play()
+				slotBtn.BackgroundColor3 = UI.Theme.ContainerDark
+				slotBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 				if stroke then
-					TweenService:Create(stroke, TweenInfo.new(0.15), {
-						Color = UI.Theme.BorderDim,
-						Thickness = 1.0
-					}):Play()
+					stroke.Color = UI.Theme.BorderDim
+					stroke.Thickness = 1.0
 				end
 			end
 		end
 	end
 
-	-- ── 5. Render Backpack Grid Items ─────────────────────────────────
+	-- ── 5. Render Backpack Grid Items (Lazy-Rendered Only When Open) ──
 	updateBackpackGrid = function()
+		if not isBackpackOpen then return end
 		local allTools = getAllTools()
 		local activeToolSet: {[Tool]: boolean} = {}
 
@@ -682,7 +680,6 @@ function Hotbar.new(): HotbarWidget
 			if existingCard and existingCard.Parent == bpGridScroll then
 				existingCard.BackgroundColor3 = if equipped then UI.Theme.Accent else UI.Theme.ContainerDark
 				existingCard.BackgroundTransparency = if equipped then 0.15 else UI.Theme.ContainerDarkTransparency
-				UI.registerThemeElement(existingCard, if equipped then "Accent" else "ContainerDark")
 
 				local itemStroke = existingCard:FindFirstChildWhichIsA("UIStroke")
 				if itemStroke then
@@ -760,7 +757,6 @@ function Hotbar.new(): HotbarWidget
 
 				renderToolViewportCached(itemCard, tool, tool, backpackCaches)
 
-				-- Drag start or Click equip
 				local cardPressPos = Vector2.zero
 				itemCard.InputBegan:Connect(function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -782,9 +778,6 @@ function Hotbar.new(): HotbarWidget
 				itemCard.MouseButton1Click:Connect(function()
 					if not draggingTool then
 						equipOrToggleTool(tool)
-						task.wait(0.04)
-						updateHotbarVisuals()
-						updateBackpackGrid()
 					end
 				end)
 
@@ -887,9 +880,6 @@ function Hotbar.new(): HotbarWidget
 				if tool then
 					Animations.buttonClickPop(slotBtn)
 					equipOrToggleTool(tool)
-					task.wait(0.04)
-					updateHotbarVisuals()
-					updateBackpackGrid()
 				end
 			end
 		end)
@@ -897,7 +887,82 @@ function Hotbar.new(): HotbarWidget
 		slotFrames[i] = slotBtn
 	end
 
-	-- ── 7. Search Filter & Events ─────────────────────────────────────
+	-- ── 7. Dedicated Inventory Button on Hotbar Toolbar ───────────────
+	local function toggleBackpack()
+		isBackpackOpen = not isBackpackOpen
+		bpWindow.Visible = isBackpackOpen
+		if isBackpackOpen then
+			updateBackpackGrid()
+			if Animations and typeof(Animations.openWindow) == "function" then
+				local bpScale = bpWindow:FindFirstChildWhichIsA("UIScale") or Instance.new("UIScale", bpWindow)
+				Animations.openWindow(bpWindow, bpScale)
+			end
+		end
+	end
+
+	local invBtn = Instance.new("TextButton")
+	invBtn.Name = "InventoryToolbarBtn"
+	invBtn.Size = UDim2.new(0, SLOT_SIZE, 0, SLOT_SIZE)
+	invBtn.BackgroundColor3 = UI.Theme.ContainerDark
+	invBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	invBtn.BorderSizePixel = 0
+	invBtn.Text = ""
+	invBtn.AutoButtonColor = false
+	invBtn.ClipsDescendants = true
+	invBtn.LayoutOrder = 11
+	invBtn.Parent = hotbarFrame
+	UI.registerThemeElement(invBtn, "ContainerDark")
+	Animations.buttonHoverPush(invBtn)
+
+	local invStroke = Instance.new("UIStroke")
+	invStroke.Color = UI.Theme.Border
+	invStroke.Thickness = 1.2
+	invStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	invStroke.Parent = invBtn
+	UI.registerThemeElement(invStroke, "Border")
+
+	local invKeyLabel = Instance.new("TextLabel")
+	invKeyLabel.Size = UDim2.new(0, 14, 0, 12)
+	invKeyLabel.Position = UDim2.new(0, 2, 0, 2)
+	invKeyLabel.BackgroundTransparency = 1
+	invKeyLabel.Text = "`"
+	invKeyLabel.TextColor3 = UI.Theme.TextSecondary
+	invKeyLabel.Font = UI.Fonts.Mono
+	invKeyLabel.TextSize = 9
+	invKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+	invKeyLabel.ZIndex = 10
+	invKeyLabel.Parent = invBtn
+	UI.registerThemeElement(invKeyLabel, "TextSecondary")
+
+	local invIconLabel = Instance.new("TextLabel")
+	invIconLabel.Size = UDim2.new(1, 0, 0, 20)
+	invIconLabel.Position = UDim2.new(0, 0, 0.5, -12)
+	invIconLabel.BackgroundTransparency = 1
+	invIconLabel.Text = "🎒"
+	invIconLabel.TextColor3 = UI.Theme.TextPrimary
+	invIconLabel.Font = UI.Fonts.Header
+	invIconLabel.TextSize = 16
+	invIconLabel.ZIndex = 10
+	invIconLabel.Parent = invBtn
+
+	local invTextLabel = Instance.new("TextLabel")
+	invTextLabel.Size = UDim2.new(1, 0, 0, 12)
+	invTextLabel.Position = UDim2.new(0, 0, 1, -14)
+	invTextLabel.BackgroundTransparency = 1
+	invTextLabel.Text = "INV"
+	invTextLabel.TextColor3 = UI.Theme.Accent
+	invTextLabel.Font = UI.Fonts.Header
+	invTextLabel.TextSize = 8
+	invTextLabel.ZIndex = 10
+	invTextLabel.Parent = invBtn
+	UI.registerThemeElement(invTextLabel, "Accent")
+
+	invBtn.MouseButton1Click:Connect(function()
+		Animations.buttonClickPop(invBtn)
+		toggleBackpack()
+	end)
+
+	-- ── 8. Search Filter & Events ─────────────────────────────────────
 	searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 		filterQuery = searchBox.Text
 		updateBackpackGrid()
@@ -909,29 +974,24 @@ function Hotbar.new(): HotbarWidget
 		bpWindow.Visible = false
 	end)
 
-	local function toggleBackpack()
-		isBackpackOpen = not isBackpackOpen
-		bpWindow.Visible = isBackpackOpen
-		if isBackpackOpen then
-			updateBackpackGrid()
-			Animations.springOpen(bpWindow)
-		end
-	end
-
-	-- Keybinds for 1-0 hotbar selection
+	-- Keybinds for 1-0 hotbar selection and ` for inventory
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
 		if input.UserInputType == Enum.UserInputType.Keyboard then
 			for slotNum, key in ipairs(KEYCODES) do
 				if input.KeyCode == key then
 					local tool = assignedSlots[slotNum]
+					local btn = slotFrames[slotNum]
+					if btn then Animations.buttonClickPop(btn) end
+
 					if tool then
-						local btn = slotFrames[slotNum]
-						if btn then Animations.buttonClickPop(btn) end
 						equipOrToggleTool(tool)
-						task.wait(0.04)
-						updateHotbarVisuals()
-						updateBackpackGrid()
+					else
+						-- Unequip if empty slot pressed
+						local char = LocalPlayer.Character
+						local hum = char and char:FindFirstChildOfClass("Humanoid")
+						if hum then pcall(function() hum:UnequipTools() end) end
+						queueInventoryRefresh()
 					end
 					break
 				end
@@ -942,20 +1002,16 @@ function Hotbar.new(): HotbarWidget
 		end
 	end)
 
-	-- Inventory changes
+	-- Debounced Inventory synchronization
 	local function bindCharEvents(char: Model)
 		char.ChildAdded:Connect(function(child)
 			if child:IsA("Tool") then
-				task.wait(0.02)
-				updateHotbarVisuals()
-				updateBackpackGrid()
+				queueInventoryRefresh()
 			end
 		end)
 		char.ChildRemoved:Connect(function(child)
 			if child:IsA("Tool") then
-				task.wait(0.02)
-				updateHotbarVisuals()
-				updateBackpackGrid()
+				queueInventoryRefresh()
 			end
 		end)
 	end
@@ -966,16 +1022,12 @@ function Hotbar.new(): HotbarWidget
 	local function bindBpEvents(bp: Backpack)
 		bp.ChildAdded:Connect(function(child)
 			if child:IsA("Tool") then
-				task.wait(0.02)
-				updateHotbarVisuals()
-				updateBackpackGrid()
+				queueInventoryRefresh()
 			end
 		end)
 		bp.ChildRemoved:Connect(function(child)
 			if child:IsA("Tool") then
-				task.wait(0.02)
-				updateHotbarVisuals()
-				updateBackpackGrid()
+				queueInventoryRefresh()
 			end
 		end)
 	end
@@ -990,7 +1042,6 @@ function Hotbar.new(): HotbarWidget
 	task.spawn(function()
 		task.wait(0.3)
 		updateHotbarVisuals()
-		updateBackpackGrid()
 	end)
 
 	local widgetObj: HotbarWidget = {
@@ -1004,8 +1055,7 @@ function Hotbar.new(): HotbarWidget
 		ToggleBackpack = toggleBackpack,
 		IsOpen = function() return isBackpackOpen end,
 		Refresh = function()
-			updateHotbarVisuals()
-			updateBackpackGrid()
+			queueInventoryRefresh()
 		end
 	}
 

@@ -404,6 +404,17 @@ function RunNHide.updateVoidSafetyFloor()
 	end
 end
 RunNHide.ensureVoidPlatform = RunNHide.updateVoidSafetyFloor
+RunNHide.updateBarriers = RunNHide.scanAndDisableBoundaries
+RunNHide.updateDoors = function()
+	pcall(function()
+		for _, d in ipairs(Workspace:GetDescendants()) do
+			if d:IsA("BasePart") and (d.Name:lower():find("door") or d.Name:lower():find("gate")) then
+				d.CanCollide = false
+			end
+		end
+	end)
+end
+
 
 function RunNHide.getPlayerRoleCategory(p: Player): (string, Color3)
 	local role = p:GetAttribute("Role")

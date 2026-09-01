@@ -4487,25 +4487,23 @@ Modules["UI/MusicTracker.luau"] = function()
     	local activeGameSound: Sound? = nil
     
     	local function parseLrcString(lrcStr: string): {{ ms: number, text: string }}
-    		local lines = {}
-    		for raw in string.gmatch(lrcStr, "[^
-    
-    ]+") do
-    			local minStr, secStr, milStr, text = string.match(raw, "%%[(%%d%%d):(%%d%%d)%%.?(%%d*)%%](.*)")
+    		local lrcList = {}
+    		for raw in string.gmatch(lrcStr, "([^\n\r]+)") do
+    			local minStr, secStr, milStr, text = string.match(raw, "%[(%d%d):(%d%d)%.?(%d*)%](.*)")
     			if minStr and secStr then
     				local mins = tonumber(minStr) or 0
     				local secs = tonumber(secStr) or 0
     				local mils = tonumber(milStr) or 0
     				if #milStr == 2 then mils *= 10 end
     				local totalMs = (mins * 60 + secs) * 1000 + mils
-    				text = string.gsub(text or "", "^%%s*(.-)%%s*$", "%%1")
+    				text = string.gsub(text or "", "^%s*(.-)%s*$", "%1")
     				if text ~= "" then
-    					table.insert(lines, { ms = totalMs, text = text })
+    					table.insert(lrcList, { ms = totalMs, text = text })
     				end
     			end
     		end
-    		table.sort(lines, function(a, b) return a.ms < b.ms end)
-    		return lines
+    		table.sort(lrcList, function(a, b) return a.ms < b.ms end)
+    		return lrcList
     	end
     
     	local function fetchLyricsForTrack(title: string, artist: string)
@@ -4544,9 +4542,9 @@ Modules["UI/MusicTracker.luau"] = function()
     						end
     					elseif data and data.plainLyrics then
     						local lines = {}
-    						for l in string.gmatch(data.plainLyrics, "[^
+    						for l in string.gmatch(data.plainLyrics, "([^\n\r]+)") do
     
-    ]+") do
+    ]+)") do
     							local t = string.gsub(l, "^%%s*(.-)%%s*$", "%%1")
     							if t ~= "" then table.insert(lines, { ms = 0, text = t }) end
     						end

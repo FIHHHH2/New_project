@@ -16113,8 +16113,11 @@ Modules["Core/Main.luau"] = function()
     end
     
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    	if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Tab then
-    		playerListWidget:Toggle()
+    	if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Tab then
+    		local focused = UserInputService:GetFocusedTextBox()
+    		if not focused then
+    			playerListWidget:Toggle()
+    		end
     	end
     end)
     
@@ -18254,6 +18257,16 @@ Modules["Core/Main.luau"] = function()
     Workspace.DescendantAdded:Connect(onDescendantAdded)
     Players.DescendantAdded:Connect(onDescendantAdded)
     ReplicatedStorage.DescendantAdded:Connect(onDescendantAdded)
+    
+    -- Continuous enforcer for persistent sound volume and mute state
+    task.spawn(function()
+    	while true do
+    		task.wait(0.5)
+    		if isMasterMuted or masterVolumeScale < 0.99 then
+    			sweepAllGameAudios()
+    		end
+    	end
+    end)
     
     window:AddToggle(audioSection, "mute_all_game_audio", "Mute All Game Audio", false, nil, function(enabled)
     	isMasterMuted = enabled

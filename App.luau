@@ -35,6 +35,18 @@ for _, name in ipairs(guiNames) do
 	end
 end
 
+-- Purge any existing visuals/highlights/drawings on execute
+for _, player in ipairs(Players:GetPlayers()) do
+	local char = player.Character
+	if char then
+		for _, desc in ipairs(char:GetDescendants()) do
+			if desc:IsA("Highlight") and (desc.Name == "ModularChams" or desc.Name:find("Chams") or desc.Name:find("ESP")) then
+				pcall(function() desc:Destroy() end)
+			end
+		end
+	end
+end
+
 local Modules = {}
 local ModuleCache = {}
 
@@ -10341,6 +10353,44 @@ Modules["Modules/Visuals.luau"] = function()
     table.insert(moduleConnections, playerRemConn)
     
     -- Module Unload & Resource Cleanup
+    function Visuals.removeAllVisuals()
+    	Visuals.Box2D = false
+    	Visuals.BoxOutlines = false
+    	Visuals.HealthBar = false
+    	Visuals.Tracers = false
+    	Visuals.Distance = false
+    	Visuals.Skeleton = false
+    	Visuals.Chams = false
+    
+    	for player, pv in pairs(playerVisuals) do
+    		cleanPlayerVisual(pv)
+    	end
+    	table.clear(playerVisuals)
+    
+    	-- Purge highlights and visual adornments across character models
+    	for _, player in ipairs(Players:GetPlayers()) do
+    		local char = player.Character
+    		if char then
+    			for _, desc in ipairs(char:GetDescendants()) do
+    				if desc:IsA("Highlight") and (desc.Name == "ModularChams" or desc.Name:find("Chams") or desc.Name:find("ESP")) then
+    					pcall(function() desc:Destroy() end)
+    				end
+    			end
+    		end
+    	end
+    
+    	-- Drain Drawing Pool
+    	for typeName, pool in pairs(DrawingPool) do
+    		for _, obj in ipairs(pool) do
+    			pcall(function() obj:Remove() end)
+    		end
+    		DrawingPool[typeName] = {}
+    	end
+    end
+    
+    -- Automatic purge on script execution
+    Visuals.removeAllVisuals()
+    
     function Visuals.cleanup()
     	-- 1. Clean and release all player visuals
     	for player, pv in pairs(playerVisuals) do
@@ -17963,48 +18013,137 @@ Modules["Core/Main.luau"] = function()
     	end
     end)
     
-    -- Right Column: Master Audio Volume
-    local audioSection = window:AddSection(sysRightCol, "Master Audio Volume")
+    -- Right Column: Universal Master Audio Controller
+    local audioSection = window:AddSection(sysRightCol, "Universal Game Audio Controller")
     
-    local currentVolumeScale = 1.0
-    local function updateSound(sound: Sound)
-    	if sound:IsDescendantOf(game:GetService("VoiceChatService")) then return end
-    	local base = sound:GetAttribute("OrigVolume")
-    	if not base then
-    		base = sound.Volume
-    		sound:SetAttribute("OrigVolume", base)
+    local masterVolumeScale = 1.0
+    local isMasterMuted = false
+    local soundConnections: {[Sound]: {RBXScriptConnection}} = {}
+    
+    local function cleanSoundConns(sound: Sound)
+    	local conns = soundConnections[sound]
+    	if conns then
+    		for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+    		soundConnections[sound] = nil
     	end
-    	sound.Volume = (base :: number) * currentVolumeScale
     end
     
-    window:AddSlider(audioSection, "VOLUME CONTROLLER", 0, 100, 100, function(value)
-    	currentVolumeScale = value / 100
-    	for _, obj in ipairs(SoundService:GetDescendants()) do
-    		if obj:IsA("Sound") then
-    			updateSound(obj)
-    		end
+    local function applySoundVolume(sound: Sound)
+    	if not sound or not sound.Parent then return end
+    	if sound:IsDescendantOf(game:GetService("VoiceChatService")) then return end
+    
+    	local base = sound:GetAttribute("OrigVolume")
+    	if not base then
+    		base = if sound.Volume > 0 then sound.Volume else 1.0
+    		sound:SetAttribute("OrigVolume", base)
     	end
-    	for _, obj in ipairs(Workspace:GetDescendants()) do
-    		if obj:IsA("Sound") then
-    			updateSound(obj)
+    
+    	local targetVol = if isMasterMuted then 0 else (base :: number) * masterVolumeScale
+    	if sound.Volume ~= targetVol then
+    		sound.Volume = targetVol
+    	end
+    end
+    
+    local function hookSound(sound: Sound)
+    	if not sound:IsA("Sound") then return end
+    	if soundConnections[sound] then return end
+    
+    	applySoundVolume(sound)
+    
+    	local conns: {RBXScriptConnection} = {}
+    	
+    	-- Intercept volume alterations by game scripts
+    	local volConn = sound:GetPropertyChangedSignal("Volume"):Connect(function()
+    		local base = sound:GetAttribute("OrigVolume") or 1.0
+    		local targetVol = if isMasterMuted then 0 else (base :: number) * masterVolumeScale
+    		if math.abs(sound.Volume - targetVol) > 0.01 then
+    			applySoundVolume(sound)
     		end
+    	end)
+    	table.insert(conns, volConn)
+    
+    	-- Intercept when a sound starts playing
+    	local playConn = sound:GetPropertyChangedSignal("Playing"):Connect(function()
+    		if sound.Playing then
+    			applySoundVolume(sound)
+    		end
+    	end)
+    	table.insert(conns, playConn)
+    
+    	local playedConn = sound.Played:Connect(function()
+    		applySoundVolume(sound)
+    	end)
+    	table.insert(conns, playedConn)
+    
+    	local destroyConn = sound.Destroying:Connect(function()
+    		cleanSoundConns(sound)
+    	end)
+    	table.insert(conns, destroyConn)
+    
+    	soundConnections[sound] = conns
+    end
+    
+    local function sweepAllGameAudios()
+    	for _, service in ipairs({SoundService, Workspace, Players, ReplicatedStorage, CoreGui}) do
+    		pcall(function()
+    			for _, obj in ipairs(service:GetDescendants()) do
+    				if obj:IsA("Sound") then
+    					hookSound(obj)
+    				end
+    			end
+    		end)
+    	end
+    end
+    
+    -- Global descendant watcher for new sounds spawned anywhere in game
+    local function onDescendantAdded(obj: Instance)
+    	if obj:IsA("Sound") then
+    		task.defer(function()
+    			hookSound(obj)
+    		end)
+    	end
+    end
+    
+    SoundService.DescendantAdded:Connect(onDescendantAdded)
+    Workspace.DescendantAdded:Connect(onDescendantAdded)
+    Players.DescendantAdded:Connect(onDescendantAdded)
+    ReplicatedStorage.DescendantAdded:Connect(onDescendantAdded)
+    
+    window:AddToggle(audioSection, "mute_all_game_audio", "Mute All Game Audio", false, nil, function(enabled)
+    	isMasterMuted = enabled
+    	sweepAllGameAudios()
+    	if enabled then
+    		window:Notify("Audio", "Muted all concurrent and incoming game audio", 2.5)
+    	else
+    		window:Notify("Audio", string.format("Unmuted — Volume restored to %d%%", math.floor(masterVolumeScale * 100)), 2.5)
     	end
     end)
     
-    SoundService.DescendantAdded:Connect(function(obj)
-    	if obj:IsA("Sound") then
-    		task.defer(function()
-    			updateSound(obj)
-    		end)
+    window:AddSlider(audioSection, "Master Volume Scale (%)", 0, 100, 100, function(value)
+    	masterVolumeScale = value / 100
+    	if not isMasterMuted then
+    		sweepAllGameAudios()
     	end
     end)
     
-    Workspace.DescendantAdded:Connect(function(obj)
-    	if obj:IsA("Sound") then
-    		task.defer(function()
-    			updateSound(obj)
-    		end)
+    window:AddButton(audioSection, "Mute All Audio Now", function()
+    	isMasterMuted = true
+    	FeatureManager.setFeatureState("mute_all_game_audio", true)
+    	sweepAllGameAudios()
+    	window:Notify("Audio", "Muted all playing audio streams", 2)
+    end)
+    
+    window:AddButton(audioSection, "Restore Default Volumes", function()
+    	isMasterMuted = false
+    	masterVolumeScale = 1.0
+    	FeatureManager.setFeatureState("mute_all_game_audio", false)
+    	for sound, _ in pairs(soundConnections) do
+    		if sound and sound.Parent then
+    			local base = sound:GetAttribute("OrigVolume")
+    			if base then sound.Volume = base :: number end
+    		end
     	end
+    	window:Notify("Audio", "Restored all default sound volumes", 2)
     end)
     
     -- ============================================================

@@ -702,6 +702,44 @@ end)
 table.insert(moduleConnections, playerRemConn)
 
 -- Module Unload & Resource Cleanup
+function Visuals.removeAllVisuals()
+	Visuals.Box2D = false
+	Visuals.BoxOutlines = false
+	Visuals.HealthBar = false
+	Visuals.Tracers = false
+	Visuals.Distance = false
+	Visuals.Skeleton = false
+	Visuals.Chams = false
+
+	for player, pv in pairs(playerVisuals) do
+		cleanPlayerVisual(pv)
+	end
+	table.clear(playerVisuals)
+
+	-- Purge highlights and visual adornments across character models
+	for _, player in ipairs(Players:GetPlayers()) do
+		local char = player.Character
+		if char then
+			for _, desc in ipairs(char:GetDescendants()) do
+				if desc:IsA("Highlight") and (desc.Name == "ModularChams" or desc.Name:find("Chams") or desc.Name:find("ESP")) then
+					pcall(function() desc:Destroy() end)
+				end
+			end
+		end
+	end
+
+	-- Drain Drawing Pool
+	for typeName, pool in pairs(DrawingPool) do
+		for _, obj in ipairs(pool) do
+			pcall(function() obj:Remove() end)
+		end
+		DrawingPool[typeName] = {}
+	end
+end
+
+-- Automatic purge on script execution
+Visuals.removeAllVisuals()
+
 function Visuals.cleanup()
 	-- 1. Clean and release all player visuals
 	for player, pv in pairs(playerVisuals) do

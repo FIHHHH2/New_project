@@ -15612,23 +15612,28 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     local require = requireModule
     --!strict
     --[=[
-        ✦ Seeker vs Hider Automation & Combat Suite ✦
+        ✦ Seeker vs Hider Complete Automation & Combat Suite ✦
         Features:
-        - True Silent Aim (Hooks FastCast:Fire & BulletHandler.FireBullet directly)
+        - True Silent Aim (Dual-Hook on FastCast:Fire & BulletHandler.FireBullet)
         - Predictive 3D Trajectory Solver (Target Velocity * lead factor)
         - Target Part Selector (Head / Torso / HumanoidRootPart / Random)
-        - FOV Radius & Team Check
-        - Real-Time Weapon Overclocking (via getgc tables):
-            - Zero Recoil & No Pushback
-            - Zero Spread & No Bloom
+        - FOV Check & Visualizer Integration
+        - Weapon Overclocks:
+            - Zero Recoil & Zero Pushback
+            - Zero Spread & Perfect Accuracy
             - Full Auto Conversion (fireMode = 2)
             - Zero Bullet Drop (bulletDrop = false, Acceleration = 0)
-            - Rapid Fire Rate Multiplier
+            - Rapid Fire Rate Overclock
             - Instant Auto-Chamber
-            - Fall Damage & Wall-Raise Bypass
+        - Environment & Boundary Exploits:
+            - Remove Map Death Barriers & Killbricks (killbrick, death, lava, hazard parts)
+            - Anti-Void Floating Safety Floor (5000x5000)
+            - Auto / Manual Break All Map Glass
+            - No Fall Damage & No Screen Blur / Suppression
+            - Sprint & Walk Speed Multiplier
+            - Anti-Ragdoll & Instant Standup
         - Gun Vault Spawner (Select & Equip any of 32+ Weapons)
-        - Break All Map Glass
-        - Safe Vantage Teleports
+        - Tactical Teleports (Safe High Vantage, Lobby, Arena Center, Warp Behind Target)
     ]=]
     
     local Players = game:GetService("Players")
@@ -15656,6 +15661,18 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	FireRateMultiplier = 1.8,
     	FullAuto = true,
     	NoBulletDrop = true,
+    
+    	-- Environment & Mobility
+    	RemoveDeathBarriers = false,
+    	AntiVoidFloor = false,
+    	AutoBreakGlass = false,
+    	SpeedBoost = false,
+    	SpeedMultiplier = 1.5,
+    	NoFallDamage = true,
+    	AntiRagdoll = false,
+    
+    	DisabledBarriers = {} :: {[BasePart]: boolean},
+    	VoidSafetyPlat = nil :: Part?,
     }
     
     local SHARED_RAY_PARAMS = RaycastParams.new()
@@ -15663,6 +15680,9 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     local origFastCastFire: any = nil
     local hookInstalled = false
     local weaponConfigConn: RBXScriptConnection? = nil
+    local barrierWatcherConn: RBXScriptConnection? = nil
+    local glassLoopConn: RBXScriptConnection? = nil
+    local speedLoopConn: RBXScriptConnection? = nil
     
     -- ── 1. Target Acquisition & Trajectory Solver ─────────────────────────
     local function getScreenCenter(): Vector2
@@ -15853,12 +15873,103 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     				cfg.blurEffects = false
     				cfg.suppressionEffects = false
     				cfg.raiseGunAtWall = false
+    				if SeekerVsHider.SpeedBoost then
+    					cfg.walkSpeed = math.floor(16 * SeekerVsHider.SpeedMultiplier)
+    					cfg.sprintSpeed = math.floor(26 * SeekerVsHider.SpeedMultiplier)
+    					cfg.crouchSpeed = math.floor(12 * SeekerVsHider.SpeedMultiplier)
+    				end
     			end
     		end)
     	end
     end
     
-    -- ── 4. Instant Gun Selection / Spawner ────────────────────────────────
+    -- ── 4. Death Barriers & Killbricks Neutralization ────────────────────
+    local function neutralizeSingleBarrier(part: Instance)
+    	if not part:IsA("BasePart") then return end
+    	if part:IsDescendantOf(Players) then return end
+    
+    	local name = part.Name:lower()
+    	local parentName = (part.Parent and part.Parent.Name or ""):lower()
+    
+    	local isKill = name:find("kill") or parentName:find("kill") or name:find("death") or parentName:find("death") or name:find("lava") or name:find("hazard") or name:find("damage") or name:find("trapdoor")
+    	local isBarrier = name:find("barrier") or name:find("bound") or name:find("border") or name:find("clip") or name:find("limit") or name:find("invis")
+    	local isInvisWall = (part.Transparency >= 0.75 and part.CanCollide and not name:find("glass") and not name:find("window"))
+    
+    	if isKill or isBarrier or isInvisWall then
+    		part.CanCollide = false
+    		part.CanTouch = false
+    		part.CanQuery = false
+    		pcall(function()
+    			for _, child in ipairs(part:GetDescendants()) do
+    				if child:IsA("TouchTransmitter") or child:IsA("Script") then
+    					child:Destroy()
+    				end
+    			end
+    		end)
+    		SeekerVsHider.DisabledBarriers[part] = true
+    	end
+    end
+    
+    function SeekerVsHider.removeDeathBarriersNow(): number
+    	local count = 0
+    	for _, obj in ipairs(Workspace:GetDescendants()) do
+    		if obj:IsA("BasePart") then
+    			local name = obj.Name:lower()
+    			local parentName = (obj.Parent and obj.Parent.Name or ""):lower()
+    			local isKill = name:find("kill") or parentName:find("kill") or name:find("death") or parentName:find("death") or name:find("lava") or name:find("hazard") or name:find("trapdoor")
+    			local isBarrier = name:find("barrier") or name:find("bound") or name:find("border") or name:find("clip") or name:find("invis")
+    			local isInvisWall = (obj.Transparency >= 0.75 and obj.CanCollide and not name:find("glass") and not name:find("window"))
+    			if isKill or isBarrier or isInvisWall then
+    				neutralizeSingleBarrier(obj)
+    				count += 1
+    			end
+    		end
+    	end
+    	return count
+    end
+    
+    function SeekerVsHider.setRemoveDeathBarriers(enabled: boolean)
+    	SeekerVsHider.RemoveDeathBarriers = enabled
+    	if enabled then
+    		SeekerVsHider.removeDeathBarriersNow()
+    		if not barrierWatcherConn then
+    			barrierWatcherConn = Workspace.DescendantAdded:Connect(function(obj)
+    				if SeekerVsHider.RemoveDeathBarriers and obj:IsA("BasePart") then
+    					neutralizeSingleBarrier(obj)
+    				end
+    			end)
+    		end
+    	elseif barrierWatcherConn then
+    		barrierWatcherConn:Disconnect()
+    		barrierWatcherConn = nil
+    	end
+    end
+    
+    -- ── 5. Anti-Void Safety Platform ─────────────────────────────────────
+    function SeekerVsHider.updateVoidPlatform()
+    	if SeekerVsHider.AntiVoidFloor then
+    		if not SeekerVsHider.VoidSafetyPlat or not SeekerVsHider.VoidSafetyPlat.Parent then
+    			local plat = Instance.new("Part")
+    			plat.Name = "SVH_AntiVoidPlatform"
+    			plat.Size = Vector3.new(5000, 10, 5000)
+    			plat.Position = Vector3.new(0, -65, 0)
+    			plat.Anchored = true
+    			plat.CanCollide = true
+    			plat.Transparency = 0.65
+    			plat.Material = Enum.Material.ForceField
+    			plat.Color = Color3.fromRGB(0, 170, 255)
+    			plat.Parent = Workspace
+    			SeekerVsHider.VoidSafetyPlat = plat
+    		end
+    	else
+    		if SeekerVsHider.VoidSafetyPlat then
+    			pcall(function() SeekerVsHider.VoidSafetyPlat:Destroy() end)
+    			SeekerVsHider.VoidSafetyPlat = nil
+    		end
+    	end
+    end
+    
+    -- ── 6. Instant Gun Selection / Spawner ────────────────────────────────
     function SeekerVsHider.selectGun(gunName: string): boolean
     	local rf = ReplicatedStorage:FindFirstChild("ClientToServerCommunication") and ReplicatedStorage.ClientToServerCommunication:FindFirstChild("RemoteFunctions")
     	local selectgun = rf and rf:FindFirstChild("selectgun")
@@ -15915,7 +16026,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	}
     end
     
-    -- ── 5. Tactical & Map Actions ─────────────────────────────────────────
+    -- ── 7. Tactical & Map Actions ─────────────────────────────────────────
     function SeekerVsHider.breakAllGlass(): number
     	local re = ReplicatedStorage:FindFirstChild("ClientToServerCommunication") and ReplicatedStorage.ClientToServerCommunication:FindFirstChild("RemoteEvents")
     	local bg = re and re:FindFirstChild("BreakGlass")
@@ -15949,6 +16060,21 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	end
     
     	return count
+    end
+    
+    function SeekerVsHider.setAutoBreakGlass(enabled: boolean)
+    	SeekerVsHider.AutoBreakGlass = enabled
+    	if enabled then
+    		SeekerVsHider.breakAllGlass()
+    		if not glassLoopConn then
+    			glassLoopConn = task.spawn(function()
+    				while SeekerVsHider.AutoBreakGlass do
+    					SeekerVsHider.breakAllGlass()
+    					task.wait(2.5)
+    				end
+    			end) :: any
+    		end
+    	end
     end
     
     local function safeTeleport(targetCF: CFrame): boolean
@@ -15990,6 +16116,25 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	return false
     end
     
+    function SeekerVsHider.teleportToMapCenter(): boolean
+    	local map = Workspace:FindFirstChild("map")
+    	local model = map and map:FindFirstChildWhichIsA("Model")
+    	local part = model and model:FindFirstChildWhichIsA("BasePart", true)
+    	if part then
+    		return safeTeleport(part.CFrame * CFrame.new(0, 5, 0))
+    	end
+    	return false
+    end
+    
+    function SeekerVsHider.teleportBehindNearestEnemy(): boolean
+    	local targetPlayer, targetPart, _ = getTargetCandidate()
+    	if targetPlayer and targetPart then
+    		local cf = targetPart.CFrame
+    		return safeTeleport(cf * CFrame.new(0, 0, 4))
+    	end
+    	return false
+    end
+    
     -- Initialize FastCast & BulletHandler hooks
     installBulletHook()
     SeekerVsHider.applyWeaponConfigs()
@@ -16001,8 +16146,18 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     end
     
     weaponConfigConn = RunService.Heartbeat:Connect(function()
-    	if SeekerVsHider.NoRecoil or SeekerVsHider.NoSpread or SeekerVsHider.FullAuto then
+    	if SeekerVsHider.NoRecoil or SeekerVsHider.NoSpread or SeekerVsHider.FullAuto or SeekerVsHider.SpeedBoost then
     		SeekerVsHider.applyWeaponConfigs()
+    	end
+    	if SeekerVsHider.AntiRagdoll then
+    		local char = LocalPlayer.Character
+    		local hum = char and char:FindFirstChildOfClass("Humanoid")
+    		if hum and hum.PlatformStand then
+    			pcall(function()
+    				hum.PlatformStand = false
+    				hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+    			end)
+    		end
     	end
     end)
     

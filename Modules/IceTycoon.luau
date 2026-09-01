@@ -35,12 +35,21 @@ local IceTycoon = {
 	OreMagnet = false,
 }
 
+if _G.__ModularTycoon_Cleanup then
+	pcall(_G.__ModularTycoon_Cleanup)
+	_G.__ModularTycoon_Cleanup = nil
+end
+
 local collectConn: RBXScriptConnection? = nil
 local buyConn: RBXScriptConnection? = nil
 local waterConn: RBXScriptConnection? = nil
 local crystalConn: RBXScriptConnection? = nil
 local protectConn: RBXScriptConnection? = nil
 local mineConn: RBXScriptConnection? = nil
+local conveyorConn: RBXScriptConnection? = nil
+local generatorConn: RBXScriptConnection? = nil
+local partsAddedConn: RBXScriptConnection? = nil
+local oreMagnetConn: RBXScriptConnection? = nil
 
 local function getHrp(): BasePart?
 	local char = LocalPlayer.Character
@@ -1071,5 +1080,7 @@ function IceTycoon.cleanup()
 	if protectConn then protectConn:Disconnect() protectConn = nil end
 	if mineConn then mineConn:Disconnect() mineConn = nil end
 end
+
+_G.__ModularTycoon_Cleanup = IceTycoon.cleanup
 
 return IceTycoon

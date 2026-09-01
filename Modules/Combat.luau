@@ -29,6 +29,8 @@ local TRIGGER_CHECK_INTERVAL = 0.033 -- ~30 Hz TriggerBot throttle
 local Combat = {
 	SilentAim = false,
 	Wallbang = false,
+	HitboxVisuals = false,
+	HitboxPart = "HumanoidRootPart", -- "HumanoidRootPart" or "Head"
 	WallbangThickness = 5,
 	HitChance = 100,
 	TargetPart = "Head",
@@ -331,7 +333,7 @@ RunService.Heartbeat:Connect(function()
 	cachedTargetPlayer, cachedTargetPart = Combat.getClosestTarget()
 end)
 
--- ── Metamethod Hooks for Silent Aim & Wallbang (Camera-Safe) ────────
+-- ── Metamethod Hooks for Silent Aim & Wallbang (Next-Gen Precision) ──
 pcall(function()
 	local hook = hookmetamethod or (getgenv and getgenv().hookmetamethod)
 	local getnamecall = getnamecallmethod or (getgenv and getgenv().getnamecallmethod)
@@ -383,7 +385,10 @@ pcall(function()
 							canHit = Combat.checkWallbangPenetration(origin, target, targetChar)
 						end
 						if canHit then
-							local dir = (target.Position - origin).Unit * 1000
+							-- Calculate predicted direction to target part
+							local targetVel = target.AssemblyLinearVelocity or Vector3.zero
+							local predictedPos = target.Position + (targetVel * 0.035)
+							local dir = (predictedPos - origin).Unit * 1000
 							local p3 = select(3, ...)
 							if Combat.Wallbang and typeof(p3) == "RaycastParams" then
 								p3.FilterType = Enum.RaycastFilterType.Include
@@ -398,7 +403,9 @@ pcall(function()
 				if target and target.Parent and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
 					local ray = select(1, ...)
 					if typeof(ray) == "Ray" then
-						local newDir = (target.Position - ray.Origin).Unit * 1000
+						local targetVel = target.AssemblyLinearVelocity or Vector3.zero
+						local predictedPos = target.Position + (targetVel * 0.035)
+						local newDir = (predictedPos - ray.Origin).Unit * 1000
 						local newRay = Ray.new(ray.Origin, newDir)
 						return oldNamecall(self, newRay, select(2, ...))
 					end
@@ -424,7 +431,8 @@ pcall(function()
 					local target = cachedTargetPart
 					if target and target.Parent and (Combat.HitChance >= 100 or math.random(1, 100) <= Combat.HitChance) then
 						if key == "Hit" then
-							return target.CFrame
+							local targetVel = target.AssemblyLinearVelocity or Vector3.zero
+							return CFrame.new(target.Position + (targetVel * 0.035)) * target.CFrame.Rotation
 						elseif key == "Target" then
 							return target
 						end
@@ -540,33 +548,42 @@ Players.PlayerRemoving:Connect(function(player: Player)
 	end
 end)
 
--- Hitbox Expander Loop (Throttled at 5 Hz)
-task.spawn(function()
-	while true do
-		task.wait(0.2)
-		if Combat.ExpandHitboxes then
-			for _, player in ipairs(Players:GetPlayers()) do
-				if player ~= LocalPlayer and player.Character then
-					if not Combat.TrackTeammates and isTeammate(player) then continue end
-					local hrp = player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-					if hrp then
-						if not originalHitboxSizes[hrp] then
-							originalHitboxSizes[hrp] = hrp.Size
-						end
-						hrp.Size = Vector3.new(Combat.HitboxSize, Combat.HitboxSize, Combat.HitboxSize)
-						hrp.Transparency = 0.6
-						hrp.CanCollide = false
-					end
+-- Dynamic Continuous Hitbox Expander Engine
+local hitboxUpdateConn: RBXScriptConnection? = nil
+
+local function updateHitboxes()
+	if not Combat.ExpandHitboxes then return end
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			if not Combat.TrackTeammates and isTeammate(player) then continue end
+			local hum = player.Character:FindFirstChildOfClass("Humanoid")
+			if not hum or hum.Health <= 0 then continue end
+
+			local partName = Combat.HitboxPart or "HumanoidRootPart"
+			local targetPart = (player.Character:FindFirstChild(partName) or player.Character:FindFirstChild("HumanoidRootPart") or player.Character:FindFirstChild("Head")) :: BasePart?
+
+			if targetPart then
+				if not originalHitboxSizes[targetPart] then
+					originalHitboxSizes[targetPart] = targetPart.Size
 				end
-			end
-		else
-			-- Periodic sweep for detached parts even when disabled
-			for hrp in pairs(originalHitboxSizes) do
-				if not hrp.Parent then
-					originalHitboxSizes[hrp] = nil
+				targetPart.Size = Vector3.new(Combat.HitboxSize, Combat.HitboxSize, Combat.HitboxSize)
+				targetPart.CanCollide = false
+				targetPart.Massless = true
+				if Combat.HitboxVisuals then
+					targetPart.Transparency = 0.55
+					targetPart.Material = Enum.Material.ForceField
+				else
+					targetPart.Transparency = 1.0
 				end
 			end
 		end
+	end
+end
+
+RunService.Heartbeat:Connect(function()
+	if Combat.ExpandHitboxes then
+		updateHitboxes()
 	end
 end)
 

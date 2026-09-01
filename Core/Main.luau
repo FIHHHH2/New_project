@@ -26,6 +26,7 @@ local Combat = require("Modules/Combat.luau")
 local DisasterSurvival = require("Modules/DisasterSurvival.luau")
 local RunNHide = require("Modules/RunNHide.luau")
 local IceTycoon = require("Modules/IceTycoon.luau")
+local LuckyBlocks = require("Modules/LuckyBlocks.luau")
 local PlayerUtilities = require("Modules/PlayerUtilities.luau")
 local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
@@ -233,14 +234,16 @@ local function getGameTabName(): string
 		end
 	end)
 
-	if placeId == 189707 or string.find(gameName, "disaster") then
+	if placeId == 662417684 or string.find(gameName, "lucky block") or workspace:FindFirstChild("CenterBlocks") then
+		return "Lucky Blocks"
+	elseif placeId == 189707 or string.find(gameName, "disaster") then
 		return "Natural Disaster"
 	elseif placeId == 12901416348 or string.find(gameName, "run and hide") or string.find(gameName, "demise") then
 		return "Run N Hide"
 	elseif string.find(gameName, "ice tycoon") or (workspace:FindFirstChild("Tycoon") and workspace.Tycoon:FindFirstChild("Buttons")) then
 		return "Ice Tycoon"
 	end
-	return "Run N Hide"
+	return "Lucky Blocks"
 end
 
 local gameTabTitle = getGameTabName()
@@ -968,12 +971,38 @@ window:AddToggle(hitExpSection, "expand_hitboxes", "Expand Hitboxes", false, nil
 	end
 end)
 
-window:AddSlider(hitExpSection, "Hitbox Size", 2, 30, 12, function(value)
+window:AddToggle(hitExpSection, "hitbox_visuals", "Show Hitbox Visuals (ForceField)", false, nil, function(enabled)
+	Combat.HitboxVisuals = enabled
+end)
+
+window:AddToggle(hitExpSection, "hitbox_target_part", "Target Part: Head (Off = RootPart)", false, nil, function(enabled)
+	Combat.HitboxPart = if enabled then "Head" else "HumanoidRootPart"
+end)
+
+window:AddSlider(hitExpSection, "Hitbox Size", 2, 45, 15, function(value)
 	Combat.HitboxSize = value
 end)
 
 -- Right Column: Hitbox Operations
-local hitOpsSection = window:AddSection(hitRightCol, "Hitbox Operations")
+local hitOpsSection = window:AddSection(hitRightCol, "Hitbox Operations & Presets")
+
+window:AddButton(hitOpsSection, "Small Size (8)", function()
+	Combat.HitboxSize = 8
+	FeatureManager.setSliderValue("Hitbox Size", 8)
+	window:Notify("Hitboxes", "Hitbox size set to 8", 2)
+end)
+
+window:AddButton(hitOpsSection, "Medium Size (16)", function()
+	Combat.HitboxSize = 16
+	FeatureManager.setSliderValue("Hitbox Size", 16)
+	window:Notify("Hitboxes", "Hitbox size set to 16", 2)
+end)
+
+window:AddButton(hitOpsSection, "Massive Size (30)", function()
+	Combat.HitboxSize = 30
+	FeatureManager.setSliderValue("Hitbox Size", 30)
+	window:Notify("Hitboxes", "Hitbox size set to 30", 2)
+end)
 
 window:AddButton(hitOpsSection, "Reset All Hitboxes", function()
 	Combat.resetHitboxes()
@@ -2141,3 +2170,111 @@ end)
 
 -- Explicitly activate default Main tab on load
 window:SelectTab(mainTab)
+
+-- ============================================================
+-- LUCKY BLOCKS BATTLEGROUNDS GAME TAB
+-- [ Block Automation ] [ Combat & Turbo ] [ Fast Teleports ]
+-- ============================================================
+if gameTabTitle == "Lucky Blocks" then
+	local lbSubTabs = window:CreateSubTabs(gameTab, { "Block Automation", "Combat & Turbo", "Fast Teleports" })
+	local blockSubTab = lbSubTabs["Block Automation"]
+	local combatSubTab = lbSubTabs["Combat & Turbo"]
+	local tpSubTab = lbSubTabs["Fast Teleports"]
+
+	-- ── SUB-TAB 1: BLOCK AUTOMATION ────────────────────────────
+	local bLeftCol, bRightCol = window:CreateColumns(blockSubTab)
+
+	local autoBlockSection = window:AddSection(bLeftCol, "Lucky Block Collector")
+	window:AddToggle(autoBlockSection, "lb_auto_claim", "Auto-Claim Lucky Blocks", false, nil, function(enabled)
+		LuckyBlocks.setAutoClaim(enabled)
+	end)
+
+	window:AddToggle(autoBlockSection, "lb_auto_open", "Auto-Open Inventory Blocks", false, nil, function(enabled)
+		LuckyBlocks.setAutoOpen(enabled)
+	end)
+
+	window:AddButton(autoBlockSection, "Claim All Blocks Now", function()
+		local count = LuckyBlocks.claimAllBlocksNow()
+		window:Notify("Lucky Blocks", string.format("Claimed %d lucky block givers", count), 2.5)
+	end)
+
+	window:AddSlider(autoBlockSection, "Claim Interval (s)", 20, 100, 35, function(value)
+		LuckyBlocks.ClaimInterval = value / 100
+	end)
+
+	local filterSection = window:AddSection(bRightCol, "Tier Filters (Auto-Claim)")
+	window:AddToggle(filterSection, "lb_tier_void", "Claim Void Blocks", true, nil, function(val)
+		LuckyBlocks.ClaimVoid = val
+	end)
+	window:AddToggle(filterSection, "lb_tier_rainbow", "Claim Rainbow Blocks", true, nil, function(val)
+		LuckyBlocks.ClaimRainbow = val
+	end)
+	window:AddToggle(filterSection, "lb_tier_galaxy", "Claim Galaxy Blocks", true, nil, function(val)
+		LuckyBlocks.ClaimGalaxy = val
+	end)
+	window:AddToggle(filterSection, "lb_tier_diamond", "Claim Diamond Blocks", true, nil, function(val)
+		LuckyBlocks.ClaimDiamond = val
+	end)
+	window:AddToggle(filterSection, "lb_tier_super", "Claim Super Blocks", true, nil, function(val)
+		LuckyBlocks.ClaimSuper = val
+	end)
+	window:AddToggle(filterSection, "lb_tier_lucky", "Claim Normal Blocks", true, nil, function(val)
+		LuckyBlocks.ClaimLucky = val
+	end)
+
+	-- ── SUB-TAB 2: COMBAT & TURBO ──────────────────────────────
+	local cLeftCol, cRightCol = window:CreateColumns(combatSubTab)
+
+	local weaponSpamSection = window:AddSection(cLeftCol, "Weapon Spam & Turbo")
+	window:AddToggle(weaponSpamSection, "lb_turbo_sword", "Turbo Sword / Weapon Auto-Slash", false, nil, function(enabled)
+		LuckyBlocks.setTurboSword(enabled)
+	end)
+
+	window:AddToggle(weaponSpamSection, "lb_anti_void", "Anti-Void Fall Rescue", true, nil, function(enabled)
+		LuckyBlocks.setAntiVoid(enabled)
+	end)
+
+	local quickCombatSection = window:AddSection(cRightCol, "Combat Shortcuts")
+	window:AddButton(quickCombatSection, "Equip Sword & Turbo Attack", function()
+		local char = localPlayer.Character
+		local bp = localPlayer:FindFirstChildOfClass("Backpack")
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if bp and hum then
+			for _, item in ipairs(bp:GetChildren()) do
+				if item:IsA("Tool") and (item.Name:lower():find("sword") or item.Name:lower():find("katana") or item.Name:lower():find("axe") or item.Name:lower():find("blade")) then
+					hum:EquipTool(item)
+					break
+				end
+			end
+		end
+		LuckyBlocks.setTurboSword(true)
+		FeatureManager.setToggleState("lb_turbo_sword", true)
+		window:Notify("Lucky Blocks", "Equipped weapon with Turbo Attack", 2)
+	end)
+
+	-- ── SUB-TAB 3: FAST TELEPORTS ──────────────────────────────
+	local tpLeftCol, tpRightCol = window:CreateColumns(tpSubTab)
+
+	local centerSection = window:AddSection(tpLeftCol, "High Tier Center Zones")
+	window:AddButton(centerSection, "Center Void Giver", function()
+		LuckyBlocks.teleportTo("Center Void / High Tier")
+		window:Notify("Teleport", "Teleported to Void Giver", 2)
+	end)
+	window:AddButton(centerSection, "Center Rainbow Giver", function()
+		LuckyBlocks.teleportTo("Center Rainbow Giver")
+		window:Notify("Teleport", "Teleported to Rainbow Giver", 2)
+	end)
+	window:AddButton(centerSection, "Center Galaxy Giver", function()
+		LuckyBlocks.teleportTo("Center Galaxy Giver")
+		window:Notify("Teleport", "Teleported to Galaxy Giver", 2)
+	end)
+
+	local spawnSection = window:AddSection(tpRightCol, "Spawn Bases 1 - 8")
+	for i = 1, 8 do
+		local sName = string.format("Spawn %d Base", i)
+		window:AddButton(spawnSection, sName, function()
+			LuckyBlocks.teleportTo(sName)
+			window:Notify("Teleport", string.format("Teleported to %s", sName), 2)
+		end)
+	end
+end

@@ -343,39 +343,39 @@ function IceTycoon.fillWaterNow(): boolean
 
 	ensureWaterToolEquipped()
 
-	local scoopPrompt, scoopPart = findActiveScoopPrompt()
-	local fillPrompt, fillPart = findPumpFillPrompt()
+	local scoopPrompt = findActiveScoopPrompt()
+	local fillPrompt = findPumpFillPrompt()
 	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
 
-	if scoopPrompt and scoopPart and fillPrompt and fillPart then
-		local origCF = hrp.CFrame
+	if scoopPrompt and fillPrompt then
+		-- Extend activation distance so prompts fire remotely with ZERO character movement
+		scoopPrompt.MaxActivationDistance = 999999
+		scoopPrompt.RequiresLineOfSight = false
+		scoopPrompt.HoldDuration = 0
 
-		-- 1. Warp to water scoop spot and scoop water
-		hrp.CFrame = scoopPart.CFrame * CFrame.new(0, 2.5, 2)
-		task.wait(0.12)
+		fillPrompt.MaxActivationDistance = 999999
+		fillPrompt.RequiresLineOfSight = false
+		fillPrompt.HoldDuration = 0
+
+		-- 1. Instant remote scoop (fills cup to full)
 		for _ = 1, 6 do
-			scoopPrompt.HoldDuration = 0
 			if type(fpp) == "function" then
 				fpp(scoopPrompt, 1, true)
 			else
-				pcall(function() scoopPrompt:InputHoldBegin() task.wait(0.04) scoopPrompt:InputHoldEnd() end)
+				pcall(function() scoopPrompt:InputHoldBegin() task.wait(0.01) scoopPrompt:InputHoldEnd() end)
 			end
-			task.wait(0.08)
+			task.wait(0.02)
 		end
 
-		-- 2. Warp to Tycoon Pump Tank and deposit scooped water
-		hrp.CFrame = fillPart.CFrame * CFrame.new(0, 2.5, 2)
-		task.wait(0.12)
-		fillPrompt.HoldDuration = 0
+		task.wait(0.03)
+
+		-- 2. Instant remote deposit into tycoon pump tank
 		if type(fpp) == "function" then
 			fpp(fillPrompt, 1, true)
 		else
-			pcall(function() fillPrompt:InputHoldBegin() task.wait(0.04) fillPrompt:InputHoldEnd() end)
+			pcall(function() fillPrompt:InputHoldBegin() task.wait(0.01) fillPrompt:InputHoldEnd() end)
 		end
-		task.wait(0.15)
 
-		-- 3. Restore original position
-		hrp.CFrame = origCF
 		return true
 	end
 
@@ -394,7 +394,7 @@ function IceTycoon.setAutoFillWater(enabled: boolean)
 				if amt < max then
 					IceTycoon.fillWaterNow()
 				end
-				task.wait(1.5)
+				task.wait(0.5)
 			end
 		end)
 	end

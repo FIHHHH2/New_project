@@ -170,6 +170,8 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 		tabButton.TextColor3 = UI.Theme.TextSecondary
 		tabButton.Font = UI.Fonts.Header
 		tabButton.TextSize = 12
+		tabButton.TextTruncate = Enum.TextTruncate.AtEnd
+		tabButton.ClipsDescendants = true
 		tabButton.LayoutOrder = #self.Tabs + 1
 		tabButton.Parent = self.Sidebar
 		UI.registerThemeElement(tabButton, "Container")
@@ -848,6 +850,7 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
+	titleBox.ClipsDescendants = true
 	titleBox.Text = ""
 	titleBox.Parent = row
 	UI.registerThemeElement(titleBox, "Container")
@@ -868,6 +871,8 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	titleLabel.Font = UI.Fonts.Body
 	titleLabel.TextSize = 11
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ClipsDescendants = true
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
@@ -883,6 +888,8 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	keybindBtn.TextColor3 = UI.Theme.TextSecondary
 	keybindBtn.Font = UI.Fonts.Mono
 	keybindBtn.TextSize = 10
+	keybindBtn.TextTruncate = Enum.TextTruncate.AtEnd
+	keybindBtn.ClipsDescendants = true
 	keybindBtn.Parent = row
 	UI.registerThemeElement(keybindBtn, "Container")
 	UI.registerThemeElement(keybindBtn, "TextSecondary")
@@ -1015,6 +1022,8 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	titleLabel.Font = UI.Fonts.Body
 	titleLabel.TextSize = 11
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ClipsDescendants = true
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
@@ -1025,6 +1034,7 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	valBox.BackgroundColor3 = UI.Theme.Container
 	valBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	valBox.BorderSizePixel = 0
+	valBox.ClipsDescendants = true
 	valBox.Parent = row
 	UI.registerThemeElement(valBox, "Container")
 
@@ -1041,7 +1051,9 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	valLabel.Text = tostring(initialValue)
 	valLabel.TextColor3 = UI.Theme.Accent
 	valLabel.Font = UI.Fonts.Mono
-	valLabel.TextSize = 11
+	valLabel.TextSize = 10
+	valLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	valLabel.ClipsDescendants = true
 	valLabel.Parent = valBox
 
 	-- track
@@ -1154,6 +1166,8 @@ function CoreUI:AddButton(section: Frame, name: string, callback: () -> ())
 	btn.TextColor3 = UI.Theme.TextPrimary
 	btn.Font = UI.Fonts.Header
 	btn.TextSize = 11
+	btn.TextTruncate = Enum.TextTruncate.AtEnd
+	btn.ClipsDescendants = true
 	btn.Parent = row
 	UI.registerThemeElement(btn, "Container")
 	UI.registerThemeElement(btn, "TextPrimary")
@@ -1220,6 +1234,8 @@ function CoreUI:AddTextBox(section: Frame, name: string, placeholder: string, de
 	titleLabel.Font = UI.Fonts.Header
 	titleLabel.TextSize = 10
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ClipsDescendants = true
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
@@ -1230,6 +1246,7 @@ function CoreUI:AddTextBox(section: Frame, name: string, placeholder: string, de
 	inputFrame.BackgroundColor3 = UI.Theme.ContainerDark
 	inputFrame.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	inputFrame.BorderSizePixel = 0
+	inputFrame.ClipsDescendants = true
 	inputFrame.Parent = row
 	UI.registerThemeElement(inputFrame, "ContainerDark")
 
@@ -1253,6 +1270,7 @@ function CoreUI:AddTextBox(section: Frame, name: string, placeholder: string, de
 	box.TextSize = 10
 	box.ClearTextOnFocus = false
 	box.TextXAlignment = Enum.TextXAlignment.Left
+	box.ClipsDescendants = true
 	box.Parent = inputFrame
 	UI.registerThemeElement(box, "TextPrimary")
 

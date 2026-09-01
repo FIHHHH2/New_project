@@ -764,6 +764,7 @@ function UI.createWindow(titleText: string)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
+	titleBox.ClipsDescendants = true
 	titleBox.Parent = topbar
 	UI.registerThemeElement(titleBox, "Container")
 
@@ -791,6 +792,8 @@ function UI.createWindow(titleText: string)
 	titleLabel.Font = UI.Fonts.Header
 	titleLabel.TextSize = 12
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ClipsDescendants = true
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
@@ -940,6 +943,7 @@ function UI.createWindow(titleText: string)
 	activeTagBox.BackgroundColor3 = UI.Theme.Container
 	activeTagBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	activeTagBox.BorderSizePixel = 0
+	activeTagBox.ClipsDescendants = true
 	activeTagBox.Parent = subHeader
 	UI.registerThemeElement(activeTagBox, "Container")
 
@@ -952,12 +956,15 @@ function UI.createWindow(titleText: string)
 
 	local activeTagLabel = Instance.new("TextLabel")
 	activeTagLabel.Name = "Label"
-	activeTagLabel.Size = UDim2.new(1, 0, 1, 0)
+	activeTagLabel.Size = UDim2.new(1, -8, 1, 0)
+	activeTagLabel.Position = UDim2.new(0, 4, 0, 0)
 	activeTagLabel.BackgroundTransparency = 1
 	activeTagLabel.Text = "Main"
 	activeTagLabel.TextColor3 = UI.Theme.TextPrimary
 	activeTagLabel.Font = UI.Fonts.Header
-	activeTagLabel.TextSize = 12
+	activeTagLabel.TextSize = 11
+	activeTagLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	activeTagLabel.ClipsDescendants = true
 	activeTagLabel.Parent = activeTagBox
 	UI.registerThemeElement(activeTagLabel, "TextPrimary")
 
@@ -972,6 +979,8 @@ function UI.createWindow(titleText: string)
 	configsBtn.TextColor3 = UI.Theme.TextPrimary
 	configsBtn.Font = UI.Fonts.Header
 	configsBtn.TextSize = 11
+	configsBtn.TextTruncate = Enum.TextTruncate.AtEnd
+	configsBtn.ClipsDescendants = true
 	configsBtn.Visible = true
 	configsBtn.Parent = subHeader
 	UI.registerThemeElement(configsBtn, "Container")
@@ -995,6 +1004,8 @@ function UI.createWindow(titleText: string)
 	settingsBtn.TextColor3 = UI.Theme.TextPrimary
 	settingsBtn.Font = UI.Fonts.Header
 	settingsBtn.TextSize = 11
+	settingsBtn.TextTruncate = Enum.TextTruncate.AtEnd
+	settingsBtn.ClipsDescendants = true
 	settingsBtn.Visible = true
 	settingsBtn.Parent = subHeader
 	UI.registerThemeElement(settingsBtn, "Container")
@@ -6167,6 +6178,7 @@ function LeaderstatsWidget.new()
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
+	titleBox.ClipsDescendants = true
 	titleBox.Parent = topbar
 	UI.registerThemeElement(titleBox, "Container")
 
@@ -6197,6 +6209,8 @@ function LeaderstatsWidget.new()
 	titleLabel.Font = UI.Fonts.Header
 	titleLabel.TextSize = 10
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ClipsDescendants = true
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
@@ -6315,6 +6329,8 @@ function LeaderstatsWidget.new()
 		btn.TextColor3 = UI.Theme.TextSecondary
 		btn.Font = UI.Fonts.Header
 		btn.TextSize = 9
+		btn.TextTruncate = Enum.TextTruncate.AtEnd
+		btn.ClipsDescendants = true
 		btn.Parent = modeBar
 		UI.registerThemeElement(btn, "Container")
 		UI.registerThemeElement(btn, "TextSecondary")
@@ -6484,6 +6500,7 @@ function LeaderstatsWidget.new()
 				row.BorderSizePixel = 0
 				row.Text = ""
 				row.AutoButtonColor = false
+				row.ClipsDescendants = true
 				row.LayoutOrder = idx
 				row.Parent = container
 				UI.registerThemeElement(row, "Container")
@@ -7380,6 +7397,8 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 		tabButton.TextColor3 = UI.Theme.TextSecondary
 		tabButton.Font = UI.Fonts.Header
 		tabButton.TextSize = 12
+		tabButton.TextTruncate = Enum.TextTruncate.AtEnd
+		tabButton.ClipsDescendants = true
 		tabButton.LayoutOrder = #self.Tabs + 1
 		tabButton.Parent = self.Sidebar
 		UI.registerThemeElement(tabButton, "Container")
@@ -8058,6 +8077,7 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
+	titleBox.ClipsDescendants = true
 	titleBox.Text = ""
 	titleBox.Parent = row
 	UI.registerThemeElement(titleBox, "Container")
@@ -8078,6 +8098,8 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	titleLabel.Font = UI.Fonts.Body
 	titleLabel.TextSize = 11
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ClipsDescendants = true
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
@@ -8093,6 +8115,8 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	keybindBtn.TextColor3 = UI.Theme.TextSecondary
 	keybindBtn.Font = UI.Fonts.Mono
 	keybindBtn.TextSize = 10
+	keybindBtn.TextTruncate = Enum.TextTruncate.AtEnd
+	keybindBtn.ClipsDescendants = true
 	keybindBtn.Parent = row
 	UI.registerThemeElement(keybindBtn, "Container")
 	UI.registerThemeElement(keybindBtn, "TextSecondary")
@@ -8225,6 +8249,8 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	titleLabel.Font = UI.Fonts.Body
 	titleLabel.TextSize = 11
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ClipsDescendants = true
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
@@ -8235,6 +8261,7 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	valBox.BackgroundColor3 = UI.Theme.Container
 	valBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	valBox.BorderSizePixel = 0
+	valBox.ClipsDescendants = true
 	valBox.Parent = row
 	UI.registerThemeElement(valBox, "Container")
 
@@ -8251,7 +8278,9 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	valLabel.Text = tostring(initialValue)
 	valLabel.TextColor3 = UI.Theme.Accent
 	valLabel.Font = UI.Fonts.Mono
-	valLabel.TextSize = 11
+	valLabel.TextSize = 10
+	valLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	valLabel.ClipsDescendants = true
 	valLabel.Parent = valBox
 
 	-- track
@@ -8364,6 +8393,8 @@ function CoreUI:AddButton(section: Frame, name: string, callback: () -> ())
 	btn.TextColor3 = UI.Theme.TextPrimary
 	btn.Font = UI.Fonts.Header
 	btn.TextSize = 11
+	btn.TextTruncate = Enum.TextTruncate.AtEnd
+	btn.ClipsDescendants = true
 	btn.Parent = row
 	UI.registerThemeElement(btn, "Container")
 	UI.registerThemeElement(btn, "TextPrimary")
@@ -8430,6 +8461,8 @@ function CoreUI:AddTextBox(section: Frame, name: string, placeholder: string, de
 	titleLabel.Font = UI.Fonts.Header
 	titleLabel.TextSize = 10
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ClipsDescendants = true
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
@@ -8440,6 +8473,7 @@ function CoreUI:AddTextBox(section: Frame, name: string, placeholder: string, de
 	inputFrame.BackgroundColor3 = UI.Theme.ContainerDark
 	inputFrame.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	inputFrame.BorderSizePixel = 0
+	inputFrame.ClipsDescendants = true
 	inputFrame.Parent = row
 	UI.registerThemeElement(inputFrame, "ContainerDark")
 
@@ -8463,6 +8497,7 @@ function CoreUI:AddTextBox(section: Frame, name: string, placeholder: string, de
 	box.TextSize = 10
 	box.ClearTextOnFocus = false
 	box.TextXAlignment = Enum.TextXAlignment.Left
+	box.ClipsDescendants = true
 	box.Parent = inputFrame
 	UI.registerThemeElement(box, "TextPrimary")
 

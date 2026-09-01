@@ -255,6 +255,7 @@ function LeaderstatsWidget.new()
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
+	titleBox.ClipsDescendants = true
 	titleBox.Parent = topbar
 	UI.registerThemeElement(titleBox, "Container")
 
@@ -285,6 +286,8 @@ function LeaderstatsWidget.new()
 	titleLabel.Font = UI.Fonts.Header
 	titleLabel.TextSize = 10
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ClipsDescendants = true
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
@@ -403,6 +406,8 @@ function LeaderstatsWidget.new()
 		btn.TextColor3 = UI.Theme.TextSecondary
 		btn.Font = UI.Fonts.Header
 		btn.TextSize = 9
+		btn.TextTruncate = Enum.TextTruncate.AtEnd
+		btn.ClipsDescendants = true
 		btn.Parent = modeBar
 		UI.registerThemeElement(btn, "Container")
 		UI.registerThemeElement(btn, "TextSecondary")
@@ -572,6 +577,7 @@ function LeaderstatsWidget.new()
 				row.BorderSizePixel = 0
 				row.Text = ""
 				row.AutoButtonColor = false
+				row.ClipsDescendants = true
 				row.LayoutOrder = idx
 				row.Parent = container
 				UI.registerThemeElement(row, "Container")

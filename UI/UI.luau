@@ -415,6 +415,7 @@ function UI.createWindow(titleText: string)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
+	titleBox.ClipsDescendants = true
 	titleBox.Parent = topbar
 	UI.registerThemeElement(titleBox, "Container")
 
@@ -442,6 +443,8 @@ function UI.createWindow(titleText: string)
 	titleLabel.Font = UI.Fonts.Header
 	titleLabel.TextSize = 12
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ClipsDescendants = true
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
@@ -591,6 +594,7 @@ function UI.createWindow(titleText: string)
 	activeTagBox.BackgroundColor3 = UI.Theme.Container
 	activeTagBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	activeTagBox.BorderSizePixel = 0
+	activeTagBox.ClipsDescendants = true
 	activeTagBox.Parent = subHeader
 	UI.registerThemeElement(activeTagBox, "Container")
 
@@ -603,12 +607,15 @@ function UI.createWindow(titleText: string)
 
 	local activeTagLabel = Instance.new("TextLabel")
 	activeTagLabel.Name = "Label"
-	activeTagLabel.Size = UDim2.new(1, 0, 1, 0)
+	activeTagLabel.Size = UDim2.new(1, -8, 1, 0)
+	activeTagLabel.Position = UDim2.new(0, 4, 0, 0)
 	activeTagLabel.BackgroundTransparency = 1
 	activeTagLabel.Text = "Main"
 	activeTagLabel.TextColor3 = UI.Theme.TextPrimary
 	activeTagLabel.Font = UI.Fonts.Header
-	activeTagLabel.TextSize = 12
+	activeTagLabel.TextSize = 11
+	activeTagLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	activeTagLabel.ClipsDescendants = true
 	activeTagLabel.Parent = activeTagBox
 	UI.registerThemeElement(activeTagLabel, "TextPrimary")
 
@@ -623,6 +630,8 @@ function UI.createWindow(titleText: string)
 	configsBtn.TextColor3 = UI.Theme.TextPrimary
 	configsBtn.Font = UI.Fonts.Header
 	configsBtn.TextSize = 11
+	configsBtn.TextTruncate = Enum.TextTruncate.AtEnd
+	configsBtn.ClipsDescendants = true
 	configsBtn.Visible = true
 	configsBtn.Parent = subHeader
 	UI.registerThemeElement(configsBtn, "Container")
@@ -646,6 +655,8 @@ function UI.createWindow(titleText: string)
 	settingsBtn.TextColor3 = UI.Theme.TextPrimary
 	settingsBtn.Font = UI.Fonts.Header
 	settingsBtn.TextSize = 11
+	settingsBtn.TextTruncate = Enum.TextTruncate.AtEnd
+	settingsBtn.ClipsDescendants = true
 	settingsBtn.Visible = true
 	settingsBtn.Parent = subHeader
 	UI.registerThemeElement(settingsBtn, "Container")

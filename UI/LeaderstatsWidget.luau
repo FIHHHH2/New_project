@@ -863,7 +863,9 @@ function LeaderstatsWidget.new()
 		widget.Visible = vis
 		if vis then
 			autoDockNextToPlayerList()
-			Animations.springOpen(widget, uiScale)
+			if Animations and typeof(Animations.openWindow) == "function" then
+				Animations.openWindow(widget, uiScale)
+			end
 		end
 	end
 

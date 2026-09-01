@@ -10904,6 +10904,7 @@ Modules["Modules/Combat.luau"] = function()
     		local hrp = character:FindFirstChild("HumanoidRootPart") :: BasePart?
     		if hrp then
     			originalHitboxSizes[hrp] = nil
+    			originalProperties[hrp] = nil
     		end
     	end)
     end
@@ -10919,18 +10920,21 @@ Modules["Modules/Combat.luau"] = function()
     		local hrp = player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
     		if hrp then
     			originalHitboxSizes[hrp] = nil
+    			originalProperties[hrp] = nil
     		end
     	end
     	-- Prune any orphaned keys
     	for hrp in pairs(originalHitboxSizes) do
     		if not hrp.Parent or hrp.Parent.Parent == nil then
     			originalHitboxSizes[hrp] = nil
+    			originalProperties[hrp] = nil
     		end
     	end
     end)
     
-    -- Dynamic Continuous Hitbox Expander Engine
-    local hitboxUpdateConn: RBXScriptConnection? = nil
+    -- ── Universal Multi-Part Bullet & Touch Hitbox Expander Engine ────────
+    local EXPAND_PART_NAMES = {"HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Head"}
+    local originalProperties: {[BasePart]: {Size: Vector3, Transparency: number, CanCollide: boolean, Massless: boolean}} = {}
     
     local function updateHitboxes()
     	if not Combat.ExpandHitboxes then return end
@@ -10941,26 +10945,39 @@ Modules["Modules/Combat.luau"] = function()
     			local hum = player.Character:FindFirstChildOfClass("Humanoid")
     			if not hum or hum.Health <= 0 then continue end
     
-    			local partName = Combat.HitboxPart or "HumanoidRootPart"
-    			local targetPart = (player.Character:FindFirstChild(partName) or player.Character:FindFirstChild("HumanoidRootPart") or player.Character:FindFirstChild("Head")) :: BasePart?
+    			for _, partName in ipairs(EXPAND_PART_NAMES) do
+    				local part = player.Character:FindFirstChild(partName) :: BasePart?
+    				if part and part:IsA("BasePart") then
+    					if not originalProperties[part] then
+    						originalProperties[part] = {
+    							Size = part.Size,
+    							Transparency = part.Transparency,
+    							CanCollide = part.CanCollide,
+    							Massless = part.Massless
+    						}
+    					end
     
-    			if targetPart then
-    				if not originalHitboxSizes[targetPart] then
-    					originalHitboxSizes[targetPart] = targetPart.Size
-    				end
-    				targetPart.Size = Vector3.new(Combat.HitboxSize, Combat.HitboxSize, Combat.HitboxSize)
-    				targetPart.CanCollide = false
-    				targetPart.Massless = true
-    				if Combat.HitboxVisuals then
-    					targetPart.Transparency = 0.55
-    					targetPart.Material = Enum.Material.ForceField
-    				else
-    					targetPart.Transparency = 1.0
+    					local scale = if part.Name == "Head" then (Combat.HitboxSize * 0.7) else Combat.HitboxSize
+    					part.Size = Vector3.new(scale, scale, scale)
+    					part.CanCollide = false
+    					part.Massless = true
+    					if Combat.HitboxVisuals then
+    						part.Transparency = if part.Name == "HumanoidRootPart" then 0.65 else 0.45
+    						part.Material = Enum.Material.ForceField
+    					else
+    						part.Transparency = if part.Name == "HumanoidRootPart" then 1.0 else originalProperties[part].Transparency
+    					end
     				end
     			end
     		end
     	end
     end
+    
+    RunService.RenderStepped:Connect(function()
+    	if Combat.ExpandHitboxes then
+    		updateHitboxes()
+    	end
+    end)
     
     RunService.Heartbeat:Connect(function()
     	if Combat.ExpandHitboxes then
@@ -10969,12 +10986,15 @@ Modules["Modules/Combat.luau"] = function()
     end)
     
     function Combat.resetHitboxes()
-    	for hrp, origSize in pairs(originalHitboxSizes) do
-    		if hrp and hrp.Parent then
-    			hrp.Size = origSize
-    			hrp.Transparency = 1
+    	for part, props in pairs(originalProperties) do
+    		if part and part.Parent then
+    			part.Size = props.Size
+    			part.Transparency = props.Transparency
+    			part.CanCollide = props.CanCollide
+    			part.Massless = props.Massless
     		end
     	end
+    	table.clear(originalProperties)
     	table.clear(originalHitboxSizes)
     end
     

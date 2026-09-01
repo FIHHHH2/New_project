@@ -131,10 +131,42 @@ local function disableCoreGuis()
 		task.wait(0.2)
 	end
 end
+
+-- Hide all non-Modular PlayerGui ScreenGuis on load.
+-- Games frequently render their own black backgrounds / loading screens
+-- via ScreenGui which sit on top of everything until explicitly disabled.
+local hiddenGameGuis: {[ScreenGui]: boolean} = {}
+local function hidePlayerGameGuis(enabled: boolean)
+	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
+	if not pgui then return end
+	for _, child in ipairs(pgui:GetChildren()) do
+		if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") then
+			if enabled then
+				hiddenGameGuis[child] = child.Enabled
+				child.Enabled = false
+			else
+				child.Enabled = if hiddenGameGuis[child] ~= nil then hiddenGameGuis[child] else true
+			end
+		end
+	end
+end
+
 task.spawn(disableCoreGuis)
+-- Auto-hide game GUIs immediately — fixes black screen on load
+task.spawn(function()
+	-- Brief wait for PlayerGui to populate
+	task.wait(0.5)
+	hidePlayerGameGuis(true)
+end)
+
 localPlayer.CharacterAdded:Connect(function()
 	task.spawn(disableCoreGuis)
+	task.spawn(function()
+		task.wait(0.5)
+		hidePlayerGameGuis(true)
+	end)
 end)
+
 
 -- Continuous enforcer so Roblox topbar never pops back up
 task.spawn(function()
@@ -1315,21 +1347,8 @@ window:AddToggle(perfSection, "fps_uncap", "FPS UNCAP (Remove 60 FPS Cap)", fals
 	end
 end)
 
-local hiddenGameGuis: {[ScreenGui]: boolean} = {}
-window:AddToggle(perfSection, "hide_game_guis", "Hide Default Game GUIs (PlayerGui)", false, nil, function(enabled)
-	local pgui = localPlayer:FindFirstChild("PlayerGui")
-	if pgui then
-		for _, child in ipairs(pgui:GetChildren()) do
-			if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") then
-				if enabled then
-					hiddenGameGuis[child] = child.Enabled
-					child.Enabled = false
-				else
-					child.Enabled = if hiddenGameGuis[child] ~= nil then hiddenGameGuis[child] else true
-				end
-			end
-		end
-	end
+window:AddToggle(perfSection, "hide_game_guis", "Hide Default Game GUIs (PlayerGui)", true, nil, function(enabled)
+	hidePlayerGameGuis(enabled)
 end)
 
 -- Right Column: 3D & Texture Optimization

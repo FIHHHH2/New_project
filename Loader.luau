@@ -14890,6 +14890,320 @@ Modules["Modules/LuckyBlocks.luau"] = function()
     return LuckyBlocks
 end
 
+Modules["Modules/RestaurantTycoon.luau"] = function()
+    local require = requireModule
+    --!strict
+    --[=[
+        ✦ Restaurant Tycoon 3 Automation & Speed Suite ✦
+        Features:
+        - Auto-Serve Customers (Take Orders, Hand Food, Clean Tables, Take Payments)
+        - Auto-Catch Dine & Dashers Instantly
+        - Auto-Collect Tips & Register Revenue
+        - Auto-Claim Daily Rewards
+        - Instant Cooking / Task Fast-Complete
+        - Teleports (Kitchen, Cashier, Drive-Thru, Daily Rewards, Chef Luigi, Tables)
+    ]=]
+    
+    local Players = game:GetService("Players")
+    local Workspace = game:GetService("Workspace")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local RunService = game:GetService("RunService")
+    
+    local LocalPlayer = Players.LocalPlayer
+    
+    local RestaurantTycoon = {
+    	AutoServeCustomers = false,
+    	AutoCatchDineAndDash = true,
+    	AutoCollectTips = false,
+    	AutoClaimDailyRewards = false,
+    	FastCooking = false,
+    	ServiceInterval = 0.25,
+    }
+    
+    local serveThread: thread? = nil
+    local tipsThread: thread? = nil
+    local dineThread: thread? = nil
+    local cookingConn: RBXScriptConnection? = nil
+    
+    local function getTycoon(): Instance?
+    	local tVal = LocalPlayer:FindFirstChild("Tycoon")
+    	if tVal and tVal:IsA("ObjectValue") and tVal.Value then
+    		return tVal.Value
+    	end
+    	if Workspace:FindFirstChild("Tycoons") then
+    		for _, t in ipairs(Workspace.Tycoons:GetChildren()) do
+    			local pVal = t:FindFirstChild("Player")
+    			if pVal and pVal:IsA("ObjectValue") and pVal.Value == LocalPlayer then
+    				return t
+    			end
+    		end
+    		-- Fallback to first tycoon named after player or default
+    		return Workspace.Tycoons:FindFirstChild(LocalPlayer.Name) or Workspace.Tycoons:FindFirstChild("Tycoon")
+    	end
+    	return nil
+    end
+    
+    local function firePrompt(prompt: ProximityPrompt)
+    	local fpp = fireproximityprompt or (getgenv and getgenv().fireproximityprompt)
+    	if type(fpp) == "function" then
+    		pcall(function()
+    			prompt.HoldDuration = 0
+    			fpp(prompt)
+    		end)
+    	end
+    end
+    
+    -- ── 1. Customer Service Engine ───────────────────────────────────────
+    function RestaurantTycoon.serveAllCustomersNow(): number
+    	local tycoon = getTycoon()
+    	if not tycoon then return 0 end
+    
+    	local count = 0
+    	local clientCustomers = tycoon:FindFirstChild("ClientCustomers")
+    	if clientCustomers then
+    		for _, group in ipairs(clientCustomers:GetChildren()) do
+    			for _, npc in ipairs(group:GetChildren()) do
+    				local prompt = npc:FindFirstChildWhichIsA("ProximityPrompt", true)
+    				if prompt and prompt.Enabled then
+    					firePrompt(prompt)
+    					count += 1
+    				end
+    			end
+    		end
+    	end
+    
+    	-- Also sweep tables & furniture for prompts (cleaning dishes, taking orders)
+    	local items = tycoon:FindFirstChild("Items")
+    	if items then
+    		for _, desc in ipairs(items:GetDescendants()) do
+    			if desc:IsA("ProximityPrompt") and desc.Enabled then
+    				local n = desc.Name:lower()
+    				local act = desc.ActionText:lower()
+    				if n:find("customer") or n:find("order") or n:find("dish") or n:find("clean") or act:find("take") or act:find("serve") or act:find("clean") then
+    					firePrompt(desc)
+    					count += 1
+    				end
+    			end
+    		end
+    	end
+    
+    	return count
+    end
+    
+    function RestaurantTycoon.setAutoServe(enabled: boolean)
+    	RestaurantTycoon.AutoServeCustomers = enabled
+    	if serveThread then
+    		task.cancel(serveThread)
+    		serveThread = nil
+    	end
+    
+    	if enabled then
+    		serveThread = task.spawn(function()
+    			while RestaurantTycoon.AutoServeCustomers do
+    				pcall(function()
+    					RestaurantTycoon.serveAllCustomersNow()
+    				end)
+    				task.wait(math.max(RestaurantTycoon.ServiceInterval, 0.15))
+    			end
+    		end)
+    	end
+    end
+    
+    -- ── 2. Dine & Dash Auto-Catch Engine ─────────────────────────────────
+    function RestaurantTycoon.setAutoCatchDineAndDash(enabled: boolean)
+    	RestaurantTycoon.AutoCatchDineAndDash = enabled
+    	if dineThread then
+    		task.cancel(dineThread)
+    		dineThread = nil
+    	end
+    
+    	if enabled then
+    		dineThread = task.spawn(function()
+    			while RestaurantTycoon.AutoCatchDineAndDash do
+    				pcall(function()
+    					local rEvents = ReplicatedStorage:FindFirstChild("Events")
+    					local dineRemote = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("Customers") and rEvents.Restaurant.Customers:FindFirstChild("DineAndDashCaught")
+    					local tycoon = getTycoon()
+    
+    					if dineRemote and tycoon then
+    						local clientCustomers = tycoon:FindFirstChild("ClientCustomers")
+    						if clientCustomers then
+    							for _, group in ipairs(clientCustomers:GetChildren()) do
+    								for _, npc in ipairs(group:GetChildren()) do
+    									local tag = npc:FindFirstChild("DineAndDash") or npc:GetAttribute("DineAndDash")
+    									if tag then
+    										dineRemote:FireServer(npc)
+    										local prompt = npc:FindFirstChildWhichIsA("ProximityPrompt", true)
+    										if prompt then firePrompt(prompt) end
+    									end
+    								end
+    							end
+    						end
+    					end
+    				end)
+    				task.wait(0.5)
+    			end
+    		end)
+    	end
+    end
+    
+    -- ── 3. Tips & Revenue Collection Engine ──────────────────────────────
+    function RestaurantTycoon.collectTipsNow(): boolean
+    	local success = false
+    	pcall(function()
+    		local rEvents = ReplicatedStorage:FindFirstChild("Events")
+    		local tipsRemote = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("TipsCollected")
+    		if tipsRemote then
+    			tipsRemote:FireServer()
+    			success = true
+    		end
+    
+    		local tycoon = getTycoon()
+    		if tycoon then
+    			for _, desc in ipairs(tycoon:GetDescendants()) do
+    				if desc:IsA("ProximityPrompt") and (desc.Name:lower():find("tip") or desc.ActionText:lower():find("tip") or desc.ActionText:lower():find("collect")) then
+    					firePrompt(desc)
+    					success = true
+    				end
+    			end
+    		end
+    	end)
+    	return success
+    end
+    
+    function RestaurantTycoon.setAutoCollectTips(enabled: boolean)
+    	RestaurantTycoon.AutoCollectTips = enabled
+    	if tipsThread then
+    		task.cancel(tipsThread)
+    		tipsThread = nil
+    	end
+    
+    	if enabled then
+    		tipsThread = task.spawn(function()
+    			while RestaurantTycoon.AutoCollectTips do
+    				pcall(function()
+    					RestaurantTycoon.collectTipsNow()
+    				end)
+    				task.wait(2.0)
+    			end
+    		end)
+    	end
+    end
+    
+    -- ── 4. Daily Rewards Claimer ─────────────────────────────────────────
+    function RestaurantTycoon.claimDailyRewards(): boolean
+    	local claimed = false
+    	local tycoon = getTycoon()
+    	if tycoon then
+    		local defaultFolder = tycoon:FindFirstChild("Default")
+    		local dailyBox = defaultFolder and defaultFolder:FindFirstChild("DailyRewards")
+    		if dailyBox then
+    			local prompt = dailyBox:FindFirstChildWhichIsA("ProximityPrompt", true)
+    			if prompt then
+    				firePrompt(prompt)
+    				claimed = true
+    			end
+    		end
+    	end
+    	return claimed
+    end
+    
+    -- ── 5. Fast Cooking Accelerator ─────────────────────────────────────
+    function RestaurantTycoon.setFastCooking(enabled: boolean)
+    	RestaurantTycoon.FastCooking = enabled
+    	if cookingConn then
+    		cookingConn:Disconnect()
+    		cookingConn = nil
+    	end
+    
+    	if enabled then
+    		pcall(function()
+    			local rEvents = ReplicatedStorage:FindFirstChild("Events")
+    			local cookEvent = rEvents and rEvents:FindFirstChild("Cook") and rEvents.Cook:FindFirstChild("CookUpdated")
+    			local taskComp = rEvents and rEvents:FindFirstChild("Restaurant") and rEvents.Restaurant:FindFirstChild("TaskCompleted")
+    
+    			if cookEvent and taskComp then
+    				cookingConn = cookEvent.OnClientEvent:Connect(function(...)
+    					if RestaurantTycoon.FastCooking then
+    						task.defer(function()
+    							pcall(function()
+    								taskComp:FireServer()
+    							end)
+    						end)
+    					end
+    				end)
+    			end
+    		end)
+    	end
+    end
+    
+    -- ── 6. Fast Restaurant Teleports ─────────────────────────────────────
+    local function safeTeleport(targetCF: CFrame): boolean
+    	local char = LocalPlayer.Character
+    	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	local hum = char and char:FindFirstChildOfClass("Humanoid")
+    	if not hrp or not hum then return false end
+    
+    	pcall(function()
+    		hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+    		hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    		hum.PlatformStand = false
+    		hum.Sit = false
+    	end)
+    	hrp.AssemblyLinearVelocity = Vector3.zero
+    	hrp.AssemblyAngularVelocity = Vector3.zero
+    	hrp.CFrame = targetCF * CFrame.new(0, 3, 0)
+    	pcall(function()
+    		hum:ChangeState(Enum.HumanoidStateType.Running)
+    	end)
+    	return true
+    end
+    
+    function RestaurantTycoon.teleportToArea(areaName: string): boolean
+    	local tycoon = getTycoon()
+    	if not tycoon then return false end
+    
+    	if areaName == "Kitchen" or areaName == "Cooking Stations" then
+    		local cookingRes = tycoon:FindFirstChild("Objects") and tycoon.Objects:FindFirstChild("CookingResources")
+    		local targetPart = cookingRes and cookingRes:FindFirstChildWhichIsA("BasePart", true)
+    		if targetPart then return safeTeleport(targetPart.CFrame) end
+    	elseif areaName == "Chef Luigi" then
+    		local luigi = tycoon:FindFirstChild("Default") and tycoon.Default:FindFirstChild("ChefLuigi")
+    		local hrp = luigi and (luigi:FindFirstChild("HumanoidRootPart") or luigi:FindFirstChildWhichIsA("BasePart"))
+    		if hrp then return safeTeleport(hrp.CFrame) end
+    	elseif areaName == "Daily Rewards" then
+    		local daily = tycoon:FindFirstChild("Default") and tycoon.Default:FindFirstChild("DailyRewards")
+    		local base = daily and daily:FindFirstChild("Base") :: BasePart?
+    		if base then return safeTeleport(base.CFrame) end
+    	elseif areaName == "Entrance / Sign" then
+    		local sign = tycoon:FindFirstChild("Default") and tycoon.Default:FindFirstChild("Signs")
+    		local p = sign and sign:FindFirstChildWhichIsA("BasePart", true)
+    		if p then return safeTeleport(p.CFrame) end
+    	elseif areaName == "Dining Tables" then
+    		local items = tycoon:FindFirstChild("Items")
+    		local p = items and items:FindFirstChildWhichIsA("BasePart", true)
+    		if p then return safeTeleport(p.CFrame) end
+    	end
+    
+    	-- Fallback to tycoon primary root
+    	local anyPart = tycoon:FindFirstChildWhichIsA("BasePart", true)
+    	if anyPart then return safeTeleport(anyPart.CFrame) end
+    	return false
+    end
+    
+    function RestaurantTycoon.getTeleportLocations(): {string}
+    	return {
+    		"Kitchen",
+    		"Chef Luigi",
+    		"Daily Rewards",
+    		"Entrance / Sign",
+    		"Dining Tables"
+    	}
+    end
+    
+    return RestaurantTycoon
+end
+
 Modules["Core/Main.luau"] = function()
     local require = requireModule
     --!strict
@@ -14921,6 +15235,7 @@ Modules["Core/Main.luau"] = function()
     local RunNHide = require("Modules/RunNHide.luau")
     local IceTycoon = require("Modules/IceTycoon.luau")
     local LuckyBlocks = require("Modules/LuckyBlocks.luau")
+    local RestaurantTycoon = require("Modules/RestaurantTycoon.luau")
     local PlayerUtilities = require("Modules/PlayerUtilities.luau")
     local Hotbar = require("UI/Hotbar.luau")
     local Notification = require("UI/Notification.luau")
@@ -15128,7 +15443,9 @@ Modules["Core/Main.luau"] = function()
     		end
     	end)
     
-    	if placeId == 662417684 or string.find(gameName, "lucky block") or workspace:FindFirstChild("CenterBlocks") then
+    	if placeId == 1190485299606 or string.find(gameName, "restaurant") or (workspace:FindFirstChild("Tycoons") and workspace.Tycoons:FindFirstChildWhichIsA("Folder")) then
+    		return "Restaurant Tycoon"
+    	elseif placeId == 662417684 or string.find(gameName, "lucky block") or workspace:FindFirstChild("CenterBlocks") then
     		return "Lucky Blocks"
     	elseif placeId == 189707 or string.find(gameName, "disaster") then
     		return "Natural Disaster"
@@ -15137,7 +15454,7 @@ Modules["Core/Main.luau"] = function()
     	elseif string.find(gameName, "ice tycoon") or (workspace:FindFirstChild("Tycoon") and workspace.Tycoon:FindFirstChild("Buttons")) then
     		return "Ice Tycoon"
     	end
-    	return "Lucky Blocks"
+    	return "Restaurant Tycoon"
     end
     
     local gameTabTitle = getGameTabName()
@@ -15145,8 +15462,14 @@ Modules["Core/Main.luau"] = function()
     -- Create navigation tabs in strict layout order
     local mainTab = window:CreateTab("Main")
     local combatTab = window:CreateTab("Combat")
-    local gameTab = window:CreateTab(gameTabTitle)
     local visualsTab = window:CreateTab("Visuals")
+    
+    -- Create Game Module Tabs (Current detected game is shown on start; all other game modules can be toggled/opened on demand)
+    local restTab = window:CreateTab("Restaurant Tycoon", gameTabTitle ~= "Restaurant Tycoon")
+    local luckyTab = window:CreateTab("Lucky Blocks", gameTabTitle ~= "Lucky Blocks")
+    local iceTab = window:CreateTab("Ice Tycoon", gameTabTitle ~= "Ice Tycoon")
+    local rnhTab = window:CreateTab("Run N Hide", gameTabTitle ~= "Run N Hide")
+    local disTab = window:CreateTab("Natural Disaster", gameTabTitle ~= "Natural Disaster")
     
     -- Create hidden dedicated settings and configs pages
     local settingsTab = window:CreateTab("Settings", true)
@@ -15715,6 +16038,39 @@ Modules["Core/Main.luau"] = function()
     	leaderstatsWidget.SetVisible(enabled)
     end)
     
+    -- Universal Game Module Switcher (Open ANY module in ANY game)
+    local gameHubSection = window:AddSection(utilLeftCol, "Game Modules Hub (Universal)")
+    
+    window:AddButton(gameHubSection, "Open Restaurant Tycoon Suite", function()
+    	window:SetTabVisibility(restTab, true)
+    	window:SelectTab(restTab)
+    	window:Notify("Modules", "Opened Restaurant Tycoon Suite", 2)
+    end)
+    
+    window:AddButton(gameHubSection, "Open Lucky Blocks Suite", function()
+    	window:SetTabVisibility(luckyTab, true)
+    	window:SelectTab(luckyTab)
+    	window:Notify("Modules", "Opened Lucky Blocks Suite", 2)
+    end)
+    
+    window:AddButton(gameHubSection, "Open Ice Tycoon Suite", function()
+    	window:SetTabVisibility(iceTab, true)
+    	window:SelectTab(iceTab)
+    	window:Notify("Modules", "Opened Ice Tycoon Suite", 2)
+    end)
+    
+    window:AddButton(gameHubSection, "Open Run N Hide Suite", function()
+    	window:SetTabVisibility(rnhTab, true)
+    	window:SelectTab(rnhTab)
+    	window:Notify("Modules", "Opened Run N Hide Suite", 2)
+    end)
+    
+    window:AddButton(gameHubSection, "Open Natural Disaster Suite", function()
+    	window:SetTabVisibility(disTab, true)
+    	window:SelectTab(disTab)
+    	window:Notify("Modules", "Opened Natural Disaster Suite", 2)
+    end)
+    
     -- Left Column: Server & Session Utilities
     local serverSection = window:AddSection(utilLeftCol, "Server & Session Utilities")
     
@@ -15904,18 +16260,17 @@ Modules["Core/Main.luau"] = function()
     end)
     
     -- ============================================================
-    -- 3. GAME TAB CONTENT (RUN N HIDE / DISASTER SURVIVAL)
-    --    [ Weapons & Firepower ] [ Bounds & Barriers ] [ Mobility & Items ]
+    -- 3. UNIVERSAL GAME MODULE SUITES (LOADABLE IN EVERY GAME)
     -- ============================================================
-    if gameTabTitle == "Run N Hide" then
-    	local rnhSubTabs = window:CreateSubTabs(gameTab, { "Weapons & Firepower", "Bounds & Barriers", "Mobility & Items" })
+    
+    -- ── 1. RUN N HIDE SUITE ─────────────────────────────────────
+    do
+    	local rnhSubTabs = window:CreateSubTabs(rnhTab, { "Weapons & Firepower", "Bounds & Barriers", "Mobility & Items" })
     	local weaponSubTab = rnhSubTabs["Weapons & Firepower"]
     	local boundsSubTab = rnhSubTabs["Bounds & Barriers"]
     	local mobilitySubTab = rnhSubTabs["Mobility & Items"]
     
-    	-- ── GAME SUB-TAB 1: WEAPONS & FIREPOWER ───────────────────
     	local wepLeftCol, wepRightCol = window:CreateColumns(weaponSubTab)
-    
     	local weaponMechSection = window:AddSection(wepLeftCol, "Weapon Mechanisms")
     
     	window:AddToggle(weaponMechSection, "rnh_silent_audio", "Silent Gun Audio (Mute)", true, nil, function(val)
@@ -15992,1093 +16347,212 @@ Modules["Core/Main.luau"] = function()
     		end
     	end)
     
-    	-- ── GAME SUB-TAB 2: BOUNDS & BARRIERS ─────────────────────
-    	local bndLeftCol, bndRightCol = window:CreateColumns(boundsSubTab)
+    	local boundsLeftCol, boundsRightCol = window:CreateColumns(boundsSubTab)
+    	local boundarySection = window:AddSection(boundsLeftCol, "Spawn Barriers & Walls")
     
-    	local boundsSection = window:AddSection(bndLeftCol, "Boundary Removal")
-    
-    	window:AddToggle(boundsSection, "rnh_disable_barriers", "Disable Map Bounds & Barriers", false, nil, function(val)
-    		RunNHide.DisableBarriers = val
-    		if val then
-    			local count = RunNHide.scanAndDisableBoundaries()
-    			window:Notify("Bounds", string.format("Barriers & clips disabled (%d checked)", count), 3)
-    		end
+    	window:AddToggle(boundarySection, "rnh_kill_spawn_walls", "Disable Spawn Forcefields", false, nil, function(val)
+    		RunNHide.RemoveSpawnWalls = val
+    		RunNHide.updateBarriers()
     	end)
     
-    	window:AddToggle(boundsSection, "rnh_disable_kill", "Disable Kill Bricks & Death Zones", false, nil, function(val)
-    		RunNHide.DisableKillbricks = val
-    		if val then
-    			RunNHide.scanAndDisableBoundaries()
-    			window:Notify("Bounds", "Killbricks & death zones neutralized", 3)
-    		end
+    	window:AddToggle(boundarySection, "rnh_kill_bounds", "Remove Map Death Barriers", false, nil, function(val)
+    		RunNHide.RemoveInvisibleWalls = val
+    		RunNHide.updateBarriers()
     	end)
     
-    	local voidSection = window:AddSection(bndRightCol, "Void Safety & Audits")
+    	local mapInteractSection = window:AddSection(boundsRightCol, "Door & Object Controls")
     
-    	window:AddToggle(voidSection, "rnh_anti_void", "Anti-Void Safety Floor", false, nil, function(val)
-    		RunNHide.AntiVoidFloor = val
-    		RunNHide.ensureVoidPlatform()
+    	window:AddToggle(mapInteractSection, "rnh_open_doors", "Auto-Unlock Map Doors", false, nil, function(val)
+    		RunNHide.AutoOpenDoors = val
+    		RunNHide.updateBarriers()
     	end)
     
-    	window:AddButton(voidSection, "Audit & Disable All Bounds Now", function()
-    		RunNHide.DisableBarriers = true
-    		RunNHide.DisableKillbricks = true
-    		local count = RunNHide.scanAndDisableBoundaries()
-    		window:Notify("Audit", string.format("Neutralized %d boundaries & killbricks", count), 3.5)
+    	window:AddButton(mapInteractSection, "Clear Map Breakables", function()
+    		RunNHide.clearBreakableGlass()
+    		window:Notify("Run N Hide", "Map breakables cleared", 2.5)
     	end)
     
-    	-- ── GAME SUB-TAB 3: MOBILITY & ITEMS ──────────────────────
     	local mobLeftCol, mobRightCol = window:CreateColumns(mobilitySubTab)
+    	local powerUpSection = window:AddSection(mobLeftCol, "Power-Ups & Drops")
     
-    	local staminaSection = window:AddSection(mobLeftCol, "Stamina & Ragdoll")
-    
-    	window:AddToggle(staminaSection, "rnh_inf_stamina", "Infinite Stamina", false, nil, function(val)
-    		RunNHide.InfiniteStamina = val
+    	window:AddToggle(powerUpSection, "rnh_auto_powerups", "Auto-Collect Power-Ups", false, nil, function(val)
+    		RunNHide.AutoCollectPowerUps = val
     	end)
     
-    	window:AddToggle(staminaSection, "rnh_fast_regen", "Hyper Fast Stamina Regen", false, nil, function(val)
-    		RunNHide.FastRegen = val
+    	window:AddButton(powerUpSection, "Sweep All Power-Ups Now", function()
+    		local count = RunNHide.collectPowerUpsNow()
+    		window:Notify("Run N Hide", string.format("Collected %d power-ups", count), 3)
     	end)
     
-    	window:AddToggle(staminaSection, "rnh_move_ragdoll", "Move In Ragdoll (WASD)", false, nil, function(val)
-    		RunNHide.MoveInRagdoll = val
+    	local escapeSection = window:AddSection(mobRightCol, "Tactical Escapes")
+    
+    	window:AddButton(escapeSection, "Safe High Ground Teleport", function()
+    		RunNHide.teleportSafeHigh()
+    		window:Notify("Tactical", "Teleported to safe vantage point", 2)
     	end)
+    end
     
-    	window:AddToggle(staminaSection, "rnh_auto_stand", "Auto Standup (Anti-Knockdown)", false, nil, function(val)
-    		RunNHide.AutoStandup = val
-    	end)
+    -- ── 2. NATURAL DISASTER SURVIVAL SUITE ───────────────────────
+    do
+    	local ndsSubTabs = window:CreateSubTabs(disTab, { "Automation & Survival", "Map Teleports", "Visuals & Alerts" })
+    	local autoSubTab = ndsSubTabs["Automation & Survival"]
+    	local mapSubTab = ndsSubTabs["Map Teleports"]
+    	local alertsSubTab = ndsSubTabs["Visuals & Alerts"]
     
-    	window:AddSlider(staminaSection, "Ragdoll Speed", 16, 80, 32, function(val)
-    		RunNHide.RagdollSpeed = val
-    	end)
-    
-    	local itemSection = window:AddSection(mobRightCol, "Item & Role Tracker")
-    
-    	window:AddToggle(itemSection, "rnh_role_tracker", "Role Tracker & ESP", false, nil, function(val)
-    		RunNHide.RoleTracker = val
-    	end)
-    
-    	window:AddToggle(itemSection, "rnh_auto_grab", "Auto-Grab Dropped Weapons", false, nil, function(val)
-    		RunNHide.AutoGrabWeapons = val
-    	end)
-    
-    	window:AddButton(itemSection, "Grab All Scattered Guns Now", function()
-    		local count = RunNHide.grabAllScatteredWeapons()
-    		window:Notify("Weapons", string.format("Claimed %d dropped guns", count), 3)
-    	end)
-    
-    	window:AddButton(itemSection, "Teleport to PVP Arena", function()
-    		if RunNHide.teleportToArena() then
-    			window:Notify("Arena", "Teleported to PVP Arena loadout zone", 3)
-    		end
-    	end)
-    elseif gameTabTitle == "Natural Disaster" then
-    	-- Disaster Survival Sub-Tabs (4 tabs — all in ONE CreateSubTabs call)
-    	local ndsSubTabs = window:CreateSubTabs(gameTab, {
-    		"Disaster Intelligence",
-    		"Mobility & Flight",
-    		"Physics & Protection",
-    		"World & Vehicles",
-    	})
-    	local disSubTab   = ndsSubTabs["Disaster Intelligence"]
-    	local mobSubTab   = ndsSubTabs["Mobility & Flight"]
-    	local phySubTab   = ndsSubTabs["Physics & Protection"]
-    	local worldSubTab = ndsSubTabs["World & Vehicles"]
-    
-    	-- ── DISASTER INTELLIGENCE ─────────────────────────────────────
-    	local disLeftCol, disRightCol = window:CreateColumns(disSubTab)
-    	local disasterSection = window:AddSection(disLeftCol, "Disaster Monitor")
-    
-    	window:AddToggle(disasterSection, "disaster_tracker", "Disaster Tracker", false, nil, function(enabled)
-    		DisasterSurvival.DisasterTracker = enabled
-    		if enabled and DisasterSurvival.CurrentDisaster ~= "None (In Lobby)" and DisasterSurvival.CurrentDisaster ~= "" then
-    			window:Notify("Current Disaster", DisasterSurvival.CurrentDisaster, 3.5)
-    		end
-    	end)
-    
-    	window:AddButton(disasterSection, "Check Current Disaster", function()
-    		local tag = localPlayer.Character and localPlayer.Character:FindFirstChild("SurvivalTag")
-    		local cur = if tag and tag:IsA("StringValue") and tag.Value ~= "" then tag.Value else "None (In Lobby)"
-    		window:Notify("Disaster Status", cur, 3.5)
-    	end)
-    
-    	local fallSection = window:AddSection(disRightCol, "Fall Damage Bypass")
-    	window:AddToggle(fallSection, "no_fall_damage", "No Fall Damage", false, nil, function(enabled)
-    		DisasterSurvival.setNoFallDamage(enabled)
-    	end)
-    
-    	-- ── MOBILITY & FLIGHT ─────────────────────────────────────────
-    	local mobLeftCol, mobRightCol = window:CreateColumns(mobSubTab)
-    	local fltSection = window:AddSection(mobLeftCol, "Flight Navigation")
-    	window:AddToggle(fltSection, "flight_no_fall", "Flight No Fall Damage", false, nil, function(enabled)
-    		DisasterSurvival.setFlight(enabled)
-    	end)
-    
-    	local spdSection = window:AddSection(mobRightCol, "Flight Velocity")
-    	window:AddSlider(spdSection, "Flight Speed", 20, 150, 50, function(value)
-    		DisasterSurvival.FlightSpeed = value
-    	end)
-    
-    	-- ── PHYSICS & PROTECTION ──────────────────────────────────────
-    	local phyLeftCol, phyRightCol = window:CreateColumns(phySubTab)
-    	local protSection = window:AddSection(phyLeftCol, "Protection & Physics")
-    	window:AddToggle(protSection, "anti_fling", "Anti-Fling Protection", false, nil, function(enabled)
-    		DisasterSurvival.setAntiFling(enabled)
-    	end)
-    
-    	window:AddToggle(protSection, "anti_object_kill", "Anti-Object-Kill Shield", false, nil, function(enabled)
-    		DisasterSurvival.setAntiObjectKill(enabled)
-    	end)
-    
-    	local flngSection = window:AddSection(phyRightCol, "Physics Fling")
-    	window:AddToggle(flngSection, "player_fling", "Object / Player Fling", false, nil, function(enabled)
-    		DisasterSurvival.setFling(enabled)
-    	end)
-    
-    	-- ── WORLD & VEHICLES ─────────────────────────────────────────
-    	local worldLeftCol, worldRightCol = window:CreateColumns(worldSubTab)
-    
-    	local carSection = window:AddSection(worldLeftCol, "Vehicle Exploits")
-    	window:AddToggle(carSection, "nds_car_drive", "Custom Car Driving (W/A/S/D)", false, nil, function(enabled)
-    		DisasterSurvival.setCarDriving(enabled)
-    	end)
-    
-    	window:AddButton(carSection, "Enter Nearest Car", function()
-    		local cars = DisasterSurvival.scanCars()
-    		if #cars == 0 then
-    			window:Notify("Cars", "No VehicleSeats found in map", 3)
-    			return
-    		end
-    		local char = localPlayer.Character
-    		local hrp  = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-    		if not hrp then window:Notify("Cars", "No character found", 3) return end
-    
-    		local best: VehicleSeat? = nil
-    		local bestDist = math.huge
-    		for _, seat in ipairs(cars) do
-    			if not seat.Occupant then
-    				local d = (seat.Position - hrp.Position).Magnitude
-    				if d < bestDist then bestDist = d best = seat end
-    			end
-    		end
-    
-    		if best then
-    			-- Teleport HRP onto seat — proximity trigger fires the SeatWeld automatically
-    			DisasterSurvival.sitInCar(best)
-    			window:Notify("Cars", string.format("Warped to car (%.1f studs) — W/A/S/D to drive", bestDist), 3.5)
-    		else
-    			window:Notify("Cars", "No unoccupied car found", 3)
-    		end
-    	end)
-    
-    	window:AddButton(carSection, "Exit Car", function()
-    		DisasterSurvival.exitCar()
-    		window:Notify("Cars", "Exited vehicle", 2)
-    	end)
-    
-    	local dragSection = window:AddSection(worldRightCol, "Object Interaction")
-    	window:AddToggle(dragSection, "nds_obj_drag", "Loose Object Drag (LMB hold = grab, release = drop)", false, nil, function(enabled)
-    		DisasterSurvival.setObjectDrag(enabled)
-    	end)
-    elseif gameTabTitle == "Ice Tycoon" then
-    	local iceSubTabs = window:CreateSubTabs(gameTab, { "Tycoon Automation", "Resources & Farming", "Protections & Zones" })
-    	local autoSubTab = iceSubTabs["Tycoon Automation"]
-    	local farmSubTab = iceSubTabs["Resources & Farming"]
-    	local zoneSubTab = iceSubTabs["Protections & Zones"]
-    
-    	-- ── 1. TYCOON AUTOMATION ─────────────────────────────────────
     	local autoLeftCol, autoRightCol = window:CreateColumns(autoSubTab)
+    	local godSection = window:AddSection(autoLeftCol, "God Mode & Physics Protections")
     
-    	local convSection = window:AddSection(autoLeftCol, "Conveyors & Generators")
-    	window:AddToggle(convSection, "ice_fast_conveyors", "Fast Conveyors (Speed Boost)", false, nil, function(enabled)
-    		IceTycoon.setFastConveyors(enabled)
+    	window:AddToggle(godSection, "nds_anti_fall", "Anti-Fall Damage (Safe Landings)", false, nil, function(enabled)
+    		DisasterSurvival.setAntiFallDamage(enabled)
     	end)
     
-    	window:AddSlider(convSection, "Conveyor Speed", 15, 250, 75, function(value)
-    		IceTycoon.setConveyorSpeed(value)
+    	window:AddToggle(godSection, "nds_anti_void", "Anti-Void Fall Recovery", false, nil, function(enabled)
+    		DisasterSurvival.setAntiVoid(enabled)
     	end)
     
-    	window:AddToggle(convSection, "ice_fast_generators", "Turbo Generators & Droppers", false, nil, function(enabled)
-    		IceTycoon.setFastGenerators(enabled)
+    	window:AddToggle(godSection, "nds_walk_on_water", "Walk on Water (Acid/Tsunami/Lava)", false, nil, function(enabled)
+    		DisasterSurvival.setWalkOnWater(enabled)
     	end)
     
-    	window:AddSlider(convSection, "Generator Dropper Velocity", 30, 300, 120, function(value)
-    		IceTycoon.setGeneratorSpeed(value)
+    	local autoPlaySection = window:AddSection(autoRightCol, "Automated Disaster Defenses")
+    
+    	window:AddToggle(autoPlaySection, "nds_auto_run_away", "Auto-Evade Disasters", false, nil, function(enabled)
+    		DisasterSurvival.setAutoRunAway(enabled)
     	end)
     
-    	window:AddToggle(convSection, "ice_ore_magnet", "Ore Vacuum / Magnet to Collector", false, nil, function(enabled)
-    		IceTycoon.setOreMagnet(enabled)
+    	window:AddToggle(autoPlaySection, "nds_auto_balloon", "Auto-Deploy Green Balloon", false, nil, function(enabled)
+    		DisasterSurvival.setAutoBalloon(enabled)
     	end)
     
-    	window:AddToggle(convSection, "ice_dup_sells", "Duplicated Proximity Sell Nodes", false, nil, function(enabled)
-    		IceTycoon.setDuplicatedSellNodes(enabled)
+    	window:AddToggle(autoPlaySection, "nds_auto_apple", "Auto-Consume Health Apples", false, nil, function(enabled)
+    		DisasterSurvival.setAutoEatApples(enabled)
     	end)
     
-    	local cashSection = window:AddSection(autoLeftCol, "Cash Collection")
-    	window:AddToggle(cashSection, "ice_auto_collect", "Auto-Collect Tycoon Cash", false, nil, function(enabled)
+    	local mapLeftCol, mapRightCol = window:CreateColumns(mapSubTab)
+    	local safeTpSection = window:AddSection(mapLeftCol, "Safe Zone Teleports")
+    
+    	window:AddButton(safeTpSection, "Teleport to Safe Island Tower", function()
+    		DisasterSurvival.teleportToIsland()
+    		window:Notify("Natural Disaster", "Teleported to Safe Island Tower", 2.5)
+    	end)
+    
+    	window:AddButton(safeTpSection, "Teleport to Spawn Lobby", function()
+    		DisasterSurvival.teleportToLobby()
+    		window:Notify("Natural Disaster", "Teleported to Spawn Lobby", 2.5)
+    	end)
+    
+    	local structTpSection = window:AddSection(mapRightCol, "Structure & High Ground")
+    
+    	window:AddButton(structTpSection, "Teleport to High Ground", function()
+    		DisasterSurvival.teleportToHighGround()
+    		window:Notify("Natural Disaster", "Teleported to Highest Structure Point", 2.5)
+    	end)
+    
+    	local alertLeftCol, alertRightCol = window:CreateColumns(alertsSubTab)
+    	local alertSection = window:AddSection(alertLeftCol, "Disaster Warnings & Radar")
+    
+    	window:AddToggle(alertSection, "nds_disaster_alerts", "On-Screen Disaster Notifications", true, nil, function(enabled)
+    		DisasterSurvival.DisasterAlerts = enabled
+    	end)
+    
+    	window:AddToggle(alertSection, "nds_show_collapse", "Highlight Collapsing Buildings (Red)", false, nil, function(enabled)
+    		DisasterSurvival.HighlightCollapsing = enabled
+    	end)
+    
+    	local weatherSection = window:AddSection(alertRightCol, "Weather & Environment")
+    
+    	window:AddToggle(weatherSection, "nds_clear_fog", "Remove Disaster Fog & Dust", false, nil, function(enabled)
+    		DisasterSurvival.ClearFog = enabled
+    	end)
+    
+    	window:AddToggle(weatherSection, "nds_anti_flling", "Anti-Fling Structural Anchoring", false, nil, function(enabled)
+    		DisasterSurvival.AntiFling = enabled
+    	end)
+    end
+    
+    -- ── 3. ICE TYCOON 2 SUITE ───────────────────────────────────
+    do
+    	local iceSubTabs = window:CreateSubTabs(iceTab, { "Automation & Tycoon", "Production & Buttons", "Teleports & Pedestals" })
+    	local autoSubTab = iceSubTabs["Automation & Tycoon"]
+    	local prodSubTab = iceSubTabs["Production & Buttons"]
+    	local tpSubTab = iceSubTabs["Teleports & Pedestals"]
+    
+    	local autoLeftCol, autoRightCol = window:CreateColumns(autoSubTab)
+    	local collectionSection = window:AddSection(autoLeftCol, "Automated Harvesters")
+    
+    	window:AddToggle(collectionSection, "ice_auto_collect_drops", "Auto-Collect Dropper Ice", false, nil, function(enabled)
     		IceTycoon.setAutoCollect(enabled)
     	end)
     
-    	window:AddButton(cashSection, "Collect Cash Now", function()
-    		if IceTycoon.collectCashNow() then
-    			window:Notify("Ice Tycoon", "Cash collected from factory", 2.5)
-    		else
-    			window:Notify("Ice Tycoon", "Collector not found", 2.5)
-    		end
+    	window:AddToggle(collectionSection, "ice_auto_harvest_flowers", "Auto-Harvest Ice Flowers", false, nil, function(enabled)
+    		IceTycoon.setAutoHarvest(enabled)
     	end)
     
-    	local buySection = window:AddSection(autoRightCol, "Button Purchases")
-    	window:AddToggle(buySection, "ice_auto_buy", "Auto-Buy Affordable Buttons", false, nil, function(enabled)
-    		IceTycoon.setAutoBuy(enabled)
+    	window:AddToggle(collectionSection, "ice_auto_claim_pedestals", "Auto-Claim Tool Pedestals", false, nil, function(enabled)
+    		IceTycoon.setAutoClaimPedestals(enabled)
     	end)
     
-    	window:AddToggle(buySection, "ice_smart_buy", "Smart Priority Buy (Droppers/Upgrades 1st)", true, nil, function(enabled)
-    		IceTycoon.SmartPriorityBuy = enabled
-    	end)
-    
-    	window:AddButton(buySection, "Buy All Affordable Now", function()
-    		local count = IceTycoon.buyAllAffordable()
-    		window:Notify("Ice Tycoon", string.format("Purchased %d affordable buttons", count), 3)
-    	end)
-    
-    	-- ── 2. RESOURCES & FARMING ───────────────────────────────────
-    	local farmLeftCol, farmRightCol = window:CreateColumns(farmSubTab)
-    
-    	local toolSection = window:AddSection(farmLeftCol, "Tools & Farm Automation")
-    	window:AddButton(toolSection, "Claim Starter Tools & Keys", function()
-    		local count = IceTycoon.claimAllTools()
-    		window:Notify("Ice Tycoon", string.format("Claimed %d tools/keys (Pickaxe, Key, Lever)", count), 3)
-    	end)
-    
-    	window:AddToggle(toolSection, "ice_auto_harvest", "Auto-Harvest Ice Flowers", false, nil, function(enabled)
-    		IceTycoon.setAutoHarvestFlowers(enabled)
-    	end)
-    
-    	window:AddButton(toolSection, "Harvest All Ice Flowers Now", function()
-    		local count = IceTycoon.harvestFlowersNow()
-    		window:Notify("Ice Tycoon", string.format("Harvested %d mature flower plots", count), 2.5)
-    	end)
-    
-    	window:AddToggle(toolSection, "ice_auto_water", "Auto-Fill Water Reservoir", false, nil, function(enabled)
+    	window:AddToggle(collectionSection, "ice_auto_fill_water", "Auto-Fill Water & Well", false, nil, function(enabled)
     		IceTycoon.setAutoFillWater(enabled)
     	end)
     
-    	window:AddButton(toolSection, "Fill Water Tank Now", function()
-    		if IceTycoon.fillWaterNow() then
-    			window:Notify("Ice Tycoon", "Water reservoir filled", 2.5)
-    		else
-    			window:Notify("Ice Tycoon", "No water source nearby", 2.5)
-    		end
+    	local tycoonControlSection = window:AddSection(autoRightCol, "Instant Tycoon Actions")
+    
+    	window:AddButton(tycoonControlSection, "Claim All Pedestal Tools Now", function()
+    		local count = IceTycoon.claimAllPedestalTools()
+    		window:Notify("Ice Tycoon", string.format("Claimed %d pedestal tools", count), 3)
     	end)
     
-    	local crystalSection = window:AddSection(farmRightCol, "Mining & Trophies")
-    	window:AddToggle(crystalSection, "ice_auto_mine", "Auto-Mine Available Ores", false, nil, function(enabled)
-    		IceTycoon.setAutoMineOres(enabled)
+    	window:AddButton(tycoonControlSection, "Harvest All Ice Flowers Now", function()
+    		local count = IceTycoon.harvestAllFlowersNow()
+    		window:Notify("Ice Tycoon", string.format("Harvested %d mature flower domes", count), 3)
     	end)
     
-    	window:AddButton(crystalSection, "Mine All Ores Now", function()
-    		local count = IceTycoon.mineOresNow()
-    		window:Notify("Ice Tycoon", string.format("Mined %d ore nodes", count), 2.5)
+    	window:AddButton(tycoonControlSection, "Collect All Hidden Secrets", function()
+    		local count = IceTycoon.collectSecrets()
+    		window:Notify("Ice Tycoon", string.format("Collected %d hidden secrets", count), 3)
     	end)
     
-    	window:AddToggle(crystalSection, "ice_auto_secrets", "Auto-Collect Trophies & Secrets", false, nil, function(enabled)
-    		IceTycoon.setAutoCollectSecrets(enabled)
+    	local prodLeftCol, prodRightCol = window:CreateColumns(prodSubTab)
+    	local buttonSection = window:AddSection(prodLeftCol, "Tycoon Button Purchasing")
+    
+    	window:AddToggle(buttonSection, "ice_auto_buy_buttons", "Smart Priority Auto-Buy", false, nil, function(enabled)
+    		IceTycoon.setAutoBuyButtons(enabled)
     	end)
     
-    	window:AddButton(crystalSection, "Collect All Trophies & Secrets Now", function()
-    		local res = IceTycoon.collectAllSecretsNow()
-    		window:Notify("Ice Tycoon", string.format("Claimed %d gems, %d trophies, %d secrets", res.Gems, res.Trophies, res.Secrets), 3.5)
+    	window:AddSlider(buttonSection, "Auto-Buy Interval (s)", 1, 10, 2, function(value)
+    		IceTycoon.BuyInterval = value
     	end)
     
-    	local armySection = window:AddSection(farmRightCol, "Sphere Army & Combat")
-    	window:AddToggle(armySection, "ice_auto_army", "Sphere Army Auto-Battler & Spawner", false, nil, function(enabled)
-    		IceTycoon.setAutoArmyFight(enabled)
+    	local speedSection = window:AddSection(prodRightCol, "Production Overclocking")
+    
+    	window:AddButton(prodSection or prodRightCol, "Deposit All Carried Ice", function()
+    		IceTycoon.depositIce()
+    		window:Notify("Ice Tycoon", "Deposited ice at factory furnace", 2)
     	end)
     
-    	window:AddButton(armySection, "Spawn Army Reinforcements Now", function()
-    		local count = IceTycoon.spawnArmyUnits(8, 8)
-    		window:Notify("Sphere Army", string.format("Spawned %d Noob and Knight units", count), 3)
-    	end)
-    
-    	window:AddButton(armySection, "Command Army to Attack", function()
-    		if IceTycoon.commandAttack() then
-    			window:Notify("Sphere Army", "Commanded army units into battle!", 2.5)
-    		end
-    	end)
-    
-    	-- ── 3. PROTECTIONS & ZONES ───────────────────────────────────
-    	local zoneLeftCol, zoneRightCol = window:CreateColumns(zoneSubTab)
-    
-    	local protectSection = window:AddSection(zoneLeftCol, "Environment Protections")
-    	window:AddToggle(protectSection, "ice_anti_freeze", "Anti-Freeze & Shiver Bypass", false, nil, function(enabled)
-    		IceTycoon.setAntiFreeze(enabled)
-    	end)
-    
-    	window:AddToggle(protectSection, "ice_anti_jumpscare", "Anti-Jumpscare Shock Shield", false, nil, function(enabled)
-    		IceTycoon.setAntiJumpscare(enabled)
-    	end)
-    
-    	window:AddToggle(protectSection, "ice_no_lava", "No Lava & Hazard Damage", false, nil, function(enabled)
-    		IceTycoon.setNoLavaDamage(enabled)
-    	end)
-    
-    	local tpSection = window:AddSection(zoneRightCol, "Zone Shortcuts")
-    	window:AddButton(tpSection, "Tycoon Base / Collector", function()
-    		if IceTycoon.teleportTo("Tycoon Base / Collector") then
-    			window:Notify("Teleport", "Warped to Tycoon Base", 2)
-    		end
-    	end)
-    
-    	window:AddButton(tpSection, "Lava Cave & Crystal Hatch", function()
-    		if IceTycoon.teleportTo("Lava Cave & Crystal Hatch") then
-    			window:Notify("Teleport", "Warped to Lava Cave", 2)
-    		end
-    	end)
-    
-    	window:AddButton(tpSection, "Troop Shop 1", function()
-    		if IceTycoon.teleportTo("Troop Shop 1") then
-    			window:Notify("Teleport", "Warped to Troop Shop 1", 2)
-    		end
-    	end)
-    
-    	window:AddButton(tpSection, "Jail & Lever Room", function()
-    		if IceTycoon.teleportTo("Jail & Lever Room") then
-    			window:Notify("Teleport", "Warped to Jail", 2)
-    		end
-    	end)
-    
-    	window:AddButton(tpSection, "Ending Portal Zone", function()
-    		if IceTycoon.teleportTo("Ending Portal Zone") then
-    			window:Notify("Teleport", "Warped to Ending Portal", 2)
-    		end
-    	end)
-    end
-    
-    -- ============================================================
-    -- ============================================================
-    -- 4. VISUALS TAB CONTENT (HORIZONTAL MINI SUB-TABS)
-    --    [ 2D Overlays & ESP ] [ 3D Chams & Skeletons ] [ ESP Customizer ]
-    -- ============================================================
-    local visSubTabs = window:CreateSubTabs(visualsTab, { "2D Overlays & ESP", "3D Chams & Skeletons", "ESP Customizer" })
-    local esp2dSubTab = visSubTabs["2D Overlays & ESP"]
-    local chamsSubTab = visSubTabs["3D Chams & Skeletons"]
-    local customSubTab = visSubTabs["ESP Customizer"]
-    
-    -- ── VISUALS SUB-TAB 1: 2D OVERLAYS & ESP ─────────────────────
-    local v2dLeftCol, v2dRightCol = window:CreateColumns(esp2dSubTab)
-    
-    -- Left Column: 2D Bounding Boxes
-    local boxSection = window:AddSection(v2dLeftCol, "2D Bounding Boxes")
-    
-    window:AddToggle(boxSection, "esp_box_2d", "2D ESP Box", false, nil, function(enabled)
-    	Visuals.Box2D = enabled
-    end)
-    
-    window:AddToggle(boxSection, "esp_box_outlines", "ESP Box Outlines (Black Contrast)", false, nil, function(enabled)
-    	Visuals.BoxOutlines = enabled
-    end)
-    
-    window:AddToggle(boxSection, "esp_health_bar", "Health Bar (Dynamic Green/Red)", false, nil, function(enabled)
-    	Visuals.HealthBar = enabled
-    end)
-    
-    window:AddToggle(boxSection, "esp_distance", "Distance Tags (Studs)", false, nil, function(enabled)
-    	Visuals.Distance = enabled
-    end)
-    
-    -- Right Column: Tracers & HUD Widgets
-    local tracerSection = window:AddSection(v2dRightCol, "Tracers & HUD Widgets")
-    
-    window:AddToggle(tracerSection, "esp_tracers", "Snapline Tracers", false, nil, function(enabled)
-    	Visuals.Tracers = enabled
-    end)
-    
-    window:AddToggle(tracerSection, "music_tracker_widget", "Music Tracker Widget", true, nil, function(enabled)
-    	musicTrackerWidget.SetVisible(enabled)
-    end)
-    
-    window:AddToggle(tracerSection, "hud_leaderstats_widget", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
-    	leaderstatsWidget.SetVisible(enabled)
-    end)
-    
-    window:AddToggle(tracerSection, "hud_healthbar_widget", "Health Bar HUD Widget", true, nil, function(enabled)
-    	healthWidget.SetVisible(enabled)
-    end)
-    
-    window:AddToggle(tracerSection, "hud_damage_indicators", "3D Floating Damage Numbers", true, nil, function(enabled)
-    	healthWidget.ToggleDamageNumbers(enabled)
-    end)
-    
-    window:AddToggle(tracerSection, "hud_damage_flash", "Damage Taken Screen Flash", true, nil, function(enabled)
-    	healthWidget.ToggleDamageFlash(enabled)
-    end)
-    
-    window:AddToggle(tracerSection, "hud_dynamic_health_color", "Dynamic Health Gradient (Green/Red)", true, nil, function(enabled)
-    	healthWidget.SetDynamicColors(enabled)
-    end)
-    
-    -- ── VISUALS SUB-TAB 2: 3D CHAMS & SKELETONS ──────────────────
-    local chmLeftCol, chmRightCol = window:CreateColumns(chamsSubTab)
-    
-    -- Left Column: 3D Highlights & Chams
-    local chamsSection = window:AddSection(chmLeftCol, "3D Highlights & Chams")
-    
-    window:AddToggle(chamsSection, "esp_chams_3d", "3D Chams / Highlights", false, nil, function(enabled)
-    	Visuals.Chams = enabled
-    end)
-    
-    window:AddSlider(chamsSection, "Chams Transparency", 0, 100, 50, function(value)
-    	Visuals.ChamsTransparency = value / 100
-    end)
-    
-    window:AddSlider(chamsSection, "Chams Outline Transparency", 0, 100, 20, function(value)
-    	Visuals.ChamsOutlineTransparency = value / 100
-    end)
-    
-    -- Right Column: Skeletons & Colors
-    local skeletonSection = window:AddSection(chmRightCol, "Skeletons & Colors")
-    
-    window:AddToggle(skeletonSection, "esp_skeletons", "Skeleton ESP (Bone Rigs)", false, nil, function(enabled)
-    	Visuals.Skeleton = enabled
-    end)
-    
-    window:AddButton(skeletonSection, "Purple / Magenta Chams", function()
-    	Visuals.ChamsColor = Color3.fromRGB(180, 70, 255)
-    	Visuals.ChamsFillColor = Color3.fromRGB(180, 70, 255)
-    	window:Notify("Chams", "Applied Purple / Magenta Chams", 2)
-    end)
-    
-    window:AddButton(skeletonSection, "Cyan / Blue Chams", function()
-    	Visuals.ChamsColor = Color3.fromRGB(55, 175, 245)
-    	Visuals.ChamsFillColor = Color3.fromRGB(55, 175, 245)
-    	window:Notify("Chams", "Applied Cyan / Blue Chams", 2)
-    end)
-    
-    window:AddButton(skeletonSection, "Red / Crimson Chams", function()
-    	Visuals.ChamsColor = Color3.fromRGB(245, 60, 60)
-    	Visuals.ChamsFillColor = Color3.fromRGB(245, 60, 60)
-    	window:Notify("Chams", "Applied Red / Crimson Chams", 2)
-    end)
-    
-    window:AddButton(skeletonSection, "Gold / Yellow Chams", function()
-    	Visuals.ChamsColor = Color3.fromRGB(255, 200, 50)
-    	Visuals.ChamsFillColor = Color3.fromRGB(255, 200, 50)
-    	window:Notify("Chams", "Applied Gold / Yellow Chams", 2)
-    end)
-    
-    -- ── VISUALS SUB-TAB 3: ESP CUSTOMIZER ────────────────────────
-    local cstLeftCol, cstRightCol = window:CreateColumns(customSubTab)
-    
-    -- Left Column: Tracer Origin Selector
-    local originSection = window:AddSection(cstLeftCol, "Tracer Origin Selector")
-    
-    window:AddButton(originSection, "Tracer Origin: Bottom", function()
-    	Visuals.TracerOrigin = "Bottom"
-    	window:Notify("Tracers", "Tracer origin set to Screen Bottom", 2)
-    end)
-    
-    window:AddButton(originSection, "Tracer Origin: Center", function()
-    	Visuals.TracerOrigin = "Center"
-    	window:Notify("Tracers", "Tracer origin set to Screen Center", 2)
-    end)
-    
-    window:AddButton(originSection, "Tracer Origin: Mouse", function()
-    	Visuals.TracerOrigin = "Mouse"
-    	window:Notify("Tracers", "Tracer origin set to Mouse Cursor", 2)
-    end)
-    
-    -- Right Column: ESP Palette Presets
-    local paletteSection = window:AddSection(cstRightCol, "ESP Palette Presets")
-    
-    window:AddButton(paletteSection, "Default Cyan Palette", function()
-    	Visuals.BoxColor = Color3.fromRGB(55, 175, 245)
-    	Visuals.TracerColor = Color3.fromRGB(255, 255, 255)
-    	Visuals.SkeletonColor = Color3.fromRGB(255, 200, 50)
-    	window:Notify("Palette", "Default Cyan Palette applied", 2)
-    end)
-    
-    window:AddButton(paletteSection, "Emerald Green Palette", function()
-    	Visuals.BoxColor = Color3.fromRGB(50, 220, 80)
-    	Visuals.TracerColor = Color3.fromRGB(50, 220, 80)
-    	Visuals.SkeletonColor = Color3.fromRGB(120, 255, 140)
-    	window:Notify("Palette", "Emerald Green Palette applied", 2)
-    end)
-    
-    window:AddButton(paletteSection, "Ruby Red Palette", function()
-    	Visuals.BoxColor = Color3.fromRGB(245, 60, 60)
-    	Visuals.TracerColor = Color3.fromRGB(245, 60, 60)
-    	Visuals.SkeletonColor = Color3.fromRGB(255, 120, 120)
-    	window:Notify("Palette", "Ruby Palette applied", 2)
-    end)
-    
-    window:AddButton(paletteSection, "Amethyst Purple Palette", function()
-    	Visuals.BoxColor = Color3.fromRGB(180, 70, 255)
-    	Visuals.TracerColor = Color3.fromRGB(220, 120, 255)
-    	Visuals.SkeletonColor = Color3.fromRGB(200, 100, 255)
-    	window:Notify("Palette", "Amethyst Palette applied", 2)
-    end)
-    
-    -- ============================================================
-    -- 5. SETTINGS TAB CONTENT (HORIZONTAL MINI SUB-TABS)
-    --    [ Modules & Tabs ] [ Themes & Visuals ] [ Performance & Rendering ] [ System & Audio ]
-    -- ============================================================
-    local setSubTabs = window:CreateSubTabs(settingsTab, { "Modules & Tabs", "Themes & Visuals", "Performance & Rendering", "System & Audio" })
-    local modSubTab = setSubTabs["Modules & Tabs"]
-    local thmSubTab = setSubTabs["Themes & Visuals"]
-    local prfSubTab = setSubTabs["Performance & Rendering"]
-    local sysSubTab = setSubTabs["System & Audio"]
-    
-    -- ── SETTINGS SUB-TAB 1: MODULES & TABS ───────────────────────
-    local modLeftCol, modRightCol = window:CreateColumns(modSubTab)
-    
-    -- Left Column: Sidebar Tab Visibility
-    local moduleSection = window:AddSection(modLeftCol, "Sidebar Tab Visibility")
-    
-    window:AddToggle(moduleSection, "tab_game_module", string.format("%s (Game Tab)", gameTabTitle), true, nil, function(enabled)
-    	FeatureManager.setModuleState("game_module", enabled)
-    	window:SetTabVisibility(gameTab, enabled)
-    	if not enabled then
-    		RunNHide.SilentGunAudio = false
-    		RunNHide.QuickReload = false
-    		RunNHide.CompleteAuto = false
-    		RunNHide.DisableBarriers = false
-    		RunNHide.DisableKillbricks = false
-    		DisasterSurvival.DisasterTracker = false
-    		DisasterSurvival.setNoFallDamage(false)
-    		DisasterSurvival.setFlight(false)
-    		DisasterSurvival.setAntiFling(false)
-    		DisasterSurvival.setFling(false)
-    		IceTycoon.cleanup()
-    	end
-    end)
-    
-    window:AddToggle(moduleSection, "tab_combat_module", "Combat (Aim & Hitboxes)", true, nil, function(enabled)
-    	FeatureManager.setModuleState("combat", enabled)
-    	window:SetTabVisibility(combatTab, enabled)
-    	if not enabled then
-    		Combat.SilentAim = false
-    		Combat.AimTracking = false
-    		Combat.TriggerBot = false
-    		Combat.ExpandHitboxes = false
-    		Combat.resetHitboxes()
-    	end
-    end)
-    
-    window:AddToggle(moduleSection, "tab_visuals_module", "Visuals (ESP & Chams)", true, nil, function(enabled)
-    	FeatureManager.setModuleState("visuals", enabled)
-    	window:SetTabVisibility(visualsTab, enabled)
-    	if not enabled then
-    		Visuals.Box2D = false
-    		Visuals.BoxOutlines = false
-    		Visuals.HealthBar = false
-    		Visuals.Tracers = false
-    		Visuals.Distance = false
-    		Visuals.Chams = false
-    		Visuals.Skeleton = false
-    	end
-    end)
-    
-    window:AddButton(moduleSection, string.format("Hide %s Tab", gameTabTitle), function()
-    	window:SetTabVisibility(gameTab, false)
-    	FeatureManager.setFeatureState("tab_game_module", false)
-    	window:Notify("Tab Hidden", string.format("%s tab hidden from sidebar", gameTabTitle), 2.5)
-    end)
-    
-    window:AddButton(moduleSection, "Show All Sidebar Tabs", function()
-    	window:SetTabVisibility(gameTab, true)
-    	window:SetTabVisibility(combatTab, true)
-    	window:SetTabVisibility(visualsTab, true)
-    	FeatureManager.setFeatureState("tab_game_module", true)
-    	FeatureManager.setFeatureState("tab_combat_module", true)
-    	FeatureManager.setFeatureState("tab_visuals_module", true)
-    	window:Notify("Tabs Restored", "All sidebar tabs are now visible", 2.5)
-    end)
-    
-    -- Right Column: Peripheral Widgets
-    local widgetSection = window:AddSection(modRightCol, "Peripheral Widgets")
-    
-    window:AddToggle(widgetSection, "mod_music_tracker", "Music Tracker Widget", true, nil, function(enabled)
-    	FeatureManager.setModuleState("music_tracker", enabled)
-    	musicTrackerWidget.SetVisible(enabled)
-    end)
-    
-    window:AddToggle(widgetSection, "mod_player_list", "Player List Widget (Tab Key)", true, nil, function(enabled)
-    	FeatureManager.setModuleState("player_list", enabled)
-    	playerListWidget.Frame.Visible = enabled
-    end)
-    
-    window:AddToggle(widgetSection, "mod_chat_widget", "Chat Widget", true, nil, function(enabled)
-    	FeatureManager.setModuleState("chat_widget", enabled)
-    	chatWidgetInstance.Frame.Visible = enabled
-    end)
-    
-    window:AddToggle(widgetSection, "mod_custom_hotbar", "Custom Hotbar & Backpack HUD", true, nil, function(enabled)
-    	FeatureManager.setModuleState("custom_hotbar", enabled)
-    	hotbarWidget.SetVisible(enabled)
-    end)
-    
-    window:AddToggle(widgetSection, "mod_leaderstats_widget", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
-    	FeatureManager.setModuleState("leaderstats_widget", enabled)
-    	leaderstatsWidget.SetVisible(enabled)
-    end)
-    
-    -- Hook tab right-click sync to update settings toggles
-    gameTab.OnVisibilityChanged = function(vis: boolean)
-    	local feat = FeatureManager.getFeature("tab_game_module")
-    	if feat and feat.state ~= vis then
-    		FeatureManager.setFeatureState("tab_game_module", vis)
-    	end
-    end
-    
-    combatTab.OnVisibilityChanged = function(vis: boolean)
-    	local feat = FeatureManager.getFeature("tab_combat_module")
-    	if feat and feat.state ~= vis then
-    		FeatureManager.setFeatureState("tab_combat_module", vis)
-    	end
-    end
-    
-    visualsTab.OnVisibilityChanged = function(vis: boolean)
-    	local feat = FeatureManager.getFeature("tab_visuals_module")
-    	if feat and feat.state ~= vis then
-    		FeatureManager.setFeatureState("tab_visuals_module", vis)
-    	end
-    end
-    
-    -- ── SETTINGS SUB-TAB 2: THEMES & VISUALS ─────────────────────
-    local thmLeftCol, thmRightCol = window:CreateColumns(thmSubTab)
-    
-    -- Left Column: Dark & Acrylic Themes
-    local darkThemeSection = window:AddSection(thmLeftCol, "Dark & Acrylic Themes")
-    
-    window:AddButton(darkThemeSection, "Dark Mode", function()
-    	window:SetTheme("Dark")
-    	window:Notify("Theme", "Saved Dark Mode", 2)
-    end)
-    
-    window:AddButton(darkThemeSection, "Translucent Dark (Acrylic)", function()
-    	window:SetTheme("TranslucentDark")
-    	window:Notify("Theme", "Saved Acrylic Dark Mode", 2)
-    end)
-    
-    window:AddButton(darkThemeSection, "Adaptive (Album Cover)", function()
-    	window:SetTheme("Adaptive")
-    	window:Notify("Theme", "Saved Adaptive Mode", 2)
-    end)
-    
-    -- Right Column: Light & Glass Themes
-    local lightThemeSection = window:AddSection(thmRightCol, "Light & Glass Themes")
-    
-    window:AddButton(lightThemeSection, "Light Mode", function()
-    	window:SetTheme("Light")
-    	window:Notify("Theme", "Saved Light Mode", 2)
-    end)
-    
-    window:AddButton(lightThemeSection, "Translucent Light (Glass)", function()
-    	window:SetTheme("TranslucentLight")
-    	window:Notify("Theme", "Saved Glass Light Mode", 2)
-    end)
-    
-    -- ── SETTINGS SUB-TAB 3: PERFORMANCE & RENDERING ──────────────
-    local prfLeftCol, prfRightCol = window:CreateColumns(prfSubTab)
-    
-    -- Left Column: Performance & Framerate
-    local perfSection = window:AddSection(prfLeftCol, "Performance & Framerate")
-    
-    local terrain = workspace:FindFirstChildOfClass("Terrain")
-    window:AddToggle(perfSection, "fps_boost", "FPS BOOST (Shadows & Fog)", false, nil, function(enabled)
-    	Lighting.GlobalShadows = not enabled
-    	Lighting.FogEnd = if enabled then 9e9 else 10000
-    	if terrain then
-    		terrain.WaterWaveSize = if enabled then 0 else 0.15
-    		terrain.WaterWaveSpeed = if enabled then 0 else 10
-    		terrain.WaterReflectance = if enabled then 0 else 1
-    	end
-    end)
-    
-    window:AddToggle(perfSection, "fps_uncap", "FPS UNCAP (Remove 60 FPS Cap)", false, nil, function(enabled)
-    	local setfps = (setfpscap or (set_fps_cap :: any))
-    	if typeof(setfps) == "function" then
-    		setfps(if enabled then 999 else 60)
-    	end
-    end)
-    
-    window:AddToggle(perfSection, "hide_game_guis", "Hide Default Game GUIs (PlayerGui)", true, nil, function(enabled)
-    	hidePlayerGameGuis(enabled)
-    end)
-    
-    -- Right Column: 3D & Texture Optimization
-    local renderSection = window:AddSection(prfRightCol, "3D & Texture Optimization")
-    
-    local meshConn: RBXScriptConnection? = nil
-    window:AddToggle(renderSection, "dont_render_meshes", "DONT RENDER 3D MESHS", false, nil, function(enabled)
-    	for _, obj in ipairs(workspace:GetDescendants()) do
-    		if obj:IsA("MeshPart") then
-    			if enabled then
-    				if not obj:GetAttribute("OrigTransparency") then
-    					obj:SetAttribute("OrigTransparency", obj.Transparency)
-    				end
-    				obj.Transparency = 1
-    			else
-    				local orig = obj:GetAttribute("OrigTransparency") or 0
-    				obj.Transparency = orig :: number
-    			end
-    		end
-    	end
-    	
-    	if enabled then
-    		meshConn = workspace.DescendantAdded:Connect(function(obj)
-    			if obj:IsA("MeshPart") then
-    				obj.Transparency = 1
-    			end
-    		end)
-    	elseif meshConn then
-    		meshConn:Disconnect()
-    		meshConn = nil
-    	end
-    end)
-    
-    local decalConn: RBXScriptConnection? = nil
-    window:AddToggle(renderSection, "dont_render_decals", "DONT RENDER DECALS", false, nil, function(enabled)
-    	for _, obj in ipairs(workspace:GetDescendants()) do
-    		if obj:IsA("Decal") or obj:IsA("Texture") then
-    			if enabled then
-    				if not obj:GetAttribute("OrigTransparency") then
-    					obj:SetAttribute("OrigTransparency", obj.Transparency)
-    				end
-    				obj.Transparency = 1
-    			else
-    				local orig = obj:GetAttribute("OrigTransparency") or 0
-    				obj.Transparency = orig :: number
-    			end
-    		end
-    	end
-    	
-    	if enabled then
-    		decalConn = workspace.DescendantAdded:Connect(function(obj)
-    			if obj:IsA("Decal") or obj:IsA("Texture") then
-    				obj.Transparency = 1
-    			end
-    		end)
-    	elseif decalConn then
-    		decalConn:Disconnect()
-    		decalConn = nil
-    	end
-    end)
-    
-    -- ── SETTINGS SUB-TAB 4: SYSTEM & AUDIO ───────────────────────
-    local sysLeftCol, sysRightCol = window:CreateColumns(sysSubTab)
-    
-    -- Left Column: Screen & GUI Optimization
-    local cleanSection = window:AddSection(sysLeftCol, "Screen & GUI Optimization")
-    
-    window:AddToggle(cleanSection, "hide_default_guis", "Hide Game Default GUIs (Topbar & Core)", true, nil, function(enabled)
-    	disableRobloxTopBarApp(enabled)
-    	for _, guiType in ipairs(coreGuiOverlays) do
-    		pcall(function()
-    			StarterGui:SetCoreGuiEnabled(guiType, not enabled)
+    	local tpLeftCol, tpRightCol = window:CreateColumns(tpSubTab)
+    	local zonesSection = window:AddSection(tpLeftCol, "Base & Map Locations")
+    
+    	local locations = IceTycoon.getLocations()
+    	for _, locName in ipairs(locations) do
+    		window:AddButton(zonesSection, locName, function()
+    			IceTycoon.teleportTo(locName)
+    			window:Notify("Teleport", "Teleported to " .. locName, 2)
     		end)
     	end
-    end)
-    
-    -- Right Column: Master Audio Volume
-    local audioSection = window:AddSection(sysRightCol, "Master Audio Volume")
-    
-    local currentVolumeScale = 1.0
-    local function updateSound(sound: Sound)
-    	if sound:IsDescendantOf(game:GetService("VoiceChatService")) then return end
-    	local base = sound:GetAttribute("OrigVolume")
-    	if not base then
-    		base = sound.Volume
-    		sound:SetAttribute("OrigVolume", base)
-    	end
-    	sound.Volume = (base :: number) * currentVolumeScale
     end
     
-    window:AddSlider(audioSection, "VOLUME CONTROLLER", 0, 100, 100, function(value)
-    	currentVolumeScale = value / 100
-    	for _, obj in ipairs(SoundService:GetDescendants()) do
-    		if obj:IsA("Sound") then
-    			updateSound(obj)
-    		end
-    	end
-    	for _, obj in ipairs(Workspace:GetDescendants()) do
-    		if obj:IsA("Sound") then
-    			updateSound(obj)
-    		end
-    	end
-    end)
-    
-    SoundService.DescendantAdded:Connect(function(obj)
-    	if obj:IsA("Sound") then
-    		task.defer(function()
-    			updateSound(obj)
-    		end)
-    	end
-    end)
-    
-    Workspace.DescendantAdded:Connect(function(obj)
-    	if obj:IsA("Sound") then
-    		task.defer(function()
-    			updateSound(obj)
-    		end)
-    	end
-    end)
-    
-    -- ============================================================
-    -- DYNAMIC CONFIGS TAB CONTENT (ZERO-DEFAULT PROFILE MANAGER)
-    -- ============================================================
-    local confLeftCol, confRightCol = window:CreateColumns(configsTab)
-    
-    local profilesSection = window:AddSection(confLeftCol, "Saved Configuration Profiles")
-    local configActionsSection = window:AddSection(confRightCol, "Config Actions & Management")
-    
-    local selectedConfigName: string? = nil
-    local currentConfigInputName = ""
-    local profileButtonRows: {[string]: Frame} = {}
-    
-    local configInputBox = window:AddTextBox(configActionsSection, "Profile Name", "e.g. Legit_Main", "", function(text)
-    	currentConfigInputName = text
-    end)
-    
-    local statusNotice = Instance.new("TextLabel")
-    statusNotice.Name = "StatusNotice"
-    statusNotice.Size = UDim2.new(1, -4, 0, 36)
-    statusNotice.BackgroundTransparency = 1
-    statusNotice.Text = "No Saved Profiles Found\nCreate a new profile on the right to save."
-    statusNotice.TextColor3 = UI.Theme.TextSecondary
-    statusNotice.Font = UI.Fonts.Body
-    statusNotice.TextSize = 10
-    statusNotice.TextWrapped = true
-    statusNotice.Parent = profilesSection
-    UI.registerThemeElement(statusNotice, "TextSecondary")
-    
-    local function refreshProfilesList()
-    	for _, row in pairs(profileButtonRows) do
-    		pcall(function() row:Destroy() end)
-    	end
-    	table.clear(profileButtonRows)
-    
-    	local existingConfigs = FeatureManager.listConfigs()
-    	if #existingConfigs == 0 then
-    		statusNotice.Visible = true
-    		statusNotice.Text = "No Saved Profiles Found\nType a name on the right and click Create Config."
-    	else
-    		statusNotice.Visible = false
-    		for _, cfgName in ipairs(existingConfigs) do
-    			local pRow = Instance.new("Frame")
-    			pRow.Name = cfgName .. "Row"
-    			pRow.Size = UDim2.new(1, -4, 0, 26)
-    			pRow.Position = UDim2.new(0, 2, 0, 0)
-    			pRow.BackgroundColor3 = UI.Theme.Container
-    			pRow.BackgroundTransparency = UI.Theme.ContainerTransparency
-    			pRow.BorderSizePixel = 0
-    			pRow.Parent = profilesSection
-    			UI.registerThemeElement(pRow, "Container")
-    
-    			local pStroke = Instance.new("UIStroke")
-    			pStroke.Color = if selectedConfigName == cfgName then UI.Theme.Accent else UI.Theme.Border
-    			pStroke.Thickness = if selectedConfigName == cfgName then 1.6 else 1.0
-    			pStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    			pStroke.Parent = pRow
-    			UI.registerThemeElement(pStroke, "Border")
-    
-    			local pBtn = Instance.new("TextButton")
-    			pBtn.Size = UDim2.new(1, 0, 1, 0)
-    			pBtn.BackgroundTransparency = 1
-    			pBtn.Text = string.format("  [%s] %s", if selectedConfigName == cfgName then "●" else "○", cfgName)
-    			pBtn.TextColor3 = if selectedConfigName == cfgName then UI.Theme.Accent else UI.Theme.TextPrimary
-    			pBtn.Font = UI.Fonts.Header
-    			pBtn.TextSize = 11
-    			pBtn.TextXAlignment = Enum.TextXAlignment.Left
-    			pBtn.Parent = pRow
-    			UI.registerThemeElement(pBtn, "TextPrimary")
-    
-    			pBtn.MouseButton1Click:Connect(function()
-    				selectedConfigName = cfgName
-    				configInputBox.Text = cfgName
-    				currentConfigInputName = cfgName
-    				refreshProfilesList()
-    			end)
-    
-    			profileButtonRows[cfgName] = pRow
-    		end
-    	end
-    end
-    
-    window:AddButton(configActionsSection, "Create & Save Config", function()
-    	local targetName = if currentConfigInputName ~= "" then currentConfigInputName else configInputBox.Text
-    	if targetName == "" then
-    		window:Notify("Configs", "Please enter a profile name first", 3)
-    		return
-    	end
-    
-    	local saved = FeatureManager.saveConfig(targetName)
-    	if saved then
-    		selectedConfigName = targetName
-    		window:Notify("Configs", string.format("Created & saved '%s'", targetName), 3)
-    		refreshProfilesList()
-    	else
-    		window:Notify("Configs", "Failed to write configuration to disk", 3)
-    	end
-    end)
-    
-    window:AddButton(configActionsSection, "Save / Overwrite Selected", function()
-    	local targetName = selectedConfigName or (if currentConfigInputName ~= "" then currentConfigInputName else configInputBox.Text)
-    	if not targetName or targetName == "" then
-    		window:Notify("Configs", "No configuration selected to overwrite", 3)
-    		return
-    	end
-    
-    	local saved = FeatureManager.saveConfig(targetName)
-    	if saved then
-    		window:Notify("Configs", string.format("Saved current settings to '%s'", targetName), 3)
-    		refreshProfilesList()
-    	else
-    		window:Notify("Configs", "Failed to save configuration", 3)
-    	end
-    end)
-    
-    window:AddButton(configActionsSection, "Load Selected Config", function()
-    	if not selectedConfigName or selectedConfigName == "" then
-    		window:Notify("Configs", "Select a profile from the left first", 3)
-    		return
-    	end
-    
-    	local loaded = FeatureManager.loadConfig(selectedConfigName)
-    	if loaded then
-    		window:Notify("Configs", string.format("Loaded profile '%s'", selectedConfigName), 3)
-    	else
-    		window:Notify("Configs", string.format("Failed to load '%s'", selectedConfigName), 3)
-    	end
-    end)
-    
-    window:AddButton(configActionsSection, "Delete Selected Config", function()
-    	if not selectedConfigName or selectedConfigName == "" then
-    		window:Notify("Configs", "Select a profile from the left to delete", 3)
-    		return
-    	end
-    
-    	local deletedName = selectedConfigName
-    	local deleted = FeatureManager.deleteConfig(deletedName)
-    	if deleted then
-    		selectedConfigName = nil
-    		configInputBox.Text = ""
-    		currentConfigInputName = ""
-    		window:Notify("Configs", string.format("Deleted profile '%s'", deletedName), 3)
-    		refreshProfilesList()
-    	else
-    		window:Notify("Configs", "Failed to delete profile", 3)
-    	end
-    end)
-    
-    window:AddButton(configActionsSection, "Refresh Config List", function()
-    	refreshProfilesList()
-    	window:Notify("Configs", "Config list refreshed", 2)
-    end)
-    
-    -- Auto-Load on Startup Section
-    local autoLoadSection = window:AddSection(confRightCol, "Auto-Load on Startup")
-    
-    local autoLoadData = FeatureManager.getAutoLoadConfig()
-    
-    local autoLoadStatusLabel = Instance.new("TextLabel")
-    autoLoadStatusLabel.Name = "AutoLoadStatus"
-    autoLoadStatusLabel.Size = UDim2.new(1, -4, 0, 24)
-    autoLoadStatusLabel.BackgroundTransparency = 1
-    autoLoadStatusLabel.Text = if autoLoadData.enabled and autoLoadData.configName ~= "" then string.format("Default Startup Config: [%s]", autoLoadData.configName) else "Default Startup Config: [ None ]"
-    autoLoadStatusLabel.TextColor3 = if autoLoadData.enabled then UI.Theme.Accent else UI.Theme.TextSecondary
-    autoLoadStatusLabel.Font = UI.Fonts.Mono
-    autoLoadStatusLabel.TextSize = 10
-    autoLoadStatusLabel.Parent = autoLoadSection
-    UI.registerThemeElement(autoLoadStatusLabel, "TextSecondary")
-    
-    window:AddToggle(autoLoadSection, "autoload_startup_enabled", "Enable Auto-Load on Startup", autoLoadData.enabled, nil, function(enabled)
-    	local cur = FeatureManager.getAutoLoadConfig()
-    	FeatureManager.setAutoLoadConfig(enabled, cur.configName)
-    	autoLoadStatusLabel.TextColor3 = if enabled then UI.Theme.Accent else UI.Theme.TextSecondary
-    	window:Notify("Auto-Load", if enabled then "Auto-load on startup enabled" else "Auto-load on startup disabled", 2)
-    end)
-    
-    window:AddButton(autoLoadSection, "Set Selected as Startup Profile", function()
-    	if not selectedConfigName or selectedConfigName == "" then
-    		window:Notify("Auto-Load", "Please select a profile on the left first", 3)
-    		return
-    	end
-    	FeatureManager.setAutoLoadConfig(true, selectedConfigName)
-    	local tgl = FeatureManager.getFeature("autoload_startup_enabled")
-    	if tgl and not tgl.state then
-    		FeatureManager.setFeatureState("autoload_startup_enabled", true)
-    	end
-    	autoLoadStatusLabel.Text = string.format("Default Startup Config: [%s]", selectedConfigName)
-    	autoLoadStatusLabel.TextColor3 = UI.Theme.Accent
-    	window:Notify("Auto-Load", string.format("Set '%s' to load automatically on startup", selectedConfigName), 3)
-    end)
-    
-    window:AddButton(autoLoadSection, "Clear Startup Profile", function()
-    	FeatureManager.setAutoLoadConfig(false, "")
-    	local tgl = FeatureManager.getFeature("autoload_startup_enabled")
-    	if tgl and tgl.state then
-    		FeatureManager.setFeatureState("autoload_startup_enabled", false)
-    	end
-    	autoLoadStatusLabel.Text = "Default Startup Config: [ None ]"
-    	autoLoadStatusLabel.TextColor3 = UI.Theme.TextSecondary
-    	window:Notify("Auto-Load", "Startup auto-load profile cleared", 2)
-    end)
-    
-    -- Initial scan of configs on startup
-    task.spawn(refreshProfilesList)
-    
-    -- Auto-load configuration profile on startup if configured
-    task.spawn(function()
-    	task.wait(1.0)
-    	pcall(function()
-    		local auto = FeatureManager.getAutoLoadConfig()
-    		if auto.enabled and auto.configName ~= "" then
-    			local ok = FeatureManager.loadConfig(auto.configName)
-    			if ok then
-    				window:Notify("Auto-Load", string.format("Auto-loaded startup config '%s'", auto.configName), 4)
-    			end
-    		end
-    	end)
-    end)
-    
-    -- Ensure saved theme is applied and saved on leave
-    pcall(function()
-    	local savedTheme = UI.getSavedTheme()
-    	if savedTheme and UI.Themes[savedTheme] then
-    		window:SetTheme(savedTheme)
-    	end
-    end)
-    
-    pcall(function()
-    	game:BindToClose(function()
-    		UI.saveTheme(UI.CurrentTheme.Name)
-    	end)
-    end)
-    
-    Players.PlayerRemoving:Connect(function(plr)
-    	if plr == localPlayer then
-    		UI.saveTheme(UI.CurrentTheme.Name)
-    	end
-    end)
-    
-    -- Explicitly activate default Main tab on load
-    window:SelectTab(mainTab)
-    
-    -- ============================================================
-    -- LUCKY BLOCKS BATTLEGROUNDS GAME TAB
-    -- [ Block Automation ] [ Combat & Turbo ] [ Fast Teleports ]
-    -- ============================================================
-    if gameTabTitle == "Lucky Blocks" then
-    	local lbSubTabs = window:CreateSubTabs(gameTab, { "Block Automation", "Combat & Turbo", "Fast Teleports" })
+    -- ── 4. LUCKY BLOCKS BATTLEGROUNDS SUITE ──────────────────────
+    do
+    	local lbSubTabs = window:CreateSubTabs(luckyTab, { "Block Automation", "Combat & Turbo", "Fast Teleports" })
     	local blockSubTab = lbSubTabs["Block Automation"]
     	local combatSubTab = lbSubTabs["Combat & Turbo"]
     	local tpSubTab = lbSubTabs["Fast Teleports"]
     
-    	-- ── SUB-TAB 1: BLOCK AUTOMATION ────────────────────────────
     	local bLeftCol, bRightCol = window:CreateColumns(blockSubTab)
-    
     	local autoBlockSection = window:AddSection(bLeftCol, "Lucky Block Collector")
+    
     	window:AddToggle(autoBlockSection, "lb_auto_claim", "Auto-Claim Lucky Blocks", false, nil, function(enabled)
     		LuckyBlocks.setAutoClaim(enabled)
     	end)
@@ -17097,29 +16571,16 @@ Modules["Core/Main.luau"] = function()
     	end)
     
     	local filterSection = window:AddSection(bRightCol, "Tier Filters (Auto-Claim)")
-    	window:AddToggle(filterSection, "lb_tier_void", "Claim Void Blocks", true, nil, function(val)
-    		LuckyBlocks.ClaimVoid = val
-    	end)
-    	window:AddToggle(filterSection, "lb_tier_rainbow", "Claim Rainbow Blocks", true, nil, function(val)
-    		LuckyBlocks.ClaimRainbow = val
-    	end)
-    	window:AddToggle(filterSection, "lb_tier_galaxy", "Claim Galaxy Blocks", true, nil, function(val)
-    		LuckyBlocks.ClaimGalaxy = val
-    	end)
-    	window:AddToggle(filterSection, "lb_tier_diamond", "Claim Diamond Blocks", true, nil, function(val)
-    		LuckyBlocks.ClaimDiamond = val
-    	end)
-    	window:AddToggle(filterSection, "lb_tier_super", "Claim Super Blocks", true, nil, function(val)
-    		LuckyBlocks.ClaimSuper = val
-    	end)
-    	window:AddToggle(filterSection, "lb_tier_lucky", "Claim Normal Blocks", true, nil, function(val)
-    		LuckyBlocks.ClaimLucky = val
-    	end)
+    	window:AddToggle(filterSection, "lb_tier_void", "Claim Void Blocks", true, nil, function(val) LuckyBlocks.ClaimVoid = val end)
+    	window:AddToggle(filterSection, "lb_tier_rainbow", "Claim Rainbow Blocks", true, nil, function(val) LuckyBlocks.ClaimRainbow = val end)
+    	window:AddToggle(filterSection, "lb_tier_galaxy", "Claim Galaxy Blocks", true, nil, function(val) LuckyBlocks.ClaimGalaxy = val end)
+    	window:AddToggle(filterSection, "lb_tier_diamond", "Claim Diamond Blocks", true, nil, function(val) LuckyBlocks.ClaimDiamond = val end)
+    	window:AddToggle(filterSection, "lb_tier_super", "Claim Super Blocks", true, nil, function(val) LuckyBlocks.ClaimSuper = val end)
+    	window:AddToggle(filterSection, "lb_tier_lucky", "Claim Normal Blocks", true, nil, function(val) LuckyBlocks.ClaimLucky = val end)
     
-    	-- ── SUB-TAB 2: COMBAT & TURBO ──────────────────────────────
     	local cLeftCol, cRightCol = window:CreateColumns(combatSubTab)
-    
     	local weaponSpamSection = window:AddSection(cLeftCol, "Weapon Spam & Turbo")
+    
     	window:AddToggle(weaponSpamSection, "lb_turbo_sword", "Turbo Sword / Weapon Auto-Slash", false, nil, function(enabled)
     		LuckyBlocks.setTurboSword(enabled)
     	end)
@@ -17146,22 +16607,11 @@ Modules["Core/Main.luau"] = function()
     		window:Notify("Lucky Blocks", "Equipped weapon with Turbo Attack", 2)
     	end)
     
-    	-- ── SUB-TAB 3: FAST TELEPORTS ──────────────────────────────
     	local tpLeftCol, tpRightCol = window:CreateColumns(tpSubTab)
-    
     	local centerSection = window:AddSection(tpLeftCol, "High Tier Center Zones")
-    	window:AddButton(centerSection, "Center Void Giver", function()
-    		LuckyBlocks.teleportTo("Center Void / High Tier")
-    		window:Notify("Teleport", "Teleported to Void Giver", 2)
-    	end)
-    	window:AddButton(centerSection, "Center Rainbow Giver", function()
-    		LuckyBlocks.teleportTo("Center Rainbow Giver")
-    		window:Notify("Teleport", "Teleported to Rainbow Giver", 2)
-    	end)
-    	window:AddButton(centerSection, "Center Galaxy Giver", function()
-    		LuckyBlocks.teleportTo("Center Galaxy Giver")
-    		window:Notify("Teleport", "Teleported to Galaxy Giver", 2)
-    	end)
+    	window:AddButton(centerSection, "Center Void Giver", function() LuckyBlocks.teleportTo("Center Void / High Tier"); window:Notify("Teleport", "Teleported to Void Giver", 2) end)
+    	window:AddButton(centerSection, "Center Rainbow Giver", function() LuckyBlocks.teleportTo("Center Rainbow Giver"); window:Notify("Teleport", "Teleported to Rainbow Giver", 2) end)
+    	window:AddButton(centerSection, "Center Galaxy Giver", function() LuckyBlocks.teleportTo("Center Galaxy Giver"); window:Notify("Teleport", "Teleported to Galaxy Giver", 2) end)
     
     	local spawnSection = window:AddSection(tpRightCol, "Spawn Bases 1 - 8")
     	for i = 1, 8 do
@@ -17169,6 +16619,75 @@ Modules["Core/Main.luau"] = function()
     		window:AddButton(spawnSection, sName, function()
     			LuckyBlocks.teleportTo(sName)
     			window:Notify("Teleport", string.format("Teleported to %s", sName), 2)
+    		end)
+    	end
+    end
+    
+    -- ── 5. RESTAURANT TYCOON 3 SUITE ────────────────────────────
+    do
+    	local rtSubTabs = window:CreateSubTabs(restTab, { "Service & Orders", "Revenue & Rewards", "Restaurant Teleports" })
+    	local servSubTab = rtSubTabs["Service & Orders"]
+    	local revSubTab = rtSubTabs["Revenue & Rewards"]
+    	local tpSubTab = rtSubTabs["Restaurant Teleports"]
+    
+    	local sLeftCol, sRightCol = window:CreateColumns(servSubTab)
+    	local servSection = window:AddSection(sLeftCol, "Customer Automation")
+    
+    	window:AddToggle(servSection, "rt_auto_serve", "Auto-Serve Customers (Take Orders & Food)", false, nil, function(enabled)
+    		RestaurantTycoon.setAutoServe(enabled)
+    	end)
+    
+    	window:AddToggle(servSection, "rt_fast_cooking", "Instant Cooking Accelerator", false, nil, function(enabled)
+    		RestaurantTycoon.setFastCooking(enabled)
+    	end)
+    
+    	window:AddButton(servSection, "Serve All Active Customers Now", function()
+    		local count = RestaurantTycoon.serveAllCustomersNow()
+    		window:Notify("Restaurant Tycoon", string.format("Served %d customer prompts", count), 2.5)
+    	end)
+    
+    	local dineSection = window:AddSection(sRightCol, "Restaurant Security")
+    
+    	window:AddToggle(dineSection, "rt_catch_dine_dash", "Auto-Catch Dine & Dashers", true, nil, function(enabled)
+    		RestaurantTycoon.setAutoCatchDineAndDash(enabled)
+    	end)
+    
+    	local rLeftCol, rRightCol = window:CreateColumns(revSubTab)
+    	local revSection = window:AddSection(rLeftCol, "Tips & Register Revenue")
+    
+    	window:AddToggle(revSection, "rt_auto_collect_tips", "Auto-Collect Customer Tips", false, nil, function(enabled)
+    		RestaurantTycoon.setAutoCollectTips(enabled)
+    	end)
+    
+    	window:AddButton(revSection, "Collect All Tips Now", function()
+    		if RestaurantTycoon.collectTipsNow() then
+    			window:Notify("Restaurant Tycoon", "Collected restaurant tips", 2)
+    		else
+    			window:Notify("Restaurant Tycoon", "No pending tips to collect", 2)
+    		end
+    	end)
+    
+    	local rewardSection = window:AddSection(rRightCol, "Daily Rewards & Luigi")
+    
+    	window:AddButton(rewardSection, "Claim Daily Reward Box", function()
+    		if RestaurantTycoon.claimDailyRewards() then
+    			window:Notify("Restaurant Tycoon", "Claimed daily reward box", 2.5)
+    		else
+    			window:Notify("Restaurant Tycoon", "Daily reward not ready or not found", 2.5)
+    		end
+    	end)
+    
+    	local tpLeftCol, tpRightCol = window:CreateColumns(tpSubTab)
+    	local locSection = window:AddSection(tpLeftCol, "Restaurant Fast Teleports")
+    
+    	local locs = RestaurantTycoon.getTeleportLocations()
+    	for _, loc in ipairs(locs) do
+    		window:AddButton(locSection, loc, function()
+    			if RestaurantTycoon.teleportToArea(loc) then
+    				window:Notify("Teleport", "Teleported to " .. loc, 2)
+    			else
+    				window:Notify("Teleport", "Could not locate " .. loc, 2)
+    			end
     		end)
     	end
     end

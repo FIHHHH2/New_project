@@ -856,54 +856,44 @@ function MusicTracker.new()
 		end
 	end)
 
-	-- ── Multi-Source Bridge Poller (IPC Files + Localhost HTTP) ───────
+	-- ── Multi-Source Bridge Poller (Direct HTTP Port 8888 Priority) ───
 	task.spawn(function()
+		-- Clean any stale IPC state files
+		pcall(function()
+			local delf = delfile or (getgenv and getgenv().delfile)
+			local isf = isfile or (getgenv and getgenv().isfile)
+			if type(delf) == "function" and type(isf) == "function" then
+				for _, f in ipairs(IPC_FILES) do
+					if isf(f) then delf(f) end
+				end
+			end
+		end)
+
 		local bridgeIndex = 1
 		local failCount = 0
 
 		while true do
-			local pollWait = if hasExternalBridge then 0.35 else 1.0
+			local pollWait = if hasExternalBridge then 0.35 else 0.8
 			task.wait(pollWait)
 
 			if widget.Visible and screenGui.Enabled then
 				local rawData: string? = nil
 
-				-- 1. Try local IPC files
-				local rf = readfile or (getgenv and getgenv().readfile)
-				local isf = isfile or (getgenv and getgenv().isfile)
-				if type(rf) == "function" and type(isf) == "function" then
-					for _, filePath in ipairs(IPC_FILES) do
-						pcall(function()
-							if isf(filePath) then
-								local content = rf(filePath)
-								if content and #content > 10 and content:find("{") then
-									rawData = content
-								end
-							end
-						end)
-						if rawData then break end
-					end
-				end
-
-				-- 2. Try HTTP endpoint ports
-				if not rawData or rawData == "" then
-					local currentUrl = BRIDGE_URLS[bridgeIndex]
-					local ok, res = httpFetch(currentUrl .. "/current")
-					if ok and res and res ~= "" and res:find("{") then
-						rawData = res
-						failCount = 0
-						hasExternalBridge = true
-						BRIDGE_URL = currentUrl
-					else
-						failCount += 1
-						if failCount >= 2 then
-							hasExternalBridge = false
-							bridgeIndex = (bridgeIndex % #BRIDGE_URLS) + 1
-							failCount = 0
-						end
-					end
-				else
+				-- 1. Try Live HTTP Bridge (Ports 8888, 8974, 3000, 9863, 1609)
+				local currentUrl = BRIDGE_URLS[bridgeIndex]
+				local ok, res = httpFetch(currentUrl .. "/current")
+				if ok and res and res ~= "" and res:find("{") then
+					rawData = res
+					failCount = 0
 					hasExternalBridge = true
+					BRIDGE_URL = currentUrl
+				else
+					failCount += 1
+					if failCount >= 2 then
+						hasExternalBridge = false
+						bridgeIndex = (bridgeIndex % #BRIDGE_URLS) + 1
+						failCount = 0
+					end
 				end
 
 				-- 3. Parse decoded payload

@@ -204,18 +204,28 @@ local function purgeBlackoutScreens()
 	end)
 end
 
+local isGameGuisHidden = false
+local originallyEnabledGuis: {[ScreenGui]: boolean} = {}
+
 local function hidePlayerGameGuis(hide: boolean)
 	isGameGuisHidden = hide
 	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
 	if not pgui then return end
-	for _, child in ipairs(pgui:GetChildren()) do
-		if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") and not string.find(child.Name, "ProjectFih") then
-			local cName = child.Name:lower()
-			if cName:find("elevator") or cName:find("blackout") or cName:find("fade") or cName:find("transition") then
-				pcall(function() child:Destroy() end)
-			else
-				child.Enabled = not hide
-				if not hide then
+	if hide then
+		for _, child in ipairs(pgui:GetChildren()) do
+			if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") and not string.find(child.Name, "ProjectFih") then
+				if child.Enabled then
+					originallyEnabledGuis[child] = true
+					child.Enabled = false
+				end
+			end
+		end
+	else
+		for child, wasEnabled in pairs(originallyEnabledGuis) do
+			if child and child.Parent and wasEnabled then
+				local cName = child.Name:lower()
+				if not (cName:find("elevator") or cName:find("blackout") or cName:find("fade") or cName:find("transition")) then
+					child.Enabled = true
 					for _, desc in ipairs(child:GetDescendants()) do
 						if isBlackoutObject(desc) then
 							if desc:IsA("Frame") then
@@ -230,14 +240,12 @@ local function hidePlayerGameGuis(hide: boolean)
 				end
 			end
 		end
+		table.clear(originallyEnabledGuis)
 	end
 end
 
 task.spawn(disableCoreGuis)
 task.spawn(purgeBlackoutScreens)
-task.spawn(function()
-	hidePlayerGameGuis(false)
-end)
 
 task.spawn(function()
 	local pgui = localPlayer:WaitForChild("PlayerGui", 10)
@@ -282,7 +290,6 @@ localPlayer.CharacterAdded:Connect(function(char)
 		disableCoreGuis()
 		task.wait(0.1)
 		purgeBlackoutScreens()
-		hidePlayerGameGuis(isGameGuisHidden)
 	end)
 end)
 

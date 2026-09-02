@@ -32,7 +32,7 @@ import pystray
 from PIL import Image, ImageDraw
 
 APP_NAME = "ModularMusicBridge"
-VERSION = "1.4.1"
+VERSION = "1.4.2"
 REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PORT = 8888
 VERSION_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/version.json"
@@ -557,30 +557,55 @@ async def send_media_control(cmd: str) -> bool:
         manager = await SessionManager.request_async()
         if not manager:
             return False
-        session = await pick_best_session(manager)
+        # pick_best_session is sync — do NOT await it
+        session = pick_best_session(manager)
         if not session:
             session = manager.get_current_session()
         if session:
             if cmd == "toggle":
-                return await session.try_toggle_play_pause_async()
+                result = await session.try_toggle_play_pause_async()
+                print(f"[MediaControl] WinRT toggle -> {result}")
+                return result
             elif cmd == "skip":
-                return await session.try_skip_next_async()
+                result = await session.try_skip_next_async()
+                print(f"[MediaControl] WinRT skip -> {result}")
+                return result
             elif cmd == "prev":
-                return await session.try_skip_previous_async()
+                result = await session.try_skip_previous_async()
+                print(f"[MediaControl] WinRT prev -> {result}")
+                return result
     except Exception as e:
         print(f"[MediaControl] WinRT error: {e}")
     return False
+
+# Persistent dedicated event loop for media control commands (avoids asyncio.run conflicts)
+_media_ctrl_loop: asyncio.AbstractEventLoop | None = None
+_media_ctrl_loop_lock = threading.Lock()
+
+def _get_or_create_media_ctrl_loop() -> asyncio.AbstractEventLoop:
+    global _media_ctrl_loop
+    with _media_ctrl_loop_lock:
+        if _media_ctrl_loop is None or _media_ctrl_loop.is_closed():
+            loop = asyncio.new_event_loop()
+            _media_ctrl_loop = loop
+            t = threading.Thread(target=loop.run_forever, daemon=True, name="MediaCtrlLoop")
+            t.start()
+        return _media_ctrl_loop
 
 def trigger_media_command(cmd: str):
     """Executes media command via WinRT session manager targeting Spotify/active session or virtual media key event fallback."""
     success = False
     try:
-        success = asyncio.run(send_media_control(cmd))
+        loop = _get_or_create_media_ctrl_loop()
+        future = asyncio.run_coroutine_threadsafe(send_media_control(cmd), loop)
+        success = future.result(timeout=4.0)
     except Exception as e:
-        print(f"[MediaControl] Error: {e}")
+        print(f"[MediaControl] WinRT dispatch error: {e}")
 
     if not success:
+        print(f"[MediaControl] WinRT failed, falling back to media key event for: {cmd}")
         try:
+            import ctypes
             VK_MEDIA_NEXT_TRACK = 0xB0
             VK_MEDIA_PREV_TRACK = 0xB1
             VK_MEDIA_PLAY_PAUSE = 0xB3
@@ -593,9 +618,11 @@ def trigger_media_command(cmd: str):
             vk = vk_map.get(cmd)
             if vk:
                 ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
+                time.sleep(0.05)
                 ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
-        except Exception:
-            pass
+                print(f"[MediaControl] Sent virtual media key 0x{vk:02X} for: {cmd}")
+        except Exception as ke:
+            print(f"[MediaControl] Keybd fallback error: {ke}")
 
 def setup_global_hotkeys():
     """Listens for global Windows shortcuts Win+Q (Previous Song) and Win+E (Skip Song) via low-level hook."""

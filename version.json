@@ -1,7 +1,7 @@
 {
-  "version": "1.4.1",
+  "version": "1.4.2",
   "name": "Project Fih MusicBridge",
-  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.1",
+  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.2",
   "download_url": "https://github.com/FIHHHH2/New_project/raw/main/dist/MusicBridge.exe",
-  "changelog": "Added Win+LeftClick/Win+RightClick, Ctrl+Shift+Right/Left, and Win+Arrows universal global media shortcuts."
+  "changelog": "Fixed critical media control bug: pick_best_session was being incorrectly awaited as async. Replaced asyncio.run with persistent threadsafe event loop to eliminate RuntimeError conflicts."
 }

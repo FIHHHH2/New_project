@@ -12675,8 +12675,9 @@ Modules["Modules/DisasterSurvival.luau"] = function()
     end
 
     local dragTarget:        BasePart? = nil
-    local dragBodyPosition:  BodyPosition? = nil
+    local dragBodyVelocity:  BodyVelocity? = nil
     local dragBodyGyro:      BodyGyro? = nil
+    local dragNoCollisions:  {NoCollisionConstraint} = {}
     local hoverTarget:       BasePart? = nil
     local hoverHL:           Highlight? = nil
     local grabHL:            Highlight? = nil
@@ -12685,7 +12686,7 @@ Modules["Modules/DisasterSurvival.luau"] = function()
     local dragInputConn:     RBXScriptConnection? = nil
     local dragEndConn:       RBXScriptConnection? = nil
     local dragDepth:         number = 25
-    local DRAG_MAX_RANGE:    number = 200
+    local DRAG_MAX_RANGE:    number = 250
 
     local function clearHover()
         if hoverHL and hoverHL.Parent then
@@ -12742,15 +12743,22 @@ Modules["Modules/DisasterSurvival.luau"] = function()
     end
 
     local function clearDragTarget()
-        if dragBodyPosition and dragBodyPosition.Parent then
-            pcall(function() dragBodyPosition:Destroy() end)
+        if dragBodyVelocity and dragBodyVelocity.Parent then
+            pcall(function() dragBodyVelocity:Destroy() end)
         end
-        dragBodyPosition = nil
+        dragBodyVelocity = nil
 
         if dragBodyGyro and dragBodyGyro.Parent then
             pcall(function() dragBodyGyro:Destroy() end)
         end
         dragBodyGyro = nil
+
+        for _, ncc in ipairs(dragNoCollisions) do
+            if ncc and ncc.Parent then
+                pcall(function() ncc:Destroy() end)
+            end
+        end
+        table.clear(dragNoCollisions)
 
         if dragTarget and dragTarget.Parent then
             pcall(function()
@@ -12781,7 +12789,12 @@ Modules["Modules/DisasterSurvival.luau"] = function()
         local camPos = Camera.CFrame.Position
         dragDepth = math.clamp((part.Position - camPos).Magnitude, 6, DRAG_MAX_RANGE)
 
-        -- Claim network ownership so physics replicates
+        -- 1. If part is welded to an immovable assembly, break joints on this piece so it frees up
+        if part.AssemblyMass == math.huge then
+            pcall(function() part:BreakJoints() end)
+        end
+
+        -- 2. Claim network ownership
         pcall(function()
             if type(sethiddenproperty) == "function" then
                 sethiddenproperty(part, "NetworkOwnershipRule", Enum.NetworkOwnership.Manual)
@@ -12789,20 +12802,34 @@ Modules["Modules/DisasterSurvival.luau"] = function()
             part:SetNetworkOwner(LocalPlayer)
         end)
 
-        -- Pure BodyPosition applied directly to the target part (zero connection to player)
-        local bp = Instance.new("BodyPosition")
-        bp.Name = "ModularDragForce"
-        bp.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-        bp.P = 15000
-        bp.D = 600
-        bp.Position = part.Position
-        bp.Parent = part
-        dragBodyPosition = bp
+        -- 3. Prevent self-collision (object will NEVER bump or push player)
+        local char = Players.LocalPlayer and Players.LocalPlayer.Character
+        if char then
+            for _, cPart in ipairs(char:GetDescendants()) do
+                if cPart:IsA("BasePart") then
+                    local ncc = Instance.new("NoCollisionConstraint")
+                    ncc.Part0 = cPart
+                    ncc.Part1 = part
+                    ncc.Parent = part
+                    table.insert(dragNoCollisions, ncc)
+                end
+            end
+        end
 
+        -- 4. High-Responsiveness BodyVelocity (Direct linear velocity control)
+        local bv = Instance.new("BodyVelocity")
+        bv.Name = "ModularDragVelocity"
+        bv.MaxForce = Vector3.new(1e8, 1e8, 1e8)
+        bv.P = 20000
+        bv.Velocity = Vector3.zero
+        bv.Parent = part
+        dragBodyVelocity = bv
+
+        -- 5. BodyGyro to maintain stable orientation
         local bg = Instance.new("BodyGyro")
         bg.Name = "ModularDragGyro"
-        bg.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
-        bg.P = 4000
+        bg.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
+        bg.P = 8000
         bg.D = 300
         bg.CFrame = part.CFrame
         bg.Parent = part
@@ -12828,8 +12855,16 @@ Modules["Modules/DisasterSurvival.luau"] = function()
                         local ray = Camera:ScreenPointToRay(m.X, m.Y)
                         local targetPos = Camera.CFrame.Position + (ray.Direction * dragDepth)
 
-                        if dragBodyPosition and dragBodyPosition.Parent then
-                            dragBodyPosition.Position = targetPos
+                        if dragBodyVelocity and dragBodyVelocity.Parent then
+                            local curPos = dragTarget.Position
+                            local delta = targetPos - curPos
+                            local dist = delta.Magnitude
+                            if dist > 0.05 then
+                                local speed = math.clamp(dist * 28, 5, 400)
+                                dragBodyVelocity.Velocity = delta.Unit * speed
+                            else
+                                dragBodyVelocity.Velocity = Vector3.zero
+                            end
                         end
                     end
                 else

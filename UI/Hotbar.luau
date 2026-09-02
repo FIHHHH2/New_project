@@ -354,23 +354,27 @@ function Hotbar.new(): HotbarWidget
 
 	-- Enable Dragging for Backpack Window (Zero-drift cursor locked)
 	local isBpDragging = false
-	local bpDragOffset = Vector2.zero
+	local bpDragStartMouse = Vector2.zero
+	local bpDragStartFramePos = Vector2.zero
 
 	bpTopBar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			isBpDragging = true
-			local mouse = UserInputService:GetMouseLocation()
-			bpDragOffset = Vector2.new(mouse.X - bpWindow.AbsolutePosition.X, mouse.Y - bpWindow.AbsolutePosition.Y)
+			bpDragStartMouse = UserInputService:GetMouseLocation()
+			bpDragStartFramePos = Vector2.new(bpWindow.AbsolutePosition.X, bpWindow.AbsolutePosition.Y)
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
 		if isBpDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local mouse = UserInputService:GetMouseLocation()
+			local curMouse = UserInputService:GetMouseLocation()
+			local delta = curMouse - bpDragStartMouse
+			local scale = (bpUiScale and bpUiScale.Scale) or 1.0
+			local scaledDelta = delta / scale
 			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-			local targetX = math.clamp(mouse.X - bpDragOffset.X, 0, math.max(0, vpSize.X - bpWindow.AbsoluteSize.X))
-			local targetY = math.clamp(mouse.Y - bpDragOffset.Y, 0, math.max(0, vpSize.Y - bpWindow.AbsoluteSize.Y))
-			bpWindow.Position = UDim2.new(0, targetX, 0, targetY)
+			local targetX = math.clamp(bpDragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - bpWindow.AbsoluteSize.X))
+			local targetY = math.clamp(bpDragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - bpWindow.AbsoluteSize.Y))
+			bpWindow.Position = UDim2.fromOffset(targetX, targetY)
 		end
 	end)
 

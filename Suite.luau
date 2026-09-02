@@ -1109,24 +1109,28 @@ Modules["UI/UI.luau"] = function()
     	footerHatch.Parent = footerBar
     	UI.registerThemeElement(footerHatch, "BorderDimText")
 
-    	local dragging = false
-    	local dragOffset = Vector2.zero
+    		local dragging = false
+    	local dragStartMouse = Vector2.zero
+    	local dragStartFramePos = Vector2.zero
 
     	topbar.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			dragging = true
-    			local mouse = UserInputService:GetMouseLocation()
-    			dragOffset = Vector2.new(mouse.X - mainFrame.AbsolutePosition.X, mouse.Y - mainFrame.AbsolutePosition.Y)
+    			dragStartMouse = UserInputService:GetMouseLocation()
+    			dragStartFramePos = Vector2.new(mainFrame.AbsolutePosition.X, mainFrame.AbsolutePosition.Y)
     		end
     	end)
 
     	UserInputService.InputChanged:Connect(function(input)
     		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mouse = UserInputService:GetMouseLocation()
+    			local curMouse = UserInputService:GetMouseLocation()
+    			local delta = curMouse - dragStartMouse
+    			local scale = (uiScale and uiScale.Scale) or 1.0
+    			local scaledDelta = delta / scale
     			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - mainFrame.AbsoluteSize.X))
-    			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - mainFrame.AbsoluteSize.Y))
-    			mainFrame.Position = UDim2.new(0, targetX, 0, targetY)
+    			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - mainFrame.AbsoluteSize.X))
+    			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - mainFrame.AbsoluteSize.Y))
+    			mainFrame.Position = UDim2.fromOffset(targetX, targetY)
     		end
     	end)
 
@@ -1932,41 +1936,34 @@ Modules["UI/PlayerList.luau"] = function()
     	end
 
     	-- ── Standard Roblox Topbar Drag (Screen Clamped) ──────────────────
-    	local dragging = false
-    	local dragOffset = Vector2.zero
-
-    	-- Forward declare popup frame
-    	local popupFrame: Frame
+    		local dragging = false
+    	local dragStartMouse = Vector2.zero
+    	local dragStartFramePos = Vector2.zero
 
     	topbar.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			dragging = true
-    			local mouse = UserInputService:GetMouseLocation()
-    			dragOffset = Vector2.new(mouse.X - widget.AbsolutePosition.X, mouse.Y - widget.AbsolutePosition.Y)
+    			dragStartMouse = UserInputService:GetMouseLocation()
+    			dragStartFramePos = Vector2.new(widget.AbsolutePosition.X, widget.AbsolutePosition.Y)
     		end
     	end)
 
     	UserInputService.InputChanged:Connect(function(input)
     		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mouse = UserInputService:GetMouseLocation()
+    			local curMouse = UserInputService:GetMouseLocation()
+    			local delta = curMouse - dragStartMouse
+    			local scale = (uiScale and uiScale.Scale) or 1.0
+    			local scaledDelta = delta / scale
     			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
-    			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
-    			widget.Position = UDim2.new(0, targetX, 0, targetY)
-    			if popupFrame and popupFrame.Visible then
-    				if closeContextMenu then
-    					closeContextMenu()
-    				else
-    					popupFrame.Visible = false
-    				end
-    			end
+    			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
+    			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
+    			widget.Position = UDim2.fromOffset(targetX, targetY)
     		end
     	end)
 
     	UserInputService.InputEnded:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			dragging = false
-    			updateWidgetHeight()
     		end
     	end)
 
@@ -3054,24 +3051,28 @@ Modules["UI/ChatWidget.luau"] = function()
     	UI.registerThemeElement(closeStroke, "Border")
 
     	-- ── Topbar Dragging (Zero-drift cursor locked) ────────────────────
-    	local dragging = false
-    	local dragOffset = Vector2.zero
+    		local dragging = false
+    	local dragStartMouse = Vector2.zero
+    	local dragStartFramePos = Vector2.zero
 
     	topbar.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			dragging = true
-    			local mouse = UserInputService:GetMouseLocation()
-    			dragOffset = Vector2.new(mouse.X - widget.AbsolutePosition.X, mouse.Y - widget.AbsolutePosition.Y)
+    			dragStartMouse = UserInputService:GetMouseLocation()
+    			dragStartFramePos = Vector2.new(widget.AbsolutePosition.X, widget.AbsolutePosition.Y)
     		end
     	end)
 
     	UserInputService.InputChanged:Connect(function(input)
     		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mouse = UserInputService:GetMouseLocation()
+    			local curMouse = UserInputService:GetMouseLocation()
+    			local delta = curMouse - dragStartMouse
+    			local scale = (uiScale and uiScale.Scale) or 1.0
+    			local scaledDelta = delta / scale
     			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
-    			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
-    			widget.Position = UDim2.new(0, targetX, 0, targetY)
+    			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
+    			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
+    			widget.Position = UDim2.fromOffset(targetX, targetY)
     		end
     	end)
 
@@ -4912,24 +4913,28 @@ Modules["UI/MusicTracker.luau"] = function()
     	end)
 
     	-- ── Dragging Mechanics ───────────────────────────────────────────
-    	local dragging = false
-    	local dragOffset = Vector2.zero
+    		local dragging = false
+    	local dragStartMouse = Vector2.zero
+    	local dragStartFramePos = Vector2.zero
 
     	topbar.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			dragging = true
-    			local mouse = UserInputService:GetMouseLocation()
-    			dragOffset = Vector2.new(mouse.X - widget.AbsolutePosition.X, mouse.Y - widget.AbsolutePosition.Y)
+    			dragStartMouse = UserInputService:GetMouseLocation()
+    			dragStartFramePos = Vector2.new(widget.AbsolutePosition.X, widget.AbsolutePosition.Y)
     		end
     	end)
 
     	UserInputService.InputChanged:Connect(function(input)
     		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mouse = UserInputService:GetMouseLocation()
+    			local curMouse = UserInputService:GetMouseLocation()
+    			local delta = curMouse - dragStartMouse
+    			local scale = (uiScale and uiScale.Scale) or 1.0
+    			local scaledDelta = delta / scale
     			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
-    			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
-    			widget.Position = UDim2.new(0, targetX, 0, targetY)
+    			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
+    			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
+    			widget.Position = UDim2.fromOffset(targetX, targetY)
     		end
     	end)
 
@@ -5381,23 +5386,27 @@ Modules["UI/Hotbar.luau"] = function()
 
     	-- Enable Dragging for Backpack Window (Zero-drift cursor locked)
     	local isBpDragging = false
-    	local bpDragOffset = Vector2.zero
+    	local bpDragStartMouse = Vector2.zero
+    	local bpDragStartFramePos = Vector2.zero
 
     	bpTopBar.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			isBpDragging = true
-    			local mouse = UserInputService:GetMouseLocation()
-    			bpDragOffset = Vector2.new(mouse.X - bpWindow.AbsolutePosition.X, mouse.Y - bpWindow.AbsolutePosition.Y)
+    			bpDragStartMouse = UserInputService:GetMouseLocation()
+    			bpDragStartFramePos = Vector2.new(bpWindow.AbsolutePosition.X, bpWindow.AbsolutePosition.Y)
     		end
     	end)
 
     	UserInputService.InputChanged:Connect(function(input)
     		if isBpDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mouse = UserInputService:GetMouseLocation()
+    			local curMouse = UserInputService:GetMouseLocation()
+    			local delta = curMouse - bpDragStartMouse
+    			local scale = (bpUiScale and bpUiScale.Scale) or 1.0
+    			local scaledDelta = delta / scale
     			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(mouse.X - bpDragOffset.X, 0, math.max(0, vpSize.X - bpWindow.AbsoluteSize.X))
-    			local targetY = math.clamp(mouse.Y - bpDragOffset.Y, 0, math.max(0, vpSize.Y - bpWindow.AbsoluteSize.Y))
-    			bpWindow.Position = UDim2.new(0, targetX, 0, targetY)
+    			local targetX = math.clamp(bpDragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - bpWindow.AbsoluteSize.X))
+    			local targetY = math.clamp(bpDragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - bpWindow.AbsoluteSize.Y))
+    			bpWindow.Position = UDim2.fromOffset(targetX, targetY)
     		end
     	end)
 
@@ -7353,24 +7362,28 @@ Modules["UI/LeaderstatsWidget.luau"] = function()
     	end)
 
     	-- ── Dragging Mechanics (Zero-drift cursor locked) ────────────────
-    	local dragging = false
-    	local dragOffset = Vector2.zero
+    		local dragging = false
+    	local dragStartMouse = Vector2.zero
+    	local dragStartFramePos = Vector2.zero
 
     	topbar.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			dragging = true
-    			local mouse = UserInputService:GetMouseLocation()
-    			dragOffset = Vector2.new(mouse.X - widget.AbsolutePosition.X, mouse.Y - widget.AbsolutePosition.Y)
+    			dragStartMouse = UserInputService:GetMouseLocation()
+    			dragStartFramePos = Vector2.new(widget.AbsolutePosition.X, widget.AbsolutePosition.Y)
     		end
     	end)
 
     	UserInputService.InputChanged:Connect(function(input)
     		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mouse = UserInputService:GetMouseLocation()
+    			local curMouse = UserInputService:GetMouseLocation()
+    			local delta = curMouse - dragStartMouse
+    			local scale = (uiScale and uiScale.Scale) or 1.0
+    			local scaledDelta = delta / scale
     			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
-    			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
-    			widget.Position = UDim2.new(0, targetX, 0, targetY)
+    			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
+    			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
+    			widget.Position = UDim2.fromOffset(targetX, targetY)
     		end
     	end)
 
@@ -7641,23 +7654,25 @@ Modules["UI/HealthWidget.luau"] = function()
 
     	-- Dragging handler for Health HUD (Zero-drift cursor locked)
     	local isDragging = false
-    	local dragOffset = Vector2.zero
+    	local dragStartMouse = Vector2.zero
+    	local dragStartFramePos = Vector2.zero
 
     	hudFrame.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			isDragging = true
-    			local mouse = UserInputService:GetMouseLocation()
-    			dragOffset = Vector2.new(mouse.X - hudFrame.AbsolutePosition.X, mouse.Y - hudFrame.AbsolutePosition.Y)
+    			dragStartMouse = UserInputService:GetMouseLocation()
+    			dragStartFramePos = Vector2.new(hudFrame.AbsolutePosition.X, hudFrame.AbsolutePosition.Y)
     		end
     	end)
 
     	table.insert(activeConns, UserInputService.InputChanged:Connect(function(input)
     		if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mouse = UserInputService:GetMouseLocation()
+    			local curMouse = UserInputService:GetMouseLocation()
+    			local delta = curMouse - dragStartMouse
     			local vpSize = Camera.ViewportSize
-    			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - hudFrame.AbsoluteSize.X))
-    			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - hudFrame.AbsoluteSize.Y))
-    			hudFrame.Position = UDim2.new(0, targetX, 0, targetY)
+    			local targetX = math.clamp(dragStartFramePos.X + delta.X, 0, math.max(0, vpSize.X - hudFrame.AbsoluteSize.X))
+    			local targetY = math.clamp(dragStartFramePos.Y + delta.Y, 0, math.max(0, vpSize.Y - hudFrame.AbsoluteSize.Y))
+    			hudFrame.Position = UDim2.fromOffset(targetX, targetY)
     		end
     	end))
 
@@ -8678,26 +8693,28 @@ Modules["UI/EmotesWidget.luau"] = function()
     	refreshGrid()
 
     	-- ── Zero-Drift Screen-Bounded Dragging ────────────────────────────
-    	local dragging = false
-    	local dragStart = Vector2.zero
-    	local startAbsPos = Vector2.zero
+    		local dragging = false
+    	local dragStartMouse = Vector2.zero
+    	local dragStartFramePos = Vector2.zero
 
     	topbar.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			dragging = true
-    			dragStart = Vector2.new(input.Position.X, input.Position.Y)
-    			startAbsPos = widget.AbsolutePosition
+    			dragStartMouse = UserInputService:GetMouseLocation()
+    			dragStartFramePos = Vector2.new(widget.AbsolutePosition.X, widget.AbsolutePosition.Y)
     		end
     	end)
 
     	UserInputService.InputChanged:Connect(function(input)
     		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mousePos = Vector2.new(input.Position.X, input.Position.Y)
-    			local delta = mousePos - dragStart
-    			local vpSize = Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(startAbsPos.X + delta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
-    			local targetY = math.clamp(startAbsPos.Y + delta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
-    			widget.Position = UDim2.new(0, targetX, 0, targetY)
+    			local curMouse = UserInputService:GetMouseLocation()
+    			local delta = curMouse - dragStartMouse
+    			local scale = (uiScale and uiScale.Scale) or 1.0
+    			local scaledDelta = delta / scale
+    			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+    			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
+    			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
+    			widget.Position = UDim2.fromOffset(targetX, targetY)
     		end
     	end)
 

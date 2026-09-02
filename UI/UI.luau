@@ -706,24 +706,28 @@ function UI.createWindow(titleText: string)
 	footerHatch.Parent = footerBar
 	UI.registerThemeElement(footerHatch, "BorderDimText")
 
-	local dragging = false
-	local dragOffset = Vector2.zero
+		local dragging = false
+	local dragStartMouse = Vector2.zero
+	local dragStartFramePos = Vector2.zero
 
 	topbar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
-			local mouse = UserInputService:GetMouseLocation()
-			dragOffset = Vector2.new(mouse.X - mainFrame.AbsolutePosition.X, mouse.Y - mainFrame.AbsolutePosition.Y)
+			dragStartMouse = UserInputService:GetMouseLocation()
+			dragStartFramePos = Vector2.new(mainFrame.AbsolutePosition.X, mainFrame.AbsolutePosition.Y)
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
 		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local mouse = UserInputService:GetMouseLocation()
+			local curMouse = UserInputService:GetMouseLocation()
+			local delta = curMouse - dragStartMouse
+			local scale = (uiScale and uiScale.Scale) or 1.0
+			local scaledDelta = delta / scale
 			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - mainFrame.AbsoluteSize.X))
-			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - mainFrame.AbsoluteSize.Y))
-			mainFrame.Position = UDim2.new(0, targetX, 0, targetY)
+			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - mainFrame.AbsoluteSize.X))
+			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - mainFrame.AbsoluteSize.Y))
+			mainFrame.Position = UDim2.fromOffset(targetX, targetY)
 		end
 	end)
 

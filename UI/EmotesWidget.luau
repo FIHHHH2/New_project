@@ -658,26 +658,28 @@ function EmotesWidget.new(): EmotesWidgetInstance
 	refreshGrid()
 
 	-- ── Zero-Drift Screen-Bounded Dragging ────────────────────────────
-	local dragging = false
-	local dragStart = Vector2.zero
-	local startAbsPos = Vector2.zero
+		local dragging = false
+	local dragStartMouse = Vector2.zero
+	local dragStartFramePos = Vector2.zero
 
 	topbar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
-			dragStart = Vector2.new(input.Position.X, input.Position.Y)
-			startAbsPos = widget.AbsolutePosition
+			dragStartMouse = UserInputService:GetMouseLocation()
+			dragStartFramePos = Vector2.new(widget.AbsolutePosition.X, widget.AbsolutePosition.Y)
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
 		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local mousePos = Vector2.new(input.Position.X, input.Position.Y)
-			local delta = mousePos - dragStart
-			local vpSize = Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-			local targetX = math.clamp(startAbsPos.X + delta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
-			local targetY = math.clamp(startAbsPos.Y + delta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
-			widget.Position = UDim2.new(0, targetX, 0, targetY)
+			local curMouse = UserInputService:GetMouseLocation()
+			local delta = curMouse - dragStartMouse
+			local scale = (uiScale and uiScale.Scale) or 1.0
+			local scaledDelta = delta / scale
+			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
+			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
+			widget.Position = UDim2.fromOffset(targetX, targetY)
 		end
 	end)
 

@@ -17356,10 +17356,17 @@ _G.__ToggleProjectFihMenu = function()
 end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Tab then
-		local focused = UserInputService:GetFocusedTextBox()
-		if not focused then
+	if gameProcessed then return end
+	local focused = UserInputService:GetFocusedTextBox()
+	if focused then return end
+
+	if input.UserInputType == Enum.UserInputType.Keyboard then
+		if input.KeyCode == Enum.KeyCode.Tab then
 			playerListWidget:Toggle()
+		elseif input.KeyCode == Enum.KeyCode.Comma then
+			if emotesWidget then
+				emotesWidget.Toggle()
+			end
 		end
 	end
 end)

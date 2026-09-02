@@ -431,8 +431,7 @@ local function getMouse(): Mouse?
 end
 
 local dragTarget:        BasePart? = nil
-local dragBodyVelocity:  BodyVelocity? = nil
-local dragBodyGyro:      BodyGyro? = nil
+local dragTargetRot:     CFrame = CFrame.identity
 local dragNoCollisions:  {NoCollisionConstraint} = {}
 local hoverTarget:       BasePart? = nil
 local hoverHL:           Highlight? = nil
@@ -442,7 +441,10 @@ local dragWheelConn:     RBXScriptConnection? = nil
 local dragInputConn:     RBXScriptConnection? = nil
 local dragEndConn:       RBXScriptConnection? = nil
 local dragDepth:         number = 25
-local DRAG_MAX_RANGE:    number = 250
+local DRAG_MAX_RANGE:    number = 350
+local lastDragPos:       Vector3? = nil
+local lastDragTime:      number = 0
+local throwVelocity:     Vector3 = Vector3.zero
 
 local function clearHover()
     if hoverHL and hoverHL.Parent then
@@ -466,10 +468,12 @@ end
 
 local function isDraggable(part: BasePart): boolean
     if not part or not part:IsA("BasePart") then return false end
-    if part.Anchored or part.Locked then return false end
+    if part.Anchored then return false end
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr.Character and part:IsDescendantOf(plr.Character) then return false end
     end
+    if part:IsDescendantOf(Workspace.Terrain) then return false end
+    if part.Name == "Baseplate" or part.Name == "Terrain" or part.Name == "SpawnLocation" then return false end
     return part:IsDescendantOf(Workspace)
 end
 
@@ -499,16 +503,6 @@ local function getTargetFromMouse(): BasePart?
 end
 
 local function clearDragTarget()
-    if dragBodyVelocity and dragBodyVelocity.Parent then
-        pcall(function() dragBodyVelocity:Destroy() end)
-    end
-    dragBodyVelocity = nil
-
-    if dragBodyGyro and dragBodyGyro.Parent then
-        pcall(function() dragBodyGyro:Destroy() end)
-    end
-    dragBodyGyro = nil
-
     for _, ncc in ipairs(dragNoCollisions) do
         if ncc and ncc.Parent then
             pcall(function() ncc:Destroy() end)
@@ -518,7 +512,7 @@ local function clearDragTarget()
 
     if dragTarget and dragTarget.Parent then
         pcall(function()
-            dragTarget.AssemblyLinearVelocity = Vector3.zero
+            dragTarget.AssemblyLinearVelocity = throwVelocity
             dragTarget.AssemblyAngularVelocity = Vector3.zero
         end)
     end
@@ -528,6 +522,7 @@ local function clearDragTarget()
     end
     grabHL = nil
     dragTarget = nil
+    throwVelocity = Vector3.zero
 
     if dragEndConn then
         dragEndConn:Disconnect()
@@ -542,13 +537,15 @@ local function grabObject(part: BasePart)
     if not isDraggable(part) then return end
 
     dragTarget = part
+    dragTargetRot = part.CFrame - part.Position
     local camPos = Camera.CFrame.Position
-    dragDepth = math.clamp((part.Position - camPos).Magnitude, 6, DRAG_MAX_RANGE)
+    dragDepth = math.clamp((part.Position - camPos).Magnitude, 5, DRAG_MAX_RANGE)
+    lastDragPos = part.Position
+    lastDragTime = os.clock()
+    throwVelocity = Vector3.zero
 
-    -- 1. If part is welded to an immovable assembly, break joints on this piece so it frees up
-    if part.AssemblyMass == math.huge then
-        pcall(function() part:BreakJoints() end)
-    end
+    -- 1. Free piece from any grounded assembly welds
+    pcall(function() part:BreakJoints() end)
 
     -- 2. Claim network ownership
     pcall(function()
@@ -558,7 +555,7 @@ local function grabObject(part: BasePart)
         part:SetNetworkOwner(LocalPlayer)
     end)
 
-    -- 3. Prevent self-collision (object will NEVER bump or push player)
+    -- 3. Prevent self-collision (never pushes or hits player)
     local char = Players.LocalPlayer and Players.LocalPlayer.Character
     if char then
         for _, cPart in ipairs(char:GetDescendants()) do
@@ -571,25 +568,6 @@ local function grabObject(part: BasePart)
             end
         end
     end
-
-    -- 4. High-Responsiveness BodyVelocity (Direct linear velocity control)
-    local bv = Instance.new("BodyVelocity")
-    bv.Name = "ModularDragVelocity"
-    bv.MaxForce = Vector3.new(1e8, 1e8, 1e8)
-    bv.P = 20000
-    bv.Velocity = Vector3.zero
-    bv.Parent = part
-    dragBodyVelocity = bv
-
-    -- 5. BodyGyro to maintain stable orientation
-    local bg = Instance.new("BodyGyro")
-    bg.Name = "ModularDragGyro"
-    bg.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
-    bg.P = 8000
-    bg.D = 300
-    bg.CFrame = part.CFrame
-    bg.Parent = part
-    dragBodyGyro = bg
 
     grabHL = makeHighlight(part, Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 220, 80), 0.25)
 
@@ -604,24 +582,24 @@ end
 function DisasterSurvival.setObjectDrag(enabled: boolean)
     DisasterSurvival.ObjectDrag = enabled
     if enabled then
-        dragHoverConn = RunService.RenderStepped:Connect(function()
+        dragHoverConn = RunService.RenderStepped:Connect(function(dt)
             if dragTarget and dragTarget.Parent then
                 local m = getMouse()
                 if m then
                     local ray = Camera:ScreenPointToRay(m.X, m.Y)
                     local targetPos = Camera.CFrame.Position + (ray.Direction * dragDepth)
 
-                    if dragBodyVelocity and dragBodyVelocity.Parent then
+                    pcall(function()
                         local curPos = dragTarget.Position
                         local delta = targetPos - curPos
-                        local dist = delta.Magnitude
-                        if dist > 0.05 then
-                            local speed = math.clamp(dist * 28, 5, 400)
-                            dragBodyVelocity.Velocity = delta.Unit * speed
-                        else
-                            dragBodyVelocity.Velocity = Vector3.zero
-                        end
-                    end
+                        local vel = if dt > 0.001 then (delta / dt) else Vector3.zero
+                        if vel.Magnitude > 450 then vel = vel.Unit * 450 end
+                        throwVelocity = vel
+
+                        dragTarget.CFrame = CFrame.new(targetPos) * dragTargetRot
+                        dragTarget.AssemblyLinearVelocity = vel
+                        dragTarget.AssemblyAngularVelocity = Vector3.zero
+                    end)
                 end
             else
                 if dragTarget and not dragTarget.Parent then
@@ -646,7 +624,7 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
             if gp then return end
             if input.UserInputType == Enum.UserInputType.MouseWheel then
                 if dragTarget then
-                    dragDepth = math.clamp(dragDepth + (input.Position.Z * 5), 5, DRAG_MAX_RANGE)
+                    dragDepth = math.clamp(dragDepth + (input.Position.Z * 6), 4, DRAG_MAX_RANGE)
                 end
             end
         end)

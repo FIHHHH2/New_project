@@ -75,29 +75,7 @@ local function requireModule(name: string): any
 		return moduleCache[name]
 	end
 
-	local modFn = Modules[normalized] or Modules[name]
-	if not modFn then
-		for k, fn in pairs(Modules) do
-			if k:lower() == normalized:lower() or k:lower() == name:lower() then
-				modFn = fn
-				break
-			end
-		end
-	end
-
-	if not modFn then
-		error("[ModularSuite Loader] Failed to resolve module: " .. tostring(name))
-	end
-
-	local result = modFn()
-	moduleCache[normalized] = result
-	moduleCache[name] = result
-	return result
-end
-
-_G.__ModularSuite_Require = requireModule
-
-Modules["UI/Animations.luau"] = function()
+	local modFn = Modules["UI/Animations.luau"] = function()
     local require = requireModule
     --!strict
     --[=[
@@ -12707,21 +12685,17 @@ Modules["Modules/DisasterSurvival.luau"] = function()
     end
 
 
-    -- ── Loose Object Drag (Constraint & Client Physics Vulnerability) ───
+    -- ── Loose Object Drag (Network-Owned BodyPosition for Client+Server replication) ─
     -- Controls: LMB hold = grab & drag. Release LMB = drop.
     --           Mouse Wheel = pull closer / push farther away.
-    -- Hover: Cyan Highlight on target.
-    -- Grab: Orange Highlight on target.
-    -- Vulnerability Mechanics:
-    -- 1. NoCollisionConstraint injected between character parts and dragged parts to prevent self-damage without dropping through the floor.
-    -- 2. AlignPosition + AlignOrientation physics constraints attached client-side to enforce physics network simulation.
-    -- 3. Direct velocity & CFrame sync on RenderStepped to ensure zero latency and instant responsiveness.
+    -- Hover: Cyan Highlight on target.  Grab: Orange Highlight on target.
+    -- Network Authority: SetNetworkOwner(LocalPlayer) is called on grab so the client
+    --   owns physics simulation → BodyPosition/BodyGyro replicate to server correctly.
     local dragMouse:         Mouse = LocalPlayer:GetMouse()
     local dragTarget:        BasePart? = nil
-    local dragAttachment:    Attachment? = nil
-    local dragAlignPos:      AlignPosition? = nil
-    local dragAlignOrient:   AlignOrientation? = nil
-    local dragNoCollisions:  {NoCollisionConstraint} = {}
+    local dragBodyPos:       BodyPosition? = nil
+    local dragBodyGyro:      BodyGyro? = nil
+    local dragNoCollisions:  {NoCollisionConstraint} = {}\
     local hoverTarget:       BasePart? = nil
     local hoverHL:           Highlight? = nil
     local grabHL:            Highlight? = nil
@@ -12731,6 +12705,8 @@ Modules["Modules/DisasterSurvival.luau"] = function()
     local dragEndConn:       RBXScriptConnection? = nil
     local dragDepth:         number = 30
     local DRAG_MAX_RANGE:    number = 150
+    local dragOrigMass:      number = 0
+    local dragOrigDensity:   number = 0
 
     local function clearHover()
         if hoverHL and hoverHL.Parent then
@@ -12785,21 +12761,18 @@ Modules["Modules/DisasterSurvival.luau"] = function()
     end
 
     local function clearDragTarget()
-        if dragAlignPos and dragAlignPos.Parent then
-            pcall(function() dragAlignPos:Destroy() end)
+        -- Remove BodyPosition / BodyGyro
+        if dragBodyPos and dragBodyPos.Parent then
+            pcall(function() dragBodyPos:Destroy() end)
         end
-        dragAlignPos = nil
+        dragBodyPos = nil
 
-        if dragAlignOrient and dragAlignOrient.Parent then
-            pcall(function() dragAlignOrient:Destroy() end)
+        if dragBodyGyro and dragBodyGyro.Parent then
+            pcall(function() dragBodyGyro:Destroy() end)
         end
-        dragAlignOrient = nil
+        dragBodyGyro = nil
 
-        if dragAttachment and dragAttachment.Parent then
-            pcall(function() dragAttachment:Destroy() end)
-        end
-        dragAttachment = nil
-
+        -- Remove no-collision constraints
         for _, ncc in ipairs(dragNoCollisions) do
             if ncc and ncc.Parent then
                 pcall(function() ncc:Destroy() end)
@@ -12807,10 +12780,15 @@ Modules["Modules/DisasterSurvival.luau"] = function()
         end
         table.clear(dragNoCollisions)
 
+        -- Zero out velocity and return network ownership to server
         if dragTarget and dragTarget.Parent then
             pcall(function()
-                dragTarget.AssemblyLinearVelocity = Vector3.zero
+                dragTarget.AssemblyLinearVelocity  = Vector3.zero
                 dragTarget.AssemblyAngularVelocity = Vector3.zero
+            end)
+            -- Return ownership to server so other clients see physics settle normally
+            pcall(function()
+                dragTarget:SetNetworkOwner(nil)
             end)
         end
 
@@ -12834,7 +12812,14 @@ Modules["Modules/DisasterSurvival.luau"] = function()
         local camPos = Camera.CFrame.Position
         dragDepth = math.clamp((part.Position - camPos).Magnitude, 5, DRAG_MAX_RANGE)
 
-        -- Inject NoCollisionConstraints against local player to prevent physics collision death
+        -- ── Claim Network Ownership ────────────────────────────────────
+        -- This is the key step: makes the client authoritative over physics
+        -- so BodyPosition/BodyGyro updates replicate to the server.
+        pcall(function()
+            part:SetNetworkOwner(LocalPlayer)
+        end)
+
+        -- NoCollisionConstraints against local character parts
         local char = LocalPlayer.Character
         if char then
             for _, cPart in ipairs(char:GetDescendants()) do
@@ -12848,37 +12833,29 @@ Modules["Modules/DisasterSurvival.luau"] = function()
             end
         end
 
-        -- Physics Authority: Attachment & AlignPosition / AlignOrientation
-        local att = Instance.new("Attachment")
-        att.Name = "ModularDragAttachment"
-        att.Position = Vector3.zero
-        att.Parent = part
-        dragAttachment = att
+        -- ── BodyPosition: drives server-replicated movement ───────────
+        local bp = Instance.new("BodyPosition")
+        bp.Name = "ModularDragBodyPos"
+        bp.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        bp.D = 800        -- damping: smooth, not wobbly
+        bp.P = 10000      -- stiffness
+        bp.Position = part.Position
+        bp.Parent = part
+        dragBodyPos = bp
 
-        local ap = Instance.new("AlignPosition")
-        ap.Name = "ModularDragAlignPos"
-        ap.Mode = Enum.PositionAlignmentMode.OneAttachment
-        ap.Attachment0 = att
-        ap.MaxForce = 1e8
-        ap.MaxVelocity = 350
-        ap.Responsiveness = 100
-        ap.Position = part.Position
-        ap.Parent = part
-        dragAlignPos = ap
-
-        local ao = Instance.new("AlignOrientation")
-        ao.Name = "ModularDragAlignOrient"
-        ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
-        ao.Attachment0 = att
-        ao.MaxTorque = 1e8
-        ao.Responsiveness = 100
-        ao.CFrame = part.CFrame
-        ao.Parent = part
-        dragAlignOrient = ao
+        -- ── BodyGyro: keeps orientation stable while being dragged ────
+        local bg = Instance.new("BodyGyro")
+        bg.Name = "ModularDragBodyGyro"
+        bg.MaxTorque = Vector3.new(1e8, 1e8, 1e8)
+        bg.D = 400
+        bg.P = 4000
+        bg.CFrame = part.CFrame
+        bg.Parent = part
+        dragBodyGyro = bg
 
         grabHL = makeHighlight(part, Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 220, 80), 0.25)
 
-        -- Release on MouseButton1 up
+        -- Release on LMB up
         dragEndConn = UserInputService.InputEnded:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 clearDragTarget()
@@ -12889,24 +12866,19 @@ Modules["Modules/DisasterSurvival.luau"] = function()
     function DisasterSurvival.setObjectDrag(enabled: boolean)
         DisasterSurvival.ObjectDrag = enabled
         if enabled then
-            -- RenderStepped: Update drag position & hover detection
+            -- RenderStepped: update BodyPosition target and hover
             dragHoverConn = RunService.RenderStepped:Connect(function()
                 if dragTarget and dragTarget.Parent then
                     local ray = Camera:ScreenPointToRay(dragMouse.X, dragMouse.Y)
                     local targetPos = Camera.CFrame.Position + (ray.Direction * dragDepth)
 
-                    if dragAlignPos and dragAlignPos.Parent then
-                        dragAlignPos.Position = targetPos
+                    if dragBodyPos and dragBodyPos.Parent then
+                        dragBodyPos.Position = targetPos
                     end
-
-                    pcall(function()
-                        local currentPos = dragTarget.Position
-                        local delta = targetPos - currentPos
-                        local dist = delta.Magnitude
-                        local velocity = if dist > 0.1 then delta.Unit * math.clamp(dist * 20, 0, 200) else Vector3.zero
-                        dragTarget.AssemblyLinearVelocity = velocity
-                        dragTarget.CFrame = dragTarget.CFrame:Lerp(CFrame.new(targetPos) * dragTarget.CFrame.Rotation, 0.45)
-                    end)
+                    if dragBodyGyro and dragBodyGyro.Parent then
+                        -- Keep original orientation; don't spin the object while dragging
+                        dragBodyGyro.CFrame = CFrame.new(dragTarget.Position) * (dragBodyGyro.CFrame - dragBodyGyro.CFrame.Position)
+                    end
                 else
                     if dragTarget and not dragTarget.Parent then
                         clearDragTarget()
@@ -12925,17 +12897,17 @@ Modules["Modules/DisasterSurvival.luau"] = function()
                 end
             end)
 
-            -- Mouse wheel to adjust depth
+            -- Mouse wheel: push/pull distance
             dragWheelConn = UserInputService.InputChanged:Connect(function(input, gp)
                 if gp then return end
                 if input.UserInputType == Enum.UserInputType.MouseWheel then
                     if dragTarget then
-                        dragDepth = math.clamp(dragDepth + (input.Position.Z * 4), 4, DRAG_MAX_RANGE)
+                        dragDepth = math.clamp(dragDepth + (input.Position.Z * 5), 4, DRAG_MAX_RANGE)
                     end
                 end
             end)
 
-            -- LMB down: Grab hovered object
+            -- LMB: grab
             dragInputConn = UserInputService.InputBegan:Connect(function(input, gp)
                 if gp then return end
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then

@@ -421,6 +421,52 @@ def get_current_lyric_line(title: str, artist: str, position: float, duration: f
 # ── Windows Media Session Poller with Real-Time Timestamp Clock ───
 last_song_query = ""
 
+PREFERRED_SOURCE_IDS = ["spotify", "spicetify", "spotifyab", "itunes", "music"]
+
+def pick_best_session(manager):
+    """Return Spotify > any actively playing > current > first."""
+    try:
+        sessions = manager.get_sessions()
+        if not sessions:
+            return manager.get_current_session()
+        all_sessions = list(sessions)
+    except Exception:
+        return manager.get_current_session()
+
+    # 1. Prefer preferred sources that are actively playing
+    for pref in PREFERRED_SOURCE_IDS:
+        for s in all_sessions:
+            try:
+                src = (s.source_app_user_model_id or "").lower()
+                pb = s.get_playback_info()
+                if pref in src and pb and pb.playback_status.value == 4:
+                    return s
+            except Exception:
+                pass
+
+    # 2. Any preferred source even if paused
+    for pref in PREFERRED_SOURCE_IDS:
+        for s in all_sessions:
+            try:
+                src = (s.source_app_user_model_id or "").lower()
+                if pref in src:
+                    return s
+            except Exception:
+                pass
+
+    # 3. Any actively playing session
+    for s in all_sessions:
+        try:
+            pb = s.get_playback_info()
+            if pb and pb.playback_status.value == 4:
+                return s
+        except Exception:
+            pass
+
+    # 4. Fall back to system current or first
+    cur = manager.get_current_session()
+    return cur if cur else (all_sessions[0] if all_sessions else None)
+
 async def fetch_windows_media():
     global current_cover_bytes, last_song_query, cover_version_counter
     try:
@@ -430,11 +476,7 @@ async def fetch_windows_media():
         if not manager:
             return
 
-        session = manager.get_current_session()
-        if not session:
-            sessions = manager.get_sessions()
-            if sessions and len(sessions) > 0:
-                session = sessions[0]
+        session = pick_best_session(manager)
 
         if session:
             playback = session.get_playback_info()

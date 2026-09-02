@@ -603,15 +603,27 @@ def check_for_updates(auto: bool = False) -> bool:
     try:
         req = urllib.request.Request(f"{VERSION_URL}?t={int(time.time())}", headers={"User-Agent": "MusicBridge-Updater"})
         with urllib.request.urlopen(req, timeout=4.0) as resp:
-            data = json.loads(resp.read().decode("utf-8-sig"))
-            remote_ver = str(data.get("version", VERSION))
+            raw_text = resp.read().decode("utf-8-sig", errors="ignore")
+            remote_ver = VERSION
+            dl_url = EXE_URL
+            try:
+                data = json.loads(raw_text)
+                remote_ver = str(data.get("version", VERSION))
+                dl_url = str(data.get("download_url", EXE_URL))
+            except Exception:
+                m_ver = re.search(r'version["\']?\s*:\s*["\']?([0-9.]+)', raw_text)
+                if m_ver:
+                    remote_ver = m_ver.group(1)
+                m_dl = re.search(r'download_url["\']?\s*:\s*["\']?([^"\',\s]+)', raw_text)
+                if m_dl:
+                    dl_url = m_dl.group(1)
+
             if remote_ver != VERSION:
                 print(f"[Updater] Update detected: v{remote_ver} (Current: v{VERSION})")
                 is_frozen = getattr(sys, "frozen", False)
                 if is_frozen:
                     exe_path = sys.executable
                     tmp_exe = exe_path + ".new"
-                    dl_url = data.get("download_url", EXE_URL)
                     urllib.request.urlretrieve(dl_url, tmp_exe)
                     
                     bat_content = f"""@echo off

@@ -12815,36 +12815,77 @@ Modules["Core/MainUI.luau"] = function()
     		-- Right Column: Universal Master Audio Controller (Native C++ Zero-Lag Engine)
     		local audioSection = window:AddSection(sysRightCol, "Universal Game Audio Controller")
 
-    		local userGameSettings = UserSettings():GetService("UserGameSettings")
-    		local savedMasterVolume = userGameSettings.MasterVolume or 1.0
-    		if savedMasterVolume <= 0 then savedMasterVolume = 1.0 end
+    		local SoundService = game:GetService("SoundService")
     		local isMasterMuted = false
-    		local masterVolumeScale = 1.0
+    		local savedSoundVolumes: {[Sound]: number} = {}
 
-    		local function applyMasterAudio()
-    			pcall(function()
-    				if isMasterMuted then
-    					userGameSettings.MasterVolume = 0
-    				else
-    					userGameSettings.MasterVolume = savedMasterVolume * masterVolumeScale
+    		-- Collect all Sound objects from workspace and descendants, excluding VoiceChat
+    		local function getAllGameSounds(): {Sound}
+    			local sounds: {Sound} = {}
+    			local function scan(parent: Instance)
+    				for _, child in ipairs(parent:GetDescendants()) do
+    					if child:IsA("Sound") then
+    						-- Skip any sound parented to or tagged as VoiceChat
+    						local isVoice = false
+    						local p = child.Parent
+    						while p and p ~= game do
+    							if p.Name == "VoiceChatInternal" or p.Name == "Voice" or p.Name == "VoiceChat" or p.ClassName == "VoiceChatService" then
+    								isVoice = true
+    								break
+    							end
+    							p = p.Parent
+    						end
+    						if not isVoice then
+    							table.insert(sounds, child)
+    						end
+    					end
     				end
-    			end)
+    			end
+    			-- Scan workspace and all services except SoundService's ambient stuff
+    			pcall(scan, game:GetService("Workspace"))
+    			pcall(scan, game:GetService("ReplicatedStorage"))
+    			return sounds
     		end
 
-    		window:AddToggle(audioSection, "mute_all_game_audio", "Mute All Game Audio (Native Zero-Lag)", false, nil, function(enabled)
+    		local function muteGameSounds()
+    			savedSoundVolumes = {}
+    			local sounds = getAllGameSounds()
+    			for _, snd in ipairs(sounds) do
+    				pcall(function()
+    					savedSoundVolumes[snd] = snd.Volume
+    					snd.Volume = 0
+    				end)
+    			end
+    			-- Also zero SoundService ambient + music channels (not VoiceChat)
+    			pcall(function() SoundService.AmbientReverb = Enum.ReverbType.NoReverb end)
+    		end
+
+    		local function restoreGameSounds()
+    			for snd, vol in pairs(savedSoundVolumes) do
+    				pcall(function()
+    					if snd and snd.Parent then
+    						snd.Volume = vol
+    					end
+    				end)
+    			end
+    			savedSoundVolumes = {}
+    		end
+
+    		local function applyMasterAudio()
+    			if isMasterMuted then
+    				muteGameSounds()
+    			else
+    				restoreGameSounds()
+    			end
+    		end
+
+    		window:AddToggle(audioSection, "mute_all_game_audio", "Mute All Game Audio (Preserves Voice Chat)", false, nil, function(enabled)
     			isMasterMuted = enabled
     			applyMasterAudio()
     			if enabled then
-    				window:Notify("Audio", "Muted all game audio (0% CPU impact)", 2)
+    				window:Notify("Audio", "Game audio muted — voice chat preserved", 2)
     			else
-    				window:Notify("Audio", string.format("Unmuted ??? Volume restored to %d%%", math.floor(masterVolumeScale * 100)), 2)
-    			end
-    		end)
-
-    		window:AddSlider(audioSection, "Master Volume Scale (%)", 0, 100, 100, function(value)
-    			masterVolumeScale = value / 100
-    			if not isMasterMuted then
-    				applyMasterAudio()
+    				window:Notify("Audio", "Game audio restored", 2)
     			end
     		end)
 
@@ -12852,15 +12893,14 @@ Modules["Core/MainUI.luau"] = function()
     			isMasterMuted = true
     			FeatureManager.setFeatureState("mute_all_game_audio", true)
     			applyMasterAudio()
-    			window:Notify("Audio", "Native master audio muted", 2)
+    			window:Notify("Audio", "Game audio muted — voice chat preserved", 2)
     		end)
 
     		window:AddButton(audioSection, "Restore Default Volumes", function()
     			isMasterMuted = false
-    			masterVolumeScale = 1.0
     			FeatureManager.setFeatureState("mute_all_game_audio", false)
     			applyMasterAudio()
-    			window:Notify("Audio", "Restored default master volume", 2)
+    			window:Notify("Audio", "Game audio restored", 2)
     		end)
 
     		-- ============================================================

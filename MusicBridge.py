@@ -529,6 +529,67 @@ async def send_media_control(cmd: str):
     except Exception:
         pass
 
+def trigger_media_command(cmd: str):
+    """Executes media command via WinRT session manager or Windows virtual media key event fallback."""
+    try:
+        asyncio.run(send_media_control(cmd))
+    except Exception:
+        pass
+    try:
+        VK_MEDIA_NEXT_TRACK = 0xB0
+        VK_MEDIA_PREV_TRACK = 0xB1
+        VK_MEDIA_PLAY_PAUSE = 0xB3
+        KEYEVENTF_KEYUP = 0x0002
+        vk_map = {
+            "skip": VK_MEDIA_NEXT_TRACK,
+            "prev": VK_MEDIA_PREV_TRACK,
+            "toggle": VK_MEDIA_PLAY_PAUSE
+        }
+        vk = vk_map.get(cmd)
+        if vk:
+            ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
+            ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
+    except Exception:
+        pass
+
+def setup_global_hotkeys():
+    """Listens for global Windows shortcuts Win+Q (Previous Song) and Win+E (Skip Song)."""
+    try:
+        from ctypes import wintypes
+
+        MOD_WIN = 0x0008
+        MOD_NOREPEAT = 0x4000
+        VK_Q = 0x51
+        VK_E = 0x45
+        HOTKEY_PREV_ID = 101
+        HOTKEY_SKIP_ID = 102
+
+        user32 = ctypes.windll.user32
+
+        # Register Win+Q (Previous)
+        if not user32.RegisterHotKey(None, HOTKEY_PREV_ID, MOD_WIN | MOD_NOREPEAT, VK_Q):
+            user32.RegisterHotKey(None, HOTKEY_PREV_ID, MOD_WIN, VK_Q)
+
+        # Register Win+E (Next / Skip)
+        if not user32.RegisterHotKey(None, HOTKEY_SKIP_ID, MOD_WIN | MOD_NOREPEAT, VK_E):
+            user32.RegisterHotKey(None, HOTKEY_SKIP_ID, MOD_WIN, VK_E)
+
+        print("[Shortcuts] Global Shortcuts Active: Win+Q (Previous Song) | Win+E (Next Song)")
+
+        msg = wintypes.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
+            if msg.message == 0x0312:  # WM_HOTKEY
+                if msg.wParam == HOTKEY_PREV_ID:
+                    print("[Hotkey] Win+Q triggered -> Previous Song")
+                    trigger_media_command("prev")
+                elif msg.wParam == HOTKEY_SKIP_ID:
+                    print("[Hotkey] Win+E triggered -> Next Song")
+                    trigger_media_command("skip")
+            user32.TranslateMessage(ctypes.byref(msg))
+            user32.DispatchMessageW(ctypes.byref(msg))
+    except Exception as e:
+        print(f"[Shortcuts] Global hotkey registration note: {e}")
+
 # ── HTTP Server Request Handler ───────────────────────────────────
 class BridgeHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -566,13 +627,13 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 "spectrum": current_media["spectrum"]
             }).encode("utf-8"))
         elif path.startswith("/toggle"):
-            asyncio.run(send_media_control("toggle"))
+            trigger_media_command("toggle")
             self.wfile.write(b'{"status":"toggled"}')
         elif path.startswith("/skip"):
-            asyncio.run(send_media_control("skip"))
+            trigger_media_command("skip")
             self.wfile.write(b'{"status":"skipped"}')
         elif path.startswith("/prev"):
-            asyncio.run(send_media_control("prev"))
+            trigger_media_command("prev")
             self.wfile.write(b'{"status":"previous"}')
         else:
             self.wfile.write(b'{"status":"ok"}')
@@ -699,15 +760,21 @@ def main():
     t4 = threading.Thread(target=run_update_loop, daemon=True)
     t4.start()
 
+    t5 = threading.Thread(target=setup_global_hotkeys, daemon=True)
+    t5.start()
+
     def toggle_startup(icon, item):
         new_val = not is_startup_enabled()
         set_startup(new_val)
 
     def on_toggle_play(icon, item):
-        asyncio.run(send_media_control("toggle"))
+        trigger_media_command("toggle")
+
+    def on_prev(icon, item):
+        trigger_media_command("prev")
 
     def on_skip(icon, item):
-        asyncio.run(send_media_control("skip"))
+        trigger_media_command("skip")
 
     def on_check_updates(icon, item):
         threading.Thread(target=lambda: check_for_updates(auto=False), daemon=True).start()
@@ -719,7 +786,8 @@ def main():
     menu = pystray.Menu(
         pystray.MenuItem(f"Modular MusicBridge v{VERSION} (Port {PORT})", None, enabled=False),
         pystray.MenuItem("Play / Pause Media", on_toggle_play),
-        pystray.MenuItem("Skip Track", on_skip),
+        pystray.MenuItem("Previous Track (Win + Q)", on_prev),
+        pystray.MenuItem("Next Track / Skip (Win + E)", on_skip),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Check for Updates", on_check_updates),
         pystray.MenuItem("Run on Startup", toggle_startup, checked=lambda item: is_startup_enabled()),
@@ -730,7 +798,7 @@ def main():
     icon = pystray.Icon(
         name="ModularMusicBridge",
         icon=create_tray_icon(),
-        title=f"Modular MusicBridge v{VERSION} (Running)",
+        title=f"Modular MusicBridge v{VERSION} (Win+Q / Win+E Shortcuts Active)",
         menu=menu
     )
 

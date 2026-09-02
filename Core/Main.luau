@@ -478,21 +478,18 @@ local charPhysSection = window:AddSection(physLeftCol, "Character Physics")
 
 local walkFlingHeartbeat: RBXScriptConnection? = nil
 local walkFlingStepped: RBXScriptConnection? = nil
+local walkFlingRender: RBXScriptConnection? = nil
 
 window:AddToggle(charPhysSection, "walk_fling", "Walk Fling (Touch To Fling)", false, nil, function(enabled)
 	if enabled then
-		local function disableInternalCollision(char: Model)
-			for _, part in ipairs(char:GetDescendants()) do
-				if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-					part.CanCollide = false
-				end
-			end
-		end
-
 		walkFlingStepped = RunService.Stepped:Connect(function()
 			local char = localPlayer.Character
 			if char then
-				disableInternalCollision(char)
+				for _, part in ipairs(char:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = false
+					end
+				end
 			end
 		end)
 
@@ -503,13 +500,15 @@ window:AddToggle(charPhysSection, "walk_fling", "Walk Fling (Touch To Fling)", f
 			local hum = char:FindFirstChildOfClass("Humanoid")
 			if not (hrp and hum and hum.Health > 0) then return end
 
+			hum.Sit = false
+			hum.PlatformStand = false
 			hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 			hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 			hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
 
-			-- Check if any other player is in touch range (<= 6.5 studs)
+			-- Find target player within touch radius (<= 6.5 studs)
 			local myPos = hrp.Position
-			local targetNear = false
+			local targetHrp: BasePart? = nil
 			for _, p in ipairs(Players:GetPlayers()) do
 				if p ~= localPlayer and p.Character then
 					local pHrp = p.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -517,21 +516,34 @@ window:AddToggle(charPhysSection, "walk_fling", "Walk Fling (Touch To Fling)", f
 					if pHrp and pHum and pHum.Health > 0 then
 						local dist = (pHrp.Position - myPos).Magnitude
 						if dist <= 6.5 then
-							targetNear = true
+							targetHrp = pHrp
 							break
 						end
 					end
 				end
 			end
 
-			if targetNear then
-				-- Pulse high torque directly into enemy hitbox while locking local vertical stability
+			if targetHrp then
+				-- Fling target with massive rotational impulse without flinging local client
+				local moveDir = hum.MoveDirection
 				hrp.AssemblyAngularVelocity = Vector3.new(0, 10000000, 0)
-				local vel = hrp.AssemblyLinearVelocity
-				hrp.AssemblyLinearVelocity = Vector3.new(vel.X, math.clamp(vel.Y, -15, 15), vel.Z)
+				hrp.AssemblyLinearVelocity = Vector3.new(moveDir.X * 100, 5000, moveDir.Z * 100)
 			else
-				-- Normal stable grounded walk physics when no player is being touched
 				hrp.AssemblyAngularVelocity = Vector3.zero
+			end
+		end)
+
+		walkFlingRender = RunService.RenderStepped:Connect(function()
+			local char = localPlayer.Character
+			if not char then return end
+			local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hrp and hum and hum.Health > 0 then
+				local moveDir = hum.MoveDirection
+				local ws = hum.WalkSpeed
+				if hrp.AssemblyLinearVelocity.Y > 200 then
+					hrp.AssemblyLinearVelocity = Vector3.new(moveDir.X * ws, 0, moveDir.Z * ws)
+				end
 			end
 		end)
 	else
@@ -542,6 +554,10 @@ window:AddToggle(charPhysSection, "walk_fling", "Walk Fling (Touch To Fling)", f
 		if walkFlingStepped then
 			walkFlingStepped:Disconnect()
 			walkFlingStepped = nil
+		end
+		if walkFlingRender then
+			walkFlingRender:Disconnect()
+			walkFlingRender = nil
 		end
 		local char = localPlayer.Character
 		if char then
@@ -561,12 +577,10 @@ end)
 
 local universalAntiFlingStepped: RBXScriptConnection? = nil
 local universalAntiFlingHeartbeat: RBXScriptConnection? = nil
-local lastSafeAntiFlingCF: CFrame? = nil
-local lastSafeAntiFlingTime = 0
 
-window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Ghost No-Collide & Anchor)", false, nil, function(enabled)
+window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Ghost No-Collide & Momentum Absorption)", false, nil, function(enabled)
 	if enabled then
-		-- 1. Stepped: Disable collision on all other player characters so they physically pass through
+		-- 1. Stepped: Ghost all enemy parts so they cannot transfer physical contact forces
 		universalAntiFlingStepped = RunService.Stepped:Connect(function()
 			for _, p in ipairs(Players:GetPlayers()) do
 				if p ~= localPlayer and p.Character then
@@ -579,7 +593,7 @@ window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Ghost No-
 			end
 		end)
 
-		-- 2. Heartbeat: Record safe CFrame & neutralize incoming velocity spikes
+		-- 2. Heartbeat: Absorb and clamp excessive velocity impulses without teleporting
 		universalAntiFlingHeartbeat = RunService.Heartbeat:Connect(function()
 			local char = localPlayer.Character
 			if not char then return end
@@ -589,25 +603,18 @@ window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Ghost No-
 
 			hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 			hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+			hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
 
 			local linVel = hrp.AssemblyLinearVelocity
 			local angVel = hrp.AssemblyAngularVelocity
-			local now = tick()
 
-			local isLinSpike = linVel.Magnitude > 75
-			local isAngSpike = angVel.Magnitude > 25
-
-			if not isLinSpike and not isAngSpike then
-				if now - lastSafeAntiFlingTime > 0.25 then
-					lastSafeAntiFlingCF = hrp.CFrame
-					lastSafeAntiFlingTime = now
-				end
-			else
-				-- Spike detected from enemy fling contact -> anchor and cancel velocity
-				if lastSafeAntiFlingCF then
-					hrp.CFrame = lastSafeAntiFlingCF
-				end
-				hrp.AssemblyLinearVelocity = Vector3.zero
+			-- If external fling impulse exceeds normal threshold, absorb impulse instantly
+			if linVel.Magnitude > 80 or angVel.Magnitude > 15 then
+				hrp.AssemblyLinearVelocity = Vector3.new(
+					math.clamp(linVel.X, -32, 32),
+					math.clamp(linVel.Y, -60, 60),
+					math.clamp(linVel.Z, -32, 32)
+				)
 				hrp.AssemblyAngularVelocity = Vector3.zero
 			end
 		end)
@@ -635,6 +642,7 @@ window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Ghost No-
 			if hum then
 				hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
 				hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+				hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
 			end
 		end
 	end
@@ -2478,38 +2486,124 @@ local function refreshProfilesList()
 	else
 		statusNotice.Visible = false
 		for _, cfgName in ipairs(existingConfigs) do
+			local isSelected = (selectedConfigName == cfgName)
+
 			local pRow = Instance.new("Frame")
 			pRow.Name = cfgName .. "Row"
-			pRow.Size = UDim2.new(1, -4, 0, 26)
+			pRow.Size = UDim2.new(1, -4, 0, 30)
 			pRow.Position = UDim2.new(0, 2, 0, 0)
 			pRow.BackgroundColor3 = UI.Theme.Container
 			pRow.BackgroundTransparency = UI.Theme.ContainerTransparency
 			pRow.BorderSizePixel = 0
+			pRow.ClipsDescendants = true
 			pRow.Parent = profilesSection
 			UI.registerThemeElement(pRow, "Container")
 
 			local pStroke = Instance.new("UIStroke")
-			pStroke.Color = if selectedConfigName == cfgName then UI.Theme.Accent else UI.Theme.Border
-			pStroke.Thickness = if selectedConfigName == cfgName then 1.6 else 1.0
+			pStroke.Color = if isSelected then UI.Theme.Accent else UI.Theme.Border
+			pStroke.Thickness = if isSelected then 1.5 else 1.0
 			pStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 			pStroke.Parent = pRow
 			UI.registerThemeElement(pStroke, "Border")
 
-			local pBtn = Instance.new("TextButton")
-			pBtn.Size = UDim2.new(1, 0, 1, 0)
-			pBtn.BackgroundTransparency = 1
-			pBtn.Text = string.format("  [%s] %s", if selectedConfigName == cfgName then "●" else "○", cfgName)
-			pBtn.TextColor3 = if selectedConfigName == cfgName then UI.Theme.Accent else UI.Theme.TextPrimary
-			pBtn.Font = UI.Fonts.Header
-			pBtn.TextSize = 11
-			pBtn.TextXAlignment = Enum.TextXAlignment.Left
-			pBtn.Parent = pRow
-			UI.registerThemeElement(pBtn, "TextPrimary")
+			local nameBtn = Instance.new("TextButton")
+			nameBtn.Size = UDim2.new(1, -120, 1, 0)
+			nameBtn.Position = UDim2.new(0, 8, 0, 0)
+			nameBtn.BackgroundTransparency = 1
+			nameBtn.Text = string.format("%s %s", if isSelected then "●" else "○", cfgName)
+			nameBtn.TextColor3 = if isSelected then UI.Theme.Accent else UI.Theme.TextPrimary
+			nameBtn.Font = UI.Fonts.Header
+			nameBtn.TextSize = 11
+			nameBtn.TextXAlignment = Enum.TextXAlignment.Left
+			nameBtn.TextTruncate = Enum.TextTruncate.AtEnd
+			nameBtn.ClipsDescendants = true
+			nameBtn.Parent = pRow
+			UI.registerThemeElement(nameBtn, "TextPrimary")
 
-			pBtn.MouseButton1Click:Connect(function()
+			nameBtn.MouseButton1Click:Connect(function()
 				selectedConfigName = cfgName
 				configInputBox.Text = cfgName
 				currentConfigInputName = cfgName
+				refreshProfilesList()
+			end)
+
+			-- Action: [Load]
+			local rowLoadBtn = Instance.new("TextButton")
+			rowLoadBtn.Size = UDim2.new(0, 36, 0, 20)
+			rowLoadBtn.Position = UDim2.new(1, -114, 0, 5)
+			rowLoadBtn.BackgroundColor3 = UI.Theme.Accent
+			rowLoadBtn.BackgroundTransparency = 0
+			rowLoadBtn.BorderSizePixel = 0
+			rowLoadBtn.Text = "Load"
+			rowLoadBtn.TextColor3 = UI.Theme.AccentText
+			rowLoadBtn.Font = UI.Fonts.Header
+			rowLoadBtn.TextSize = 10
+			rowLoadBtn.Parent = pRow
+
+			rowLoadBtn.MouseButton1Click:Connect(function()
+				Animations.buttonClickPop(rowLoadBtn)
+				local loaded = FeatureManager.loadConfig(cfgName)
+				if loaded then
+					selectedConfigName = cfgName
+					window:Notify("Configs", string.format("Loaded profile '%s'", cfgName), 2.5)
+					refreshProfilesList()
+				else
+					window:Notify("Configs", string.format("Failed to load '%s'", cfgName), 2.5)
+				end
+			end)
+
+			-- Action: [Save]
+			local rowSaveBtn = Instance.new("TextButton")
+			rowSaveBtn.Size = UDim2.new(0, 36, 0, 20)
+			rowSaveBtn.Position = UDim2.new(1, -74, 0, 5)
+			rowSaveBtn.BackgroundColor3 = UI.Theme.ContainerDark
+			rowSaveBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+			rowSaveBtn.BorderSizePixel = 0
+			rowSaveBtn.Text = "Save"
+			rowSaveBtn.TextColor3 = UI.Theme.TextPrimary
+			rowSaveBtn.Font = UI.Fonts.Header
+			rowSaveBtn.TextSize = 10
+			rowSaveBtn.Parent = pRow
+			UI.registerThemeElement(rowSaveBtn, "ContainerDark")
+			UI.registerThemeElement(rowSaveBtn, "TextPrimary")
+
+			rowSaveBtn.MouseButton1Click:Connect(function()
+				Animations.buttonClickPop(rowSaveBtn)
+				local saved = FeatureManager.saveConfig(cfgName)
+				if saved then
+					selectedConfigName = cfgName
+					window:Notify("Configs", string.format("Overwrote '%s'", cfgName), 2.5)
+					refreshProfilesList()
+				else
+					window:Notify("Configs", "Failed to save profile", 2.5)
+				end
+			end)
+
+			-- Action: [Delete]
+			local rowDelBtn = Instance.new("TextButton")
+			rowDelBtn.Size = UDim2.new(0, 26, 0, 20)
+			rowDelBtn.Position = UDim2.new(1, -34, 0, 5)
+			rowDelBtn.BackgroundColor3 = UI.Theme.ContainerDark
+			rowDelBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+			rowDelBtn.BorderSizePixel = 0
+			rowDelBtn.Text = "X"
+			rowDelBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
+			rowDelBtn.Font = UI.Fonts.Header
+			rowDelBtn.TextSize = 10
+			rowDelBtn.Parent = pRow
+			UI.registerThemeElement(rowDelBtn, "ContainerDark")
+
+			rowDelBtn.MouseButton1Click:Connect(function()
+				Animations.buttonClickPop(rowDelBtn)
+				local ok = FeatureManager.deleteConfig(cfgName)
+				if ok then
+					if selectedConfigName == cfgName then
+						selectedConfigName = nil
+						configInputBox.Text = ""
+						currentConfigInputName = ""
+					end
+					window:Notify("Configs", string.format("Deleted '%s'", cfgName), 2.5)
+				end
 				refreshProfilesList()
 			end)
 
@@ -2518,7 +2612,7 @@ local function refreshProfilesList()
 	end
 end
 
-window:AddButton(configActionsSection, "Create & Save Config", function()
+window:AddButton(configActionsSection, "Create & Save New Config", function()
 	local targetName = if currentConfigInputName ~= "" then currentConfigInputName else configInputBox.Text
 	if targetName == "" then
 		window:Notify("Configs", "Please enter a profile name first", 3)
@@ -2548,39 +2642,6 @@ window:AddButton(configActionsSection, "Save / Overwrite Selected", function()
 		refreshProfilesList()
 	else
 		window:Notify("Configs", "Failed to save configuration", 3)
-	end
-end)
-
-window:AddButton(configActionsSection, "Load Selected Config", function()
-	if not selectedConfigName or selectedConfigName == "" then
-		window:Notify("Configs", "Select a profile from the left first", 3)
-		return
-	end
-
-	local loaded = FeatureManager.loadConfig(selectedConfigName)
-	if loaded then
-		window:Notify("Configs", string.format("Loaded profile '%s'", selectedConfigName), 3)
-	else
-		window:Notify("Configs", string.format("Failed to load '%s'", selectedConfigName), 3)
-	end
-end)
-
-window:AddButton(configActionsSection, "Delete Selected Config", function()
-	if not selectedConfigName or selectedConfigName == "" then
-		window:Notify("Configs", "Select a profile from the left to delete", 3)
-		return
-	end
-
-	local deletedName = selectedConfigName
-	local deleted = FeatureManager.deleteConfig(deletedName)
-	if deleted then
-		selectedConfigName = nil
-		configInputBox.Text = ""
-		currentConfigInputName = ""
-		window:Notify("Configs", string.format("Deleted profile '%s'", deletedName), 3)
-		refreshProfilesList()
-	else
-		window:Notify("Configs", "Failed to delete profile", 3)
 	end
 end)
 

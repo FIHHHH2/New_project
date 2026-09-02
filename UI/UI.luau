@@ -707,24 +707,22 @@ function UI.createWindow(titleText: string)
 	UI.registerThemeElement(footerHatch, "BorderDimText")
 
 	local dragging = false
-	local dragStart = Vector2.zero
-	local startAbsPos = Vector2.zero
+	local dragOffset = Vector2.zero
 
 	topbar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
-			dragStart = Vector2.new(input.Position.X, input.Position.Y)
-			startAbsPos = mainFrame.AbsolutePosition
+			local mouse = UserInputService:GetMouseLocation()
+			dragOffset = Vector2.new(mouse.X - mainFrame.AbsolutePosition.X, mouse.Y - mainFrame.AbsolutePosition.Y)
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
 		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local mousePos = Vector2.new(input.Position.X, input.Position.Y)
-			local delta = mousePos - dragStart
+			local mouse = UserInputService:GetMouseLocation()
 			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-			local targetX = math.clamp(startAbsPos.X + delta.X, 0, math.max(0, vpSize.X - mainFrame.AbsoluteSize.X))
-			local targetY = math.clamp(startAbsPos.Y + delta.Y, 0, math.max(0, vpSize.Y - mainFrame.AbsoluteSize.Y))
+			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - mainFrame.AbsoluteSize.X))
+			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - mainFrame.AbsoluteSize.Y))
 			mainFrame.Position = UDim2.new(0, targetX, 0, targetY)
 		end
 	end)

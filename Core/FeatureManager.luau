@@ -88,13 +88,13 @@ function FeatureManager.listConfigs(): {string}
 	ensureFolders()
 	local configs: {string} = {}
 	local listf = listfiles or (getgenv and getgenv().listfiles)
-	local isf = isfile or (getgenv and getgenv().isfile)
 	if type(listf) == "function" then
 		local ok, files = pcall(function() return listf(CONFIGS_FOLDER) end)
 		if ok and type(files) == "table" then
 			for _, path in ipairs(files) do
-				local fileName = tostring(path):match("([^/\]+)%.json$")
-				if fileName and fileName ~= "" then
+				local s = tostring(path):gsub("\\", "/")
+				local fileName = s:match("([^/]+)%.json$")
+				if fileName and fileName ~= "" and fileName ~= "autoload_profile" then
 					table.insert(configs, fileName)
 				end
 			end
@@ -108,13 +108,23 @@ local function readConfigFile(name: string): string?
 	ensureFolders()
 	local rdf = readfile or (getgenv and getgenv().readfile)
 	local isf = isfile or (getgenv and getgenv().isfile)
-	if type(rdf) == "function" and type(isf) == "function" then
-		local path = CONFIGS_FOLDER .. "/" .. name .. ".json"
-		local ok, content = pcall(function()
-			if isf(path) then return rdf(path) end
-			return nil
-		end)
-		if ok and content then return content end
+	if type(rdf) == "function" then
+		local paths = {
+			CONFIGS_FOLDER .. "/" .. name .. ".json",
+			CONFIGS_FOLDER .. "\\" .. name .. ".json",
+			name .. ".json"
+		}
+		for _, p in ipairs(paths) do
+			local ok, content = pcall(function()
+				if type(isf) == "function" then
+					if isf(p) then return rdf(p) end
+				else
+					return rdf(p)
+				end
+				return nil
+			end)
+			if ok and content and content ~= "" then return content end
+		end
 	end
 	return nil
 end
@@ -133,13 +143,18 @@ end
 local function deleteConfigFile(name: string): boolean
 	ensureFolders()
 	local dlf = delfile or (getgenv and getgenv().delfile)
-	local isf = isfile or (getgenv and getgenv().isfile)
-	if type(dlf) == "function" and type(isf) == "function" then
-		local path = CONFIGS_FOLDER .. "/" .. name .. ".json"
-		local ok = pcall(function()
-			if isf(path) then dlf(path) end
-		end)
-		return ok
+	if type(dlf) == "function" then
+		local paths = {
+			CONFIGS_FOLDER .. "/" .. name .. ".json",
+			CONFIGS_FOLDER .. "\\" .. name .. ".json",
+			name .. ".json"
+		}
+		local deleted = false
+		for _, p in ipairs(paths) do
+			local ok = pcall(function() dlf(p) end)
+			if ok then deleted = true end
+		end
+		return deleted
 	end
 	return false
 end

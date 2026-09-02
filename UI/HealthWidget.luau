@@ -184,29 +184,25 @@ function HealthWidget.new(): HealthWidgetInstance
 	hudStroke.Parent = hudFrame
 	UI.registerThemeElement(hudStroke, "Border")
 
-	-- Dragging handler for Health HUD
+	-- Dragging handler for Health HUD (Zero-drift cursor locked)
 	local isDragging = false
-	local dragStart = Vector2.zero
-	local startPos = hudFrame.Position
+	local dragOffset = Vector2.zero
 
 	hudFrame.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			isDragging = true
-			dragStart = UserInputService:GetMouseLocation()
-			startPos = hudFrame.Position
+			local mouse = UserInputService:GetMouseLocation()
+			dragOffset = Vector2.new(mouse.X - hudFrame.AbsolutePosition.X, mouse.Y - hudFrame.AbsolutePosition.Y)
 		end
 	end)
 
 	table.insert(activeConns, UserInputService.InputChanged:Connect(function(input)
 		if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local mousePos = UserInputService:GetMouseLocation()
-			local delta = mousePos - dragStart
-			hudFrame.Position = UDim2.new(
-				startPos.X.Scale,
-				startPos.X.Offset + delta.X,
-				startPos.Y.Scale,
-				startPos.Y.Offset + delta.Y
-			)
+			local mouse = UserInputService:GetMouseLocation()
+			local vpSize = Camera.ViewportSize
+			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - hudFrame.AbsoluteSize.X))
+			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - hudFrame.AbsoluteSize.Y))
+			hudFrame.Position = UDim2.new(0, targetX, 0, targetY)
 		end
 	end))
 

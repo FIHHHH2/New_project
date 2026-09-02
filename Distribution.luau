@@ -1110,24 +1110,22 @@ Modules["UI/UI.luau"] = function()
     	UI.registerThemeElement(footerHatch, "BorderDimText")
 
     	local dragging = false
-    	local dragStart = Vector2.zero
-    	local startAbsPos = Vector2.zero
+    	local dragOffset = Vector2.zero
 
     	topbar.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			dragging = true
-    			dragStart = Vector2.new(input.Position.X, input.Position.Y)
-    			startAbsPos = mainFrame.AbsolutePosition
+    			local mouse = UserInputService:GetMouseLocation()
+    			dragOffset = Vector2.new(mouse.X - mainFrame.AbsolutePosition.X, mouse.Y - mainFrame.AbsolutePosition.Y)
     		end
     	end)
 
     	UserInputService.InputChanged:Connect(function(input)
     		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mousePos = Vector2.new(input.Position.X, input.Position.Y)
-    			local delta = mousePos - dragStart
+    			local mouse = UserInputService:GetMouseLocation()
     			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(startAbsPos.X + delta.X, 0, math.max(0, vpSize.X - mainFrame.AbsoluteSize.X))
-    			local targetY = math.clamp(startAbsPos.Y + delta.Y, 0, math.max(0, vpSize.Y - mainFrame.AbsoluteSize.Y))
+    			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - mainFrame.AbsoluteSize.X))
+    			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - mainFrame.AbsoluteSize.Y))
     			mainFrame.Position = UDim2.new(0, targetX, 0, targetY)
     		end
     	end)
@@ -1935,8 +1933,7 @@ Modules["UI/PlayerList.luau"] = function()
 
     	-- ── Standard Roblox Topbar Drag (Screen Clamped) ──────────────────
     	local dragging = false
-    	local dragStart = Vector2.zero
-    	local startAbsPos = Vector2.zero
+    	local dragOffset = Vector2.zero
 
     	-- Forward declare popup frame
     	local popupFrame: Frame
@@ -1944,18 +1941,17 @@ Modules["UI/PlayerList.luau"] = function()
     	topbar.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			dragging = true
-    			dragStart = Vector2.new(input.Position.X, input.Position.Y)
-    			startAbsPos = widget.AbsolutePosition
+    			local mouse = UserInputService:GetMouseLocation()
+    			dragOffset = Vector2.new(mouse.X - widget.AbsolutePosition.X, mouse.Y - widget.AbsolutePosition.Y)
     		end
     	end)
 
     	UserInputService.InputChanged:Connect(function(input)
     		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mousePos = Vector2.new(input.Position.X, input.Position.Y)
-    			local delta = mousePos - dragStart
+    			local mouse = UserInputService:GetMouseLocation()
     			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(startAbsPos.X + delta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
-    			local targetY = math.clamp(startAbsPos.Y + delta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
+    			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
+    			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
     			widget.Position = UDim2.new(0, targetX, 0, targetY)
     			if popupFrame and popupFrame.Visible then
     				if closeContextMenu then
@@ -3056,6 +3052,34 @@ Modules["UI/ChatWidget.luau"] = function()
     	closeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     	closeStroke.Parent = closeBtn
     	UI.registerThemeElement(closeStroke, "Border")
+
+    	-- ── Topbar Dragging (Zero-drift cursor locked) ────────────────────
+    	local dragging = false
+    	local dragOffset = Vector2.zero
+
+    	topbar.InputBegan:Connect(function(input)
+    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    			dragging = true
+    			local mouse = UserInputService:GetMouseLocation()
+    			dragOffset = Vector2.new(mouse.X - widget.AbsolutePosition.X, mouse.Y - widget.AbsolutePosition.Y)
+    		end
+    	end)
+
+    	UserInputService.InputChanged:Connect(function(input)
+    		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+    			local mouse = UserInputService:GetMouseLocation()
+    			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+    			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
+    			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
+    			widget.Position = UDim2.new(0, targetX, 0, targetY)
+    		end
+    	end)
+
+    	UserInputService.InputEnded:Connect(function(input)
+    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    			dragging = false
+    		end
+    	end)
 
     	-- ============================================================
     	-- ── MESSAGE CONTAINER (CHAT LOGS) ───────────────────────────
@@ -4889,24 +4913,22 @@ Modules["UI/MusicTracker.luau"] = function()
 
     	-- ── Dragging Mechanics ───────────────────────────────────────────
     	local dragging = false
-    	local dragStart = Vector2.zero
-    	local startAbsPos = Vector2.zero
+    	local dragOffset = Vector2.zero
 
     	topbar.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			dragging = true
-    			dragStart = Vector2.new(input.Position.X, input.Position.Y)
-    			startAbsPos = widget.AbsolutePosition
+    			local mouse = UserInputService:GetMouseLocation()
+    			dragOffset = Vector2.new(mouse.X - widget.AbsolutePosition.X, mouse.Y - widget.AbsolutePosition.Y)
     		end
     	end)
 
     	UserInputService.InputChanged:Connect(function(input)
     		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mousePos = Vector2.new(input.Position.X, input.Position.Y)
-    			local delta = mousePos - dragStart
+    			local mouse = UserInputService:GetMouseLocation()
     			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(startAbsPos.X + delta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
-    			local targetY = math.clamp(startAbsPos.Y + delta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
+    			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
+    			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
     			widget.Position = UDim2.new(0, targetX, 0, targetY)
     		end
     	end)
@@ -5357,26 +5379,24 @@ Modules["UI/Hotbar.luau"] = function()
     	bpTitle.Parent = bpTopBar
     	UI.registerThemeElement(bpTitle, "TextPrimary")
 
-    	-- Enable Dragging for Backpack Window
+    	-- Enable Dragging for Backpack Window (Zero-drift cursor locked)
     	local isBpDragging = false
-    	local bpDragStart = Vector2.zero
-    	local bpStartAbsPos = Vector2.zero
+    	local bpDragOffset = Vector2.zero
 
     	bpTopBar.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			isBpDragging = true
-    			bpDragStart = Vector2.new(input.Position.X, input.Position.Y)
-    			bpStartAbsPos = bpWindow.AbsolutePosition
+    			local mouse = UserInputService:GetMouseLocation()
+    			bpDragOffset = Vector2.new(mouse.X - bpWindow.AbsolutePosition.X, mouse.Y - bpWindow.AbsolutePosition.Y)
     		end
     	end)
 
     	UserInputService.InputChanged:Connect(function(input)
     		if isBpDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mousePos = Vector2.new(input.Position.X, input.Position.Y)
-    			local delta = mousePos - bpDragStart
+    			local mouse = UserInputService:GetMouseLocation()
     			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(bpStartAbsPos.X + delta.X, 0, math.max(0, vpSize.X - bpWindow.AbsoluteSize.X))
-    			local targetY = math.clamp(bpStartAbsPos.Y + delta.Y, 0, math.max(0, vpSize.Y - bpWindow.AbsoluteSize.Y))
+    			local targetX = math.clamp(mouse.X - bpDragOffset.X, 0, math.max(0, vpSize.X - bpWindow.AbsoluteSize.X))
+    			local targetY = math.clamp(mouse.Y - bpDragOffset.Y, 0, math.max(0, vpSize.Y - bpWindow.AbsoluteSize.Y))
     			bpWindow.Position = UDim2.new(0, targetX, 0, targetY)
     		end
     	end)
@@ -7332,36 +7352,31 @@ Modules["UI/LeaderstatsWidget.luau"] = function()
     		end
     	end)
 
-    	-- ── Dragging Mechanics ───────────────────────────────────────────
+    	-- ── Dragging Mechanics (Zero-drift cursor locked) ────────────────
     	local dragging = false
-    	local dragInput: InputObject? = nil
-    	local dragStart = Vector3.zero
-    	local startPos = UDim2.new()
+    	local dragOffset = Vector2.zero
 
     	topbar.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			dragging = true
-    			dragStart = input.Position
-    			startPos = widget.Position
-
-    			input.Changed:Connect(function()
-    				if input.UserInputState == Enum.UserInputState.End then
-    					dragging = false
-    				end
-    			end)
-    		end
-    	end)
-
-    	topbar.InputChanged:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-    			dragInput = input
+    			local mouse = UserInputService:GetMouseLocation()
+    			dragOffset = Vector2.new(mouse.X - widget.AbsolutePosition.X, mouse.Y - widget.AbsolutePosition.Y)
     		end
     	end)
 
     	UserInputService.InputChanged:Connect(function(input)
-    		if input == dragInput and dragging then
-    			local delta = input.Position - dragStart
-    			widget.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+    			local mouse = UserInputService:GetMouseLocation()
+    			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+    			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
+    			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
+    			widget.Position = UDim2.new(0, targetX, 0, targetY)
+    		end
+    	end)
+
+    	UserInputService.InputEnded:Connect(function(input)
+    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    			dragging = false
     		end
     	end)
 
@@ -7624,29 +7639,25 @@ Modules["UI/HealthWidget.luau"] = function()
     	hudStroke.Parent = hudFrame
     	UI.registerThemeElement(hudStroke, "Border")
 
-    	-- Dragging handler for Health HUD
+    	-- Dragging handler for Health HUD (Zero-drift cursor locked)
     	local isDragging = false
-    	local dragStart = Vector2.zero
-    	local startPos = hudFrame.Position
+    	local dragOffset = Vector2.zero
 
     	hudFrame.InputBegan:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
     			isDragging = true
-    			dragStart = UserInputService:GetMouseLocation()
-    			startPos = hudFrame.Position
+    			local mouse = UserInputService:GetMouseLocation()
+    			dragOffset = Vector2.new(mouse.X - hudFrame.AbsolutePosition.X, mouse.Y - hudFrame.AbsolutePosition.Y)
     		end
     	end)
 
     	table.insert(activeConns, UserInputService.InputChanged:Connect(function(input)
     		if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local mousePos = UserInputService:GetMouseLocation()
-    			local delta = mousePos - dragStart
-    			hudFrame.Position = UDim2.new(
-    				startPos.X.Scale,
-    				startPos.X.Offset + delta.X,
-    				startPos.Y.Scale,
-    				startPos.Y.Offset + delta.Y
-    			)
+    			local mouse = UserInputService:GetMouseLocation()
+    			local vpSize = Camera.ViewportSize
+    			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - hudFrame.AbsoluteSize.X))
+    			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - hudFrame.AbsoluteSize.Y))
+    			hudFrame.Position = UDim2.new(0, targetX, 0, targetY)
     		end
     	end))
 
@@ -8905,13 +8916,13 @@ Modules["Core/FeatureManager.luau"] = function()
     	ensureFolders()
     	local configs: {string} = {}
     	local listf = listfiles or (getgenv and getgenv().listfiles)
-    	local isf = isfile or (getgenv and getgenv().isfile)
     	if type(listf) == "function" then
     		local ok, files = pcall(function() return listf(CONFIGS_FOLDER) end)
     		if ok and type(files) == "table" then
     			for _, path in ipairs(files) do
-    				local fileName = tostring(path):match("([^/\]+)%.json$")
-    				if fileName and fileName ~= "" then
+    				local s = tostring(path):gsub("\\", "/")
+    				local fileName = s:match("([^/]+)%.json$")
+    				if fileName and fileName ~= "" and fileName ~= "autoload_profile" then
     					table.insert(configs, fileName)
     				end
     			end
@@ -8925,13 +8936,23 @@ Modules["Core/FeatureManager.luau"] = function()
     	ensureFolders()
     	local rdf = readfile or (getgenv and getgenv().readfile)
     	local isf = isfile or (getgenv and getgenv().isfile)
-    	if type(rdf) == "function" and type(isf) == "function" then
-    		local path = CONFIGS_FOLDER .. "/" .. name .. ".json"
-    		local ok, content = pcall(function()
-    			if isf(path) then return rdf(path) end
-    			return nil
-    		end)
-    		if ok and content then return content end
+    	if type(rdf) == "function" then
+    		local paths = {
+    			CONFIGS_FOLDER .. "/" .. name .. ".json",
+    			CONFIGS_FOLDER .. "\\" .. name .. ".json",
+    			name .. ".json"
+    		}
+    		for _, p in ipairs(paths) do
+    			local ok, content = pcall(function()
+    				if type(isf) == "function" then
+    					if isf(p) then return rdf(p) end
+    				else
+    					return rdf(p)
+    				end
+    				return nil
+    			end)
+    			if ok and content and content ~= "" then return content end
+    		end
     	end
     	return nil
     end
@@ -8950,13 +8971,18 @@ Modules["Core/FeatureManager.luau"] = function()
     local function deleteConfigFile(name: string): boolean
     	ensureFolders()
     	local dlf = delfile or (getgenv and getgenv().delfile)
-    	local isf = isfile or (getgenv and getgenv().isfile)
-    	if type(dlf) == "function" and type(isf) == "function" then
-    		local path = CONFIGS_FOLDER .. "/" .. name .. ".json"
-    		local ok = pcall(function()
-    			if isf(path) then dlf(path) end
-    		end)
-    		return ok
+    	if type(dlf) == "function" then
+    		local paths = {
+    			CONFIGS_FOLDER .. "/" .. name .. ".json",
+    			CONFIGS_FOLDER .. "\\" .. name .. ".json",
+    			name .. ".json"
+    		}
+    		local deleted = false
+    		for _, p in ipairs(paths) do
+    			local ok = pcall(function() dlf(p) end)
+    			if ok then deleted = true end
+    		end
+    		return deleted
     	end
     	return false
     end
@@ -17576,21 +17602,18 @@ local charPhysSection = window:AddSection(physLeftCol, "Character Physics")
 
 local walkFlingHeartbeat: RBXScriptConnection? = nil
 local walkFlingStepped: RBXScriptConnection? = nil
+local walkFlingRender: RBXScriptConnection? = nil
 
 window:AddToggle(charPhysSection, "walk_fling", "Walk Fling (Touch To Fling)", false, nil, function(enabled)
 	if enabled then
-		local function disableInternalCollision(char: Model)
-			for _, part in ipairs(char:GetDescendants()) do
-				if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-					part.CanCollide = false
-				end
-			end
-		end
-
 		walkFlingStepped = RunService.Stepped:Connect(function()
 			local char = localPlayer.Character
 			if char then
-				disableInternalCollision(char)
+				for _, part in ipairs(char:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = false
+					end
+				end
 			end
 		end)
 
@@ -17601,13 +17624,15 @@ window:AddToggle(charPhysSection, "walk_fling", "Walk Fling (Touch To Fling)", f
 			local hum = char:FindFirstChildOfClass("Humanoid")
 			if not (hrp and hum and hum.Health > 0) then return end
 
+			hum.Sit = false
+			hum.PlatformStand = false
 			hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 			hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 			hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
 
-			-- Check if any other player is in touch range (<= 6.5 studs)
+			-- Find target player within touch radius (<= 6.5 studs)
 			local myPos = hrp.Position
-			local targetNear = false
+			local targetHrp: BasePart? = nil
 			for _, p in ipairs(Players:GetPlayers()) do
 				if p ~= localPlayer and p.Character then
 					local pHrp = p.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -17615,21 +17640,34 @@ window:AddToggle(charPhysSection, "walk_fling", "Walk Fling (Touch To Fling)", f
 					if pHrp and pHum and pHum.Health > 0 then
 						local dist = (pHrp.Position - myPos).Magnitude
 						if dist <= 6.5 then
-							targetNear = true
+							targetHrp = pHrp
 							break
 						end
 					end
 				end
 			end
 
-			if targetNear then
-				-- Pulse high torque directly into enemy hitbox while locking local vertical stability
+			if targetHrp then
+				-- Fling target with massive rotational impulse without flinging local client
+				local moveDir = hum.MoveDirection
 				hrp.AssemblyAngularVelocity = Vector3.new(0, 10000000, 0)
-				local vel = hrp.AssemblyLinearVelocity
-				hrp.AssemblyLinearVelocity = Vector3.new(vel.X, math.clamp(vel.Y, -15, 15), vel.Z)
+				hrp.AssemblyLinearVelocity = Vector3.new(moveDir.X * 100, 5000, moveDir.Z * 100)
 			else
-				-- Normal stable grounded walk physics when no player is being touched
 				hrp.AssemblyAngularVelocity = Vector3.zero
+			end
+		end)
+
+		walkFlingRender = RunService.RenderStepped:Connect(function()
+			local char = localPlayer.Character
+			if not char then return end
+			local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hrp and hum and hum.Health > 0 then
+				local moveDir = hum.MoveDirection
+				local ws = hum.WalkSpeed
+				if hrp.AssemblyLinearVelocity.Y > 200 then
+					hrp.AssemblyLinearVelocity = Vector3.new(moveDir.X * ws, 0, moveDir.Z * ws)
+				end
 			end
 		end)
 	else
@@ -17640,6 +17678,10 @@ window:AddToggle(charPhysSection, "walk_fling", "Walk Fling (Touch To Fling)", f
 		if walkFlingStepped then
 			walkFlingStepped:Disconnect()
 			walkFlingStepped = nil
+		end
+		if walkFlingRender then
+			walkFlingRender:Disconnect()
+			walkFlingRender = nil
 		end
 		local char = localPlayer.Character
 		if char then
@@ -17659,12 +17701,10 @@ end)
 
 local universalAntiFlingStepped: RBXScriptConnection? = nil
 local universalAntiFlingHeartbeat: RBXScriptConnection? = nil
-local lastSafeAntiFlingCF: CFrame? = nil
-local lastSafeAntiFlingTime = 0
 
-window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Ghost No-Collide & Anchor)", false, nil, function(enabled)
+window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Ghost No-Collide & Momentum Absorption)", false, nil, function(enabled)
 	if enabled then
-		-- 1. Stepped: Disable collision on all other player characters so they physically pass through
+		-- 1. Stepped: Ghost all enemy parts so they cannot transfer physical contact forces
 		universalAntiFlingStepped = RunService.Stepped:Connect(function()
 			for _, p in ipairs(Players:GetPlayers()) do
 				if p ~= localPlayer and p.Character then
@@ -17677,7 +17717,7 @@ window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Ghost No-
 			end
 		end)
 
-		-- 2. Heartbeat: Record safe CFrame & neutralize incoming velocity spikes
+		-- 2. Heartbeat: Absorb and clamp excessive velocity impulses without teleporting
 		universalAntiFlingHeartbeat = RunService.Heartbeat:Connect(function()
 			local char = localPlayer.Character
 			if not char then return end
@@ -17687,25 +17727,18 @@ window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Ghost No-
 
 			hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 			hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+			hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
 
 			local linVel = hrp.AssemblyLinearVelocity
 			local angVel = hrp.AssemblyAngularVelocity
-			local now = tick()
 
-			local isLinSpike = linVel.Magnitude > 75
-			local isAngSpike = angVel.Magnitude > 25
-
-			if not isLinSpike and not isAngSpike then
-				if now - lastSafeAntiFlingTime > 0.25 then
-					lastSafeAntiFlingCF = hrp.CFrame
-					lastSafeAntiFlingTime = now
-				end
-			else
-				-- Spike detected from enemy fling contact -> anchor and cancel velocity
-				if lastSafeAntiFlingCF then
-					hrp.CFrame = lastSafeAntiFlingCF
-				end
-				hrp.AssemblyLinearVelocity = Vector3.zero
+			-- If external fling impulse exceeds normal threshold, absorb impulse instantly
+			if linVel.Magnitude > 80 or angVel.Magnitude > 15 then
+				hrp.AssemblyLinearVelocity = Vector3.new(
+					math.clamp(linVel.X, -32, 32),
+					math.clamp(linVel.Y, -60, 60),
+					math.clamp(linVel.Z, -32, 32)
+				)
 				hrp.AssemblyAngularVelocity = Vector3.zero
 			end
 		end)
@@ -17733,6 +17766,7 @@ window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Ghost No-
 			if hum then
 				hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
 				hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+				hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
 			end
 		end
 	end
@@ -19576,38 +19610,124 @@ local function refreshProfilesList()
 	else
 		statusNotice.Visible = false
 		for _, cfgName in ipairs(existingConfigs) do
+			local isSelected = (selectedConfigName == cfgName)
+
 			local pRow = Instance.new("Frame")
 			pRow.Name = cfgName .. "Row"
-			pRow.Size = UDim2.new(1, -4, 0, 26)
+			pRow.Size = UDim2.new(1, -4, 0, 30)
 			pRow.Position = UDim2.new(0, 2, 0, 0)
 			pRow.BackgroundColor3 = UI.Theme.Container
 			pRow.BackgroundTransparency = UI.Theme.ContainerTransparency
 			pRow.BorderSizePixel = 0
+			pRow.ClipsDescendants = true
 			pRow.Parent = profilesSection
 			UI.registerThemeElement(pRow, "Container")
 
 			local pStroke = Instance.new("UIStroke")
-			pStroke.Color = if selectedConfigName == cfgName then UI.Theme.Accent else UI.Theme.Border
-			pStroke.Thickness = if selectedConfigName == cfgName then 1.6 else 1.0
+			pStroke.Color = if isSelected then UI.Theme.Accent else UI.Theme.Border
+			pStroke.Thickness = if isSelected then 1.5 else 1.0
 			pStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 			pStroke.Parent = pRow
 			UI.registerThemeElement(pStroke, "Border")
 
-			local pBtn = Instance.new("TextButton")
-			pBtn.Size = UDim2.new(1, 0, 1, 0)
-			pBtn.BackgroundTransparency = 1
-			pBtn.Text = string.format("  [%s] %s", if selectedConfigName == cfgName then "●" else "○", cfgName)
-			pBtn.TextColor3 = if selectedConfigName == cfgName then UI.Theme.Accent else UI.Theme.TextPrimary
-			pBtn.Font = UI.Fonts.Header
-			pBtn.TextSize = 11
-			pBtn.TextXAlignment = Enum.TextXAlignment.Left
-			pBtn.Parent = pRow
-			UI.registerThemeElement(pBtn, "TextPrimary")
+			local nameBtn = Instance.new("TextButton")
+			nameBtn.Size = UDim2.new(1, -120, 1, 0)
+			nameBtn.Position = UDim2.new(0, 8, 0, 0)
+			nameBtn.BackgroundTransparency = 1
+			nameBtn.Text = string.format("%s %s", if isSelected then "●" else "○", cfgName)
+			nameBtn.TextColor3 = if isSelected then UI.Theme.Accent else UI.Theme.TextPrimary
+			nameBtn.Font = UI.Fonts.Header
+			nameBtn.TextSize = 11
+			nameBtn.TextXAlignment = Enum.TextXAlignment.Left
+			nameBtn.TextTruncate = Enum.TextTruncate.AtEnd
+			nameBtn.ClipsDescendants = true
+			nameBtn.Parent = pRow
+			UI.registerThemeElement(nameBtn, "TextPrimary")
 
-			pBtn.MouseButton1Click:Connect(function()
+			nameBtn.MouseButton1Click:Connect(function()
 				selectedConfigName = cfgName
 				configInputBox.Text = cfgName
 				currentConfigInputName = cfgName
+				refreshProfilesList()
+			end)
+
+			-- Action: [Load]
+			local rowLoadBtn = Instance.new("TextButton")
+			rowLoadBtn.Size = UDim2.new(0, 36, 0, 20)
+			rowLoadBtn.Position = UDim2.new(1, -114, 0, 5)
+			rowLoadBtn.BackgroundColor3 = UI.Theme.Accent
+			rowLoadBtn.BackgroundTransparency = 0
+			rowLoadBtn.BorderSizePixel = 0
+			rowLoadBtn.Text = "Load"
+			rowLoadBtn.TextColor3 = UI.Theme.AccentText
+			rowLoadBtn.Font = UI.Fonts.Header
+			rowLoadBtn.TextSize = 10
+			rowLoadBtn.Parent = pRow
+
+			rowLoadBtn.MouseButton1Click:Connect(function()
+				Animations.buttonClickPop(rowLoadBtn)
+				local loaded = FeatureManager.loadConfig(cfgName)
+				if loaded then
+					selectedConfigName = cfgName
+					window:Notify("Configs", string.format("Loaded profile '%s'", cfgName), 2.5)
+					refreshProfilesList()
+				else
+					window:Notify("Configs", string.format("Failed to load '%s'", cfgName), 2.5)
+				end
+			end)
+
+			-- Action: [Save]
+			local rowSaveBtn = Instance.new("TextButton")
+			rowSaveBtn.Size = UDim2.new(0, 36, 0, 20)
+			rowSaveBtn.Position = UDim2.new(1, -74, 0, 5)
+			rowSaveBtn.BackgroundColor3 = UI.Theme.ContainerDark
+			rowSaveBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+			rowSaveBtn.BorderSizePixel = 0
+			rowSaveBtn.Text = "Save"
+			rowSaveBtn.TextColor3 = UI.Theme.TextPrimary
+			rowSaveBtn.Font = UI.Fonts.Header
+			rowSaveBtn.TextSize = 10
+			rowSaveBtn.Parent = pRow
+			UI.registerThemeElement(rowSaveBtn, "ContainerDark")
+			UI.registerThemeElement(rowSaveBtn, "TextPrimary")
+
+			rowSaveBtn.MouseButton1Click:Connect(function()
+				Animations.buttonClickPop(rowSaveBtn)
+				local saved = FeatureManager.saveConfig(cfgName)
+				if saved then
+					selectedConfigName = cfgName
+					window:Notify("Configs", string.format("Overwrote '%s'", cfgName), 2.5)
+					refreshProfilesList()
+				else
+					window:Notify("Configs", "Failed to save profile", 2.5)
+				end
+			end)
+
+			-- Action: [Delete]
+			local rowDelBtn = Instance.new("TextButton")
+			rowDelBtn.Size = UDim2.new(0, 26, 0, 20)
+			rowDelBtn.Position = UDim2.new(1, -34, 0, 5)
+			rowDelBtn.BackgroundColor3 = UI.Theme.ContainerDark
+			rowDelBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+			rowDelBtn.BorderSizePixel = 0
+			rowDelBtn.Text = "X"
+			rowDelBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
+			rowDelBtn.Font = UI.Fonts.Header
+			rowDelBtn.TextSize = 10
+			rowDelBtn.Parent = pRow
+			UI.registerThemeElement(rowDelBtn, "ContainerDark")
+
+			rowDelBtn.MouseButton1Click:Connect(function()
+				Animations.buttonClickPop(rowDelBtn)
+				local ok = FeatureManager.deleteConfig(cfgName)
+				if ok then
+					if selectedConfigName == cfgName then
+						selectedConfigName = nil
+						configInputBox.Text = ""
+						currentConfigInputName = ""
+					end
+					window:Notify("Configs", string.format("Deleted '%s'", cfgName), 2.5)
+				end
 				refreshProfilesList()
 			end)
 
@@ -19616,7 +19736,7 @@ local function refreshProfilesList()
 	end
 end
 
-window:AddButton(configActionsSection, "Create & Save Config", function()
+window:AddButton(configActionsSection, "Create & Save New Config", function()
 	local targetName = if currentConfigInputName ~= "" then currentConfigInputName else configInputBox.Text
 	if targetName == "" then
 		window:Notify("Configs", "Please enter a profile name first", 3)
@@ -19646,39 +19766,6 @@ window:AddButton(configActionsSection, "Save / Overwrite Selected", function()
 		refreshProfilesList()
 	else
 		window:Notify("Configs", "Failed to save configuration", 3)
-	end
-end)
-
-window:AddButton(configActionsSection, "Load Selected Config", function()
-	if not selectedConfigName or selectedConfigName == "" then
-		window:Notify("Configs", "Select a profile from the left first", 3)
-		return
-	end
-
-	local loaded = FeatureManager.loadConfig(selectedConfigName)
-	if loaded then
-		window:Notify("Configs", string.format("Loaded profile '%s'", selectedConfigName), 3)
-	else
-		window:Notify("Configs", string.format("Failed to load '%s'", selectedConfigName), 3)
-	end
-end)
-
-window:AddButton(configActionsSection, "Delete Selected Config", function()
-	if not selectedConfigName or selectedConfigName == "" then
-		window:Notify("Configs", "Select a profile from the left to delete", 3)
-		return
-	end
-
-	local deletedName = selectedConfigName
-	local deleted = FeatureManager.deleteConfig(deletedName)
-	if deleted then
-		selectedConfigName = nil
-		configInputBox.Text = ""
-		currentConfigInputName = ""
-		window:Notify("Configs", string.format("Deleted profile '%s'", deletedName), 3)
-		refreshProfilesList()
-	else
-		window:Notify("Configs", "Failed to delete profile", 3)
 	end
 end)
 

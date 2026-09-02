@@ -509,6 +509,34 @@ function ChatWidget.new(): ChatWidgetInstance
 	closeStroke.Parent = closeBtn
 	UI.registerThemeElement(closeStroke, "Border")
 
+	-- ── Topbar Dragging (Zero-drift cursor locked) ────────────────────
+	local dragging = false
+	local dragOffset = Vector2.zero
+
+	topbar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			local mouse = UserInputService:GetMouseLocation()
+			dragOffset = Vector2.new(mouse.X - widget.AbsolutePosition.X, mouse.Y - widget.AbsolutePosition.Y)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local mouse = UserInputService:GetMouseLocation()
+			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+			local targetX = math.clamp(mouse.X - dragOffset.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
+			local targetY = math.clamp(mouse.Y - dragOffset.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
+			widget.Position = UDim2.new(0, targetX, 0, targetY)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+
 	-- ============================================================
 	-- ── MESSAGE CONTAINER (CHAT LOGS) ───────────────────────────
 	-- ============================================================

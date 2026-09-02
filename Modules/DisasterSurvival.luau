@@ -427,11 +427,8 @@ end
 --   owns physics simulation → BodyPosition/BodyGyro replicate to server correctly.
 local dragMouse:         Mouse = LocalPlayer:GetMouse()
 local dragTarget:        BasePart? = nil
-local dragAttachment0:   Attachment? = nil
-local dragAttachment1:   Attachment? = nil
-local dragAlignPos:      AlignPosition? = nil
-local dragAlignOrient:   AlignOrientation? = nil
-local dragNoCollisions:  {NoCollisionConstraint} = {}
+local dragBodyPosition:  BodyPosition? = nil
+local dragBodyGyro:      BodyGyro? = nil
 local hoverTarget:       BasePart? = nil
 local hoverHL:           Highlight? = nil
 local grabHL:            Highlight? = nil
@@ -439,15 +436,8 @@ local dragHoverConn:     RBXScriptConnection? = nil
 local dragWheelConn:     RBXScriptConnection? = nil
 local dragInputConn:     RBXScriptConnection? = nil
 local dragEndConn:       RBXScriptConnection? = nil
-local dragDepth:         number = 30
-local DRAG_MAX_RANGE:    number = 300
-
--- Saved original part properties to restore on drop
-local savedPartProperties: {[BasePart]: {
-    CanCollide: boolean,
-    CustomPhysicalProperties: PhysicalProperties?,
-    Massless: boolean
-}} = {}
+local dragDepth:         number = 25
+local DRAG_MAX_RANGE:    number = 200
 
 local function clearHover()
     if hoverHL and hoverHL.Parent then
@@ -502,49 +492,22 @@ local function getTargetFromMouse(): BasePart?
 end
 
 local function clearDragTarget()
-    -- Restore original physical properties
+    if dragBodyPosition and dragBodyPosition.Parent then
+        pcall(function() dragBodyPosition:Destroy() end)
+    end
+    dragBodyPosition = nil
+
+    if dragBodyGyro and dragBodyGyro.Parent then
+        pcall(function() dragBodyGyro:Destroy() end)
+    end
+    dragBodyGyro = nil
+
     if dragTarget and dragTarget.Parent then
-        local saved = savedPartProperties[dragTarget]
-        if saved then
-            pcall(function()
-                dragTarget.Massless = saved.Massless
-                dragTarget.CustomPhysicalProperties = saved.CustomPhysicalProperties
-            end)
-            savedPartProperties[dragTarget] = nil
-        end
         pcall(function()
             dragTarget.AssemblyLinearVelocity = Vector3.zero
             dragTarget.AssemblyAngularVelocity = Vector3.zero
         end)
     end
-
-    -- Cleanup constraints & attachments
-    if dragAlignPos and dragAlignPos.Parent then
-        pcall(function() dragAlignPos:Destroy() end)
-    end
-    dragAlignPos = nil
-
-    if dragAlignOrient and dragAlignOrient.Parent then
-        pcall(function() dragAlignOrient:Destroy() end)
-    end
-    dragAlignOrient = nil
-
-    if dragAttachment0 and dragAttachment0.Parent then
-        pcall(function() dragAttachment0:Destroy() end)
-    end
-    dragAttachment0 = nil
-
-    if dragAttachment1 and dragAttachment1.Parent then
-        pcall(function() dragAttachment1:Destroy() end)
-    end
-    dragAttachment1 = nil
-
-    for _, ncc in ipairs(dragNoCollisions) do
-        if ncc and ncc.Parent then
-            pcall(function() ncc:Destroy() end)
-        end
-    end
-    table.clear(dragNoCollisions)
 
     if grabHL and grabHL.Parent then
         pcall(function() grabHL:Destroy() end)
@@ -562,26 +525,13 @@ local function grabObject(part: BasePart)
     clearDragTarget()
     clearHover()
 
+    if not isDraggable(part) then return end
+
     dragTarget = part
     local camPos = Camera.CFrame.Position
     dragDepth = math.clamp((part.Position - camPos).Magnitude, 6, DRAG_MAX_RANGE)
 
-    -- Save part state
-    savedPartProperties[part] = {
-        CanCollide = part.CanCollide,
-        CustomPhysicalProperties = part.CustomPhysicalProperties,
-        Massless = part.Massless
-    }
-
-    -- 1. Make part weightless for zero-inertia effortless movement
-    pcall(function()
-        part.Massless = true
-        part.CustomPhysicalProperties = PhysicalProperties.new(0.001, 0, 0, 0, 0)
-        part.AssemblyLinearVelocity = Vector3.zero
-        part.AssemblyAngularVelocity = Vector3.zero
-    end)
-
-    -- 2. Claim network ownership so movement replicates to server & all players
+    -- Claim network ownership so physics replicates
     pcall(function()
         if type(sethiddenproperty) == "function" then
             sethiddenproperty(part, "NetworkOwnershipRule", Enum.NetworkOwnership.Manual)
@@ -589,62 +539,28 @@ local function grabObject(part: BasePart)
         part:SetNetworkOwner(LocalPlayer)
     end)
 
-    -- 3. Prevent self-collision damage
-    local char = LocalPlayer.Character
-    if char then
-        for _, cPart in ipairs(char:GetDescendants()) do
-            if cPart:IsA("BasePart") then
-                local ncc = Instance.new("NoCollisionConstraint")
-                ncc.Part0 = cPart
-                ncc.Part1 = part
-                ncc.Parent = part
-                table.insert(dragNoCollisions, ncc)
-            end
-        end
-    end
+    -- Pure BodyPosition applied directly to the target part (zero connection to player)
+    local bp = Instance.new("BodyPosition")
+    bp.Name = "ModularDragForce"
+    bp.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    bp.P = 15000
+    bp.D = 600
+    bp.Position = part.Position
+    bp.Parent = part
+    dragBodyPosition = bp
 
-    -- 4. Create World Target Attachment in Workspace Terrain
-    local targetAtt = Instance.new("Attachment")
-    targetAtt.Name = "ModularDragTargetAtt"
-    targetAtt.WorldPosition = part.Position
-    targetAtt.Parent = Workspace.Terrain
-    dragAttachment1 = targetAtt
-
-    -- 5. Create Part Center Attachment
-    local partAtt = Instance.new("Attachment")
-    partAtt.Name = "ModularDragPartAtt"
-    partAtt.Position = Vector3.zero
-    partAtt.Parent = part
-    dragAttachment0 = partAtt
-
-    -- 6. Hyper-Powered AlignPosition (Instantaneous infinite torque & velocity)
-    local ap = Instance.new("AlignPosition")
-    ap.Name = "ModularDragAlignPos"
-    ap.Mode = Enum.PositionAlignmentMode.TwoAttachment
-    ap.Attachment0 = partAtt
-    ap.Attachment1 = targetAtt
-    ap.MaxForce = math.huge
-    ap.MaxVelocity = math.huge
-    ap.Responsiveness = 200
-    ap.ApplyAtCenterOfMass = true
-    ap.Parent = part
-    dragAlignPos = ap
-
-    -- 7. AlignOrientation to keep part oriented naturally
-    local ao = Instance.new("AlignOrientation")
-    ao.Name = "ModularDragAlignOrient"
-    ao.Mode = Enum.OrientationAlignmentMode.TwoAttachment
-    ao.Attachment0 = partAtt
-    ao.Attachment1 = targetAtt
-    ao.MaxTorque = math.huge
-    ao.MaxAngularVelocity = math.huge
-    ao.Responsiveness = 120
-    ao.Parent = part
-    dragAlignOrient = ao
+    local bg = Instance.new("BodyGyro")
+    bg.Name = "ModularDragGyro"
+    bg.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+    bg.P = 4000
+    bg.D = 300
+    bg.CFrame = part.CFrame
+    bg.Parent = part
+    dragBodyGyro = bg
 
     grabHL = makeHighlight(part, Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 220, 80), 0.25)
 
-    -- Drop on release
+    -- Drop on LMB release
     dragEndConn = UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             clearDragTarget()
@@ -660,23 +576,9 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
                 local ray = Camera:ScreenPointToRay(dragMouse.X, dragMouse.Y)
                 local targetPos = Camera.CFrame.Position + (ray.Direction * dragDepth)
 
-                -- 1. Move target attachment
-                if dragAttachment1 and dragAttachment1.Parent then
-                    dragAttachment1.WorldPosition = targetPos
+                if dragBodyPosition and dragBodyPosition.Parent then
+                    dragBodyPosition.Position = targetPos
                 end
-
-                -- 2. Direct velocity & CFrame booster (ensures zero drag lag and lifts massive heavy parts)
-                pcall(function()
-                    local curPos = dragTarget.Position
-                    local delta = targetPos - curPos
-                    local dist = delta.Magnitude
-                    if dist > 0.05 then
-                        local speed = math.clamp(dist * 35, 10, 450)
-                        dragTarget.AssemblyLinearVelocity = delta.Unit * speed
-                    else
-                        dragTarget.AssemblyLinearVelocity = Vector3.zero
-                    end
-                end)
             else
                 if dragTarget and not dragTarget.Parent then
                     clearDragTarget()
@@ -700,7 +602,7 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
             if gp then return end
             if input.UserInputType == Enum.UserInputType.MouseWheel then
                 if dragTarget then
-                    dragDepth = math.clamp(dragDepth + (input.Position.Z * 6), 5, DRAG_MAX_RANGE)
+                    dragDepth = math.clamp(dragDepth + (input.Position.Z * 5), 5, DRAG_MAX_RANGE)
                 end
             end
         end)
@@ -724,8 +626,6 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
     end
 end
 
-
-
 -- ── Player / Object Fling Engine ──────────────────────────────────
 function DisasterSurvival.setFling(enabled: boolean)
     DisasterSurvival.FlingMode = enabled
@@ -745,125 +645,6 @@ function DisasterSurvival.setFling(enabled: boolean)
     end
 end
 
--- ── Auto Finish / Bypass Ad & Claim Unanchor Hammer ────────────────
-local autoAdConn: RBXScriptConnection? = nil
-local unanchorAuraConn: RBXScriptConnection? = nil
-
-function DisasterSurvival.claimAdRewardNow(notifyCb: ((string)->())?): boolean
-    local claimed = false
-    local bba = Workspace:FindFirstChild("BillboardAd")
-    if bba then
-        local re = bba:FindFirstChild("RewardEvent")
-        if re and re:IsA("RemoteEvent") then
-            re:FireServer("PlayRewardAd")
-            claimed = true
-        end
-        local cd = bba:FindFirstChild("AdRewardDisplay") and bba.AdRewardDisplay:FindFirstChild("PlayPart") and bba.AdRewardDisplay.PlayPart:FindFirstChildWhichIsA("ClickDetector")
-        if cd and type(fireclickdetector) == "function" then
-            pcall(function() fireclickdetector(cd) end)
-            claimed = true
-        end
-    end
-
-    -- Auto-dismiss any core ad popups or video ad guis
-    pcall(function()
-        local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-        if pgui then
-            for _, g in ipairs(pgui:GetChildren()) do
-                if g:IsA("ScreenGui") and (g.Name:lower():find("ad") or g.Name:lower():find("reward")) and g.Name ~= "RTDGui" then
-                    g.Enabled = false
-                end
-            end
-        end
-    end)
-
-    if claimed and notifyCb then
-        notifyCb("Requested reward ad & claimed unanchor hammer tool")
-    end
-    return claimed
-end
-
-function DisasterSurvival.setAutoClaimAd(enabled: boolean, notifyCb: ((string)->())?)
-    DisasterSurvival.AutoAdReward = enabled
-    if enabled then
-        -- Trigger immediately on activate
-        DisasterSurvival.claimAdRewardNow(notifyCb)
-
-        autoAdConn = RunService.Heartbeat:Connect(function()
-            local bba = Workspace:FindFirstChild("BillboardAd")
-            if bba then
-                local re = bba:FindFirstChild("RewardEvent")
-                if re and re:IsA("RemoteEvent") then
-                    pcall(function() re:FireServer("PlayRewardAd") end)
-                end
-            end
-        end)
-    elseif autoAdConn then
-        autoAdConn:Disconnect()
-        autoAdConn = nil
-    end
-end
-
--- ── Map & Structure Unanchor Engine ───────────────────────────────
-function DisasterSurvival.unanchorAllMap(): number
-    local count = 0
-    for _, part in ipairs(Workspace:GetDescendants()) do
-        if part:IsA("BasePart") and part.Anchored and not part:IsDescendantOf(Workspace.Terrain) then
-            local isChar = false
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p.Character and part:IsDescendantOf(p.Character) then isChar = true break end
-            end
-            if not isChar and part.Position.Y > -50 and part.Size.Magnitude < 400 then
-                pcall(function()
-                    part.Anchored = false
-                    part:BreakJoints()
-                    if type(sethiddenproperty) == "function" then
-                        sethiddenproperty(part, "NetworkOwnershipRule", Enum.NetworkOwnership.Manual)
-                    end
-                    part:SetNetworkOwner(LocalPlayer)
-                end)
-                count += 1
-            end
-        end
-    end
-    return count
-end
-
-function DisasterSurvival.setUnanchorAura(enabled: boolean)
-    DisasterSurvival.UnanchorAura = enabled
-    if enabled then
-        unanchorAuraConn = RunService.Heartbeat:Connect(function()
-            local char = LocalPlayer.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-            if not hrp then return end
-
-            local hrpPos = hrp.Position
-            for _, part in ipairs(Workspace:GetDescendants()) do
-                if part:IsA("BasePart") and part.Anchored and not part:IsDescendantOf(Workspace.Terrain) then
-                    local isChar = false
-                    for _, p in ipairs(Players:GetPlayers()) do
-                        if p.Character and part:IsDescendantOf(p.Character) then isChar = true break end
-                    end
-                    if not isChar and (part.Position - hrpPos).Magnitude <= 50 then
-                        pcall(function()
-                            part.Anchored = false
-                            part:BreakJoints()
-                            part.AssemblyLinearVelocity = Vector3.new(math.random(-8, 8), 8, math.random(-8, 8))
-                            if type(sethiddenproperty) == "function" then
-                                sethiddenproperty(part, "NetworkOwnershipRule", Enum.NetworkOwnership.Manual)
-                            end
-                            part:SetNetworkOwner(LocalPlayer)
-                        end)
-                    end
-                end
-            end
-        end)
-    elseif unanchorAuraConn then
-        unanchorAuraConn:Disconnect()
-        unanchorAuraConn = nil
-    end
-end
-
 -- ── Cleanup ───────────────────────────────────────────────────────
 function DisasterSurvival.cleanup()
     local function dc(c: RBXScriptConnection?) if c then c:Disconnect() end end
@@ -878,8 +659,6 @@ function DisasterSurvival.cleanup()
     dc(dragWheelConn)    dragWheelConn = nil
     dc(dragInputConn)    dragInputConn = nil
     dc(dragEndConn)      dragEndConn   = nil
-    dc(autoAdConn)       autoAdConn    = nil
-    dc(unanchorAuraConn) unanchorAuraConn = nil
     dc(playerAddedConn)  playerAddedConn = nil
     dc(playerRemovingConn) playerRemovingConn = nil
 

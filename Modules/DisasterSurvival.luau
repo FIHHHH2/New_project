@@ -649,23 +649,49 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
 end
 
 -- ── Player / Object Fling Engine ──────────────────────────────────
+-- Targets all OTHER players within FLING_RANGE studs.
+-- Local player is NEVER touched — no self-spin, no self-fling.
+local FLING_RANGE = 20 -- studs; adjustable
+
 function DisasterSurvival.setFling(enabled: boolean)
     DisasterSurvival.FlingMode = enabled
     if enabled then
         flingConn = RunService.Heartbeat:Connect(function()
-            local char = LocalPlayer.Character
-            local hrp  = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-            local hum  = char and char:FindFirstChildOfClass("Humanoid")
-            if not (hrp and hum and hum.Health > 0) then return end
-            hrp.AssemblyAngularVelocity = Vector3.new(0, 10000000, 0)
+            local char  = LocalPlayer.Character
+            local myHrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+            if not myHrp then return end
+            local myPos = myHrp.Position
+
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr == LocalPlayer then continue end
+                local tChar = plr.Character
+                local tHrp  = tChar and tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+                local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
+                if not (tHrp and tHum and tHum.Health > 0) then continue end
+
+                -- Only fling players within range
+                if (tHrp.Position - myPos).Magnitude <= FLING_RANGE then
+                    pcall(function()
+                        tHrp.AssemblyAngularVelocity = Vector3.new(
+                            math.random(-1, 1) * 10000000,
+                            10000000,
+                            math.random(-1, 1) * 10000000
+                        )
+                        tHrp.AssemblyLinearVelocity = Vector3.new(
+                            math.random(-200, 200),
+                            800,
+                            math.random(-200, 200)
+                        )
+                    end)
+                end
+            end
         end)
     elseif flingConn then
-        flingConn:Disconnect() flingConn = nil
-        local char = LocalPlayer.Character
-        local hrp  = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-        if hrp then hrp.AssemblyAngularVelocity = Vector3.zero end
+        flingConn:Disconnect()
+        flingConn = nil
     end
 end
+
 
 -- ── Cleanup ───────────────────────────────────────────────────────
 function DisasterSurvival.cleanup()

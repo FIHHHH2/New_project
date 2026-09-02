@@ -4610,16 +4610,18 @@ Modules["UI/MusicTracker.luau"] = function()
     		end)
     	end)
 
-    	-- ── Global Shortcut: Ctrl + Left Click (Play/Toggle) | Ctrl + Right Click (Previous/Go Back) ───
+    	-- ── Shortcuts: Left Click (Skip / Play) & Right Click (Go Back) with Modifier Keys ───
     	UserInputService.InputBegan:Connect(function(input, gp)
     		local focused = UserInputService:GetFocusedTextBox()
     		if focused then return end
 
+    		local isWin = UserInputService:IsKeyDown(Enum.KeyCode.LeftSuper) or UserInputService:IsKeyDown(Enum.KeyCode.RightSuper) or UserInputService:IsKeyDown(Enum.KeyCode.LeftMeta) or UserInputService:IsKeyDown(Enum.KeyCode.RightMeta)
     		local isCtrl = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
-    		if isCtrl then
+
+    		if isWin or isCtrl then
     			if input.UserInputType == Enum.UserInputType.MouseButton1 then
     				task.spawn(function()
-    					httpFetch(BRIDGE_URL .. "/toggle")
+    					httpFetch(BRIDGE_URL .. "/skip")
     				end)
     			elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
     				task.spawn(function()

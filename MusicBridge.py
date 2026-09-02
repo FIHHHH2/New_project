@@ -654,7 +654,16 @@ def setup_global_hotkeys():
 
         def low_level_mouse_proc(nCode, wParam, lParam):
             if nCode >= 0:
-                if is_ctrl_down():
+                if is_win_down():
+                    if wParam == WM_LBUTTONDOWN:
+                        print("[Hotkey] Win + Left Click -> Skip Song")
+                        threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
+                        return 1
+                    elif wParam == WM_RBUTTONDOWN:
+                        print("[Hotkey] Win + Right Click -> Go Back a Song")
+                        threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
+                        return 1
+                elif is_ctrl_down():
                     if wParam == WM_LBUTTONDOWN:
                         print("[Hotkey] Ctrl + Left Click -> Play / Toggle")
                         threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
@@ -669,7 +678,7 @@ def setup_global_hotkeys():
         hook_mouse_cb = HOOKPROC(low_level_mouse_proc)
         hook_mouse_id = user32.SetWindowsHookExW(WH_MOUSE_LL, hook_mouse_cb, kernel32.GetModuleHandleW(None), 0)
 
-        print("[Shortcuts] Active: Ctrl + Left Click (Play/Toggle) | Ctrl + Right Click (Go Back) | Win+E / Win+Q")
+        print("[Shortcuts] Active: Win + Left Click (Skip Song) | Win + Right Click (Go Back a Song)")
 
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:

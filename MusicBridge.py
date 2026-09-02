@@ -601,7 +601,7 @@ def run_audio_loop():
 def check_for_updates(auto: bool = False) -> bool:
     """Checks remote repository for newer builds and auto-applies updates."""
     try:
-        req = urllib.request.Request(VERSION_URL, headers={"User-Agent": "MusicBridge-Updater"})
+        req = urllib.request.Request(f"{VERSION_URL}?t={int(time.time())}", headers={"User-Agent": "MusicBridge-Updater"})
         with urllib.request.urlopen(req, timeout=4.0) as resp:
             data = json.loads(resp.read().decode("utf-8-sig"))
             remote_ver = str(data.get("version", VERSION))

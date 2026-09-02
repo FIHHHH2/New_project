@@ -1,7 +1,7 @@
 {
-  "version": "1.4.2",
+  "version": "1.4.3",
   "name": "Project Fih MusicBridge",
-  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.2",
+  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.3",
   "download_url": "https://github.com/FIHHHH2/New_project/raw/main/dist/MusicBridge.exe",
-  "changelog": "Fixed critical media control bug: pick_best_session was being incorrectly awaited as async. Replaced asyncio.run with persistent threadsafe event loop to eliminate RuntimeError conflicts."
+  "changelog": "Added atomic 400ms debounce across WinRT, keyboard/mouse hooks, and Luau HTTP calls to prevent double skips and accidental reversals."
 }

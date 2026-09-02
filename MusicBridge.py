@@ -32,7 +32,7 @@ import pystray
 from PIL import Image, ImageDraw
 
 APP_NAME = "ModularMusicBridge"
-VERSION = "1.4.2"
+VERSION = "1.4.3"
 REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PORT = 8888
 VERSION_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/version.json"
@@ -581,6 +581,9 @@ async def send_media_control(cmd: str) -> bool:
 # Persistent dedicated event loop for media control commands (avoids asyncio.run conflicts)
 _media_ctrl_loop: asyncio.AbstractEventLoop | None = None
 _media_ctrl_loop_lock = threading.Lock()
+_last_media_cmd_time = 0.0
+_media_cmd_lock = threading.Lock()
+DEBOUNCE_INTERVAL = 0.40  # 400ms debounce window prevents double execution from hotkeys, repeats, and Luau HTTP calls
 
 def _get_or_create_media_ctrl_loop() -> asyncio.AbstractEventLoop:
     global _media_ctrl_loop
@@ -592,8 +595,16 @@ def _get_or_create_media_ctrl_loop() -> asyncio.AbstractEventLoop:
             t.start()
         return _media_ctrl_loop
 
-def trigger_media_command(cmd: str):
-    """Executes media command via WinRT session manager targeting Spotify/active session or virtual media key event fallback."""
+def trigger_media_command(cmd: str) -> bool:
+    """Executes media command via WinRT session manager targeting Spotify/active session or virtual media key event fallback with atomic 400ms debounce."""
+    global _last_media_cmd_time
+    with _media_cmd_lock:
+        now = time.time()
+        if (now - _last_media_cmd_time) < DEBOUNCE_INTERVAL:
+            print(f"[MediaControl] Debounced duplicate command '{cmd}' ({now - _last_media_cmd_time:.3f}s < {DEBOUNCE_INTERVAL}s)")
+            return True
+        _last_media_cmd_time = now
+
     success = False
     try:
         loop = _get_or_create_media_ctrl_loop()
@@ -621,8 +632,10 @@ def trigger_media_command(cmd: str):
                 time.sleep(0.05)
                 ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
                 print(f"[MediaControl] Sent virtual media key 0x{vk:02X} for: {cmd}")
+                success = True
         except Exception as ke:
             print(f"[MediaControl] Keybd fallback error: {ke}")
+    return success
 
 def setup_global_hotkeys():
     """Listens for global Windows shortcuts Win+Q (Previous Song) and Win+E (Skip Song) via low-level hook."""

@@ -649,46 +649,107 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
 end
 
 -- ── Player / Object Fling Engine ──────────────────────────────────
--- Targets all OTHER players within FLING_RANGE studs.
--- Local player is NEVER touched — no self-spin, no self-fling.
-local FLING_RANGE = 20 -- studs; adjustable
+-- How it works:
+--   1. Spins LOCAL HRP at 10M rad/s so physics engine has angular momentum ready
+--   2. PlatformStand = true makes LOCAL player immune to their own spin (no ragdoll)
+--   3. Touched events on every local part detect when another player physically hits us
+--   4. On touch: explicitly spike the TOUCHING player's HRP angular + linear velocity
+-- Local player is NEVER flung by this — only players who walk into you get sent.
+
+local flingTouchedConns: {RBXScriptConnection} = {}
+
+local function getFlingTargetHRP(hit: BasePart): BasePart?
+    -- Walk up the hit part's ancestry to find a player character's HRP
+    local model = hit:FindFirstAncestorOfClass("Model")
+    if not model then return nil end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character == model then
+            return model:FindFirstChild("HumanoidRootPart") :: BasePart?
+        end
+    end
+    return nil
+end
+
+local function applyFlingToHRP(hrp: BasePart)
+    pcall(function()
+        hrp.AssemblyAngularVelocity = Vector3.new(
+            (math.random(0, 1) == 0 and -1 or 1) * 10000000,
+            10000000,
+            (math.random(0, 1) == 0 and -1 or 1) * 10000000
+        )
+        hrp.AssemblyLinearVelocity = Vector3.new(
+            math.random(-300, 300),
+            900,
+            math.random(-300, 300)
+        )
+    end)
+end
+
+local function connectFlingTouched(char: Model)
+    for _, conn in ipairs(flingTouchedConns) do pcall(function() conn:Disconnect() end) end
+    table.clear(flingTouchedConns)
+
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            table.insert(flingTouchedConns, part.Touched:Connect(function(hit)
+                if not DisasterSurvival.FlingMode then return end
+                local targetHrp = getFlingTargetHRP(hit)
+                if targetHrp then
+                    applyFlingToHRP(targetHrp)
+                end
+            end))
+        end
+    end
+end
 
 function DisasterSurvival.setFling(enabled: boolean)
     DisasterSurvival.FlingMode = enabled
+    -- Disconnect existing touched listeners
+    for _, conn in ipairs(flingTouchedConns) do pcall(function() conn:Disconnect() end) end
+    table.clear(flingTouchedConns)
+
+    local char = LocalPlayer.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+
     if enabled then
+        -- Immunize local player from their own spin via PlatformStand
+        if hum then hum.PlatformStand = true end
+
+        -- Spin local HRP: physics engine transfers angular momentum to anyone who touches us
         flingConn = RunService.Heartbeat:Connect(function()
-            local char  = LocalPlayer.Character
-            local myHrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-            if not myHrp then return end
-            local myPos = myHrp.Position
+            local c   = LocalPlayer.Character
+            local r   = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
+            local h   = c and c:FindFirstChildOfClass("Humanoid")
+            if not (r and h) then return end
+            -- Keep local player upright and immune while spinning
+            h.PlatformStand = true
+            r.AssemblyAngularVelocity = Vector3.new(0, 10000000, 0)
+        end)
 
-            for _, plr in ipairs(Players:GetPlayers()) do
-                if plr == LocalPlayer then continue end
-                local tChar = plr.Character
-                local tHrp  = tChar and tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-                local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-                if not (tHrp and tHum and tHum.Health > 0) then continue end
+        -- Also wire up explicit Touched spiking for direct contact detection
+        if char then connectFlingTouched(char) end
 
-                -- Only fling players within range
-                if (tHrp.Position - myPos).Magnitude <= FLING_RANGE then
-                    pcall(function()
-                        tHrp.AssemblyAngularVelocity = Vector3.new(
-                            math.random(-1, 1) * 10000000,
-                            10000000,
-                            math.random(-1, 1) * 10000000
-                        )
-                        tHrp.AssemblyLinearVelocity = Vector3.new(
-                            math.random(-200, 200),
-                            800,
-                            math.random(-200, 200)
-                        )
-                    end)
-                end
+        -- Re-wire if character respawns
+        LocalPlayer.CharacterAdded:Connect(function(newChar)
+            if DisasterSurvival.FlingMode then
+                local newHum = newChar:WaitForChild("Humanoid", 5) :: Humanoid?
+                if newHum then newHum.PlatformStand = true end
+                connectFlingTouched(newChar)
             end
         end)
-    elseif flingConn then
-        flingConn:Disconnect()
-        flingConn = nil
+    else
+        -- Disable: stop spin loop
+        if flingConn then
+            flingConn:Disconnect()
+            flingConn = nil
+        end
+        -- Restore local player
+        if hum then hum.PlatformStand = false end
+        if hrp then
+            hrp.AssemblyAngularVelocity = Vector3.zero
+            hrp.AssemblyLinearVelocity  = Vector3.zero
+        end
     end
 end
 
@@ -699,6 +760,8 @@ function DisasterSurvival.cleanup()
     dc(flightConn)       flightConn = nil
     dc(antiFlingConn)    antiFlingConn = nil
     dc(flingConn)        flingConn = nil
+    for _, conn in ipairs(flingTouchedConns) do pcall(function() conn:Disconnect() end) end
+    table.clear(flingTouchedConns)
     dc(tagConn)          tagConn = nil
     dc(stateConn)        stateConn = nil
     dc(antiKillConn)     antiKillConn = nil

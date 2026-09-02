@@ -251,11 +251,14 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
                 end
             end
 
-            -- Always disable collision with other player characters
-            for _, parts in pairs(otherPlayerParts) do
-                for _, part in ipairs(parts) do
-                    if part and part.Parent then
-                        part.CanCollide = false
+            -- Disable collision with other players only when fling mode is OFF
+            -- When fling is ON, enemy collision must remain active so touch imparts fling force
+            if not flingOn then
+                for _, parts in pairs(otherPlayerParts) do
+                    for _, part in ipairs(parts) do
+                        if part and part.Parent then
+                            part.CanCollide = false
+                        end
                     end
                 end
             end

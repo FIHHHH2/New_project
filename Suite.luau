@@ -12488,11 +12488,14 @@ Modules["Modules/DisasterSurvival.luau"] = function()
                     end
                 end
 
-                -- Always disable collision with other player characters
-                for _, parts in pairs(otherPlayerParts) do
-                    for _, part in ipairs(parts) do
-                        if part and part.Parent then
-                            part.CanCollide = false
+                -- Disable collision with other players only when fling mode is OFF
+                -- When fling is ON, enemy collision must remain active so touch imparts fling force
+                if not flingOn then
+                    for _, parts in pairs(otherPlayerParts) do
+                        for _, part in ipairs(parts) do
+                            if part and part.Parent then
+                                part.CanCollide = false
+                            end
                         end
                     end
                 end
@@ -17243,41 +17246,44 @@ local function disableCoreGuis()
 	end
 end
 
--- Hide all non-Modular PlayerGui ScreenGuis on load.
--- Games frequently render their own black backgrounds / loading screens
--- via ScreenGui which sit on top of everything until explicitly disabled.
-local originalGuiStates: {[ScreenGui]: boolean} = {}
-local function hidePlayerGameGuis(hide: boolean)
-	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
-	if not pgui then return end
-	for _, child in ipairs(pgui:GetChildren()) do
-		if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") and not string.find(child.Name, "ProjectFih") then
-			if hide then
-				if originalGuiStates[child] == nil then
-					originalGuiStates[child] = child.Enabled
+local function recoverFromDeathBlackScreen(char: Model?)
+	pcall(function()
+		local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
+		if pgui then
+			for _, g in ipairs(pgui:GetChildren()) do
+				if g:IsA("ScreenGui") and not string.find(g.Name, "Modular") and not string.find(g.Name, "ProjectFih") then
+					g.Enabled = true
+					if g.Name == "Elevator Transition" or g.Name == "Damage Flash" or string.find(g.Name:lower(), "fade") or string.find(g.Name:lower(), "black") then
+						for _, desc in ipairs(g:GetDescendants()) do
+							if desc:IsA("Frame") and desc.BackgroundTransparency < 0.9 and (desc.BackgroundColor3 == Color3.new(0, 0, 0) or desc.BackgroundColor3 == Color3.fromRGB(0, 0, 0)) then
+								desc.BackgroundTransparency = 1
+							end
+						end
+					end
 				end
-				child.Enabled = false
-			else
-				local orig = originalGuiStates[child]
-				child.Enabled = if orig ~= nil then orig else true
 			end
 		end
-	end
-	if not hide then
-		table.clear(originalGuiStates)
-	end
+		local cam = workspace.CurrentCamera
+		if cam then
+			cam.CameraType = Enum.CameraType.Custom
+			if char then
+				local hum = char:FindFirstChildOfClass("Humanoid")
+				if hum then cam.CameraSubject = hum end
+			end
+		end
+	end)
 end
 
 task.spawn(disableCoreGuis)
--- Keep Game GUIs in PlayerGui visible on load, only CoreGuis are disabled by default
 task.spawn(function()
-	hidePlayerGameGuis(false)
+	recoverFromDeathBlackScreen(localPlayer.Character)
 end)
 
-localPlayer.CharacterAdded:Connect(function()
-	task.spawn(disableCoreGuis)
+localPlayer.CharacterAdded:Connect(function(char)
 	task.spawn(function()
-		hidePlayerGameGuis(false)
+		disableCoreGuis()
+		task.wait(0.2)
+		recoverFromDeathBlackScreen(char)
 	end)
 end)
 
@@ -17667,11 +17673,14 @@ window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (NDS CFram
 				end
 			end
 
-			-- Always disable collision with other player characters
-			for _, parts in pairs(otherPlayerPartsTracker) do
-				for _, part in ipairs(parts) do
-					if part and part.Parent then
-						part.CanCollide = false
+			-- Disable other player collision only when fling is OFF
+			-- When fling is ON, collisions must stay enabled so walking into players flings them
+			if not flingOn then
+				for _, parts in pairs(otherPlayerPartsTracker) do
+					for _, part in ipairs(parts) do
+						if part and part.Parent then
+							part.CanCollide = false
+						end
 					end
 				end
 			end

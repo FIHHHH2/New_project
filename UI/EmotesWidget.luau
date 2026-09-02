@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[=[
     ✦ Squared Retro Emotes HUD & Universal Animation Player Widget ✦
     Features:

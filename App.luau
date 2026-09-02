@@ -63,8 +63,8 @@ local Modules: {[string]: () -> any} = {}
 local moduleCache: {[string]: any} = {}
 
 local function requireModule(name: string): any
-	local normalized = name:gsub("^[\./]+", "")
-	if not normalized:match("\.luau$") and not normalized:match("\.lua$") then
+	local normalized = name:gsub("^[./]+", "")
+	if not normalized:match("\\.luau$") and not normalized:match("\\.lua$") then
 		normalized = normalized .. ".luau"
 	end
 
@@ -8007,7 +8007,7 @@ end
 
 Modules["UI/EmotesWidget.luau"] = function()
     local require = requireModule
-    ﻿--!strict
+    --!strict
     --[=[
         ✦ Squared Retro Emotes HUD & Universal Animation Player Widget ✦
         Features:

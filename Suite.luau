@@ -1,81 +1,59 @@
 --!strict
 --[=[
-    ✦ High-Speed Standalone Modular Roblox Menu Suite ✦
-    Features:
-    - Pre-compiled zero-latency in-memory module filesystem
-    - Instant boot time (<50ms execution from cold start)
-    - Full hot-reload & cleanup protection
+    High-Speed Standalone Modular Roblox Menu Suite
 ]=]
 
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 
--- ── EXHAUSTIVE MULTI-EXECUTION PURGE & CLEANUP ───────────────────────
-if type(cleardrawcache) == "function" then
-	pcall(cleardrawcache)
-end
+if type(cleardrawcache) == "function" then pcall(cleardrawcache) end
 
 if _G.__ModularSuite_Cleanup then
 	pcall(_G.__ModularSuite_Cleanup)
 	_G.__ModularSuite_Cleanup = nil
 end
 
-local function purgeModularInstances(container: Instance?)
-	if not container then return end
+local function purge(c)
+	if not c then return end
 	pcall(function()
-		for _, child in ipairs(container:GetChildren()) do
-			local name = child.Name
-			if name:sub(1, 7) == "Modular" or name:find("Modular") or name:find("Chams") or name:find("ESP") or name == "ScreenGui" then
-				pcall(function() child:Destroy() end)
-			end
-		end
-		for _, desc in ipairs(container:GetDescendants()) do
-			if desc:IsA("ScreenGui") or desc:IsA("BillboardGui") or desc:IsA("SurfaceGui") or desc:IsA("Highlight") then
-				local name = desc.Name
-				if name:sub(1, 7) == "Modular" or name:find("Modular") or name:find("Chams") or name:find("ESP") then
-					pcall(function() desc:Destroy() end)
-				end
+		for _, ch in ipairs(c:GetDescendants()) do
+			if (ch:IsA("ScreenGui") or ch:IsA("BillboardGui") or ch:IsA("Highlight")) then
+				local n = ch.Name
+				if n:find("Modular") or n:find("ESP") or n:find("Chams") then pcall(function() ch:Destroy() end) end
 			end
 		end
 	end)
 end
-
--- 1. Purge across all possible UI root containers
-pcall(function()
-	if type(gethui) == "function" then
-		purgeModularInstances(gethui())
-	end
-end)
-pcall(function() purgeModularInstances(CoreGui) end)
-pcall(function()
-	if CoreGui:FindFirstChild("RobloxGui") then
-		purgeModularInstances(CoreGui.RobloxGui)
-	end
-end)
-pcall(function()
-	if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then
-		purgeModularInstances(Players.LocalPlayer.PlayerGui)
-	end
-end)
-pcall(function() purgeModularInstances(workspace) end)
+pcall(function() if type(gethui)=="function" then purge(gethui()) end end)
+pcall(function() purge(CoreGui) end)
+pcall(function() if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then purge(Players.LocalPlayer.PlayerGui) end end)
 
 local Modules: {[string]: () -> any} = {}
 local moduleCache: {[string]: any} = {}
 
 local function requireModule(name: string): any
 	local normalized = name:gsub("^[./]+", "")
-	if not normalized:match("\\.luau$") and not normalized:match("\\.lua$") then
+	if not normalized:match("%.luau$") and not normalized:match("%.lua$") then
 		normalized = normalized .. ".luau"
 	end
-
-	if moduleCache[normalized] ~= nil then
-		return moduleCache[normalized]
+	if moduleCache[normalized] ~= nil then return moduleCache[normalized] end
+	if moduleCache[name] ~= nil then return moduleCache[name] end
+	local modFn = Modules[normalized] or Modules[name]
+	if not modFn then
+		for k, fn in pairs(Modules) do
+			if k:lower() == normalized:lower() or k:lower() == name:lower() then modFn = fn break end
+		end
 	end
-	if moduleCache[name] ~= nil then
-		return moduleCache[name]
-	end
+	if not modFn then error("[Loader] Module not found: " .. tostring(name)) end
+	local result = modFn()
+	moduleCache[normalized] = result
+	moduleCache[name] = result
+	return result
+end
 
-	local modFn = Modules["UI/Animations.luau"] = function()
+_G.__ModularSuite_Require = requireModule
+
+Modules["UI/Animations.luau"] = function()
     local require = requireModule
     --!strict
     --[=[
@@ -17139,7 +17117,7 @@ Modules["Modules/PlayerUtilities.luau"] = function()
     return PlayerUtilities
 end
 
--- ── MAIN APPLICATION BOOTSTRAP ──────────────────────────────────
+-- MAIN APPLICATION BOOTSTRAP
 local require = requireModule
 
 --!strict

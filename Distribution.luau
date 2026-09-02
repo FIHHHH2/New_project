@@ -767,6 +767,53 @@ Modules["UI/UI.luau"] = function()
     			end
     		end
     	end)
+    function UI.makeDraggable(topbar: GuiObject, frame: GuiObject)
+    	pcall(function()
+    		local detector = Instance.new("UIDragDetector")
+    		detector.ReferenceUIInstance = topbar
+    		detector.Parent = frame
+    	end)
+
+    	local dragging = false
+    	local dragInput: InputObject? = nil
+    	local dragStart = Vector3.zero
+    	local startPos = UDim2.new()
+
+    	local function update(input: InputObject)
+    		local delta = input.Position - dragStart
+    		frame.Position = UDim2.new(
+    			startPos.X.Scale,
+    			startPos.X.Offset + delta.X,
+    			startPos.Y.Scale,
+    			startPos.Y.Offset + delta.Y
+    		)
+    	end
+
+    	topbar.InputBegan:Connect(function(input)
+    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    			dragging = true
+    			dragStart = input.Position
+    			startPos = frame.Position
+
+    			input.Changed:Connect(function()
+    				if input.UserInputState == Enum.UserInputState.End then
+    					dragging = false
+    				end
+    			end)
+    		end
+    	end)
+
+    	topbar.InputChanged:Connect(function(input)
+    		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+    			dragInput = input
+    		end
+    	end)
+
+    	UserInputService.InputChanged:Connect(function(input)
+    		if input == dragInput and dragging then
+    			update(input)
+    		end
+    	end)
     end
 
     function UI.createWindow(titleText: string)
@@ -1109,36 +1156,7 @@ Modules["UI/UI.luau"] = function()
     	footerHatch.Parent = footerBar
     	UI.registerThemeElement(footerHatch, "BorderDimText")
 
-    		local dragging = false
-    	local dragStartMouse = Vector2.zero
-    	local dragStartFramePos = Vector2.zero
-
-    	topbar.InputBegan:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			dragging = true
-    			dragStartMouse = UserInputService:GetMouseLocation()
-    			dragStartFramePos = Vector2.new(mainFrame.AbsolutePosition.X, mainFrame.AbsolutePosition.Y)
-    		end
-    	end)
-
-    	UserInputService.InputChanged:Connect(function(input)
-    		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local curMouse = UserInputService:GetMouseLocation()
-    			local delta = curMouse - dragStartMouse
-    			local scale = (uiScale and uiScale.Scale) or 1.0
-    			local scaledDelta = delta / scale
-    			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - mainFrame.AbsoluteSize.X))
-    			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - mainFrame.AbsoluteSize.Y))
-    			mainFrame.Position = UDim2.fromOffset(targetX, targetY)
-    		end
-    	end)
-
-    	UserInputService.InputEnded:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			dragging = false
-    		end
-    	end)
+    	UI.makeDraggable(topbar, mainFrame)
 
     	-- Button Hover & Click animations
     	local function attachBtnFX(btn: TextButton, isClose: boolean?)
@@ -1936,36 +1954,7 @@ Modules["UI/PlayerList.luau"] = function()
     	end
 
     	-- ── Standard Roblox Topbar Drag (Screen Clamped) ──────────────────
-    		local dragging = false
-    	local dragStartMouse = Vector2.zero
-    	local dragStartFramePos = Vector2.zero
-
-    	topbar.InputBegan:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			dragging = true
-    			dragStartMouse = UserInputService:GetMouseLocation()
-    			dragStartFramePos = Vector2.new(widget.AbsolutePosition.X, widget.AbsolutePosition.Y)
-    		end
-    	end)
-
-    	UserInputService.InputChanged:Connect(function(input)
-    		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local curMouse = UserInputService:GetMouseLocation()
-    			local delta = curMouse - dragStartMouse
-    			local scale = (uiScale and uiScale.Scale) or 1.0
-    			local scaledDelta = delta / scale
-    			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
-    			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
-    			widget.Position = UDim2.fromOffset(targetX, targetY)
-    		end
-    	end)
-
-    	UserInputService.InputEnded:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			dragging = false
-    		end
-    	end)
+    			UI.makeDraggable(topbar, widget)
 
     	if workspace.CurrentCamera then
     		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateWidgetHeight)
@@ -3051,36 +3040,7 @@ Modules["UI/ChatWidget.luau"] = function()
     	UI.registerThemeElement(closeStroke, "Border")
 
     	-- ── Topbar Dragging (Zero-drift cursor locked) ────────────────────
-    		local dragging = false
-    	local dragStartMouse = Vector2.zero
-    	local dragStartFramePos = Vector2.zero
-
-    	topbar.InputBegan:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			dragging = true
-    			dragStartMouse = UserInputService:GetMouseLocation()
-    			dragStartFramePos = Vector2.new(widget.AbsolutePosition.X, widget.AbsolutePosition.Y)
-    		end
-    	end)
-
-    	UserInputService.InputChanged:Connect(function(input)
-    		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local curMouse = UserInputService:GetMouseLocation()
-    			local delta = curMouse - dragStartMouse
-    			local scale = (uiScale and uiScale.Scale) or 1.0
-    			local scaledDelta = delta / scale
-    			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
-    			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
-    			widget.Position = UDim2.fromOffset(targetX, targetY)
-    		end
-    	end)
-
-    	UserInputService.InputEnded:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			dragging = false
-    		end
-    	end)
+    			UI.makeDraggable(topbar, widget)
 
     	-- ============================================================
     	-- ── MESSAGE CONTAINER (CHAT LOGS) ───────────────────────────
@@ -3986,14 +3946,49 @@ Modules["UI/MusicTracker.luau"] = function()
     MusicTracker.__index = MusicTracker
 
     local BRIDGE_URLS = {
-    	"http://127.0.0.1:8974",
     	"http://127.0.0.1:8888",
+    	"http://localhost:8888",
+    	"http://127.0.0.1:8974",
     	"http://127.0.0.1:3000",
     	"http://127.0.0.1:9863",
     	"http://127.0.0.1:1609"
     }
     local BRIDGE_URL = BRIDGE_URLS[1]
     local MUSIC_NOTE_ICON = "rbxassetid://10888371919"
+
+    local function httpFetch(url: string, method: string?): (boolean, string?)
+    	local m = method or "GET"
+    	local reqFn = (type(request) == "function" and request)
+    		or (type(http_request) == "function" and http_request)
+    		or (type(syn) == "table" and type(syn.request) == "function" and syn.request)
+    		or (type(http) == "table" and type(http.request) == "function" and http.request)
+    		or (getgenv and (getgenv().request or getgenv().http_request or (getgenv().syn and getgenv().syn.request)))
+
+    	if type(reqFn) == "function" then
+    		local ok, resp = pcall(function()
+    			return reqFn({
+    				Url = url,
+    				Method = m,
+    				Headers = {
+    					["Accept"] = "application/json, image/png, text/plain, */*",
+    					["Cache-Control"] = "no-cache"
+    				}
+    			})
+    		end)
+    		if ok and type(resp) == "table" and (resp.StatusCode == 200 or resp.Body) then
+    			return true, resp.Body
+    		end
+    	end
+
+    	local ok2, body = pcall(function()
+    		return game:HttpGet(url)
+    	end)
+    	if ok2 and body and body ~= "" then
+    		return true, body
+    	end
+
+    	return false, nil
+    end
 
     local IPC_FILES = {
     	"fih_bridge_state.json",
@@ -4473,37 +4468,7 @@ Modules["UI/MusicTracker.luau"] = function()
 
     	-- Volume Dragging
     	local currentVolume = 0.8
-    	local volDragging = false
-    	local function setVolume(pct: number)
-    		currentVolume = math.clamp(pct, 0, 1)
-    		volFill.Size = UDim2.new(currentVolume, 0, 1, 0)
-    		task.spawn(function()
-    			pcall(function()
-    				game:HttpGet(string.format("%s/volume?val=%d", BRIDGE_URL, math.floor(currentVolume * 100)))
-    			end)
-    		end)
-    	end
-
-    	volTrack.InputBegan:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			volDragging = true
-    			local relX = math.clamp((input.Position.X - volTrack.AbsolutePosition.X) / volTrack.AbsoluteSize.X, 0, 1)
-    			setVolume(relX)
-    		end
-    	end)
-
-    	UserInputService.InputChanged:Connect(function(input)
-    		if volDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local relX = math.clamp((input.Position.X - volTrack.AbsolutePosition.X) / volTrack.AbsoluteSize.X, 0, 1)
-    			setVolume(relX)
-    		end
-    	end)
-
-    	UserInputService.InputEnded:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			volDragging = false
-    		end
-    	end)
+    		UI.makeDraggable(topbar, widget)
 
     	-- ── Real-Time State & Visualizer Variables ────────────────────────
     	local isPlaying = false
@@ -4636,18 +4601,42 @@ Modules["UI/MusicTracker.luau"] = function()
     		end
     	end
 
-    	local function updateCover(coverUrl: string?, isIdle: boolean)
-    		if isIdle or not coverUrl or coverUrl == "" then
+    	local function updateCover(coverUrl: string?, isIdle: boolean, dataHasCover: boolean?)
+    		if isIdle then
     			coverImg.Image = MUSIC_NOTE_ICON
     			coverImg.ImageColor3 = UI.Theme.Accent
     			coverImg.ScaleType = Enum.ScaleType.Fit
     			return
     		end
 
-    		if coverUrl:find("rbxassetid") or coverUrl:find("roblox.com") or coverUrl:find("http") then
-    			coverImg.Image = coverUrl
-    			coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
-    			coverImg.ScaleType = Enum.ScaleType.Crop
+    		if dataHasCover or (coverUrl and coverUrl:find("cover")) then
+    			local wf = writefile or (getgenv and getgenv().writefile)
+    			local gca = getcustomasset or (getgenv and getgenv().getcustomasset) or (syn and syn.getcustomasset)
+    			if type(wf) == "function" and type(gca) == "function" then
+    				task.spawn(function()
+    					local ok, imgBytes = httpFetch(BRIDGE_URL .. "/cover.png")
+    					if ok and imgBytes and #imgBytes > 50 then
+    						pcall(function()
+    							wf("fih_bridge_cover.png", imgBytes)
+    							local assetId = gca("fih_bridge_cover.png")
+    							if assetId and assetId ~= "" then
+    								coverImg.Image = assetId
+    								coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
+    								coverImg.ScaleType = Enum.ScaleType.Crop
+    							end
+    						end)
+    					end
+    				end)
+    				return
+    			end
+    		end
+
+    		if coverUrl and coverUrl ~= "" then
+    			if coverUrl:find("rbxassetid") or coverUrl:find("roblox.com") or coverUrl:find("http") then
+    				coverImg.Image = coverUrl
+    				coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
+    				coverImg.ScaleType = Enum.ScaleType.Crop
+    			end
     		end
     	end
 
@@ -4664,27 +4653,21 @@ Modules["UI/MusicTracker.luau"] = function()
     		end
 
     		task.spawn(function()
-    			pcall(function()
-    				game:HttpGet(BRIDGE_URL .. "/toggle")
-    			end)
+    			httpFetch(BRIDGE_URL .. "/toggle")
     		end)
     	end)
 
     	skipBtn.MouseButton1Click:Connect(function()
     		Animations.buttonClickPop(skipBtn)
     		task.spawn(function()
-    			pcall(function()
-    				game:HttpGet(BRIDGE_URL .. "/skip")
-    			end)
+    			httpFetch(BRIDGE_URL .. "/skip")
     		end)
     	end)
 
     	prevBtn.MouseButton1Click:Connect(function()
     		Animations.buttonClickPop(prevBtn)
     		task.spawn(function()
-    			pcall(function()
-    				game:HttpGet(BRIDGE_URL .. "/prev")
-    			end)
+    			httpFetch(BRIDGE_URL .. "/prev")
     		end)
     	end)
 
@@ -4797,7 +4780,7 @@ Modules["UI/MusicTracker.luau"] = function()
     		local failCount = 0
 
     		while true do
-    			local pollWait = if failCount > 0 then 2.5 else 1.2
+    			local pollWait = if hasExternalBridge then 0.35 else 1.0
     			task.wait(pollWait)
 
     			if widget.Visible and screenGui.Enabled then
@@ -4823,9 +4806,7 @@ Modules["UI/MusicTracker.luau"] = function()
     				-- 2. Try HTTP endpoint ports
     				if not rawData or rawData == "" then
     					local currentUrl = BRIDGE_URLS[bridgeIndex]
-    					local ok, res = pcall(function()
-    						return game:HttpGet(currentUrl .. "/current")
-    					end)
+    					local ok, res = httpFetch(currentUrl .. "/current")
     					if ok and res and res ~= "" and res:find("{") then
     						rawData = res
     						failCount = 0
@@ -4833,7 +4814,7 @@ Modules["UI/MusicTracker.luau"] = function()
     						BRIDGE_URL = currentUrl
     					else
     						failCount += 1
-    						if failCount >= 3 then
+    						if failCount >= 2 then
     							hasExternalBridge = false
     							bridgeIndex = (bridgeIndex % #BRIDGE_URLS) + 1
     							failCount = 0
@@ -4855,7 +4836,7 @@ Modules["UI/MusicTracker.luau"] = function()
     								currentSpectrum = data.spectrum
     							end
     							if data.audioPeak then
-    								currentAudioPeak = data.audioPeak
+    								currentAudioPeak = tonumber(data.audioPeak) or 0.0
     							end
     							local posVal = data.progress_ms or (data.position and (data.position * 1000)) or data.progress
     							if posVal then
@@ -4867,7 +4848,7 @@ Modules["UI/MusicTracker.luau"] = function()
     								serverDurationMs = tonumber(durVal) or 0
     							end
 
-    							local isIdle = (title == "No Song Playing" or title == "Local Audio Session") and not data.isPlaying and currentAudioPeak <= 0.005
+    							local isIdle = (title == "No Song Playing" or title == "Local Audio Session" or title == "No Media Playing") and not data.isPlaying and currentAudioPeak <= 0.005
 
     							if title ~= lastSongTitle then
     								lastSongTitle = title
@@ -4879,7 +4860,7 @@ Modules["UI/MusicTracker.luau"] = function()
     									lyricsLabel.Text = "♫ Play a song on Spotify, YouTube, or In-Game Audio"
     									isPlaying = false
     									playBtn.Text = "▶"
-    									updateCover(nil, true)
+    									updateCover(nil, true, false)
     								else
     									songTitleLabel.Text = string.format("%s — %s", title, artist)
     									if data.lyrics and data.lyrics ~= "" then
@@ -4888,7 +4869,7 @@ Modules["UI/MusicTracker.luau"] = function()
     									end
     									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
     									playBtn.Text = if isPlaying then "❚❚" else "▶"
-    									updateCover(data.cover, false)
+    									updateCover(data.cover, false, data.hasCover == true)
 
     									if data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 then
     										parsedLrcLines = data.synced_lyrics
@@ -5385,36 +5366,7 @@ Modules["UI/Hotbar.luau"] = function()
     	UI.registerThemeElement(bpTitle, "TextPrimary")
 
     	-- Enable Dragging for Backpack Window (Zero-drift cursor locked)
-    	local isBpDragging = false
-    	local bpDragStartMouse = Vector2.zero
-    	local bpDragStartFramePos = Vector2.zero
-
-    	bpTopBar.InputBegan:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			isBpDragging = true
-    			bpDragStartMouse = UserInputService:GetMouseLocation()
-    			bpDragStartFramePos = Vector2.new(bpWindow.AbsolutePosition.X, bpWindow.AbsolutePosition.Y)
-    		end
-    	end)
-
-    	UserInputService.InputChanged:Connect(function(input)
-    		if isBpDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local curMouse = UserInputService:GetMouseLocation()
-    			local delta = curMouse - bpDragStartMouse
-    			local scale = (bpUiScale and bpUiScale.Scale) or 1.0
-    			local scaledDelta = delta / scale
-    			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(bpDragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - bpWindow.AbsoluteSize.X))
-    			local targetY = math.clamp(bpDragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - bpWindow.AbsoluteSize.Y))
-    			bpWindow.Position = UDim2.fromOffset(targetX, targetY)
-    		end
-    	end)
-
-    	UserInputService.InputEnded:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			isBpDragging = false
-    		end
-    	end)
+    		UI.makeDraggable(bpTopBar, bpWindow)
 
     	local bpCloseBtn = Instance.new("TextButton")
     	bpCloseBtn.Size = UDim2.new(0, 24, 1, -4)
@@ -7362,36 +7314,7 @@ Modules["UI/LeaderstatsWidget.luau"] = function()
     	end)
 
     	-- ── Dragging Mechanics (Zero-drift cursor locked) ────────────────
-    		local dragging = false
-    	local dragStartMouse = Vector2.zero
-    	local dragStartFramePos = Vector2.zero
-
-    	topbar.InputBegan:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			dragging = true
-    			dragStartMouse = UserInputService:GetMouseLocation()
-    			dragStartFramePos = Vector2.new(widget.AbsolutePosition.X, widget.AbsolutePosition.Y)
-    		end
-    	end)
-
-    	UserInputService.InputChanged:Connect(function(input)
-    		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local curMouse = UserInputService:GetMouseLocation()
-    			local delta = curMouse - dragStartMouse
-    			local scale = (uiScale and uiScale.Scale) or 1.0
-    			local scaledDelta = delta / scale
-    			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
-    			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
-    			widget.Position = UDim2.fromOffset(targetX, targetY)
-    		end
-    	end)
-
-    	UserInputService.InputEnded:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			dragging = false
-    		end
-    	end)
+    			UI.makeDraggable(topbar, widget)
 
     	-- Minimize & Close actions
     	local minimized = false
@@ -7653,34 +7576,7 @@ Modules["UI/HealthWidget.luau"] = function()
     	UI.registerThemeElement(hudStroke, "Border")
 
     	-- Dragging handler for Health HUD (Zero-drift cursor locked)
-    	local isDragging = false
-    	local dragStartMouse = Vector2.zero
-    	local dragStartFramePos = Vector2.zero
-
-    	hudFrame.InputBegan:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			isDragging = true
-    			dragStartMouse = UserInputService:GetMouseLocation()
-    			dragStartFramePos = Vector2.new(hudFrame.AbsolutePosition.X, hudFrame.AbsolutePosition.Y)
-    		end
-    	end)
-
-    	table.insert(activeConns, UserInputService.InputChanged:Connect(function(input)
-    		if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local curMouse = UserInputService:GetMouseLocation()
-    			local delta = curMouse - dragStartMouse
-    			local vpSize = Camera.ViewportSize
-    			local targetX = math.clamp(dragStartFramePos.X + delta.X, 0, math.max(0, vpSize.X - hudFrame.AbsoluteSize.X))
-    			local targetY = math.clamp(dragStartFramePos.Y + delta.Y, 0, math.max(0, vpSize.Y - hudFrame.AbsoluteSize.Y))
-    			hudFrame.Position = UDim2.fromOffset(targetX, targetY)
-    		end
-    	end))
-
-    	table.insert(activeConns, UserInputService.InputEnded:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			isDragging = false
-    		end
-    	end))
+    		UI.makeDraggable(hudFrame, hudFrame)
 
     	-- Player Headshot Avatar Box
     	local headshotBox = Instance.new("Frame")
@@ -8693,36 +8589,7 @@ Modules["UI/EmotesWidget.luau"] = function()
     	refreshGrid()
 
     	-- ── Zero-Drift Screen-Bounded Dragging ────────────────────────────
-    		local dragging = false
-    	local dragStartMouse = Vector2.zero
-    	local dragStartFramePos = Vector2.zero
-
-    	topbar.InputBegan:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			dragging = true
-    			dragStartMouse = UserInputService:GetMouseLocation()
-    			dragStartFramePos = Vector2.new(widget.AbsolutePosition.X, widget.AbsolutePosition.Y)
-    		end
-    	end)
-
-    	UserInputService.InputChanged:Connect(function(input)
-    		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-    			local curMouse = UserInputService:GetMouseLocation()
-    			local delta = curMouse - dragStartMouse
-    			local scale = (uiScale and uiScale.Scale) or 1.0
-    			local scaledDelta = delta / scale
-    			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-    			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
-    			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
-    			widget.Position = UDim2.fromOffset(targetX, targetY)
-    		end
-    	end)
-
-    	UserInputService.InputEnded:Connect(function(input)
-    		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-    			dragging = false
-    		end
-    	end)
+    			UI.makeDraggable(topbar, widget)
 
     	-- ── Minimize & Toggle Mechanics ──────────────────────────────────
     	local minimized = false

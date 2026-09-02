@@ -28,14 +28,49 @@ local MusicTracker = {}
 MusicTracker.__index = MusicTracker
 
 local BRIDGE_URLS = {
-	"http://127.0.0.1:8974",
 	"http://127.0.0.1:8888",
+	"http://localhost:8888",
+	"http://127.0.0.1:8974",
 	"http://127.0.0.1:3000",
 	"http://127.0.0.1:9863",
 	"http://127.0.0.1:1609"
 }
 local BRIDGE_URL = BRIDGE_URLS[1]
 local MUSIC_NOTE_ICON = "rbxassetid://10888371919"
+
+local function httpFetch(url: string, method: string?): (boolean, string?)
+	local m = method or "GET"
+	local reqFn = (type(request) == "function" and request)
+		or (type(http_request) == "function" and http_request)
+		or (type(syn) == "table" and type(syn.request) == "function" and syn.request)
+		or (type(http) == "table" and type(http.request) == "function" and http.request)
+		or (getgenv and (getgenv().request or getgenv().http_request or (getgenv().syn and getgenv().syn.request)))
+
+	if type(reqFn) == "function" then
+		local ok, resp = pcall(function()
+			return reqFn({
+				Url = url,
+				Method = m,
+				Headers = {
+					["Accept"] = "application/json, image/png, text/plain, */*",
+					["Cache-Control"] = "no-cache"
+				}
+			})
+		end)
+		if ok and type(resp) == "table" and (resp.StatusCode == 200 or resp.Body) then
+			return true, resp.Body
+		end
+	end
+
+	local ok2, body = pcall(function()
+		return game:HttpGet(url)
+	end)
+	if ok2 and body and body ~= "" then
+		return true, body
+	end
+
+	return false, nil
+end
 
 local IPC_FILES = {
 	"fih_bridge_state.json",
@@ -515,37 +550,7 @@ function MusicTracker.new()
 
 	-- Volume Dragging
 	local currentVolume = 0.8
-	local volDragging = false
-	local function setVolume(pct: number)
-		currentVolume = math.clamp(pct, 0, 1)
-		volFill.Size = UDim2.new(currentVolume, 0, 1, 0)
-		task.spawn(function()
-			pcall(function()
-				game:HttpGet(string.format("%s/volume?val=%d", BRIDGE_URL, math.floor(currentVolume * 100)))
-			end)
-		end)
-	end
-
-	volTrack.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			volDragging = true
-			local relX = math.clamp((input.Position.X - volTrack.AbsolutePosition.X) / volTrack.AbsoluteSize.X, 0, 1)
-			setVolume(relX)
-		end
-	end)
-
-	UserInputService.InputChanged:Connect(function(input)
-		if volDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local relX = math.clamp((input.Position.X - volTrack.AbsolutePosition.X) / volTrack.AbsoluteSize.X, 0, 1)
-			setVolume(relX)
-		end
-	end)
-
-	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			volDragging = false
-		end
-	end)
+		UI.makeDraggable(topbar, widget)
 
 	-- ── Real-Time State & Visualizer Variables ────────────────────────
 	local isPlaying = false
@@ -678,18 +683,42 @@ function MusicTracker.new()
 		end
 	end
 
-	local function updateCover(coverUrl: string?, isIdle: boolean)
-		if isIdle or not coverUrl or coverUrl == "" then
+	local function updateCover(coverUrl: string?, isIdle: boolean, dataHasCover: boolean?)
+		if isIdle then
 			coverImg.Image = MUSIC_NOTE_ICON
 			coverImg.ImageColor3 = UI.Theme.Accent
 			coverImg.ScaleType = Enum.ScaleType.Fit
 			return
 		end
 
-		if coverUrl:find("rbxassetid") or coverUrl:find("roblox.com") or coverUrl:find("http") then
-			coverImg.Image = coverUrl
-			coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
-			coverImg.ScaleType = Enum.ScaleType.Crop
+		if dataHasCover or (coverUrl and coverUrl:find("cover")) then
+			local wf = writefile or (getgenv and getgenv().writefile)
+			local gca = getcustomasset or (getgenv and getgenv().getcustomasset) or (syn and syn.getcustomasset)
+			if type(wf) == "function" and type(gca) == "function" then
+				task.spawn(function()
+					local ok, imgBytes = httpFetch(BRIDGE_URL .. "/cover.png")
+					if ok and imgBytes and #imgBytes > 50 then
+						pcall(function()
+							wf("fih_bridge_cover.png", imgBytes)
+							local assetId = gca("fih_bridge_cover.png")
+							if assetId and assetId ~= "" then
+								coverImg.Image = assetId
+								coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
+								coverImg.ScaleType = Enum.ScaleType.Crop
+							end
+						end)
+					end
+				end)
+				return
+			end
+		end
+
+		if coverUrl and coverUrl ~= "" then
+			if coverUrl:find("rbxassetid") or coverUrl:find("roblox.com") or coverUrl:find("http") then
+				coverImg.Image = coverUrl
+				coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
+				coverImg.ScaleType = Enum.ScaleType.Crop
+			end
 		end
 	end
 
@@ -706,27 +735,21 @@ function MusicTracker.new()
 		end
 
 		task.spawn(function()
-			pcall(function()
-				game:HttpGet(BRIDGE_URL .. "/toggle")
-			end)
+			httpFetch(BRIDGE_URL .. "/toggle")
 		end)
 	end)
 
 	skipBtn.MouseButton1Click:Connect(function()
 		Animations.buttonClickPop(skipBtn)
 		task.spawn(function()
-			pcall(function()
-				game:HttpGet(BRIDGE_URL .. "/skip")
-			end)
+			httpFetch(BRIDGE_URL .. "/skip")
 		end)
 	end)
 
 	prevBtn.MouseButton1Click:Connect(function()
 		Animations.buttonClickPop(prevBtn)
 		task.spawn(function()
-			pcall(function()
-				game:HttpGet(BRIDGE_URL .. "/prev")
-			end)
+			httpFetch(BRIDGE_URL .. "/prev")
 		end)
 	end)
 
@@ -839,7 +862,7 @@ function MusicTracker.new()
 		local failCount = 0
 
 		while true do
-			local pollWait = if failCount > 0 then 2.5 else 1.2
+			local pollWait = if hasExternalBridge then 0.35 else 1.0
 			task.wait(pollWait)
 
 			if widget.Visible and screenGui.Enabled then
@@ -865,9 +888,7 @@ function MusicTracker.new()
 				-- 2. Try HTTP endpoint ports
 				if not rawData or rawData == "" then
 					local currentUrl = BRIDGE_URLS[bridgeIndex]
-					local ok, res = pcall(function()
-						return game:HttpGet(currentUrl .. "/current")
-					end)
+					local ok, res = httpFetch(currentUrl .. "/current")
 					if ok and res and res ~= "" and res:find("{") then
 						rawData = res
 						failCount = 0
@@ -875,7 +896,7 @@ function MusicTracker.new()
 						BRIDGE_URL = currentUrl
 					else
 						failCount += 1
-						if failCount >= 3 then
+						if failCount >= 2 then
 							hasExternalBridge = false
 							bridgeIndex = (bridgeIndex % #BRIDGE_URLS) + 1
 							failCount = 0
@@ -897,7 +918,7 @@ function MusicTracker.new()
 								currentSpectrum = data.spectrum
 							end
 							if data.audioPeak then
-								currentAudioPeak = data.audioPeak
+								currentAudioPeak = tonumber(data.audioPeak) or 0.0
 							end
 							local posVal = data.progress_ms or (data.position and (data.position * 1000)) or data.progress
 							if posVal then
@@ -909,7 +930,7 @@ function MusicTracker.new()
 								serverDurationMs = tonumber(durVal) or 0
 							end
 
-							local isIdle = (title == "No Song Playing" or title == "Local Audio Session") and not data.isPlaying and currentAudioPeak <= 0.005
+							local isIdle = (title == "No Song Playing" or title == "Local Audio Session" or title == "No Media Playing") and not data.isPlaying and currentAudioPeak <= 0.005
 
 							if title ~= lastSongTitle then
 								lastSongTitle = title
@@ -921,7 +942,7 @@ function MusicTracker.new()
 									lyricsLabel.Text = "♫ Play a song on Spotify, YouTube, or In-Game Audio"
 									isPlaying = false
 									playBtn.Text = "▶"
-									updateCover(nil, true)
+									updateCover(nil, true, false)
 								else
 									songTitleLabel.Text = string.format("%s — %s", title, artist)
 									if data.lyrics and data.lyrics ~= "" then
@@ -930,7 +951,7 @@ function MusicTracker.new()
 									end
 									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
 									playBtn.Text = if isPlaying then "❚❚" else "▶"
-									updateCover(data.cover, false)
+									updateCover(data.cover, false, data.hasCover == true)
 
 									if data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 then
 										parsedLrcLines = data.synced_lyrics

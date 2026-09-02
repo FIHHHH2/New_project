@@ -185,34 +185,7 @@ function HealthWidget.new(): HealthWidgetInstance
 	UI.registerThemeElement(hudStroke, "Border")
 
 	-- Dragging handler for Health HUD (Zero-drift cursor locked)
-	local isDragging = false
-	local dragStartMouse = Vector2.zero
-	local dragStartFramePos = Vector2.zero
-
-	hudFrame.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			isDragging = true
-			dragStartMouse = UserInputService:GetMouseLocation()
-			dragStartFramePos = Vector2.new(hudFrame.AbsolutePosition.X, hudFrame.AbsolutePosition.Y)
-		end
-	end)
-
-	table.insert(activeConns, UserInputService.InputChanged:Connect(function(input)
-		if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local curMouse = UserInputService:GetMouseLocation()
-			local delta = curMouse - dragStartMouse
-			local vpSize = Camera.ViewportSize
-			local targetX = math.clamp(dragStartFramePos.X + delta.X, 0, math.max(0, vpSize.X - hudFrame.AbsoluteSize.X))
-			local targetY = math.clamp(dragStartFramePos.Y + delta.Y, 0, math.max(0, vpSize.Y - hudFrame.AbsoluteSize.Y))
-			hudFrame.Position = UDim2.fromOffset(targetX, targetY)
-		end
-	end))
-
-	table.insert(activeConns, UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			isDragging = false
-		end
-	end))
+		UI.makeDraggable(hudFrame, hudFrame)
 
 	-- Player Headshot Avatar Box
 	local headshotBox = Instance.new("Frame")

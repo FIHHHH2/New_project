@@ -364,6 +364,53 @@ function UI.setTheme(themeName: string)
 			end
 		end
 	end)
+function UI.makeDraggable(topbar: GuiObject, frame: GuiObject)
+	pcall(function()
+		local detector = Instance.new("UIDragDetector")
+		detector.ReferenceUIInstance = topbar
+		detector.Parent = frame
+	end)
+
+	local dragging = false
+	local dragInput: InputObject? = nil
+	local dragStart = Vector3.zero
+	local startPos = UDim2.new()
+
+	local function update(input: InputObject)
+		local delta = input.Position - dragStart
+		frame.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+	end
+
+	topbar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = frame.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	topbar.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			update(input)
+		end
+	end)
 end
 
 function UI.createWindow(titleText: string)
@@ -706,36 +753,7 @@ function UI.createWindow(titleText: string)
 	footerHatch.Parent = footerBar
 	UI.registerThemeElement(footerHatch, "BorderDimText")
 
-		local dragging = false
-	local dragStartMouse = Vector2.zero
-	local dragStartFramePos = Vector2.zero
-
-	topbar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStartMouse = UserInputService:GetMouseLocation()
-			dragStartFramePos = Vector2.new(mainFrame.AbsolutePosition.X, mainFrame.AbsolutePosition.Y)
-		end
-	end)
-
-	UserInputService.InputChanged:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local curMouse = UserInputService:GetMouseLocation()
-			local delta = curMouse - dragStartMouse
-			local scale = (uiScale and uiScale.Scale) or 1.0
-			local scaledDelta = delta / scale
-			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-			local targetX = math.clamp(dragStartFramePos.X + scaledDelta.X, 0, math.max(0, vpSize.X - mainFrame.AbsoluteSize.X))
-			local targetY = math.clamp(dragStartFramePos.Y + scaledDelta.Y, 0, math.max(0, vpSize.Y - mainFrame.AbsoluteSize.Y))
-			mainFrame.Position = UDim2.fromOffset(targetX, targetY)
-		end
-	end)
-
-	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = false
-		end
-	end)
+	UI.makeDraggable(topbar, mainFrame)
 
 	-- Button Hover & Click animations
 	local function attachBtnFX(btn: TextButton, isClose: boolean?)

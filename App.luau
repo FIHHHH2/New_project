@@ -4543,9 +4543,7 @@ Modules["UI/MusicTracker.luau"] = function()
     					elseif data and data.plainLyrics then
     						local lines = {}
     						for l in string.gmatch(data.plainLyrics, "([^\n\r]+)") do
-    
-    ]+)") do
-    							local t = string.gsub(l, "^%%s*(.-)%%s*$", "%%1")
+    							local t = string.gsub(l, "^%s*(.-)%s*$", "%1")
     							if t ~= "" then table.insert(lines, { ms = 0, text = t }) end
     						end
     						parsedLrcLines = lines

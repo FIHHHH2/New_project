@@ -427,8 +427,10 @@ end
 --   owns physics simulation → BodyPosition/BodyGyro replicate to server correctly.
 local dragMouse:         Mouse = LocalPlayer:GetMouse()
 local dragTarget:        BasePart? = nil
-local dragBodyPos:       BodyPosition? = nil
-local dragBodyGyro:      BodyGyro? = nil
+local dragAttachment0:   Attachment? = nil
+local dragAttachment1:   Attachment? = nil
+local dragAlignPos:      AlignPosition? = nil
+local dragAlignOrient:   AlignOrientation? = nil
 local dragNoCollisions:  {NoCollisionConstraint} = {}
 local hoverTarget:       BasePart? = nil
 local hoverHL:           Highlight? = nil
@@ -438,9 +440,14 @@ local dragWheelConn:     RBXScriptConnection? = nil
 local dragInputConn:     RBXScriptConnection? = nil
 local dragEndConn:       RBXScriptConnection? = nil
 local dragDepth:         number = 30
-local DRAG_MAX_RANGE:    number = 150
-local dragOrigMass:      number = 0
-local dragOrigDensity:   number = 0
+local DRAG_MAX_RANGE:    number = 300
+
+-- Saved original part properties to restore on drop
+local savedPartProperties: {[BasePart]: {
+    CanCollide: boolean,
+    CustomPhysicalProperties: PhysicalProperties?,
+    Massless: boolean
+}} = {}
 
 local function clearHover()
     if hoverHL and hoverHL.Parent then
@@ -495,36 +502,49 @@ local function getTargetFromMouse(): BasePart?
 end
 
 local function clearDragTarget()
-    -- Remove BodyPosition / BodyGyro
-    if dragBodyPos and dragBodyPos.Parent then
-        pcall(function() dragBodyPos:Destroy() end)
+    -- Restore original physical properties
+    if dragTarget and dragTarget.Parent then
+        local saved = savedPartProperties[dragTarget]
+        if saved then
+            pcall(function()
+                dragTarget.Massless = saved.Massless
+                dragTarget.CustomPhysicalProperties = saved.CustomPhysicalProperties
+            end)
+            savedPartProperties[dragTarget] = nil
+        end
+        pcall(function()
+            dragTarget.AssemblyLinearVelocity = Vector3.zero
+            dragTarget.AssemblyAngularVelocity = Vector3.zero
+        end)
     end
-    dragBodyPos = nil
 
-    if dragBodyGyro and dragBodyGyro.Parent then
-        pcall(function() dragBodyGyro:Destroy() end)
+    -- Cleanup constraints & attachments
+    if dragAlignPos and dragAlignPos.Parent then
+        pcall(function() dragAlignPos:Destroy() end)
     end
-    dragBodyGyro = nil
+    dragAlignPos = nil
 
-    -- Remove no-collision constraints
+    if dragAlignOrient and dragAlignOrient.Parent then
+        pcall(function() dragAlignOrient:Destroy() end)
+    end
+    dragAlignOrient = nil
+
+    if dragAttachment0 and dragAttachment0.Parent then
+        pcall(function() dragAttachment0:Destroy() end)
+    end
+    dragAttachment0 = nil
+
+    if dragAttachment1 and dragAttachment1.Parent then
+        pcall(function() dragAttachment1:Destroy() end)
+    end
+    dragAttachment1 = nil
+
     for _, ncc in ipairs(dragNoCollisions) do
         if ncc and ncc.Parent then
             pcall(function() ncc:Destroy() end)
         end
     end
     table.clear(dragNoCollisions)
-
-    -- Zero out velocity and return network ownership to server
-    if dragTarget and dragTarget.Parent then
-        pcall(function()
-            dragTarget.AssemblyLinearVelocity  = Vector3.zero
-            dragTarget.AssemblyAngularVelocity = Vector3.zero
-        end)
-        -- Return ownership to server so other clients see physics settle normally
-        pcall(function()
-            dragTarget:SetNetworkOwner(nil)
-        end)
-    end
 
     if grabHL and grabHL.Parent then
         pcall(function() grabHL:Destroy() end)
@@ -544,16 +564,32 @@ local function grabObject(part: BasePart)
 
     dragTarget = part
     local camPos = Camera.CFrame.Position
-    dragDepth = math.clamp((part.Position - camPos).Magnitude, 5, DRAG_MAX_RANGE)
+    dragDepth = math.clamp((part.Position - camPos).Magnitude, 6, DRAG_MAX_RANGE)
 
-    -- ── Claim Network Ownership ────────────────────────────────────
-    -- This is the key step: makes the client authoritative over physics
-    -- so BodyPosition/BodyGyro updates replicate to the server.
+    -- Save part state
+    savedPartProperties[part] = {
+        CanCollide = part.CanCollide,
+        CustomPhysicalProperties = part.CustomPhysicalProperties,
+        Massless = part.Massless
+    }
+
+    -- 1. Make part weightless for zero-inertia effortless movement
     pcall(function()
+        part.Massless = true
+        part.CustomPhysicalProperties = PhysicalProperties.new(0.001, 0, 0, 0, 0)
+        part.AssemblyLinearVelocity = Vector3.zero
+        part.AssemblyAngularVelocity = Vector3.zero
+    end)
+
+    -- 2. Claim network ownership so movement replicates to server & all players
+    pcall(function()
+        if type(sethiddenproperty) == "function" then
+            sethiddenproperty(part, "NetworkOwnershipRule", Enum.NetworkOwnership.Manual)
+        end
         part:SetNetworkOwner(LocalPlayer)
     end)
 
-    -- NoCollisionConstraints against local character parts
+    -- 3. Prevent self-collision damage
     local char = LocalPlayer.Character
     if char then
         for _, cPart in ipairs(char:GetDescendants()) do
@@ -567,29 +603,48 @@ local function grabObject(part: BasePart)
         end
     end
 
-    -- ── BodyPosition: drives server-replicated movement ───────────
-    local bp = Instance.new("BodyPosition")
-    bp.Name = "ModularDragBodyPos"
-    bp.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-    bp.D = 800        -- damping: smooth, not wobbly
-    bp.P = 10000      -- stiffness
-    bp.Position = part.Position
-    bp.Parent = part
-    dragBodyPos = bp
+    -- 4. Create World Target Attachment in Workspace Terrain
+    local targetAtt = Instance.new("Attachment")
+    targetAtt.Name = "ModularDragTargetAtt"
+    targetAtt.WorldPosition = part.Position
+    targetAtt.Parent = Workspace.Terrain
+    dragAttachment1 = targetAtt
 
-    -- ── BodyGyro: keeps orientation stable while being dragged ────
-    local bg = Instance.new("BodyGyro")
-    bg.Name = "ModularDragBodyGyro"
-    bg.MaxTorque = Vector3.new(1e8, 1e8, 1e8)
-    bg.D = 400
-    bg.P = 4000
-    bg.CFrame = part.CFrame
-    bg.Parent = part
-    dragBodyGyro = bg
+    -- 5. Create Part Center Attachment
+    local partAtt = Instance.new("Attachment")
+    partAtt.Name = "ModularDragPartAtt"
+    partAtt.Position = Vector3.zero
+    partAtt.Parent = part
+    dragAttachment0 = partAtt
+
+    -- 6. Hyper-Powered AlignPosition (Instantaneous infinite torque & velocity)
+    local ap = Instance.new("AlignPosition")
+    ap.Name = "ModularDragAlignPos"
+    ap.Mode = Enum.PositionAlignmentMode.TwoAttachment
+    ap.Attachment0 = partAtt
+    ap.Attachment1 = targetAtt
+    ap.MaxForce = math.huge
+    ap.MaxVelocity = math.huge
+    ap.Responsiveness = 200
+    ap.ApplyAtCenterOfMass = true
+    ap.Parent = part
+    dragAlignPos = ap
+
+    -- 7. AlignOrientation to keep part oriented naturally
+    local ao = Instance.new("AlignOrientation")
+    ao.Name = "ModularDragAlignOrient"
+    ao.Mode = Enum.OrientationAlignmentMode.TwoAttachment
+    ao.Attachment0 = partAtt
+    ao.Attachment1 = targetAtt
+    ao.MaxTorque = math.huge
+    ao.MaxAngularVelocity = math.huge
+    ao.Responsiveness = 120
+    ao.Parent = part
+    dragAlignOrient = ao
 
     grabHL = makeHighlight(part, Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 220, 80), 0.25)
 
-    -- Release on LMB up
+    -- Drop on release
     dragEndConn = UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             clearDragTarget()
@@ -600,19 +655,28 @@ end
 function DisasterSurvival.setObjectDrag(enabled: boolean)
     DisasterSurvival.ObjectDrag = enabled
     if enabled then
-        -- RenderStepped: update BodyPosition target and hover
         dragHoverConn = RunService.RenderStepped:Connect(function()
             if dragTarget and dragTarget.Parent then
                 local ray = Camera:ScreenPointToRay(dragMouse.X, dragMouse.Y)
                 local targetPos = Camera.CFrame.Position + (ray.Direction * dragDepth)
 
-                if dragBodyPos and dragBodyPos.Parent then
-                    dragBodyPos.Position = targetPos
+                -- 1. Move target attachment
+                if dragAttachment1 and dragAttachment1.Parent then
+                    dragAttachment1.WorldPosition = targetPos
                 end
-                if dragBodyGyro and dragBodyGyro.Parent then
-                    -- Keep original orientation; don't spin the object while dragging
-                    dragBodyGyro.CFrame = CFrame.new(dragTarget.Position) * (dragBodyGyro.CFrame - dragBodyGyro.CFrame.Position)
-                end
+
+                -- 2. Direct velocity & CFrame booster (ensures zero drag lag and lifts massive heavy parts)
+                pcall(function()
+                    local curPos = dragTarget.Position
+                    local delta = targetPos - curPos
+                    local dist = delta.Magnitude
+                    if dist > 0.05 then
+                        local speed = math.clamp(dist * 35, 10, 450)
+                        dragTarget.AssemblyLinearVelocity = delta.Unit * speed
+                    else
+                        dragTarget.AssemblyLinearVelocity = Vector3.zero
+                    end
+                end)
             else
                 if dragTarget and not dragTarget.Parent then
                     clearDragTarget()
@@ -636,12 +700,12 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
             if gp then return end
             if input.UserInputType == Enum.UserInputType.MouseWheel then
                 if dragTarget then
-                    dragDepth = math.clamp(dragDepth + (input.Position.Z * 5), 4, DRAG_MAX_RANGE)
+                    dragDepth = math.clamp(dragDepth + (input.Position.Z * 6), 5, DRAG_MAX_RANGE)
                 end
             end
         end)
 
-        -- LMB: grab
+        -- LMB: grab hovered object
         dragInputConn = UserInputService.InputBegan:Connect(function(input, gp)
             if gp then return end
             if input.UserInputType == Enum.UserInputType.MouseButton1 then

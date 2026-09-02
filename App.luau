@@ -10623,8 +10623,13 @@ Modules["Core/MainUI.luau"] = function()
     -- Core/MainUI.luau
     -- Tab UI, sections, toggles, game-module layouts.
     -- Split from Main.luau to avoid Lua local register overflow (>200 locals).
-    return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, emotesWidget)
+    return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, emotesWidget, sharedEnv)
     	local require          = _requireFn
+    	local cachedCharacterParts   = (sharedEnv and sharedEnv.cachedCharacterParts) or {}
+    	local disableRobloxTopBarApp = (sharedEnv and sharedEnv.disableRobloxTopBarApp) or function() end
+    	local hidePlayerGameGuis     = (sharedEnv and sharedEnv.hidePlayerGameGuis) or function() end
+    	local coreGuiOverlays        = (sharedEnv and sharedEnv.coreGuiOverlays) or {}
+    	local purgeBlackoutScreens   = (sharedEnv and sharedEnv.purgeBlackoutScreens) or function() end
     	local Players          = game:GetService("Players")
     	local Lighting         = game:GetService("Lighting")
     	local StarterGui       = game:GetService("StarterGui")
@@ -19955,4 +19960,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
-require("Core/MainUI.luau")(require, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, emotesWidget)
+local sharedEnv = {
+	cachedCharacterParts = cachedCharacterParts,
+	disableRobloxTopBarApp = disableRobloxTopBarApp,
+	hidePlayerGameGuis = hidePlayerGameGuis,
+	coreGuiOverlays = coreGuiOverlays,
+	purgeBlackoutScreens = purgeBlackoutScreens,
+}
+
+require("Core/MainUI.luau")(require, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, emotesWidget, sharedEnv)

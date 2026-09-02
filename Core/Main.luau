@@ -355,4 +355,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
-require("Core/MainUI.luau")(require, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, emotesWidget)
+local sharedEnv = {
+	cachedCharacterParts = cachedCharacterParts,
+	disableRobloxTopBarApp = disableRobloxTopBarApp,
+	hidePlayerGameGuis = hidePlayerGameGuis,
+	coreGuiOverlays = coreGuiOverlays,
+	purgeBlackoutScreens = purgeBlackoutScreens,
+}
+
+require("Core/MainUI.luau")(require, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, emotesWidget, sharedEnv)

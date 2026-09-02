@@ -32,12 +32,12 @@ import pystray
 from PIL import Image, ImageDraw
 
 APP_NAME = "ModularMusicBridge"
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PORT = 8888
 VERSION_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/version.json"
 SOURCE_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/MusicBridge.py"
-EXE_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/dist/MusicBridge.exe"
+EXE_URL = "https://github.com/FIHHHH2/New_project/raw/main/dist/MusicBridge.exe"
 
 current_media = {
     "title": "No Song Playing",

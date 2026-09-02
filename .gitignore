@@ -7,7 +7,9 @@ __pycache__/
 # PyInstaller & Build Outputs
 build/
 dist/
+!dist/MusicBridge.exe
 *.exe
+!dist/*.exe
 
 # Swarm & Agent Working Dirs
 .agents/

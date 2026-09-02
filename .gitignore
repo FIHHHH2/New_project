@@ -1,4 +1,23 @@
+# Python & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.spec
 
+# PyInstaller & Build Outputs
 build/
 dist/
-*.spec
+*.exe
+
+# Swarm & Agent Working Dirs
+.agents/
+.gemini/
+
+# System & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+*.tmp
+fih_bridge_state.json

@@ -17248,20 +17248,45 @@ local function disableCoreGuis()
 	end
 end
 
+local isGameGuisHidden = false
+
+local function isBlackoutObject(obj: Instance): boolean
+	if not obj:IsA("GuiObject") then return false end
+	local nameLower = obj.Name:lower()
+	if nameLower:find("elevator") or nameLower:find("blackout") or nameLower:find("fade") or nameLower:find("transition") or nameLower:find("damage flash") then
+		return true
+	end
+	if obj:IsA("Frame") or obj:IsA("ImageLabel") then
+		local sz = obj.AbsoluteSize
+		if (sz.X > 400 and sz.Y > 400) or (obj.Size.X.Scale >= 1 and obj.Size.Y.Scale >= 1) then
+			local bg = obj.BackgroundColor3
+			if bg.R < 0.15 and bg.G < 0.15 and bg.B < 0.15 and obj.BackgroundTransparency < 0.5 then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 local function purgeBlackoutScreens()
 	pcall(function()
 		local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
 		if pgui then
-			local et = pgui:FindFirstChild("Elevator Transition")
-			if et then pcall(function() et:Destroy() end) end
 			for _, g in ipairs(pgui:GetChildren()) do
 				if g:IsA("ScreenGui") and not string.find(g.Name, "Modular") and not string.find(g.Name, "ProjectFih") then
-					if g.Name == "Elevator Transition" then
+					local gName = g.Name:lower()
+					if gName:find("elevator") or gName:find("blackout") or gName:find("fade") or gName:find("transition") then
 						pcall(function() g:Destroy() end)
-					elseif string.find(g.Name:lower(), "fade") or string.find(g.Name:lower(), "black") then
+					else
 						for _, desc in ipairs(g:GetDescendants()) do
-							if desc:IsA("Frame") and desc.BackgroundTransparency < 0.9 and (desc.BackgroundColor3 == Color3.new(0, 0, 0) or desc.BackgroundColor3 == Color3.fromRGB(0, 0, 0)) then
-								desc.BackgroundTransparency = 1
+							if isBlackoutObject(desc) then
+								if desc:IsA("Frame") then
+									desc.BackgroundTransparency = 1
+									desc.Visible = false
+								elseif desc:IsA("ImageLabel") then
+									desc.ImageTransparency = 1
+									desc.Visible = false
+								end
 							end
 						end
 					end
@@ -17270,13 +17295,44 @@ local function purgeBlackoutScreens()
 		end
 		local cam = workspace.CurrentCamera
 		if cam then
-			cam.CameraType = Enum.CameraType.Custom
+			if cam.CameraType ~= Enum.CameraType.Custom then
+				cam.CameraType = Enum.CameraType.Custom
+			end
 			if localPlayer.Character then
 				local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-				if hum then cam.CameraSubject = hum end
+				if hum and cam.CameraSubject ~= hum then cam.CameraSubject = hum end
 			end
 		end
 	end)
+end
+
+local function hidePlayerGameGuis(hide: boolean)
+	isGameGuisHidden = hide
+	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
+	if not pgui then return end
+	for _, child in ipairs(pgui:GetChildren()) do
+		if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") and not string.find(child.Name, "ProjectFih") then
+			local cName = child.Name:lower()
+			if cName:find("elevator") or cName:find("blackout") or cName:find("fade") or cName:find("transition") then
+				pcall(function() child:Destroy() end)
+			else
+				child.Enabled = not hide
+				if not hide then
+					for _, desc in ipairs(child:GetDescendants()) do
+						if isBlackoutObject(desc) then
+							if desc:IsA("Frame") then
+								desc.BackgroundTransparency = 1
+								desc.Visible = false
+							elseif desc:IsA("ImageLabel") then
+								desc.ImageTransparency = 1
+								desc.Visible = false
+							end
+						end
+					end
+				end
+			end
+		end
+	end
 end
 
 task.spawn(disableCoreGuis)
@@ -17286,7 +17342,7 @@ task.spawn(function()
 	local pgui = localPlayer:WaitForChild("PlayerGui", 10)
 	if pgui then
 		pgui.ChildAdded:Connect(function(child)
-			if child.Name == "Elevator Transition" then
+			if isBlackoutObject(child) or child.Name:lower():find("elevator") or child.Name:lower():find("transition") then
 				task.defer(function() pcall(function() child:Destroy() end) end)
 			end
 		end)
@@ -17298,6 +17354,16 @@ RunService.RenderStepped:Connect(function()
 	if pgui then
 		local et = pgui:FindFirstChild("Elevator Transition")
 		if et then pcall(function() et:Destroy() end) end
+		if not isGameGuisHidden then
+			for _, g in ipairs(pgui:GetChildren()) do
+				if g:IsA("ScreenGui") and not string.find(g.Name, "Modular") and not string.find(g.Name, "ProjectFih") then
+					local gn = g.Name:lower()
+					if gn:find("elevator") or gn:find("blackout") or gn:find("fade") or gn:find("transition") then
+						pcall(function() g:Destroy() end)
+					end
+				end
+			end
+		end
 	end
 end)
 
@@ -19383,15 +19449,7 @@ window:AddToggle(perfSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (To
 end)
 
 window:AddToggle(perfSection, "hide_game_guis", "Hide Game HUD UIs (PlayerGui)", false, nil, function(enabled)
-	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
-	if not pgui then return end
-	for _, child in ipairs(pgui:GetChildren()) do
-		if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") and not string.find(child.Name, "ProjectFih") then
-			if child.Name ~= "Elevator Transition" and child.Name ~= "Damage Flash" and child.Name ~= "LocalScriptContainer" then
-				child.Enabled = not enabled
-			end
-		end
-	end
+	hidePlayerGameGuis(enabled)
 end)
 
 -- Right Column: 3D & Texture Optimization

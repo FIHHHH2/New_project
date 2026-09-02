@@ -654,7 +654,10 @@ function MusicTracker.new()
 		end
 	end
 
-	local function updateCover(coverUrl: string?, isIdle: boolean, dataHasCover: boolean?)
+	local currentCoverFile = ""
+	local isFetchingCover = false
+
+	local function updateCover(coverUrl: string?, isIdle: boolean, dataHasCover: boolean?, coverVer: number?)
 		if isIdle then
 			coverImg.Image = MUSIC_NOTE_ICON
 			coverImg.ImageColor3 = UI.Theme.Accent
@@ -665,20 +668,33 @@ function MusicTracker.new()
 		if dataHasCover or (coverUrl and coverUrl:find("cover")) then
 			local wf = writefile or (getgenv and getgenv().writefile)
 			local gca = getcustomasset or (getgenv and getgenv().getcustomasset) or (syn and syn.getcustomasset)
+			local df = delfile or (getgenv and getgenv().delfile)
 			if type(wf) == "function" and type(gca) == "function" then
+				if isFetchingCover then return end
+				isFetchingCover = true
 				task.spawn(function()
-					local ok, imgBytes = httpFetch(BRIDGE_URL .. "/cover.png")
+					local verStr = tostring(coverVer or math.floor(os.clock() * 100))
+					local newFileName = "fih_cover_" .. verStr .. ".png"
+					local ok, imgBytes = httpFetch(BRIDGE_URL .. "/cover.png?v=" .. verStr)
 					if ok and imgBytes and #imgBytes > 50 then
 						pcall(function()
-							wf("fih_bridge_cover.png", imgBytes)
-							local assetId = gca("fih_bridge_cover.png")
+							wf(newFileName, imgBytes)
+							local assetId = gca(newFileName)
 							if assetId and assetId ~= "" then
-								coverImg.Image = assetId
-								coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
-								coverImg.ScaleType = Enum.ScaleType.Crop
+								coverImg.Image = ""
+								task.defer(function()
+									coverImg.Image = assetId
+									coverImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
+									coverImg.ScaleType = Enum.ScaleType.Crop
+								end)
 							end
+							if currentCoverFile ~= "" and currentCoverFile ~= newFileName and type(df) == "function" then
+								pcall(function() df(currentCoverFile) end)
+							end
+							currentCoverFile = newFileName
 						end)
 					end
+					isFetchingCover = false
 				end)
 				return
 			end
@@ -893,18 +909,20 @@ function MusicTracker.new()
 
 							local isIdle = (title == "No Song Playing" or title == "Local Audio Session" or title == "No Media Playing") and not data.isPlaying and currentAudioPeak <= 0.005
 
+							local coverVer = tonumber(data.coverVersion) or 0
+
 							if title ~= lastSongTitle then
 								lastSongTitle = title
 								parsedLrcLines = {}
 								lastActiveLyric = ""
-								lastCoverVersion = -1 -- force cover refresh on song change
+								lastCoverVersion = coverVer
 
 								if isIdle then
 									songTitleLabel.Text = "No Media Playing"
 									lyricsLabel.Text = "♫ Play a song on Spotify, YouTube, or In-Game Audio"
 									isPlaying = false
 									playBtn.Text = "▶"
-									updateCover(nil, true, false)
+									updateCover(nil, true, false, 0)
 								else
 									songTitleLabel.Text = string.format("%s — %s", title, artist)
 									if data.lyrics and data.lyrics ~= "" then
@@ -913,7 +931,7 @@ function MusicTracker.new()
 									end
 									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
 									playBtn.Text = if isPlaying then "❚❚" else "▶"
-									updateCover(data.cover, false, data.hasCover == true)
+									updateCover(data.cover, false, data.hasCover == true, coverVer)
 
 									if data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 then
 										parsedLrcLines = data.synced_lyrics
@@ -929,10 +947,9 @@ function MusicTracker.new()
 										lyricsLabel.Text = "♫ " .. data.lyrics
 									end
 									-- Update cover art when bridge signals new version
-									local newCoverVer = tonumber(data.coverVersion) or 0
-									if newCoverVer ~= lastCoverVersion then
-										lastCoverVersion = newCoverVer
-										updateCover(data.cover, false, data.hasCover == true)
+									if coverVer ~= lastCoverVersion then
+										lastCoverVersion = coverVer
+										updateCover(data.cover, false, data.hasCover == true, coverVer)
 									end
 								end
 							end

@@ -4610,6 +4610,25 @@ Modules["UI/MusicTracker.luau"] = function()
     		end)
     	end)
 
+    	-- ── Global Shortcut: Ctrl + Left Click (Play/Toggle) | Ctrl + Right Click (Previous/Go Back) ───
+    	UserInputService.InputBegan:Connect(function(input, gp)
+    		local focused = UserInputService:GetFocusedTextBox()
+    		if focused then return end
+
+    		local isCtrl = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+    		if isCtrl then
+    			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    				task.spawn(function()
+    					httpFetch(BRIDGE_URL .. "/toggle")
+    				end)
+    			elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+    				task.spawn(function()
+    					httpFetch(BRIDGE_URL .. "/prev")
+    				end)
+    			end
+    		end
+    	end)
+
     	-- ── Continuous 60+ FPS Fluid Spring-Damper Visualizer Physics ────
     	RunService.RenderStepped:Connect(function(dt: number)
     		if not widget.Visible or not screenGui.Enabled then return end

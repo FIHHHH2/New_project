@@ -604,10 +604,16 @@ def setup_global_hotkeys():
         kernel32 = ctypes.windll.kernel32
 
         WH_KEYBOARD_LL = 13
+        WH_MOUSE_LL = 14
         WM_KEYDOWN = 0x0100
         WM_SYSKEYDOWN = 0x0104
+        WM_LBUTTONDOWN = 0x0201
+        WM_RBUTTONDOWN = 0x0204
         VK_LWIN = 0x5B
         VK_RWIN = 0x5C
+        VK_CONTROL = 0x11
+        VK_LCONTROL = 0xA2
+        VK_RCONTROL = 0xA3
         VK_Q = 0x51
         VK_E = 0x45
 
@@ -625,6 +631,9 @@ def setup_global_hotkeys():
         def is_win_down():
             return (user32.GetAsyncKeyState(VK_LWIN) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_RWIN) & 0x8000 != 0)
 
+        def is_ctrl_down():
+            return (user32.GetAsyncKeyState(VK_CONTROL) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_LCONTROL) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_RCONTROL) & 0x8000 != 0)
+
         def low_level_keyboard_proc(nCode, wParam, lParam):
             if nCode >= 0:
                 if wParam in (WM_KEYDOWN, WM_SYSKEYDOWN):
@@ -640,28 +649,34 @@ def setup_global_hotkeys():
                             return 1  # Block default Windows Search
             return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
-        hook_callback = HOOKPROC(low_level_keyboard_proc)
-        hook_id = user32.SetWindowsHookExW(WH_KEYBOARD_LL, hook_callback, kernel32.GetModuleHandleW(None), 0)
+        def low_level_mouse_proc(nCode, wParam, lParam):
+            if nCode >= 0:
+                if is_ctrl_down():
+                    if wParam == WM_LBUTTONDOWN:
+                        print("[Hotkey] Ctrl + Left Click -> Play / Toggle")
+                        threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
+                    elif wParam == WM_RBUTTONDOWN:
+                        print("[Hotkey] Ctrl + Right Click -> Go Back")
+                        threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
+            return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
-        if not hook_id:
-            print("[Shortcuts] Fallback: RegisterHotKey fallback")
-            user32.RegisterHotKey(None, 101, 0x0008, VK_Q)
-            user32.RegisterHotKey(None, 102, 0x0008, VK_E)
-        else:
-            print("[Shortcuts] Low-Level Hook Active: Win+E (Skip Song) | Win+Q (Previous Song)")
+        hook_kbd_cb = HOOKPROC(low_level_keyboard_proc)
+        hook_kbd_id = user32.SetWindowsHookExW(WH_KEYBOARD_LL, hook_kbd_cb, kernel32.GetModuleHandleW(None), 0)
+
+        hook_mouse_cb = HOOKPROC(low_level_mouse_proc)
+        hook_mouse_id = user32.SetWindowsHookExW(WH_MOUSE_LL, hook_mouse_cb, kernel32.GetModuleHandleW(None), 0)
+
+        print("[Shortcuts] Active: Ctrl + Left Click (Play/Toggle) | Ctrl + Right Click (Go Back) | Win+E / Win+Q")
 
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
-            if msg.message == 0x0312:
-                if msg.wParam == 101:
-                    trigger_media_command("prev")
-                elif msg.wParam == 102:
-                    trigger_media_command("skip")
             user32.TranslateMessage(ctypes.byref(msg))
             user32.DispatchMessageW(ctypes.byref(msg))
 
-        if hook_id:
-            user32.UnhookWindowsHookEx(hook_id)
+        if hook_kbd_id:
+            user32.UnhookWindowsHookEx(hook_kbd_id)
+        if hook_mouse_id:
+            user32.UnhookWindowsHookEx(hook_mouse_id)
     except Exception as e:
         print(f"[Shortcuts] Global hotkey error: {e}")
 

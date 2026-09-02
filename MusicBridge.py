@@ -253,7 +253,7 @@ def download_cover_image_bytes(title: str, artist: str) -> bytes:
             url = f"https://itunes.apple.com/search?term={q}&entity=song&limit=1"
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=3.5) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+                data = json.loads(resp.read().decode("utf-8-sig"))
                 if data.get("resultCount", 0) > 0:
                     art_url = data["results"][0].get("artworkUrl100", "")
                     if art_url:
@@ -275,7 +275,7 @@ def download_cover_image_bytes(title: str, artist: str) -> bytes:
         url = f"https://api.deezer.com/search?q={q}&limit=1"
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=3.5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            data = json.loads(resp.read().decode("utf-8-sig"))
             if data.get("data") and len(data["data"]) > 0:
                 album = data["data"][0].get("album", {})
                 art_url = album.get("cover_xl") or album.get("cover_big") or album.get("cover_medium")
@@ -340,7 +340,7 @@ def fetch_synced_lyrics(title: str, artist: str, duration: float):
                     url += f"&duration={int(duration)}"
                 req = urllib.request.Request(url, headers=headers)
                 with urllib.request.urlopen(req, timeout=3.0) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
+                    data = json.loads(resp.read().decode("utf-8-sig"))
                     if data.get("syncedLyrics"):
                         parsed = parse_lrc(data["syncedLyrics"])
                         if len(parsed) > 0:
@@ -359,7 +359,7 @@ def fetch_synced_lyrics(title: str, artist: str, duration: float):
             url = f"https://lrclib.net/api/search?q={q}"
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=3.0) as resp:
-                results = json.loads(resp.read().decode("utf-8"))
+                results = json.loads(resp.read().decode("utf-8-sig"))
                 if results and isinstance(results, list) and len(results) > 0:
                     for item in results[:3]:
                         if item.get("syncedLyrics"):
@@ -382,7 +382,7 @@ def fetch_synced_lyrics(title: str, artist: str, duration: float):
             url = f"https://api.lyrics.ovh/v1/{q_a}/{q_t}"
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=3.0) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+                data = json.loads(resp.read().decode("utf-8-sig"))
                 if data.get("lyrics"):
                     plain_lines = [l.strip() for l in data["lyrics"].splitlines() if l.strip()]
                     if len(plain_lines) > 0:
@@ -603,7 +603,7 @@ def check_for_updates(auto: bool = False) -> bool:
     try:
         req = urllib.request.Request(VERSION_URL, headers={"User-Agent": "MusicBridge-Updater"})
         with urllib.request.urlopen(req, timeout=4.0) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            data = json.loads(resp.read().decode("utf-8-sig"))
             remote_ver = str(data.get("version", VERSION))
             if remote_ver != VERSION:
                 print(f"[Updater] Update detected: v{remote_ver} (Current: v{VERSION})")
@@ -629,7 +629,7 @@ del "%~f0"
                 else:
                     script_path = os.path.abspath(__file__)
                     with urllib.request.urlopen(SOURCE_URL, timeout=6.0) as src_resp:
-                        new_code = src_resp.read().decode("utf-8")
+                        new_code = src_resp.read().decode("utf-8-sig")
                         if len(new_code) > 1000 and "ModularMusicBridge" in new_code:
                             with open(script_path, "w", encoding="utf-8") as f:
                                 f.write(new_code)

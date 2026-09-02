@@ -32,7 +32,7 @@ import pystray
 from PIL import Image, ImageDraw
 
 APP_NAME = "ModularMusicBridge"
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PORT = 8888
 VERSION_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/version.json"
@@ -737,6 +737,9 @@ class BridgeHandler(BaseHTTPRequestHandler):
         elif path.startswith("/prev"):
             trigger_media_command("prev")
             self.wfile.write(b'{"status":"previous"}')
+        elif path.startswith("/update"):
+            threading.Thread(target=lambda: check_for_updates(auto=False), daemon=True).start()
+            self.wfile.write(b'{"status":"checking_updates"}')
         else:
             self.wfile.write(b'{"status":"ok"}')
 
@@ -764,8 +767,8 @@ def run_audio_loop():
 def check_for_updates(auto: bool = False) -> bool:
     """Checks remote repository for newer builds and auto-applies updates."""
     try:
-        req = urllib.request.Request(f"{VERSION_URL}?t={int(time.time())}", headers={"User-Agent": "MusicBridge-Updater"})
-        with urllib.request.urlopen(req, timeout=4.0) as resp:
+        req = urllib.request.Request(f"{VERSION_URL}?t={int(time.time())}", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MusicBridge-Updater"})
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
             raw_text = resp.read().decode("utf-8-sig", errors="ignore")
             remote_ver = VERSION
             dl_url = EXE_URL
@@ -785,25 +788,40 @@ def check_for_updates(auto: bool = False) -> bool:
                 print(f"[Updater] Update detected: v{remote_ver} (Current: v{VERSION})")
                 is_frozen = getattr(sys, "frozen", False)
                 if is_frozen:
-                    exe_path = sys.executable
+                    exe_path = os.path.abspath(sys.executable)
                     tmp_exe = exe_path + ".new"
-                    urllib.request.urlretrieve(dl_url, tmp_exe)
                     
-                    bat_content = f"""@echo off
-timeout /t 2 /nobreak > NUL
-move /y "{tmp_exe}" "{exe_path}"
-start "" "{exe_path}"
+                    # Stream download with proper headers
+                    dl_req = urllib.request.Request(dl_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                    with urllib.request.urlopen(dl_req, timeout=20.0) as dl_resp:
+                        with open(tmp_exe, "wb") as f_out:
+                            while True:
+                                chunk = dl_resp.read(65536)
+                                if not chunk:
+                                    break
+                                f_out.write(chunk)
+
+                    if os.path.exists(tmp_exe) and os.path.getsize(tmp_exe) > 500000:
+                        bat_content = f"""@echo off
+set "TARGET={exe_path}"
+set "NEW={tmp_exe}"
+:wait_loop
+taskkill /f /im MusicBridge.exe > NUL 2>&1
+timeout /t 1 /nobreak > NUL
+move /y "%NEW%" "%TARGET%" > NUL 2>&1
+if errorlevel 1 goto wait_loop
+start "" "%TARGET%"
 del "%~f0"
 """
-                    bat_path = os.path.join(os.path.dirname(exe_path), "bridge_updater.bat")
-                    with open(bat_path, "w") as f:
-                        f.write(bat_content)
-                    
-                    os.system(f'start "" "{bat_path}"')
-                    os._exit(0)
+                        bat_path = os.path.join(os.path.dirname(exe_path), "bridge_updater.bat")
+                        with open(bat_path, "w", encoding="utf-8") as f:
+                            f.write(bat_content)
+                        
+                        os.system(f'start "" "{bat_path}"')
+                        os._exit(0)
                 else:
                     script_path = os.path.abspath(__file__)
-                    with urllib.request.urlopen(SOURCE_URL, timeout=6.0) as src_resp:
+                    with urllib.request.urlopen(SOURCE_URL, timeout=8.0) as src_resp:
                         new_code = src_resp.read().decode("utf-8-sig")
                         if len(new_code) > 1000 and "ModularMusicBridge" in new_code:
                             with open(script_path, "w", encoding="utf-8") as f:
@@ -820,7 +838,7 @@ del "%~f0"
 
 def run_update_loop():
     while True:
-        time.sleep(1800)  # Check every 30 minutes
+        time.sleep(45)  # Check every 45 seconds for active development & instant release sync
         check_for_updates(auto=True)
 
 # ── System Tray Icon & Menu ────────────────────────────────────────

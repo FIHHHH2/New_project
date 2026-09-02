@@ -8805,6 +8805,30 @@ Modules["Core/FeatureManager.luau"] = function()
     	return if clean ~= "" then clean else "Config_" .. tostring(os.time())
     end
 
+    local deletedConfigsSet: {[string]: boolean} = {}
+    if type(_G.__ModularDeletedConfigs) == "table" then
+    	for k, v in pairs(_G.__ModularDeletedConfigs) do
+    		if v == true then deletedConfigsSet[k] = true end
+    	end
+    else
+    	_G.__ModularDeletedConfigs = deletedConfigsSet
+    end
+
+    local SYSTEM_CONFIG_NAMES: {[string]: boolean} = {
+    	["Theme"] = true,
+    	["theme"] = true,
+    	["autoload_profile"] = true,
+    	["autoload_profile.json"] = true,
+    	["config_index"] = true,
+    	["config_index.json"] = true,
+    	["fih_bridge_state"] = true,
+    	["fih_bridge_state.json"] = true,
+    	["now_playing"] = true,
+    	["now_playing.json"] = true,
+    	["music"] = true,
+    	["music_state"] = true,
+    }
+
     -- ── File System Utilities ─────────────────────────────────────────
     function FeatureManager.listConfigs(): {string}
     	ensureFolders()
@@ -8812,11 +8836,15 @@ Modules["Core/FeatureManager.luau"] = function()
 
     	-- 1. In-memory & Global Registry
     	for name, active in pairs(configsIndex) do
-    		if active then configsMap[name] = true end
+    		if active and not deletedConfigsSet[name] and not SYSTEM_CONFIG_NAMES[name] then
+    			configsMap[name] = true
+    		end
     	end
     	if type(_G.__ModularConfigsIndex) == "table" then
     		for name, active in pairs(_G.__ModularConfigsIndex) do
-    			if active then configsMap[name] = true end
+    			if active and not deletedConfigsSet[name] and not SYSTEM_CONFIG_NAMES[name] then
+    				configsMap[name] = true
+    			end
     		end
     	end
 
@@ -8824,13 +8852,15 @@ Modules["Core/FeatureManager.luau"] = function()
     	local listf = listfiles or (getgenv and getgenv().listfiles)
     	local rdf = readfile or (getgenv and getgenv().readfile)
     	if type(listf) == "function" then
-    		local function scanDir(dir: string)
-    			local ok, files = pcall(function() return listf(dir) end)
-    			if ok and type(files) == "table" then
-    				for _, path in ipairs(files) do
-    					local s = tostring(path):gsub("\\", "/")
-    					local fileName = s:match("([^/]+)%.json$")
-    					if fileName and fileName ~= "" and fileName ~= "autoload_profile" and fileName ~= "config_index" then
+    		local ok, files = pcall(function() return listf(CONFIGS_FOLDER) end)
+    		if ok and type(files) == "table" then
+    			for _, path in ipairs(files) do
+    				local s = tostring(path):gsub("\\", "/")
+    				local rawName = s:match("([^/]+)%.json$") or s:match("([^/]+)$")
+    				if rawName and rawName ~= "" then
+    					-- Clean out any prepended path garbage
+    					local cleanName = rawName:gsub("^FihSuiteConfigs", ""):gsub("%.json$", "")
+    					if cleanName ~= "" and not SYSTEM_CONFIG_NAMES[cleanName] and not deletedConfigsSet[cleanName] then
     						local hasContent = true
     						if type(rdf) == "function" then
     							pcall(function()
@@ -8841,23 +8871,26 @@ Modules["Core/FeatureManager.luau"] = function()
     							end)
     						end
     						if hasContent then
-    							configsMap[fileName] = true
-    							configsIndex[fileName] = true
-    						else
-    							configsMap[fileName] = nil
-    							configsIndex[fileName] = nil
+    							configsMap[cleanName] = true
+    							configsIndex[cleanName] = true
     						end
     					end
     				end
     			end
     		end
-    		scanDir(CONFIGS_FOLDER)
-    		scanDir(ROOT_FOLDER)
+    	end
+
+    	-- Filter out deleted configs
+    	for name in pairs(deletedConfigsSet) do
+    		configsMap[name] = nil
+    		configsIndex[name] = nil
     	end
 
     	local result: {string} = {}
     	for name in pairs(configsMap) do
-    		table.insert(result, name)
+    		if not SYSTEM_CONFIG_NAMES[name] then
+    			table.insert(result, name)
+    		end
     	end
     	table.sort(result)
     	return result
@@ -8868,11 +8901,14 @@ Modules["Core/FeatureManager.luau"] = function()
     	local rdf = readfile or (getgenv and getgenv().readfile)
     	local isf = isfile or (getgenv and getgenv().isfile)
     	if type(rdf) == "function" then
+    		local cleanName = name:gsub("^FihSuiteConfigs", ""):gsub("%.json$", "")
     		local paths = {
+    			CONFIGS_FOLDER .. "/" .. cleanName .. ".json",
+    			CONFIGS_FOLDER .. "\\" .. cleanName .. ".json",
     			CONFIGS_FOLDER .. "/" .. name .. ".json",
-    			CONFIGS_FOLDER .. "\\" .. name .. ".json",
-    			ROOT_FOLDER .. "/" .. name .. ".json",
-    			"FihSuite_Config_" .. name .. ".json",
+    			ROOT_FOLDER .. "/" .. cleanName .. ".json",
+    			"FihSuite_Config_" .. cleanName .. ".json",
+    			cleanName .. ".json",
     			name .. ".json"
     		}
     		for _, p in ipairs(paths) do
@@ -8894,38 +8930,55 @@ Modules["Core/FeatureManager.luau"] = function()
 
     local function writeConfigFile(name: string, data: string): boolean
     	ensureFolders()
+    	local cleanName = name:gsub("^FihSuiteConfigs", ""):gsub("%.json$", "")
+    	deletedConfigsSet[cleanName] = nil
+    	deletedConfigsSet[name] = nil
+    	if type(_G.__ModularDeletedConfigs) == "table" then
+    		_G.__ModularDeletedConfigs[cleanName] = nil
+    		_G.__ModularDeletedConfigs[name] = nil
+    	end
+
     	local wrf = writefile or (getgenv and getgenv().writefile)
     	if type(wrf) == "function" then
     		local paths = {
-    			CONFIGS_FOLDER .. "/" .. name .. ".json",
-    			ROOT_FOLDER .. "/" .. name .. ".json",
-    			"FihSuite_Config_" .. name .. ".json",
-    			name .. ".json"
+    			CONFIGS_FOLDER .. "/" .. cleanName .. ".json",
+    			ROOT_FOLDER .. "/" .. cleanName .. ".json",
+    			"FihSuite_Config_" .. cleanName .. ".json",
+    			cleanName .. ".json"
     		}
     		for _, path in ipairs(paths) do
     			local ok = pcall(function() wrf(path, data) end)
     			if ok then
-    				configsIndex[name] = true
+    				configsIndex[cleanName] = true
     				if type(_G.__ModularConfigsIndex) == "table" then
-    					_G.__ModularConfigsIndex[name] = true
+    					_G.__ModularConfigsIndex[cleanName] = true
     				end
     				return true
     			end
     		end
     	end
-    	-- If executor has no writefile, record to in-memory index
-    	configsIndex[name] = true
+    	configsIndex[cleanName] = true
     	if type(_G.__ModularConfigsIndex) == "table" then
-    		_G.__ModularConfigsIndex[name] = true
+    		_G.__ModularConfigsIndex[cleanName] = true
     	end
     	return true
     end
 
     local function deleteConfigFile(name: string): boolean
     	ensureFolders()
+    	local cleanName = name:gsub("^FihSuiteConfigs", ""):gsub("%.json$", "")
+	
+    	configsIndex[cleanName] = nil
     	configsIndex[name] = nil
+    	deletedConfigsSet[cleanName] = true
+    	deletedConfigsSet[name] = true
     	if type(_G.__ModularConfigsIndex) == "table" then
+    		_G.__ModularConfigsIndex[cleanName] = nil
     		_G.__ModularConfigsIndex[name] = nil
+    	end
+    	if type(_G.__ModularDeletedConfigs) == "table" then
+    		_G.__ModularDeletedConfigs[cleanName] = true
+    		_G.__ModularDeletedConfigs[name] = true
     	end
 
     	local dlf = delfile
@@ -8936,10 +8989,14 @@ Modules["Core/FeatureManager.luau"] = function()
     		or (getgenv and (getgenv().delfile or getgenv().deletefile or getgenv().removefile))
 
     	local paths = {
+    		CONFIGS_FOLDER .. "/" .. cleanName .. ".json",
+    		CONFIGS_FOLDER .. "\\" .. cleanName .. ".json",
     		CONFIGS_FOLDER .. "/" .. name .. ".json",
     		CONFIGS_FOLDER .. "\\" .. name .. ".json",
+    		ROOT_FOLDER .. "/" .. cleanName .. ".json",
     		ROOT_FOLDER .. "/" .. name .. ".json",
-    		"FihSuite_Config_" .. name .. ".json",
+    		"FihSuite_Config_" .. cleanName .. ".json",
+    		cleanName .. ".json",
     		name .. ".json"
     	}
 
@@ -12402,6 +12459,21 @@ Modules["Modules/DisasterSurvival.luau"] = function()
         LocalPlayer.CharacterAdded:Connect(function(char)
             if DisasterSurvival.NoFallDamage then applyNoFallDamage(char) end
             hookDisasterTag(char, notifyCallback)
+        end)
+
+        -- Continuously auto-dismiss stuck NDS elevator transition blackout frames
+        RunService.RenderStepped:Connect(function()
+            local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            if pgui then
+                local et = pgui:FindFirstChild("Elevator Transition")
+                if et and et:IsA("ScreenGui") and et.Enabled then
+                    local frame = et:FindFirstChild("Frame")
+                    if frame and frame:IsA("Frame") and frame.BackgroundTransparency < 0.5 then
+                        frame.BackgroundTransparency = 1
+                        et.Enabled = false
+                    end
+                end
+            end
         end)
     end
 

@@ -172,6 +172,21 @@ function DisasterSurvival.init(notifyCallback: ((string)->())?)
         if DisasterSurvival.NoFallDamage then applyNoFallDamage(char) end
         hookDisasterTag(char, notifyCallback)
     end)
+
+    -- Continuously auto-dismiss stuck NDS elevator transition blackout frames
+    RunService.RenderStepped:Connect(function()
+        local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        if pgui then
+            local et = pgui:FindFirstChild("Elevator Transition")
+            if et and et:IsA("ScreenGui") and et.Enabled then
+                local frame = et:FindFirstChild("Frame")
+                if frame and frame:IsA("Frame") and frame.BackgroundTransparency < 0.5 then
+                    frame.BackgroundTransparency = 1
+                    et.Enabled = false
+                end
+            end
+        end
+    end)
 end
 
 -- ── Flight Engine ─────────────────────────────────────────────────

@@ -17262,14 +17262,17 @@ local function disableCoreGuis()
 	end
 end
 
-local function recoverFromDeathBlackScreen(char: Model?)
+local function purgeBlackoutScreens()
 	pcall(function()
 		local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
 		if pgui then
+			local et = pgui:FindFirstChild("Elevator Transition")
+			if et then pcall(function() et:Destroy() end) end
 			for _, g in ipairs(pgui:GetChildren()) do
 				if g:IsA("ScreenGui") and not string.find(g.Name, "Modular") and not string.find(g.Name, "ProjectFih") then
-					g.Enabled = true
-					if g.Name == "Elevator Transition" or g.Name == "Damage Flash" or string.find(g.Name:lower(), "fade") or string.find(g.Name:lower(), "black") then
+					if g.Name == "Elevator Transition" then
+						pcall(function() g:Destroy() end)
+					elseif string.find(g.Name:lower(), "fade") or string.find(g.Name:lower(), "black") then
 						for _, desc in ipairs(g:GetDescendants()) do
 							if desc:IsA("Frame") and desc.BackgroundTransparency < 0.9 and (desc.BackgroundColor3 == Color3.new(0, 0, 0) or desc.BackgroundColor3 == Color3.fromRGB(0, 0, 0)) then
 								desc.BackgroundTransparency = 1
@@ -17282,8 +17285,8 @@ local function recoverFromDeathBlackScreen(char: Model?)
 		local cam = workspace.CurrentCamera
 		if cam then
 			cam.CameraType = Enum.CameraType.Custom
-			if char then
-				local hum = char:FindFirstChildOfClass("Humanoid")
+			if localPlayer.Character then
+				local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
 				if hum then cam.CameraSubject = hum end
 			end
 		end
@@ -17291,15 +17294,32 @@ local function recoverFromDeathBlackScreen(char: Model?)
 end
 
 task.spawn(disableCoreGuis)
+task.spawn(purgeBlackoutScreens)
+
 task.spawn(function()
-	recoverFromDeathBlackScreen(localPlayer.Character)
+	local pgui = localPlayer:WaitForChild("PlayerGui", 10)
+	if pgui then
+		pgui.ChildAdded:Connect(function(child)
+			if child.Name == "Elevator Transition" then
+				task.defer(function() pcall(function() child:Destroy() end) end)
+			end
+		end)
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
+	if pgui then
+		local et = pgui:FindFirstChild("Elevator Transition")
+		if et then pcall(function() et:Destroy() end) end
+	end
 end)
 
 localPlayer.CharacterAdded:Connect(function(char)
 	task.spawn(function()
 		disableCoreGuis()
-		task.wait(0.2)
-		recoverFromDeathBlackScreen(char)
+		task.wait(0.1)
+		purgeBlackoutScreens()
 	end)
 end)
 

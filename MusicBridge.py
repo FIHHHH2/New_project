@@ -550,49 +550,52 @@ async def fetch_windows_media():
     except Exception:
         pass
 
-async def send_media_control(cmd: str):
+async def send_media_control(cmd: str) -> bool:
     try:
+        import winrt.windows.foundation.collections
         from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionManager as SessionManager
         manager = await SessionManager.request_async()
         if not manager:
-            return
-        session = manager.get_current_session()
+            return False
+        session = await pick_best_session(manager)
         if not session:
-            sessions = manager.get_sessions()
-            if sessions and len(sessions) > 0:
-                session = sessions[0]
+            session = manager.get_current_session()
         if session:
             if cmd == "toggle":
-                await session.try_toggle_play_pause_async()
+                return await session.try_toggle_play_pause_async()
             elif cmd == "skip":
-                await session.try_skip_next_async()
+                return await session.try_skip_next_async()
             elif cmd == "prev":
-                await session.try_skip_previous_async()
-    except Exception:
-        pass
+                return await session.try_skip_previous_async()
+    except Exception as e:
+        print(f"[MediaControl] WinRT error: {e}")
+    return False
 
 def trigger_media_command(cmd: str):
-    """Executes media command via WinRT session manager or Windows virtual media key event fallback."""
+    """Executes media command via WinRT session manager targeting Spotify/active session or virtual media key event fallback."""
+    success = False
     try:
-        asyncio.run(send_media_control(cmd))
-    except Exception:
-        pass
-    try:
-        VK_MEDIA_NEXT_TRACK = 0xB0
-        VK_MEDIA_PREV_TRACK = 0xB1
-        VK_MEDIA_PLAY_PAUSE = 0xB3
-        KEYEVENTF_KEYUP = 0x0002
-        vk_map = {
-            "skip": VK_MEDIA_NEXT_TRACK,
-            "prev": VK_MEDIA_PREV_TRACK,
-            "toggle": VK_MEDIA_PLAY_PAUSE
-        }
-        vk = vk_map.get(cmd)
-        if vk:
-            ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
-            ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
-    except Exception:
-        pass
+        success = asyncio.run(send_media_control(cmd))
+    except Exception as e:
+        print(f"[MediaControl] Error: {e}")
+
+    if not success:
+        try:
+            VK_MEDIA_NEXT_TRACK = 0xB0
+            VK_MEDIA_PREV_TRACK = 0xB1
+            VK_MEDIA_PLAY_PAUSE = 0xB3
+            KEYEVENTF_KEYUP = 0x0002
+            vk_map = {
+                "skip": VK_MEDIA_NEXT_TRACK,
+                "prev": VK_MEDIA_PREV_TRACK,
+                "toggle": VK_MEDIA_PLAY_PAUSE
+            }
+            vk = vk_map.get(cmd)
+            if vk:
+                ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
+                ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
+        except Exception:
+            pass
 
 def setup_global_hotkeys():
     """Listens for global Windows shortcuts Win+Q (Previous Song) and Win+E (Skip Song) via low-level hook."""

@@ -383,9 +383,12 @@ function CoreUI:SelectTab(tabObj)
 		end
 	end
 
-	-- 2. Show Incoming Tab Page
+	-- 2. Show Incoming Tab Page with smooth subtle deceleration
 	tabObj.Page.Visible = true
-	tabObj.Page.Position = UDim2.new(0, 0, 0, 0)
+	tabObj.Page.Position = UDim2.new(0, 6, 0, 0)
+	TweenService:Create(tabObj.Page, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = UDim2.new(0, 0, 0, 0)
+	}):Play()
 
 	-- 3. Highlight Tab Button if present
 	if tabObj.Button and tabObj.Stroke then
@@ -395,8 +398,10 @@ function CoreUI:SelectTab(tabObj)
 		tabObj.Button.BackgroundTransparency = 0
 		tabObj.Button.TextColor3 = UI.Theme.AccentText
 		tabObj.Stroke.Color = UI.Theme.Border
-		tabObj.Stroke.Thickness = 1.8
+		tabObj.Stroke.Thickness = 1.6
 		
+		Animations.pulseIndicator(tabObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
+
 		local grad = tabObj.Button:FindFirstChild("ActiveGradient") :: UIGradient?
 		if grad then grad.Enabled = true end
 	end
@@ -638,34 +643,24 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 
 		-- Activate New SubTab Button with Indicator Pulse
 		if targetObj.Button and targetObj.Stroke then
-			TweenService:Create(targetObj.Button, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			TweenService:Create(targetObj.Button, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				BackgroundColor3 = UI.Theme.Accent,
 				BackgroundTransparency = 0,
 				TextColor3 = UI.Theme.AccentText
 			}):Play()
 			
 			-- Active sub-tab indicator pulse
-			Animations.pulseIndicator(targetObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.2, 1.5)
+			Animations.pulseIndicator(targetObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
 			
 			if targetObj.Gradient then targetObj.Gradient.Enabled = true end
 		end
 
-		-- Activate New SubTab Page with Spring Dynamics
+		-- Activate New SubTab Page with smooth subtle slide
 		targetObj.Page.Visible = true
-		targetObj.Page.Position = UDim2.new(0, 16, 0, 0)
-		TweenService:Create(targetObj.Page, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		targetObj.Page.Position = UDim2.new(0, 6, 0, 0)
+		TweenService:Create(targetObj.Page, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Position = UDim2.new(0, 0, 0, 0)
 		}):Play()
-
-		-- Domino Ripple for Top-Level Child Elements
-		local rippleElements: {GuiObject} = {}
-		for _, child in ipairs(targetObj.Page:GetChildren()) do
-			if child:IsA("GuiObject") and not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
-				table.insert(rippleElements, child)
-			end
-		end
-
-		Animations.dominoRipple(rippleElements, 0.025, 10, 0.22)
 
 		if subTabs.OnTabChanged then
 			pcall(subTabs.OnTabChanged, targetObj.Name, oldSubTab and oldSubTab.Name)

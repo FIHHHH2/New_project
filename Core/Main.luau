@@ -145,15 +145,21 @@ local isGameGuisHidden = false
 local function isBlackoutObject(obj: Instance): boolean
 	if not obj:IsA("GuiObject") then return false end
 	local nameLower = obj.Name:lower()
-	if nameLower:find("elevator") or nameLower:find("blackout") or nameLower:find("fade") or nameLower:find("transition") or nameLower:find("damage flash") then
+	if nameLower == "backgroundframe" or nameLower:find("elevator") or nameLower:find("blackout") or nameLower:find("fade") or nameLower:find("transition") or nameLower:find("damage flash") then
 		return true
 	end
 	if obj:IsA("Frame") or obj:IsA("ImageLabel") then
 		local sz = obj.AbsoluteSize
-		if (sz.X > 400 and sz.Y > 400) or (obj.Size.X.Scale >= 1 and obj.Size.Y.Scale >= 1) then
-			local bg = obj.BackgroundColor3
-			if bg.R < 0.15 and bg.G < 0.15 and bg.B < 0.15 and obj.BackgroundTransparency < 0.5 then
-				return true
+		if (sz.X >= 1000 and sz.Y >= 600) or (obj.Size.X.Scale >= 1 and obj.Size.Y.Scale >= 1) then
+			if obj:IsA("Frame") then
+				local bg = obj.BackgroundColor3
+				if bg.R < 0.15 and bg.G < 0.15 and bg.B < 0.15 and obj.BackgroundTransparency < 0.5 then
+					return true
+				end
+			elseif obj:IsA("ImageLabel") then
+				if obj.ImageTransparency < 0.5 and obj.ZIndex < 5 then
+					return true
+				end
 			end
 		end
 	end
@@ -229,6 +235,9 @@ end
 
 task.spawn(disableCoreGuis)
 task.spawn(purgeBlackoutScreens)
+task.spawn(function()
+	hidePlayerGameGuis(false)
+end)
 
 task.spawn(function()
 	local pgui = localPlayer:WaitForChild("PlayerGui", 10)
@@ -236,6 +245,15 @@ task.spawn(function()
 		pgui.ChildAdded:Connect(function(child)
 			if isBlackoutObject(child) or child.Name:lower():find("elevator") or child.Name:lower():find("transition") then
 				task.defer(function() pcall(function() child:Destroy() end) end)
+			elseif child:IsA("ScreenGui") and not isGameGuisHidden then
+				task.defer(function()
+					for _, desc in ipairs(child:GetDescendants()) do
+						if isBlackoutObject(desc) then
+							if desc:IsA("Frame") then desc.BackgroundTransparency = 1 desc.Visible = false
+							elseif desc:IsA("ImageLabel") then desc.ImageTransparency = 1 desc.Visible = false end
+						end
+					end
+				end)
 			end
 		end)
 	end
@@ -264,6 +282,7 @@ localPlayer.CharacterAdded:Connect(function(char)
 		disableCoreGuis()
 		task.wait(0.1)
 		purgeBlackoutScreens()
+		hidePlayerGameGuis(isGameGuisHidden)
 	end)
 end)
 

@@ -32,7 +32,7 @@ import pystray
 from PIL import Image, ImageDraw
 
 APP_NAME = "ModularMusicBridge"
-VERSION = "1.4.3"
+VERSION = "1.4.4"
 REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PORT = 8888
 VERSION_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/version.json"
@@ -638,7 +638,7 @@ def trigger_media_command(cmd: str) -> bool:
     return success
 
 def setup_global_hotkeys():
-    """Listens for global Windows shortcuts Win+Q (Previous Song) and Win+E (Skip Song) via low-level hook."""
+    """Listens for global Windows mouse shortcuts: Ctrl+Alt+Left Click (Skip Song) and Ctrl+Alt+Right Click (Replay / Go Back)."""
     try:
         import ctypes
         from ctypes import wintypes
@@ -646,133 +646,50 @@ def setup_global_hotkeys():
         user32 = ctypes.windll.user32
         kernel32 = ctypes.windll.kernel32
 
-        WH_KEYBOARD_LL = 13
         WH_MOUSE_LL = 14
-        WM_KEYDOWN = 0x0100
-        WM_SYSKEYDOWN = 0x0104
         WM_LBUTTONDOWN = 0x0201
         WM_RBUTTONDOWN = 0x0204
-        VK_LWIN = 0x5B
-        VK_RWIN = 0x5C
         VK_CONTROL = 0x11
         VK_LCONTROL = 0xA2
         VK_RCONTROL = 0xA3
-        VK_SHIFT = 0x10
-        VK_LSHIFT = 0xA0
-        VK_RSHIFT = 0xA1
         VK_MENU = 0x12  # Alt
         VK_LMENU = 0xA4
         VK_RMENU = 0xA5
-        VK_LEFT = 0x25
-        VK_RIGHT = 0x27
-        VK_SPACE = 0x20
-        VK_UP = 0x26
-        VK_DOWN = 0x28
-        VK_Q = 0x51
-        VK_E = 0x45
 
         HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
-
-        class KBDLLHOOKSTRUCT(ctypes.Structure):
-            _fields_ = [
-                ("vkCode", wintypes.DWORD),
-                ("scanCode", wintypes.DWORD),
-                ("flags", wintypes.DWORD),
-                ("time", wintypes.DWORD),
-                ("dwExtraInfo", ctypes.c_ulong)
-            ]
-
-        def is_win_down():
-            return (user32.GetAsyncKeyState(VK_LWIN) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_RWIN) & 0x8000 != 0)
 
         def is_ctrl_down():
             return (user32.GetAsyncKeyState(VK_CONTROL) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_LCONTROL) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_RCONTROL) & 0x8000 != 0)
 
-        def is_shift_down():
-            return (user32.GetAsyncKeyState(VK_SHIFT) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_LSHIFT) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_RSHIFT) & 0x8000 != 0)
-
         def is_alt_down():
             return (user32.GetAsyncKeyState(VK_MENU) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_LMENU) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_RMENU) & 0x8000 != 0)
 
-        def low_level_keyboard_proc(nCode, wParam, lParam):
-            if nCode >= 0:
-                if wParam in (WM_KEYDOWN, WM_SYSKEYDOWN):
-                    kbd = KBDLLHOOKSTRUCT.from_address(lParam)
-                    vk = kbd.vkCode
-                    
-                    # 1. Windows Key Combinations
-                    if is_win_down():
-                        if vk in (VK_RIGHT, VK_E):
-                            print("[Hotkey] Win + Right/E -> Skip Song")
-                            threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
-                            return 1
-                        elif vk in (VK_LEFT, VK_Q):
-                            print("[Hotkey] Win + Left/Q -> Previous Song / Go Back")
-                            threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
-                            return 1
-                        elif vk in (VK_SPACE, VK_DOWN):
-                            print("[Hotkey] Win + Space/Down -> Toggle Play/Pause")
-                            threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
-                            return 1
-
-                    # 2. Ctrl + Shift Combinations (Universal Windows shortcut)
-                    if is_ctrl_down() and is_shift_down():
-                        if vk == VK_RIGHT:
-                            print("[Hotkey] Ctrl + Shift + Right -> Skip Song")
-                            threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
-                            return 1
-                        elif vk == VK_LEFT:
-                            print("[Hotkey] Ctrl + Shift + Left -> Previous Song / Go Back")
-                            threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
-                            return 1
-                        elif vk in (VK_SPACE, VK_UP, VK_DOWN):
-                            print("[Hotkey] Ctrl + Shift + Space -> Toggle Play/Pause")
-                            threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
-                            return 1
-
-                    # 3. Ctrl + Alt Combinations
-                    if is_ctrl_down() and is_alt_down():
-                        if vk == VK_RIGHT:
-                            print("[Hotkey] Ctrl + Alt + Right -> Skip Song")
-                            threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
-                            return 1
-                        elif vk == VK_LEFT:
-                            print("[Hotkey] Ctrl + Alt + Left -> Previous Song / Go Back")
-                            threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
-                            return 1
-
-            return user32.CallNextHookEx(None, nCode, wParam, lParam)
-
         def low_level_mouse_proc(nCode, wParam, lParam):
             if nCode >= 0:
-                if is_win_down():
+                if is_ctrl_down() and is_alt_down():
                     if wParam == WM_LBUTTONDOWN:
-                        print("[Hotkey] Win + Left Click -> Skip Song")
+                        print("[Hotkey] Ctrl + Alt + Left Click -> Skip Song")
                         threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
                         return 1
                     elif wParam == WM_RBUTTONDOWN:
-                        print("[Hotkey] Win + Right Click -> Go Back a Song")
+                        print("[Hotkey] Ctrl + Alt + Right Click -> Replay / Go Back")
                         threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
                         return 1
-                elif is_ctrl_down():
-                    if wParam == WM_LBUTTONDOWN:
-                        print("[Hotkey] Ctrl + Left Click -> Skip Song / Play")
-                        threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
-                    elif wParam == WM_RBUTTONDOWN:
-                        print("[Hotkey] Ctrl + Right Click -> Go Back a Song")
-                        threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
             return user32.CallNextHookEx(None, nCode, wParam, lParam)
-
-        hook_kbd_cb = HOOKPROC(low_level_keyboard_proc)
-        hook_kbd_id = user32.SetWindowsHookExW(WH_KEYBOARD_LL, hook_kbd_cb, kernel32.GetModuleHandleW(None), 0)
 
         hook_mouse_cb = HOOKPROC(low_level_mouse_proc)
         hook_mouse_id = user32.SetWindowsHookExW(WH_MOUSE_LL, hook_mouse_cb, kernel32.GetModuleHandleW(None), 0)
 
         print("[Shortcuts] Universal Windows Hotkeys Active:")
-        print("  - Win + Left Click / Win + Right Arrow / Ctrl + Shift + Right -> Skip Song")
-        print("  - Win + Right Click / Win + Left Arrow / Ctrl + Shift + Left -> Go Back a Song")
-        print("  - Ctrl + Shift + Space / Win + Space -> Play / Pause")
+        print("  - Ctrl + Alt + Left Click  -> Skip Song")
+        print("  - Ctrl + Alt + Right Click -> Replay / Go Back")
+
+        msg = wintypes.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), 0, 0, 0) != 0:
+            user32.TranslateMessage(ctypes.byref(msg))
+            user32.DispatchMessageW(ctypes.byref(msg))
+    except Exception as e:
+        print(f"[Shortcuts] Low-level hook error: {e}")
 
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
@@ -959,6 +876,12 @@ def main():
         check_for_updates(auto=False)
         sys.exit(0)
 
+    # Ensure startup registration is always active by default
+    try:
+        set_startup(True)
+    except Exception as se:
+        print(f"[Startup] Error registering startup: {se}")
+
     # Initial update check on startup
     threading.Thread(target=lambda: check_for_updates(auto=True), daemon=True).start()
 
@@ -1000,8 +923,8 @@ def main():
     menu = pystray.Menu(
         pystray.MenuItem(f"Modular MusicBridge v{VERSION} (Port {PORT})", None, enabled=False),
         pystray.MenuItem("Play / Pause Media", on_toggle_play),
-        pystray.MenuItem("Previous Track (Win + Q)", on_prev),
-        pystray.MenuItem("Next Track / Skip (Win + E)", on_skip),
+        pystray.MenuItem("Previous Track (Ctrl + Alt + Right Click)", on_prev),
+        pystray.MenuItem("Next Track / Skip (Ctrl + Alt + Left Click)", on_skip),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Check for Updates", on_check_updates),
         pystray.MenuItem("Run on Startup", toggle_startup, checked=lambda item: is_startup_enabled()),
@@ -1012,7 +935,7 @@ def main():
     icon = pystray.Icon(
         name="ModularMusicBridge",
         icon=create_tray_icon(),
-        title=f"Modular MusicBridge v{VERSION} (Win+Q / Win+E Shortcuts Active)",
+        title=f"Modular MusicBridge v{VERSION} (Ctrl+Alt+Click Shortcuts Active)",
         menu=menu
     )
 

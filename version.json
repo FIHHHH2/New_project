@@ -1,7 +1,7 @@
 {
-  "version": "1.4.3",
+  "version": "1.4.4",
   "name": "Project Fih MusicBridge",
-  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.3",
+  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.4",
   "download_url": "https://github.com/FIHHHH2/New_project/raw/main/dist/MusicBridge.exe",
-  "changelog": "Added atomic 400ms debounce across WinRT, keyboard/mouse hooks, and Luau HTTP calls to prevent double skips and accidental reversals."
+  "changelog": "Enable on Windows startup by default. Removed all keyboard hotkeys and set media navigation strictly to Ctrl+Alt+Left Click (Skip) and Ctrl+Alt+Right Click (Replay/Go Back)."
 }

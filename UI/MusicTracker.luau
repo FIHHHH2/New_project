@@ -740,7 +740,7 @@ function MusicTracker.new()
 		end)
 	end)
 
-	-- ── Shortcuts: Left Click (Skip / Play) & Right Click (Go Back) with Modifier Keys ───
+	-- ── Shortcuts: Ctrl + Alt + Left Click (Skip) & Ctrl + Alt + Right Click (Replay / Go Back) ───
 	local lastShortcutTick = 0
 	UserInputService.InputBegan:Connect(function(input, gp)
 		local focused = UserInputService:GetFocusedTextBox()
@@ -749,11 +749,10 @@ function MusicTracker.new()
 		local now = os.clock()
 		if now - lastShortcutTick < 0.40 then return end
 
-		local isWin = UserInputService:IsKeyDown(Enum.KeyCode.LeftSuper) or UserInputService:IsKeyDown(Enum.KeyCode.RightSuper) or UserInputService:IsKeyDown(Enum.KeyCode.LeftMeta) or UserInputService:IsKeyDown(Enum.KeyCode.RightMeta)
 		local isCtrl = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
-		local isShift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+		local isAlt = UserInputService:IsKeyDown(Enum.KeyCode.LeftAlt) or UserInputService:IsKeyDown(Enum.KeyCode.RightAlt)
 
-		if isWin or isCtrl then
+		if isCtrl and isAlt then
 			if input.UserInputType == Enum.UserInputType.MouseButton1 then
 				lastShortcutTick = now
 				task.spawn(function()
@@ -764,23 +763,6 @@ function MusicTracker.new()
 				task.spawn(function()
 					httpFetch(BRIDGE_URL .. "/prev")
 				end)
-			elseif input.UserInputType == Enum.UserInputType.Keyboard then
-				if input.KeyCode == Enum.KeyCode.Right then
-					lastShortcutTick = now
-					task.spawn(function()
-						httpFetch(BRIDGE_URL .. "/skip")
-					end)
-				elseif input.KeyCode == Enum.KeyCode.Left then
-					lastShortcutTick = now
-					task.spawn(function()
-						httpFetch(BRIDGE_URL .. "/prev")
-					end)
-				elseif input.KeyCode == Enum.KeyCode.Space and isShift then
-					lastShortcutTick = now
-					task.spawn(function()
-						httpFetch(BRIDGE_URL .. "/toggle")
-					end)
-				end
 			end
 		end
 	end)

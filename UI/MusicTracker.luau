@@ -956,36 +956,31 @@ function MusicTracker.new()
 
 	-- ── Dragging Mechanics ───────────────────────────────────────────
 	local dragging = false
-	local dragInput: InputObject? = nil
-	local dragStart = Vector3.zero
+	local dragStart = Vector2.zero
 	local startAbsPos = Vector2.zero
 
 	topbar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
-			dragStart = input.Position
+			dragStart = Vector2.new(input.Position.X, input.Position.Y)
 			startAbsPos = widget.AbsolutePosition
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
-		end
-	end)
-
-	topbar.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			local delta = input.Position - dragStart
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local mousePos = Vector2.new(input.Position.X, input.Position.Y)
+			local delta = mousePos - dragStart
 			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
 			local targetX = math.clamp(startAbsPos.X + delta.X, 0, math.max(0, vpSize.X - widget.AbsoluteSize.X))
 			local targetY = math.clamp(startAbsPos.Y + delta.Y, 0, math.max(0, vpSize.Y - widget.AbsoluteSize.Y))
 			widget.Position = UDim2.new(0, targetX, 0, targetY)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
 		end
 	end)
 

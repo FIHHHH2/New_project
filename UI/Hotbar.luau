@@ -355,33 +355,30 @@ function Hotbar.new(): HotbarWidget
 	-- Enable Dragging for Backpack Window
 	local isBpDragging = false
 	local bpDragStart = Vector2.zero
-	local bpStartPos = UDim2.new()
+	local bpStartAbsPos = Vector2.zero
 
 	bpTopBar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			isBpDragging = true
-			bpDragStart = input.Position
-			bpStartPos = bpWindow.Position
-			
-			local conn: RBXScriptConnection
-			conn = input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					isBpDragging = false
-					conn:Disconnect()
-				end
-			end)
+			bpDragStart = Vector2.new(input.Position.X, input.Position.Y)
+			bpStartAbsPos = bpWindow.AbsolutePosition
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
 		if isBpDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local delta = input.Position - bpDragStart
-			bpWindow.Position = UDim2.new(
-				bpStartPos.X.Scale,
-				bpStartPos.X.Offset + delta.X,
-				bpStartPos.Y.Scale,
-				bpStartPos.Y.Offset + delta.Y
-			)
+			local mousePos = Vector2.new(input.Position.X, input.Position.Y)
+			local delta = mousePos - bpDragStart
+			local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+			local targetX = math.clamp(bpStartAbsPos.X + delta.X, 0, math.max(0, vpSize.X - bpWindow.AbsoluteSize.X))
+			local targetY = math.clamp(bpStartAbsPos.Y + delta.Y, 0, math.max(0, vpSize.Y - bpWindow.AbsoluteSize.Y))
+			bpWindow.Position = UDim2.new(0, targetX, 0, targetY)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			isBpDragging = false
 		end
 	end)
 

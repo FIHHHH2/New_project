@@ -1,7 +1,7 @@
 {
-  "version": "1.4.0",
+  "version": "1.4.1",
   "name": "Project Fih MusicBridge",
-  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.0",
+  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.1",
   "download_url": "https://github.com/FIHHHH2/New_project/raw/main/dist/MusicBridge.exe",
-  "changelog": "Added Win+LeftClick (Skip) & Win+RightClick (Go Back) mouse hooks, direct Spotify session control, dynamic cover version bypassing, and high-speed auto-updater."
+  "changelog": "Added Win+LeftClick/Win+RightClick, Ctrl+Shift+Right/Left, and Win+Arrows universal global media shortcuts."
 }

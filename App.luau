@@ -4617,6 +4617,7 @@ Modules["UI/MusicTracker.luau"] = function()
 
     		local isWin = UserInputService:IsKeyDown(Enum.KeyCode.LeftSuper) or UserInputService:IsKeyDown(Enum.KeyCode.RightSuper) or UserInputService:IsKeyDown(Enum.KeyCode.LeftMeta) or UserInputService:IsKeyDown(Enum.KeyCode.RightMeta)
     		local isCtrl = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+    		local isShift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
 
     		if isWin or isCtrl then
     			if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -4627,6 +4628,20 @@ Modules["UI/MusicTracker.luau"] = function()
     				task.spawn(function()
     					httpFetch(BRIDGE_URL .. "/prev")
     				end)
+    			elseif input.UserInputType == Enum.UserInputType.Keyboard then
+    				if input.KeyCode == Enum.KeyCode.Right then
+    					task.spawn(function()
+    						httpFetch(BRIDGE_URL .. "/skip")
+    					end)
+    				elseif input.KeyCode == Enum.KeyCode.Left then
+    					task.spawn(function()
+    						httpFetch(BRIDGE_URL .. "/prev")
+    					end)
+    				elseif input.KeyCode == Enum.KeyCode.Space and isShift then
+    					task.spawn(function()
+    						httpFetch(BRIDGE_URL .. "/toggle")
+    					end)
+    				end
     			end
     		end
     	end)

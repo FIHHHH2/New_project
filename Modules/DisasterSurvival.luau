@@ -425,7 +425,11 @@ end
 -- Hover: Cyan Highlight on target.  Grab: Orange Highlight on target.
 -- Network Authority: SetNetworkOwner(LocalPlayer) is called on grab so the client
 --   owns physics simulation → BodyPosition/BodyGyro replicate to server correctly.
-local dragMouse:         Mouse = LocalPlayer:GetMouse()
+local function getMouse(): Mouse?
+    local lp = Players.LocalPlayer
+    return if lp then lp:GetMouse() else nil
+end
+
 local dragTarget:        BasePart? = nil
 local dragBodyPosition:  BodyPosition? = nil
 local dragBodyGyro:      BodyGyro? = nil
@@ -469,8 +473,10 @@ local function isDraggable(part: BasePart): boolean
 end
 
 local function getTargetFromMouse(): BasePart?
-    local char = LocalPlayer.Character
-    local ray = Camera:ScreenPointToRay(dragMouse.X, dragMouse.Y)
+    local m = getMouse()
+    if not m then return nil end
+    local char = Players.LocalPlayer and Players.LocalPlayer.Character
+    local ray = Camera:ScreenPointToRay(m.X, m.Y)
     local params = RaycastParams.new()
     if char then
         params.FilterDescendantsInstances = {char}
@@ -483,7 +489,7 @@ local function getTargetFromMouse(): BasePart?
         return res.Instance
     end
 
-    local fallback = dragMouse.Target
+    local fallback = m.Target
     if fallback and fallback:IsA("BasePart") and isDraggable(fallback) then
         return fallback
     end
@@ -573,11 +579,14 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
     if enabled then
         dragHoverConn = RunService.RenderStepped:Connect(function()
             if dragTarget and dragTarget.Parent then
-                local ray = Camera:ScreenPointToRay(dragMouse.X, dragMouse.Y)
-                local targetPos = Camera.CFrame.Position + (ray.Direction * dragDepth)
+                local m = getMouse()
+                if m then
+                    local ray = Camera:ScreenPointToRay(m.X, m.Y)
+                    local targetPos = Camera.CFrame.Position + (ray.Direction * dragDepth)
 
-                if dragBodyPosition and dragBodyPosition.Parent then
-                    dragBodyPosition.Position = targetPos
+                    if dragBodyPosition and dragBodyPosition.Parent then
+                        dragBodyPosition.Position = targetPos
+                    end
                 end
             else
                 if dragTarget and not dragTarget.Parent then

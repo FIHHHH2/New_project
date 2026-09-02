@@ -2254,8 +2254,16 @@ window:AddToggle(perfSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (To
 	end
 end)
 
-window:AddToggle(perfSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui)", false, nil, function(enabled)
-	hidePlayerGameGuis(enabled)
+window:AddToggle(perfSection, "hide_game_guis", "Hide Game HUD UIs (PlayerGui)", false, nil, function(enabled)
+	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
+	if not pgui then return end
+	for _, child in ipairs(pgui:GetChildren()) do
+		if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") and not string.find(child.Name, "ProjectFih") then
+			if child.Name ~= "Elevator Transition" and child.Name ~= "Damage Flash" and child.Name ~= "LocalScriptContainer" then
+				child.Enabled = not enabled
+			end
+		end
+	end
 end)
 
 -- Right Column: 3D & Texture Optimization

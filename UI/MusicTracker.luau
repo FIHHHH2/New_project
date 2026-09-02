@@ -616,7 +616,26 @@ function MusicTracker.new()
 					HttpService:UrlEncode(cleanTitle)
 				)
 
-				local raw = game:HttpGet(url)
+				local raw = nil
+				pcall(function() raw = game:HttpGet(url) end)
+				if not raw or raw == "" or not raw:find("{") then
+					local searchUrl = string.format("https://lrclib.net/api/search?q=%s", HttpService:UrlEncode(cleanTitle .. " " .. cleanArtist))
+					pcall(function() raw = game:HttpGet(searchUrl) end)
+					if raw and raw ~= "" and raw:find("%[") then
+						local searchResults = HttpService:JSONDecode(raw)
+						if searchResults and typeof(searchResults) == "table" and #searchResults > 0 then
+							local first = searchResults[1]
+							if first and first.syncedLyrics then
+								local lines = parseLrcString(first.syncedLyrics)
+								if #lines > 0 then
+									parsedLrcLines = lines
+									return
+								end
+							end
+						end
+					end
+				end
+
 				if raw and raw ~= "" and raw:find("{") then
 					local data = HttpService:JSONDecode(raw)
 					if data and data.syncedLyrics then
@@ -628,9 +647,7 @@ function MusicTracker.new()
 					elseif data and data.plainLyrics then
 						local lines = {}
 						for l in string.gmatch(data.plainLyrics, "([^\n\r]+)") do
-
-]+)") do
-							local t = string.gsub(l, "^%%s*(.-)%%s*$", "%%1")
+							local t = string.gsub(l, "^%s*(.-)%s*$", "%1")
 							if t ~= "" then table.insert(lines, { ms = 0, text = t }) end
 						end
 						parsedLrcLines = lines
@@ -882,12 +899,14 @@ function MusicTracker.new()
 							if data.audioPeak then
 								currentAudioPeak = data.audioPeak
 							end
-							if data.progress_ms then
-								serverProgressMs = tonumber(data.progress_ms) or 0
+							local posVal = data.progress_ms or (data.position and (data.position * 1000)) or data.progress
+							if posVal then
+								serverProgressMs = tonumber(posVal) or 0
 								lastSyncClock = os.clock()
 							end
-							if data.duration_ms then
-								serverDurationMs = tonumber(data.duration_ms) or 0
+							local durVal = data.duration_ms or (data.duration and (data.duration * 1000))
+							if durVal then
+								serverDurationMs = tonumber(durVal) or 0
 							end
 
 							local isIdle = (title == "No Song Playing" or title == "Local Audio Session") and not data.isPlaying and currentAudioPeak <= 0.005

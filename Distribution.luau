@@ -767,6 +767,8 @@ Modules["UI/UI.luau"] = function()
     			end
     		end
     	end)
+    end
+
     function UI.makeDraggable(topbar: GuiObject, frame: GuiObject)
     	pcall(function()
     		local detector = Instance.new("UIDragDetector")

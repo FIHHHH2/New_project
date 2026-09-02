@@ -364,6 +364,8 @@ function UI.setTheme(themeName: string)
 			end
 		end
 	end)
+end
+
 function UI.makeDraggable(topbar: GuiObject, frame: GuiObject)
 	pcall(function()
 		local detector = Instance.new("UIDragDetector")

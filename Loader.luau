@@ -770,12 +770,6 @@ Modules["UI/UI.luau"] = function()
     end
 
     function UI.makeDraggable(topbar: GuiObject, frame: GuiObject)
-    	pcall(function()
-    		local detector = Instance.new("UIDragDetector")
-    		detector.ReferenceUIInstance = topbar
-    		detector.Parent = frame
-    	end)
-
     	local dragging = false
     	local dragInput: InputObject? = nil
     	local dragStart = Vector3.zero
@@ -19647,21 +19641,20 @@ local function refreshProfilesList()
 			rowDelBtn.Text = "X"
 			rowDelBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
 			rowDelBtn.Font = UI.Fonts.Header
-			rowDelBtn.TextSize = 10
+			rowDelBtn.TextSize = 11
+			rowDelBtn.ZIndex = 25
 			rowDelBtn.Parent = pRow
 			UI.registerThemeElement(rowDelBtn, "ContainerDark")
 
 			rowDelBtn.MouseButton1Click:Connect(function()
 				Animations.buttonClickPop(rowDelBtn)
 				local ok = FeatureManager.deleteConfig(cfgName)
-				if ok then
-					if selectedConfigName == cfgName then
-						selectedConfigName = nil
-						configInputBox.Text = ""
-						currentConfigInputName = ""
-					end
-					window:Notify("Configs", string.format("Deleted '%s'", cfgName), 2.5)
+				if selectedConfigName == cfgName then
+					selectedConfigName = nil
+					configInputBox.Text = ""
+					currentConfigInputName = ""
 				end
+				window:Notify("Configs", string.format("Deleted '%s'", cfgName), 2.5)
 				refreshProfilesList()
 			end)
 
@@ -19701,6 +19694,23 @@ window:AddButton(configActionsSection, "Save / Overwrite Selected", function()
 	else
 		window:Notify("Configs", "Failed to save configuration", 3)
 	end
+end)
+
+window:AddButton(configActionsSection, "Delete Selected Config", function()
+	local targetName = selectedConfigName or (if currentConfigInputName ~= "" then currentConfigInputName else configInputBox.Text)
+	if not targetName or targetName == "" then
+		window:Notify("Configs", "No configuration selected to delete", 3)
+		return
+	end
+
+	FeatureManager.deleteConfig(targetName)
+	if selectedConfigName == targetName then
+		selectedConfigName = nil
+		configInputBox.Text = ""
+		currentConfigInputName = ""
+	end
+	window:Notify("Configs", string.format("Deleted profile '%s'", targetName), 2.5)
+	refreshProfilesList()
 end)
 
 window:AddButton(configActionsSection, "Refresh Config List", function()

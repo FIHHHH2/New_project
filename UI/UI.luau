@@ -367,12 +367,6 @@ function UI.setTheme(themeName: string)
 end
 
 function UI.makeDraggable(topbar: GuiObject, frame: GuiObject)
-	pcall(function()
-		local detector = Instance.new("UIDragDetector")
-		detector.ReferenceUIInstance = topbar
-		detector.Parent = frame
-	end)
-
 	local dragging = false
 	local dragInput: InputObject? = nil
 	local dragStart = Vector3.zero

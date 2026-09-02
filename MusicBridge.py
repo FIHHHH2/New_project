@@ -32,8 +32,12 @@ import pystray
 from PIL import Image, ImageDraw
 
 APP_NAME = "ModularMusicBridge"
+VERSION = "1.2.0"
 REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PORT = 8888
+VERSION_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/version.json"
+SOURCE_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/MusicBridge.py"
+EXE_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/dist/MusicBridge.exe"
 
 current_media = {
     "title": "No Song Playing",
@@ -593,6 +597,57 @@ def run_audio_loop():
             pass
         time.sleep(0.016)
 
+# ── Auto-Updater & Version Management ──────────────────────────────
+def check_for_updates(auto: bool = False) -> bool:
+    """Checks remote repository for newer builds and auto-applies updates."""
+    try:
+        req = urllib.request.Request(VERSION_URL, headers={"User-Agent": "MusicBridge-Updater"})
+        with urllib.request.urlopen(req, timeout=4.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            remote_ver = str(data.get("version", VERSION))
+            if remote_ver != VERSION:
+                print(f"[Updater] Update detected: v{remote_ver} (Current: v{VERSION})")
+                is_frozen = getattr(sys, "frozen", False)
+                if is_frozen:
+                    exe_path = sys.executable
+                    tmp_exe = exe_path + ".new"
+                    dl_url = data.get("download_url", EXE_URL)
+                    urllib.request.urlretrieve(dl_url, tmp_exe)
+                    
+                    bat_content = f"""@echo off
+timeout /t 2 /nobreak > NUL
+move /y "{tmp_exe}" "{exe_path}"
+start "" "{exe_path}"
+del "%~f0"
+"""
+                    bat_path = os.path.join(os.path.dirname(exe_path), "bridge_updater.bat")
+                    with open(bat_path, "w") as f:
+                        f.write(bat_content)
+                    
+                    os.system(f'start "" "{bat_path}"')
+                    os._exit(0)
+                else:
+                    script_path = os.path.abspath(__file__)
+                    with urllib.request.urlopen(SOURCE_URL, timeout=6.0) as src_resp:
+                        new_code = src_resp.read().decode("utf-8")
+                        if len(new_code) > 1000 and "ModularMusicBridge" in new_code:
+                            with open(script_path, "w", encoding="utf-8") as f:
+                                f.write(new_code)
+                            print("[Updater] Script updated successfully.")
+                            return True
+            else:
+                if not auto:
+                    print(f"[Updater] MusicBridge is up to date (v{VERSION}).")
+    except Exception as e:
+        if not auto:
+            print(f"[Updater] Update check failed: {e}")
+    return False
+
+def run_update_loop():
+    while True:
+        time.sleep(1800)  # Check every 30 minutes
+        check_for_updates(auto=True)
+
 # ── System Tray Icon & Menu ────────────────────────────────────────
 def create_tray_icon():
     img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
@@ -605,6 +660,21 @@ def create_tray_icon():
     return img
 
 def main():
+    if "--install-startup" in sys.argv:
+        set_startup(True)
+        print("[Startup] MusicBridge successfully set to run on Windows Startup.")
+        sys.exit(0)
+    elif "--remove-startup" in sys.argv:
+        set_startup(False)
+        print("[Startup] MusicBridge removed from Windows Startup.")
+        sys.exit(0)
+    elif "--update" in sys.argv:
+        check_for_updates(auto=False)
+        sys.exit(0)
+
+    # Initial update check on startup
+    threading.Thread(target=lambda: check_for_updates(auto=True), daemon=True).start()
+
     t1 = threading.Thread(target=run_http_server, daemon=True)
     t1.start()
 
@@ -613,6 +683,9 @@ def main():
 
     t3 = threading.Thread(target=run_audio_loop, daemon=True)
     t3.start()
+
+    t4 = threading.Thread(target=run_update_loop, daemon=True)
+    t4.start()
 
     def toggle_startup(icon, item):
         new_val = not is_startup_enabled()
@@ -624,15 +697,19 @@ def main():
     def on_skip(icon, item):
         asyncio.run(send_media_control("skip"))
 
+    def on_check_updates(icon, item):
+        threading.Thread(target=lambda: check_for_updates(auto=False), daemon=True).start()
+
     def on_exit(icon, item):
         icon.stop()
         os._exit(0)
 
     menu = pystray.Menu(
-        pystray.MenuItem("Modular MusicBridge (Port 8888)", None, enabled=False),
+        pystray.MenuItem(f"Modular MusicBridge v{VERSION} (Port {PORT})", None, enabled=False),
         pystray.MenuItem("Play / Pause Media", on_toggle_play),
         pystray.MenuItem("Skip Track", on_skip),
         pystray.Menu.SEPARATOR,
+        pystray.MenuItem("Check for Updates", on_check_updates),
         pystray.MenuItem("Run on Startup", toggle_startup, checked=lambda item: is_startup_enabled()),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Exit", on_exit)
@@ -641,7 +718,7 @@ def main():
     icon = pystray.Icon(
         name="ModularMusicBridge",
         icon=create_tray_icon(),
-        title="Modular MusicBridge (Running)",
+        title=f"Modular MusicBridge v{VERSION} (Running)",
         menu=menu
     )
 

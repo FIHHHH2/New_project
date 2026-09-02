@@ -419,6 +419,29 @@ function ChatWidget.new(): ChatWidgetInstance
 		end
 	end)
 
+	createDropItem("Emotes", function()
+		if _G.__ToggleProjectFihEmotes then
+			_G.__ToggleProjectFihEmotes()
+		else
+			local function toggleEmotes(parent: Instance?)
+				if not parent then return false end
+				local g = parent:FindFirstChild("ModularEmotesGui")
+				if g then
+					local w = g:FindFirstChild("EmotesWidget")
+					if w and w:IsA("Frame") then
+						w.Visible = not w.Visible
+						return true
+					end
+				end
+				return false
+			end
+			if not toggleEmotes(CoreGui) then
+				local lp = Players.LocalPlayer
+				if lp then toggleEmotes(lp:FindFirstChild("PlayerGui")) end
+			end
+		end
+	end)
+
 	createDropItem("Main Menu", function()
 		if _G.__ToggleProjectFihMenu then
 			_G.__ToggleProjectFihMenu()

@@ -35,6 +35,7 @@ local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
 local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
 local HealthWidget = require("UI/HealthWidget.luau")
+local EmotesWidget = require("UI/EmotesWidget.luau")
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character
@@ -193,6 +194,7 @@ local musicTrackerWidget = MusicTracker.new()
 local hotbarWidget = Hotbar.new()
 local leaderstatsWidget = LeaderstatsWidget.new()
 local healthWidget = HealthWidget.new()
+local emotesWidget = EmotesWidget.new()
 
 -- Synchronize Player List with Leaderstats and Player Profile Sub-GUIs
 playerListWidget.OnClose = function()
@@ -216,6 +218,12 @@ end
 _G.__ToggleProjectFihBackpack = function()
 	if hotbarWidget then
 		hotbarWidget.ToggleBackpack()
+	end
+end
+
+_G.__ToggleProjectFihEmotes = function()
+	if emotesWidget then
+		emotesWidget.Toggle()
 	end
 end
 
@@ -1007,6 +1015,22 @@ end)
 
 window:AddButton(toolSection, "Give Click Teleport Tool", function()
 	PlayerUtilities.GiveClickTeleportTool()
+end)
+
+-- Emotes & Custom Animations
+local emotesSection = window:AddSection(utilRightCol, "Emotes & Custom Animations")
+
+window:AddButton(emotesSection, "Open Emotes GUI", function()
+	emotesWidget:Open()
+end)
+
+window:AddToggle(emotesSection, "show_emotes_hud", "Show Emotes HUD Widget", true, nil, function(enabled)
+	emotesWidget.SetVisible(enabled)
+end)
+
+window:AddButton(emotesSection, "Stop Playing Emote", function()
+	emotesWidget.StopEmote()
+	window:Notify("Emotes", "Stopped active animation track", 2)
 end)
 
 -- ============================================================

@@ -522,40 +522,11 @@ function MusicTracker.new()
 	skipStroke.Parent = skipBtn
 	UI.registerThemeElement(skipStroke, "Border")
 
-	-- Mini Volume Track
-	local volTrack = Instance.new("Frame")
-	volTrack.Name = "VolTrack"
-	volTrack.Size = UDim2.new(0, 46, 0, 6)
-	volTrack.Position = UDim2.new(1, -48, 0.5, -3)
-	volTrack.BackgroundColor3 = UI.Theme.ContainerDark
-	volTrack.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
-	volTrack.BorderSizePixel = 0
-	volTrack.Parent = controlsBox
-	UI.registerThemeElement(volTrack, "ContainerDark")
-
-	local volTrackStroke = Instance.new("UIStroke")
-	volTrackStroke.Color = UI.Theme.Border
-	volTrackStroke.Thickness = 1
-	volTrackStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	volTrackStroke.Parent = volTrack
-	UI.registerThemeElement(volTrackStroke, "Border")
-
-	local volFill = Instance.new("Frame")
-	volFill.Name = "Fill"
-	volFill.Size = UDim2.new(0.8, 0, 1, 0)
-	volFill.BackgroundColor3 = UI.Theme.Accent
-	volFill.BorderSizePixel = 0
-	volFill.Parent = volTrack
-	UI.registerThemeElement(volFill, "Accent")
-
-	-- Volume Dragging
-	local currentVolume = 0.8
-		UI.makeDraggable(topbar, widget)
+	UI.makeDraggable(topbar, widget)
 
 	-- ── Real-Time State & Visualizer Variables ────────────────────────
 	local isPlaying = false
 	local lastSongTitle = ""
-	local lastCoverUrl = ""
 	local lastCoverVersion = -1
 	local currentSpectrum = { 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15 }
 	local currentAudioPeak = 0.0
@@ -926,6 +897,7 @@ function MusicTracker.new()
 								lastSongTitle = title
 								parsedLrcLines = {}
 								lastActiveLyric = ""
+								lastCoverVersion = -1 -- force cover refresh on song change
 
 								if isIdle then
 									songTitleLabel.Text = "No Media Playing"
@@ -955,6 +927,12 @@ function MusicTracker.new()
 									playBtn.Text = if isPlaying then "❚❚" else "▶"
 									if data.lyrics and data.lyrics ~= "" and #parsedLrcLines == 0 then
 										lyricsLabel.Text = "♫ " .. data.lyrics
+									end
+									-- Update cover art when bridge signals new version
+									local newCoverVer = tonumber(data.coverVersion) or 0
+									if newCoverVer ~= lastCoverVersion then
+										lastCoverVersion = newCoverVer
+										updateCover(data.cover, false, data.hasCover == true)
 									end
 								end
 							end

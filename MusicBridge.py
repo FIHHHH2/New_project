@@ -553,42 +553,75 @@ def trigger_media_command(cmd: str):
         pass
 
 def setup_global_hotkeys():
-    """Listens for global Windows shortcuts Win+Q (Previous Song) and Win+E (Skip Song)."""
+    """Listens for global Windows shortcuts Win+Q (Previous Song) and Win+E (Skip Song) via low-level hook."""
     try:
+        import ctypes
         from ctypes import wintypes
 
-        MOD_WIN = 0x0008
-        MOD_NOREPEAT = 0x4000
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+
+        WH_KEYBOARD_LL = 13
+        WM_KEYDOWN = 0x0100
+        WM_SYSKEYDOWN = 0x0104
+        VK_LWIN = 0x5B
+        VK_RWIN = 0x5C
         VK_Q = 0x51
         VK_E = 0x45
-        HOTKEY_PREV_ID = 101
-        HOTKEY_SKIP_ID = 102
 
-        user32 = ctypes.windll.user32
+        HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
 
-        # Register Win+Q (Previous)
-        if not user32.RegisterHotKey(None, HOTKEY_PREV_ID, MOD_WIN | MOD_NOREPEAT, VK_Q):
-            user32.RegisterHotKey(None, HOTKEY_PREV_ID, MOD_WIN, VK_Q)
+        class KBDLLHOOKSTRUCT(ctypes.Structure):
+            _fields_ = [
+                ("vkCode", wintypes.DWORD),
+                ("scanCode", wintypes.DWORD),
+                ("flags", wintypes.DWORD),
+                ("time", wintypes.DWORD),
+                ("dwExtraInfo", ctypes.c_ulong)
+            ]
 
-        # Register Win+E (Next / Skip)
-        if not user32.RegisterHotKey(None, HOTKEY_SKIP_ID, MOD_WIN | MOD_NOREPEAT, VK_E):
-            user32.RegisterHotKey(None, HOTKEY_SKIP_ID, MOD_WIN, VK_E)
+        def is_win_down():
+            return (user32.GetAsyncKeyState(VK_LWIN) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_RWIN) & 0x8000 != 0)
 
-        print("[Shortcuts] Global Shortcuts Active: Win+Q (Previous Song) | Win+E (Next Song)")
+        def low_level_keyboard_proc(nCode, wParam, lParam):
+            if nCode >= 0:
+                if wParam in (WM_KEYDOWN, WM_SYSKEYDOWN):
+                    kbd = KBDLLHOOKSTRUCT.from_address(lParam)
+                    if is_win_down():
+                        if kbd.vkCode == VK_E:
+                            print("[Hotkey] Win+E pressed -> Skip Song")
+                            threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
+                            return 1  # Block default Windows File Explorer
+                        elif kbd.vkCode == VK_Q:
+                            print("[Hotkey] Win+Q pressed -> Previous Song")
+                            threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
+                            return 1  # Block default Windows Search
+            return user32.CallNextHookEx(None, nCode, wParam, lParam)
+
+        hook_callback = HOOKPROC(low_level_keyboard_proc)
+        hook_id = user32.SetWindowsHookExW(WH_KEYBOARD_LL, hook_callback, kernel32.GetModuleHandleW(None), 0)
+
+        if not hook_id:
+            print("[Shortcuts] Fallback: RegisterHotKey fallback")
+            user32.RegisterHotKey(None, 101, 0x0008, VK_Q)
+            user32.RegisterHotKey(None, 102, 0x0008, VK_E)
+        else:
+            print("[Shortcuts] Low-Level Hook Active: Win+E (Skip Song) | Win+Q (Previous Song)")
 
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
-            if msg.message == 0x0312:  # WM_HOTKEY
-                if msg.wParam == HOTKEY_PREV_ID:
-                    print("[Hotkey] Win+Q triggered -> Previous Song")
+            if msg.message == 0x0312:
+                if msg.wParam == 101:
                     trigger_media_command("prev")
-                elif msg.wParam == HOTKEY_SKIP_ID:
-                    print("[Hotkey] Win+E triggered -> Next Song")
+                elif msg.wParam == 102:
                     trigger_media_command("skip")
             user32.TranslateMessage(ctypes.byref(msg))
             user32.DispatchMessageW(ctypes.byref(msg))
+
+        if hook_id:
+            user32.UnhookWindowsHookEx(hook_id)
     except Exception as e:
-        print(f"[Shortcuts] Global hotkey registration note: {e}")
+        print(f"[Shortcuts] Global hotkey error: {e}")
 
 # ── HTTP Server Request Handler ───────────────────────────────────
 class BridgeHandler(BaseHTTPRequestHandler):

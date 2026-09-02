@@ -8781,13 +8781,27 @@ Modules["Core/FeatureManager.luau"] = function()
     	end
     end
 
+    local configsIndex: {[string]: boolean} = {}
+    if type(_G.__ModularConfigsIndex) == "table" then
+    	for k, v in pairs(_G.__ModularConfigsIndex) do
+    		if v == true then configsIndex[k] = true end
+    	end
+    else
+    	_G.__ModularConfigsIndex = configsIndex
+    end
+
     local function ensureFolders()
     	local mkf = makefolder or (getgenv and getgenv().makefolder)
     	local isf = isfolder or (getgenv and getgenv().isfolder)
-    	if type(mkf) == "function" and type(isf) == "function" then
+    	if type(mkf) == "function" then
     		pcall(function()
-    			if not isf(ROOT_FOLDER) then mkf(ROOT_FOLDER) end
-    			if not isf(CONFIGS_FOLDER) then mkf(CONFIGS_FOLDER) end
+    			if type(isf) == "function" then
+    				if not isf(ROOT_FOLDER) then mkf(ROOT_FOLDER) end
+    				if not isf(CONFIGS_FOLDER) then mkf(CONFIGS_FOLDER) end
+    			else
+    				mkf(ROOT_FOLDER)
+    				mkf(CONFIGS_FOLDER)
+    			end
     		end)
     	end
     end
@@ -8800,22 +8814,59 @@ Modules["Core/FeatureManager.luau"] = function()
     -- ── File System Utilities ─────────────────────────────────────────
     function FeatureManager.listConfigs(): {string}
     	ensureFolders()
-    	local configs: {string} = {}
+    	local configsMap: {[string]: boolean} = {}
+
+    	-- 1. In-memory & Global Registry
+    	for name, active in pairs(configsIndex) do
+    		if active then configsMap[name] = true end
+    	end
+    	if type(_G.__ModularConfigsIndex) == "table" then
+    		for name, active in pairs(_G.__ModularConfigsIndex) do
+    			if active then configsMap[name] = true end
+    		end
+    	end
+
+    	-- 2. Disk Discovery (listfiles)
     	local listf = listfiles or (getgenv and getgenv().listfiles)
+    	local rdf = readfile or (getgenv and getgenv().readfile)
     	if type(listf) == "function" then
-    		local ok, files = pcall(function() return listf(CONFIGS_FOLDER) end)
-    		if ok and type(files) == "table" then
-    			for _, path in ipairs(files) do
-    				local s = tostring(path):gsub("\\", "/")
-    				local fileName = s:match("([^/]+)%.json$")
-    				if fileName and fileName ~= "" and fileName ~= "autoload_profile" then
-    					table.insert(configs, fileName)
+    		local function scanDir(dir: string)
+    			local ok, files = pcall(function() return listf(dir) end)
+    			if ok and type(files) == "table" then
+    				for _, path in ipairs(files) do
+    					local s = tostring(path):gsub("\\", "/")
+    					local fileName = s:match("([^/]+)%.json$")
+    					if fileName and fileName ~= "" and fileName ~= "autoload_profile" and fileName ~= "config_index" then
+    						local hasContent = true
+    						if type(rdf) == "function" then
+    							pcall(function()
+    								local content = rdf(path)
+    								if not content or #content < 5 or not content:find("{") then
+    									hasContent = false
+    								end
+    							end)
+    						end
+    						if hasContent then
+    							configsMap[fileName] = true
+    							configsIndex[fileName] = true
+    						else
+    							configsMap[fileName] = nil
+    							configsIndex[fileName] = nil
+    						end
+    					end
     				end
     			end
     		end
+    		scanDir(CONFIGS_FOLDER)
+    		scanDir(ROOT_FOLDER)
     	end
-    	table.sort(configs)
-    	return configs
+
+    	local result: {string} = {}
+    	for name in pairs(configsMap) do
+    		table.insert(result, name)
+    	end
+    	table.sort(result)
+    	return result
     end
 
     local function readConfigFile(name: string): string?
@@ -8826,6 +8877,8 @@ Modules["Core/FeatureManager.luau"] = function()
     		local paths = {
     			CONFIGS_FOLDER .. "/" .. name .. ".json",
     			CONFIGS_FOLDER .. "\\" .. name .. ".json",
+    			ROOT_FOLDER .. "/" .. name .. ".json",
+    			"FihSuite_Config_" .. name .. ".json",
     			name .. ".json"
     		}
     		for _, p in ipairs(paths) do
@@ -8837,7 +8890,9 @@ Modules["Core/FeatureManager.luau"] = function()
     				end
     				return nil
     			end)
-    			if ok and content and content ~= "" then return content end
+    			if ok and content and #content > 5 and content:find("{") then
+    				return content
+    			end
     		end
     	end
     	return nil
@@ -8847,30 +8902,68 @@ Modules["Core/FeatureManager.luau"] = function()
     	ensureFolders()
     	local wrf = writefile or (getgenv and getgenv().writefile)
     	if type(wrf) == "function" then
-    		local path = CONFIGS_FOLDER .. "/" .. name .. ".json"
-    		local ok = pcall(function() wrf(path, data) end)
-    		return ok
+    		local paths = {
+    			CONFIGS_FOLDER .. "/" .. name .. ".json",
+    			ROOT_FOLDER .. "/" .. name .. ".json",
+    			"FihSuite_Config_" .. name .. ".json",
+    			name .. ".json"
+    		}
+    		for _, path in ipairs(paths) do
+    			local ok = pcall(function() wrf(path, data) end)
+    			if ok then
+    				configsIndex[name] = true
+    				if type(_G.__ModularConfigsIndex) == "table" then
+    					_G.__ModularConfigsIndex[name] = true
+    				end
+    				return true
+    			end
+    		end
     	end
-    	return false
+    	-- If executor has no writefile, record to in-memory index
+    	configsIndex[name] = true
+    	if type(_G.__ModularConfigsIndex) == "table" then
+    		_G.__ModularConfigsIndex[name] = true
+    	end
+    	return true
     end
 
     local function deleteConfigFile(name: string): boolean
     	ensureFolders()
-    	local dlf = delfile or (getgenv and getgenv().delfile)
-    	if type(dlf) == "function" then
-    		local paths = {
-    			CONFIGS_FOLDER .. "/" .. name .. ".json",
-    			CONFIGS_FOLDER .. "\\" .. name .. ".json",
-    			name .. ".json"
-    		}
-    		local deleted = false
-    		for _, p in ipairs(paths) do
-    			local ok = pcall(function() dlf(p) end)
-    			if ok then deleted = true end
-    		end
-    		return deleted
+    	configsIndex[name] = nil
+    	if type(_G.__ModularConfigsIndex) == "table" then
+    		_G.__ModularConfigsIndex[name] = nil
     	end
-    	return false
+
+    	local dlf = delfile
+    		or deletefile
+    		or removefile
+    		or (syn and syn.delfile)
+    		or (fs and (fs.remove or fs.delete))
+    		or (getgenv and (getgenv().delfile or getgenv().deletefile or getgenv().removefile))
+
+    	local paths = {
+    		CONFIGS_FOLDER .. "/" .. name .. ".json",
+    		CONFIGS_FOLDER .. "\\" .. name .. ".json",
+    		ROOT_FOLDER .. "/" .. name .. ".json",
+    		"FihSuite_Config_" .. name .. ".json",
+    		name .. ".json"
+    	}
+
+    	if type(dlf) == "function" then
+    		for _, p in ipairs(paths) do
+    			pcall(function() dlf(p) end)
+    		end
+    	end
+
+    	-- Always write empty tombstone so listConfigs / readConfigFile knows it is deleted
+    	local wrf = writefile or (getgenv and getgenv().writefile)
+    	if type(wrf) == "function" then
+    		for _, p in ipairs(paths) do
+    			pcall(function() wrf(p, "") end)
+    		end
+    	end
+
+    	return true
     end
 
     -- ── Keybind Listener ──────────────────────────────────────────────

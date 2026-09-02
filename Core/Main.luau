@@ -1380,9 +1380,30 @@ do
 		window:Notify("Cars", "Exited vehicle", 2)
 	end)
 
-	local dragSection = window:AddSection(worldRightCol, "Object Interaction")
-	window:AddToggle(dragSection, "nds_obj_drag", "Loose Object Drag (LMB hold = grab, release = drop)", false, nil, function(enabled)
+	local dragSection = window:AddSection(worldRightCol, "Object & Destruction")
+	window:AddToggle(dragSection, "nds_obj_drag", "Loose Object Drag (LMB hold = grab)", false, nil, function(enabled)
 		DisasterSurvival.setObjectDrag(enabled)
+	end)
+
+	window:AddToggle(dragSection, "nds_auto_ad_claim", "Auto Finish & Bypass Ad (Get Hammer)", false, nil, function(enabled)
+		DisasterSurvival.setAutoClaimAd(enabled, function(msg)
+			window:Notify("Rewarded Ad", msg, 3)
+		end)
+	end)
+
+	window:AddButton(dragSection, "Claim Unanchor Hammer Now", function()
+		DisasterSurvival.claimAdRewardNow(function(msg)
+			window:Notify("Rewarded Ad", msg, 3)
+		end)
+	end)
+
+	window:AddToggle(dragSection, "nds_unanchor_aura", "Unanchor Aura (Break Nearby Buildings)", false, nil, function(enabled)
+		DisasterSurvival.setUnanchorAura(enabled)
+	end)
+
+	window:AddButton(dragSection, "Unanchor Entire Map Now", function()
+		local count = DisasterSurvival.unanchorAllMap()
+		window:Notify("Map Unanchor", string.format("Unanchored %d parts across the map", count), 3.5)
 	end)
 end
 

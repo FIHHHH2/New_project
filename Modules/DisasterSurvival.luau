@@ -745,21 +745,142 @@ function DisasterSurvival.setFling(enabled: boolean)
     end
 end
 
+-- ── Auto Finish / Bypass Ad & Claim Unanchor Hammer ────────────────
+local autoAdConn: RBXScriptConnection? = nil
+local unanchorAuraConn: RBXScriptConnection? = nil
+
+function DisasterSurvival.claimAdRewardNow(notifyCb: ((string)->())?): boolean
+    local claimed = false
+    local bba = Workspace:FindFirstChild("BillboardAd")
+    if bba then
+        local re = bba:FindFirstChild("RewardEvent")
+        if re and re:IsA("RemoteEvent") then
+            re:FireServer("PlayRewardAd")
+            claimed = true
+        end
+        local cd = bba:FindFirstChild("AdRewardDisplay") and bba.AdRewardDisplay:FindFirstChild("PlayPart") and bba.AdRewardDisplay.PlayPart:FindFirstChildWhichIsA("ClickDetector")
+        if cd and type(fireclickdetector) == "function" then
+            pcall(function() fireclickdetector(cd) end)
+            claimed = true
+        end
+    end
+
+    -- Auto-dismiss any core ad popups or video ad guis
+    pcall(function()
+        local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        if pgui then
+            for _, g in ipairs(pgui:GetChildren()) do
+                if g:IsA("ScreenGui") and (g.Name:lower():find("ad") or g.Name:lower():find("reward")) and g.Name ~= "RTDGui" then
+                    g.Enabled = false
+                end
+            end
+        end
+    end)
+
+    if claimed and notifyCb then
+        notifyCb("Requested reward ad & claimed unanchor hammer tool")
+    end
+    return claimed
+end
+
+function DisasterSurvival.setAutoClaimAd(enabled: boolean, notifyCb: ((string)->())?)
+    DisasterSurvival.AutoAdReward = enabled
+    if enabled then
+        -- Trigger immediately on activate
+        DisasterSurvival.claimAdRewardNow(notifyCb)
+
+        autoAdConn = RunService.Heartbeat:Connect(function()
+            local bba = Workspace:FindFirstChild("BillboardAd")
+            if bba then
+                local re = bba:FindFirstChild("RewardEvent")
+                if re and re:IsA("RemoteEvent") then
+                    pcall(function() re:FireServer("PlayRewardAd") end)
+                end
+            end
+        end)
+    elseif autoAdConn then
+        autoAdConn:Disconnect()
+        autoAdConn = nil
+    end
+end
+
+-- ── Map & Structure Unanchor Engine ───────────────────────────────
+function DisasterSurvival.unanchorAllMap(): number
+    local count = 0
+    for _, part in ipairs(Workspace:GetDescendants()) do
+        if part:IsA("BasePart") and part.Anchored and not part:IsDescendantOf(Workspace.Terrain) then
+            local isChar = false
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p.Character and part:IsDescendantOf(p.Character) then isChar = true break end
+            end
+            if not isChar and part.Position.Y > -50 and part.Size.Magnitude < 400 then
+                pcall(function()
+                    part.Anchored = false
+                    part:BreakJoints()
+                    if type(sethiddenproperty) == "function" then
+                        sethiddenproperty(part, "NetworkOwnershipRule", Enum.NetworkOwnership.Manual)
+                    end
+                    part:SetNetworkOwner(LocalPlayer)
+                end)
+                count += 1
+            end
+        end
+    end
+    return count
+end
+
+function DisasterSurvival.setUnanchorAura(enabled: boolean)
+    DisasterSurvival.UnanchorAura = enabled
+    if enabled then
+        unanchorAuraConn = RunService.Heartbeat:Connect(function()
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+            if not hrp then return end
+
+            local hrpPos = hrp.Position
+            for _, part in ipairs(Workspace:GetDescendants()) do
+                if part:IsA("BasePart") and part.Anchored and not part:IsDescendantOf(Workspace.Terrain) then
+                    local isChar = false
+                    for _, p in ipairs(Players:GetPlayers()) do
+                        if p.Character and part:IsDescendantOf(p.Character) then isChar = true break end
+                    end
+                    if not isChar and (part.Position - hrpPos).Magnitude <= 50 then
+                        pcall(function()
+                            part.Anchored = false
+                            part:BreakJoints()
+                            part.AssemblyLinearVelocity = Vector3.new(math.random(-8, 8), 8, math.random(-8, 8))
+                            if type(sethiddenproperty) == "function" then
+                                sethiddenproperty(part, "NetworkOwnershipRule", Enum.NetworkOwnership.Manual)
+                            end
+                            part:SetNetworkOwner(LocalPlayer)
+                        end)
+                    end
+                end
+            end
+        end)
+    elseif unanchorAuraConn then
+        unanchorAuraConn:Disconnect()
+        unanchorAuraConn = nil
+    end
+end
+
 -- ── Cleanup ───────────────────────────────────────────────────────
 function DisasterSurvival.cleanup()
     local function dc(c: RBXScriptConnection?) if c then c:Disconnect() end end
-    dc(flightConn)     flightConn = nil
-    dc(antiFlingConn)  antiFlingConn = nil
-    dc(flingConn)      flingConn = nil
-    dc(tagConn)        tagConn = nil
-    dc(stateConn)      stateConn = nil
-    dc(antiKillConn)   antiKillConn = nil
-    dc(carDriveConn)   carDriveConn = nil
-    dc(dragHoverConn)  dragHoverConn = nil
-    dc(dragWheelConn)  dragWheelConn = nil
-    dc(dragInputConn)  dragInputConn = nil
-    dc(dragEndConn)    dragEndConn   = nil
-    dc(playerAddedConn) playerAddedConn = nil
+    dc(flightConn)       flightConn = nil
+    dc(antiFlingConn)    antiFlingConn = nil
+    dc(flingConn)        flingConn = nil
+    dc(tagConn)          tagConn = nil
+    dc(stateConn)        stateConn = nil
+    dc(antiKillConn)     antiKillConn = nil
+    dc(carDriveConn)     carDriveConn = nil
+    dc(dragHoverConn)    dragHoverConn = nil
+    dc(dragWheelConn)    dragWheelConn = nil
+    dc(dragInputConn)    dragInputConn = nil
+    dc(dragEndConn)      dragEndConn   = nil
+    dc(autoAdConn)       autoAdConn    = nil
+    dc(unanchorAuraConn) unanchorAuraConn = nil
+    dc(playerAddedConn)  playerAddedConn = nil
     dc(playerRemovingConn) playerRemovingConn = nil
 
     clearDragTarget()

@@ -741,8 +741,10 @@ function MusicTracker.new()
 	end)
 
 	-- ── Shortcuts: Ctrl + Alt + Left Click (Skip), Right Click (Replay / Go Back), Middle Click / Space (Play / Pause) ───
+	local isWidgetEnabled = true
 	local lastShortcutTick = 0
 	UserInputService.InputBegan:Connect(function(input, gp)
+		if not isWidgetEnabled then return end
 		local focused = UserInputService:GetFocusedTextBox()
 		if focused then return end
 
@@ -1087,6 +1089,7 @@ function MusicTracker.new()
 		elseif type(maybeVal) == "boolean" then
 			v = maybeVal
 		end
+		isWidgetEnabled = v
 
 		if v then
 			openWidget()
@@ -1099,15 +1102,18 @@ function MusicTracker.new()
 		closeWidget()
 	end)
 
-	return {
+	local widgetObj: any = nil
+	widgetObj = {
 		Frame = widget,
 		UiScale = uiScale,
+		IsEnabled = true,
 		IsOpen = function() return isOpen end,
 		Open = openWidget,
 		Close = closeWidget,
 		SetVisible = setWidgetVisible,
 		Toggle = toggleWidget
 	}
+	return widgetObj
 end
 
 return MusicTracker

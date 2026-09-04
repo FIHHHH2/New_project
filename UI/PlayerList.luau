@@ -251,6 +251,7 @@ function PlayerList.new(): PlayerListWidget
 	local isOpen = true
 	local isTransitioning = false
 	local isPopupOpen = false
+	local isWidgetEnabled = true
 
 	-- Forward declare closeContextMenu
 	local closeContextMenu: () -> ()
@@ -287,6 +288,7 @@ function PlayerList.new(): PlayerListWidget
 	end
 
 	local function toggleWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		if not isWidgetEnabled then return end
 		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
 		if isOpen then
 			closeWidget(onComplete)
@@ -297,6 +299,8 @@ function PlayerList.new(): PlayerListWidget
 
 	local function setWidgetVisible(selfOrVal: any, maybeVal: any)
 		local v = if type(selfOrVal) == "boolean" then selfOrVal elseif type(maybeVal) == "boolean" then maybeVal else true
+		isWidgetEnabled = v
+		if widgetObj then widgetObj.IsEnabled = v end
 		if v then
 			openWidget()
 		else
@@ -775,6 +779,7 @@ function PlayerList.new(): PlayerListWidget
 		UiScale = uiScale,
 		IsMinimized = false,
 		Visible = true,
+		IsEnabled = true,
 		IsOpen = function() return isOpen end,
 		Open = openWidget,
 		Close = closeWidget,

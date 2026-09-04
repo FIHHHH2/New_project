@@ -1100,8 +1100,11 @@ function Hotbar.new(): HotbarWidget
 		slotFrames[i] = slotBtn
 	end
 
+	local isHotbarEnabled = true
+
 	-- ── 9. Dedicated Hamburger [ ≡ INV ] Button on Toolbar ────────────
 	local function toggleBackpack()
+		if not isHotbarEnabled then return end
 		isBackpackOpen = not isBackpackOpen
 		bpWindow.Visible = isBackpackOpen
 		if isBackpackOpen then
@@ -1192,6 +1195,7 @@ function Hotbar.new(): HotbarWidget
 
 	-- Keybinds for 1-0 hotbar selection and ` for inventory
 	table.insert(activeConnections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if not isHotbarEnabled then return end
 		if gameProcessed then return end
 		if input.UserInputType == Enum.UserInputType.Keyboard then
 			for slotNum, key in ipairs(KEYCODES) do
@@ -1409,13 +1413,20 @@ function Hotbar.new(): HotbarWidget
 		updateHotbarVisuals()
 	end)
 
-	local widgetObj: HotbarWidget = {
+	local widgetObj: any = nil
+	widgetObj = {
 		HotbarFrame = hotbarFrame,
 		BackpackWindow = bpWindow,
+		IsEnabled = true,
 		SetVisible = function(selfOrVal: any, maybeVal: any)
 			local val = if typeof(selfOrVal) == "boolean" then selfOrVal else maybeVal
+			isHotbarEnabled = val
+			if widgetObj then widgetObj.IsEnabled = val end
 			hotbarFrame.Visible = val
-			if not val then bpWindow.Visible = false end
+			if not val then
+				isBackpackOpen = false
+				bpWindow.Visible = false
+			end
 		end,
 		ToggleBackpack = toggleBackpack,
 		IsOpen = function() return isBackpackOpen end,

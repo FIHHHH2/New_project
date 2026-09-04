@@ -678,7 +678,10 @@ function EmotesWidget.new(): EmotesWidgetInstance
 	end)
 
 	local isOpen = true
+	local isWidgetEnabled = true
+
 	local function openWidget()
+		if not isWidgetEnabled then return end
 		isOpen = true
 		widget.Visible = true
 		Animations.popIn(widget, uiScale)
@@ -692,6 +695,7 @@ function EmotesWidget.new(): EmotesWidgetInstance
 	end
 
 	local function toggleWidget()
+		if not isWidgetEnabled then return end
 		if isOpen and widget.Visible then
 			closeWidget()
 		else
@@ -701,9 +705,11 @@ function EmotesWidget.new(): EmotesWidgetInstance
 
 	closeBtn.MouseButton1Click:Connect(closeWidget)
 
-	local widgetObj: EmotesWidgetInstance = {
+	local widgetObj: any = nil
+	widgetObj = {
 		Frame = widget,
 		ScreenGui = screenGui,
+		IsEnabled = true,
 		PlayEmote = function(item: EmoteItem)
 			return playRawAnimation(item.r15Id, item.name, item.isLooped, item.defaultSpeed)
 		end,
@@ -717,6 +723,8 @@ function EmotesWidget.new(): EmotesWidgetInstance
 		SetVisible = function(selfOrVal: any, maybeVal: any)
 			local vis = if typeof(selfOrVal) == "boolean" then selfOrVal else maybeVal
 			if typeof(vis) ~= "boolean" then vis = true end
+			isWidgetEnabled = vis
+			if widgetObj then widgetObj.IsEnabled = vis end
 			if vis then openWidget() else closeWidget() end
 		end,
 		Cleanup = function()

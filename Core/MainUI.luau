@@ -6,6 +6,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	local require          = _requireFn
 	local cachedCharacterParts   = (sharedEnv and sharedEnv.cachedCharacterParts) or {}
 	local disableRobloxTopBarApp = (sharedEnv and sharedEnv.disableRobloxTopBarApp) or function() end
+	local setRobloxCoreHidden    = (sharedEnv and sharedEnv.setRobloxCoreHidden) or function(h) disableRobloxTopBarApp(h) end
 	local hidePlayerGameGuis     = (sharedEnv and sharedEnv.hidePlayerGameGuis) or function() end
 	local coreGuiOverlays        = (sharedEnv and sharedEnv.coreGuiOverlays) or {}
 	local purgeBlackoutScreens   = (sharedEnv and sharedEnv.purgeBlackoutScreens) or function() end
@@ -34,6 +35,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	local PlayerUtilities  = require("Modules/PlayerUtilities.luau")
 	local Notification     = require("UI/Notification.luau")
 	local MusicTracker     = require("UI/MusicTracker.luau")
+	local Animations       = require("UI/Animations.luau")
 	local emotesWidget     = emotesWidget
 
 	local function getGameTabName(): string
@@ -221,51 +223,101 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			flySpeed = value
 		end)
 
-		-- Right Column: Speed & Jump Modifiers (Persistent Locks)
+		-- Right Column: Speed & Jump Modifiers (Persistent Locks & Attribute Overrides)
 		local speedSection = window:AddSection(mfRightCol, "Speed & Jump Modifiers")
 
 		local activeSpeedLock: number? = nil
 		local activeJumpLock: number? = nil
+		local activeHipHeightLock: number? = nil
+
+		local function getHumanoid(): Humanoid?
+			local char = localPlayer.Character
+			if not char then return nil end
+			return char:FindFirstChildOfClass("Humanoid")
+		end
+
+		local function applySpeed(speedVal: number)
+			local hum = getHumanoid()
+			if hum then
+				hum.WalkSpeed = speedVal
+			end
+			local char = localPlayer.Character
+			if char then
+				pcall(function()
+					if char:GetAttribute("Speed") ~= nil then char:SetAttribute("Speed", speedVal) end
+					if char:GetAttribute("WalkSpeed") ~= nil then char:SetAttribute("WalkSpeed", speedVal) end
+					if char:GetAttribute("SpeedMult") ~= nil then char:SetAttribute("SpeedMult", speedVal / 16) end
+				end)
+			end
+			pcall(function()
+				if localPlayer:GetAttribute("Speed") ~= nil then localPlayer:SetAttribute("Speed", speedVal) end
+				if localPlayer:GetAttribute("WalkSpeed") ~= nil then localPlayer:SetAttribute("WalkSpeed", speedVal) end
+			end)
+		end
+
+		local function applyJump(jumpVal: number)
+			local hum = getHumanoid()
+			if hum then
+				hum.UseJumpPower = true
+				hum.JumpPower = jumpVal
+				local grav = Workspace.Gravity
+				if grav > 0 then
+					hum.JumpHeight = (jumpVal ^ 2) / (2 * grav)
+				end
+			end
+			local char = localPlayer.Character
+			if char then
+				pcall(function()
+					if char:GetAttribute("JumpPower") ~= nil then char:SetAttribute("JumpPower", jumpVal) end
+					if char:GetAttribute("JumpHeight") ~= nil then char:SetAttribute("JumpHeight", (jumpVal ^ 2) / (2 * math.max(1, Workspace.Gravity))) end
+				end)
+			end
+			pcall(function()
+				if localPlayer:GetAttribute("JumpPower") ~= nil then localPlayer:SetAttribute("JumpPower", jumpVal) end
+			end)
+		end
 
 		local function enforcePersistentStats()
-			if not humanoid or humanoid.Health <= 0 then return end
-			if activeSpeedLock ~= nil and humanoid.WalkSpeed ~= activeSpeedLock then
-				humanoid.WalkSpeed = activeSpeedLock
+			local hum = getHumanoid()
+			if not hum or hum.Health <= 0 then return end
+			if activeSpeedLock ~= nil and hum.WalkSpeed ~= activeSpeedLock then
+				applySpeed(activeSpeedLock)
 			end
-			if activeJumpLock ~= nil and humanoid.JumpPower ~= activeJumpLock then
-				humanoid.JumpPower = activeJumpLock
+			if activeJumpLock ~= nil then
+				if not hum.UseJumpPower or hum.JumpPower ~= activeJumpLock then
+					applyJump(activeJumpLock)
+				end
+			end
+			if activeHipHeightLock ~= nil and hum.HipHeight ~= activeHipHeightLock then
+				hum.HipHeight = activeHipHeightLock
 			end
 		end
 
 		RunService.RenderStepped:Connect(enforcePersistentStats)
 		RunService.Heartbeat:Connect(enforcePersistentStats)
+		localPlayer.CharacterAdded:Connect(function()
+			task.wait(0.12)
+			enforcePersistentStats()
+		end)
 
 		window:AddToggle(speedSection, "walkspeed_boost", "WalkSpeed Boost (32 WS)", false, nil, function(enabled)
 			activeSpeedLock = if enabled then 32 else nil
-			if humanoid then
-				humanoid.WalkSpeed = if enabled then 32 else 16
-			end
+			applySpeed(if enabled then 32 else 16)
 		end)
 
 		window:AddToggle(speedSection, "jumppower_boost", "JumpPower Boost (100 JP)", false, nil, function(enabled)
 			activeJumpLock = if enabled then 100 else nil
-			if humanoid then
-				humanoid.JumpPower = if enabled then 100 else 50
-			end
+			applyJump(if enabled then 100 else 50)
 		end)
 
 		window:AddSlider(speedSection, "Custom Speed", 16, 250, 16, function(value)
 			activeSpeedLock = if value > 16 then value else nil
-			if humanoid then
-				humanoid.WalkSpeed = value
-			end
+			applySpeed(value)
 		end)
 
 		window:AddSlider(speedSection, "Custom JumpPower", 50, 300, 50, function(value)
 			activeJumpLock = if value > 50 then value else nil
-			if humanoid then
-				humanoid.JumpPower = value
-			end
+			applyJump(value)
 		end)
 
 		-- ?????? MAIN SUB-TAB 2: PHYSICS & MODIFIERS ??????????????????????????????????????????????????????????????????
@@ -505,11 +557,10 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		end)
 
 		window:AddSlider(charPhysSection, "Hip Height Offset", 0, 20, 0, function(value)
-			if localPlayer.Character then
-				local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-				if hum then
-					hum.HipHeight = value
-				end
+			activeHipHeightLock = if value > 0 then value else nil
+			local hum = getHumanoid()
+			if hum then
+				hum.HipHeight = value
 			end
 		end)
 
@@ -527,11 +578,10 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		end)
 
 		window:AddButton(envPhysSection, "Reset Character Height", function()
-			if localPlayer.Character then
-				local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-				if hum then
-					hum.HipHeight = 0
-				end
+			activeHipHeightLock = nil
+			local hum = getHumanoid()
+			if hum then
+				hum.HipHeight = 0
 			end
 			FeatureManager.setSliderValue("Hip Height Offset", 0)
 			window:Notify("Physics", "Character hip height restored to default", 2)
@@ -696,6 +746,31 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		end)
 
 		localPlayer.AttributeChanged:Connect(triggerInstantCurrencyRefresh)
+
+		local function hookCharAttributes(char: Model)
+			char.AttributeChanged:Connect(triggerInstantCurrencyRefresh)
+			for _, fName in ipairs({"leaderstats", "Data", "Stats", "Values", "Currencies", "PlayerData", "Tycoon"}) do
+				local f = char:FindFirstChild(fName)
+				if f then hookCurrencyFolder(f) end
+			end
+			char.ChildAdded:Connect(function(child)
+				for _, fName in ipairs({"leaderstats", "Data", "Stats", "Values", "Currencies", "PlayerData", "Tycoon"}) do
+					if child.Name == fName then
+						hookCurrencyFolder(child)
+						triggerInstantCurrencyRefresh()
+						break
+					end
+				end
+			end)
+		end
+
+		if localPlayer.Character then
+			hookCharAttributes(localPlayer.Character)
+		end
+		localPlayer.CharacterAdded:Connect(function(char)
+			hookCharAttributes(char)
+			triggerInstantCurrencyRefresh()
+		end)
 
 		task.spawn(function()
 			while true do
@@ -1625,14 +1700,15 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	local function setupVisualsTab(visualsTab)
 		-- ============================================================
 		-- 4. VISUALS TAB CONTENT (HORIZONTAL MINI SUB-TABS)
-		--    [ 2D Overlays & ESP ] [ 3D Chams & Skeletons ] [ ESP Customizer ]
+		--    [ 2D Overlays & ESP ] [ 3D Chams & Skeletons ] [ ESP Customizer ] [ Widgets ]
 		-- ============================================================
-		local visSubTabs = window:CreateSubTabs(visualsTab, { "2D Overlays & ESP", "3D Chams & Skeletons", "ESP Customizer" })
+		local visSubTabs = window:CreateSubTabs(visualsTab, { "2D Overlays & ESP", "3D Chams & Skeletons", "ESP Customizer", "Widgets" })
 		local esp2dSubTab = visSubTabs["2D Overlays & ESP"]
 		local chamsSubTab = visSubTabs["3D Chams & Skeletons"]
 		local customSubTab = visSubTabs["ESP Customizer"]
+		local widgetsSubTab = visSubTabs["Widgets"]
 
-		-- ?????? VISUALS SUB-TAB 1: 2D OVERLAYS & ESP ???????????????????????????????????????????????????????????????
+		-- ── VISUALS SUB-TAB 1: 2D OVERLAYS & ESP ──
 		local v2dLeftCol, v2dRightCol = window:CreateColumns(esp2dSubTab)
 
 		-- Left Column: 2D Bounding Boxes & Tags
@@ -1654,51 +1730,15 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			Visuals.HealthBar = enabled
 		end)
 
-		window:AddToggle(boxSection, "esp_distance", "Distance Tags (Studs)", false, nil, function(enabled)
+		-- Right Column: Distance Tags & Snaplines
+		local tracerSection = window:AddSection(v2dRightCol, "Distance Tags & Snaplines")
+
+		window:AddToggle(tracerSection, "esp_distance", "Distance Tags (Studs)", false, nil, function(enabled)
 			Visuals.Distance = enabled
 		end)
 
-		window:AddToggle(boxSection, "esp_tracers", "Snapline Tracers", false, nil, function(enabled)
+		window:AddToggle(tracerSection, "esp_tracers", "Snapline Tracers", false, nil, function(enabled)
 			Visuals.Tracers = enabled
-		end)
-
-		-- Right Column: Complete HUD & Widget Overlays
-		local hudSection = window:AddSection(v2dRightCol, "Custom HUD & Widget Overlays")
-
-		window:AddToggle(hudSection, "hud_playerlist", "Player List (Tab HUD)", true, nil, function(enabled)
-			playerListWidget.SetVisible(enabled)
-		end)
-
-		window:AddToggle(hudSection, "hud_leaderstats", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
-			leaderstatsWidget.SetVisible(enabled)
-		end)
-
-		window:AddToggle(hudSection, "hud_chat", "Custom Retro Chat Box HUD", true, nil, function(enabled)
-			chatWidgetInstance.SetVisible(enabled)
-		end)
-
-		window:AddToggle(hudSection, "hud_music_player", "Music Tracker & Lyrics Player HUD", true, nil, function(enabled)
-			musicTrackerWidget.SetVisible(enabled)
-		end)
-
-		window:AddToggle(hudSection, "hud_backpack", "Custom Backpack & Toolbar HUD", true, nil, function(enabled)
-			hotbarWidget.SetVisible(enabled)
-		end)
-
-		window:AddToggle(hudSection, "hud_healthbar", "Health Bar HUD Widget", true, nil, function(enabled)
-			healthWidget.SetVisible(enabled)
-		end)
-
-		window:AddToggle(hudSection, "hud_damage_indicators", "3D Floating Damage Numbers", true, nil, function(enabled)
-			healthWidget.ToggleDamageNumbers(enabled)
-		end)
-
-		window:AddToggle(hudSection, "hud_damage_flash", "Damage Taken Screen Flash", true, nil, function(enabled)
-			healthWidget.ToggleDamageFlash(enabled)
-		end)
-
-		window:AddToggle(hudSection, "hud_dynamic_health", "Dynamic Health Gradient (Green/Red)", true, nil, function(enabled)
-			healthWidget.SetDynamicColors(enabled)
 		end)
 
 		-- ?????? VISUALS SUB-TAB 2: 3D CHAMS & SKELETONS ??????????????????????????????????????????????????????
@@ -1795,11 +1835,139 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			window:Notify("Palette", "Ruby Palette applied", 2)
 		end)
 
-		window:AddButton(paletteSection, "Amethyst Purple Palette", function()
-			Visuals.BoxColor = Color3.fromRGB(180, 70, 255)
-			Visuals.TracerColor = Color3.fromRGB(220, 120, 255)
-			Visuals.SkeletonColor = Color3.fromRGB(200, 100, 255)
-			window:Notify("Palette", "Amethyst Palette applied", 2)
+		-- ── VISUALS SUB-TAB 4: WIDGETS (DEDICATED HUD & OVERLAY CONFIGURATION) ──
+		local wLeftCol, wRightCol = window:CreateColumns(widgetsSubTab)
+
+		-- Left Column: Master Controls & Core Peripheral HUDs
+		local wMasterSection = window:AddSection(wLeftCol, "Master Widget Controls")
+
+		local function setAllWidgets(enabled: boolean)
+			FeatureManager.setFeatureState("hud_playerlist", enabled)
+			playerListWidget.IsEnabled = enabled
+			playerListWidget.SetVisible(enabled)
+
+			FeatureManager.setFeatureState("hud_chat", enabled)
+			chatWidgetInstance.IsEnabled = enabled
+			chatWidgetInstance.SetVisible(enabled)
+
+			FeatureManager.setFeatureState("hud_music_player", enabled)
+			musicTrackerWidget.IsEnabled = enabled
+			musicTrackerWidget.SetVisible(enabled)
+
+			FeatureManager.setFeatureState("hud_backpack", enabled)
+			hotbarWidget.IsEnabled = enabled
+			hotbarWidget.SetVisible(enabled)
+
+			FeatureManager.setFeatureState("hud_leaderstats", enabled)
+			leaderstatsWidget.IsEnabled = enabled
+			leaderstatsWidget.SetVisible(enabled)
+
+			FeatureManager.setFeatureState("hud_emotes", enabled)
+			if emotesWidget then
+				emotesWidget.IsEnabled = enabled
+				emotesWidget.SetVisible(enabled)
+			end
+
+			FeatureManager.setFeatureState("hud_healthbar", enabled)
+			healthWidget.IsEnabled = enabled
+			healthWidget.SetVisible(enabled)
+
+			FeatureManager.setFeatureState("hud_damage_indicators", enabled)
+			healthWidget.ToggleDamageNumbers(enabled)
+
+			FeatureManager.setFeatureState("hud_damage_flash", enabled)
+			healthWidget.ToggleDamageFlash(enabled)
+
+			FeatureManager.setFeatureState("hud_dynamic_health", enabled)
+			healthWidget.SetDynamicColors(enabled)
+		end
+
+		window:AddButton(wMasterSection, "Enable All Widgets & Hotkeys", function()
+			setAllWidgets(true)
+			window:Notify("Widgets", "All HUD widgets and hotkeys enabled", 2)
+		end)
+
+		window:AddButton(wMasterSection, "Disable All Widgets & Hotkeys", function()
+			setAllWidgets(false)
+			window:Notify("Widgets", "All HUD widgets and hotkeys disabled", 2)
+		end)
+
+		local coreWidgetsSection = window:AddSection(wLeftCol, "Core Peripheral HUD Widgets")
+
+		window:AddToggle(coreWidgetsSection, "hud_playerlist", "Player List (Tab HUD)", true, nil, function(enabled)
+			playerListWidget.IsEnabled = enabled
+			playerListWidget.SetVisible(enabled)
+		end)
+
+		window:AddToggle(coreWidgetsSection, "hud_chat", "Custom Retro Chat Box HUD (/ Key)", true, nil, function(enabled)
+			chatWidgetInstance.IsEnabled = enabled
+			chatWidgetInstance.SetVisible(enabled)
+		end)
+
+		window:AddToggle(coreWidgetsSection, "hud_music_player", "Music Tracker HUD (Ctrl+Alt Keys)", true, nil, function(enabled)
+			musicTrackerWidget.IsEnabled = enabled
+			musicTrackerWidget.SetVisible(enabled)
+		end)
+
+		window:AddToggle(coreWidgetsSection, "hud_backpack", "Custom Backpack & Toolbar (~ Key)", true, nil, function(enabled)
+			hotbarWidget.IsEnabled = enabled
+			hotbarWidget.SetVisible(enabled)
+		end)
+
+		window:AddToggle(coreWidgetsSection, "hud_leaderstats", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
+			leaderstatsWidget.IsEnabled = enabled
+			leaderstatsWidget.SetVisible(enabled)
+		end)
+
+		window:AddToggle(coreWidgetsSection, "hud_emotes", "Emotes HUD Widget (, Key)", true, nil, function(enabled)
+			if emotesWidget then
+				emotesWidget.IsEnabled = enabled
+				emotesWidget.SetVisible(enabled)
+			end
+		end)
+
+		-- Right Column: Player & Combat Visual HUDs & Shortcuts
+		local combatHudSection = window:AddSection(wRightCol, "Player & Combat Visual HUDs")
+
+		window:AddToggle(combatHudSection, "hud_healthbar", "Health Bar HUD Widget", true, nil, function(enabled)
+			healthWidget.IsEnabled = enabled
+			healthWidget.SetVisible(enabled)
+		end)
+
+		window:AddToggle(combatHudSection, "hud_damage_indicators", "3D Floating Damage Numbers", true, nil, function(enabled)
+			healthWidget.ToggleDamageNumbers(enabled)
+		end)
+
+		window:AddToggle(combatHudSection, "hud_damage_flash", "Damage Taken Screen Flash", true, nil, function(enabled)
+			healthWidget.ToggleDamageFlash(enabled)
+		end)
+
+		window:AddToggle(combatHudSection, "hud_dynamic_health", "Dynamic Health Gradient (Green/Red)", true, nil, function(enabled)
+			healthWidget.SetDynamicColors(enabled)
+		end)
+
+		local widgetActionsSection = window:AddSection(wRightCol, "Widget Quick Shortcuts")
+
+		window:AddButton(widgetActionsSection, "Open Emotes Menu (,)", function()
+			if emotesWidget and emotesWidget.IsEnabled ~= false then
+				emotesWidget:Open()
+			end
+		end)
+
+		window:AddButton(widgetActionsSection, "Toggle Backpack Window (~)", function()
+			if hotbarWidget and hotbarWidget.IsEnabled ~= false then
+				hotbarWidget.ToggleBackpack()
+			end
+		end)
+
+		window:AddButton(widgetActionsSection, "Refresh Stats & Hotbar", function()
+			if leaderstatsWidget and typeof(leaderstatsWidget.Refresh) == "function" then
+				leaderstatsWidget.Refresh()
+			end
+			if hotbarWidget and typeof(hotbarWidget.Refresh) == "function" then
+				hotbarWidget.Refresh()
+			end
+			window:Notify("Widgets", "Refreshed widget buffers and hotbar", 2)
 		end)
 
 	end
@@ -1949,33 +2117,6 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		local widgetSection = window:AddSection(modRightCol, "Peripheral HUD Widgets")
-
-		window:AddToggle(widgetSection, "mod_music_tracker", "Music Tracker Widget", true, nil, function(enabled)
-			FeatureManager.setModuleState("music_tracker", enabled)
-			musicTrackerWidget.SetVisible(enabled)
-		end)
-
-		window:AddToggle(widgetSection, "mod_player_list", "Player List Widget (Tab Key)", true, nil, function(enabled)
-			FeatureManager.setModuleState("player_list", enabled)
-			playerListWidget.Frame.Visible = enabled
-		end)
-
-		window:AddToggle(widgetSection, "mod_chat_widget", "Chat Widget", true, nil, function(enabled)
-			FeatureManager.setModuleState("chat_widget", enabled)
-			chatWidgetInstance.Frame.Visible = enabled
-		end)
-
-		window:AddToggle(widgetSection, "mod_custom_hotbar", "Custom Hotbar & Backpack HUD", true, nil, function(enabled)
-			FeatureManager.setModuleState("custom_hotbar", enabled)
-			hotbarWidget.SetVisible(enabled)
-		end)
-
-		window:AddToggle(widgetSection, "mod_leaderstats_widget", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
-			FeatureManager.setModuleState("leaderstats_widget", enabled)
-			leaderstatsWidget.SetVisible(enabled)
-		end)
-
 		-- Hook tab right-click sync
 		combatTab.OnVisibilityChanged = function(vis: boolean)
 			local feat = FeatureManager.getFeature("tab_combat_module")
@@ -2046,12 +2187,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		end)
 
 		window:AddToggle(perfSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar & Core)", true, nil, function(enabled)
-			disableRobloxTopBarApp(enabled)
-			for _, guiType in ipairs(coreGuiOverlays) do
-				pcall(function()
-					StarterGui:SetCoreGuiEnabled(guiType, not enabled)
-				end)
-			end
+			setRobloxCoreHidden(enabled)
+			FeatureManager.setFeatureState("hide_roblox_core_guis", enabled)
 		end)
 
 		window:AddToggle(perfSection, "hide_game_guis", "Hide Game HUD UIs (PlayerGui)", false, nil, function(enabled)
@@ -2124,12 +2261,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		local cleanSection = window:AddSection(sysLeftCol, "Screen & GUI Optimization")
 
 		window:AddToggle(cleanSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar, Leaderboard, Chat)", true, nil, function(enabled)
-			disableRobloxTopBarApp(enabled)
-			for _, guiType in ipairs(coreGuiOverlays) do
-				pcall(function()
-					StarterGui:SetCoreGuiEnabled(guiType, not enabled)
-				end)
-			end
+			setRobloxCoreHidden(enabled)
+			FeatureManager.setFeatureState("hide_roblox_core_guis", enabled)
 			window:Notify("UI", if enabled then "Roblox Core UIs hidden" else "Roblox Core UIs restored", 2)
 		end)
 

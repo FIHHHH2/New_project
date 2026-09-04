@@ -385,6 +385,24 @@ function PlayerUtilities.getCurrenciesAndStats(): {{ Name: string, Value: string
 		end
 	end
 
+	-- 5. Attributes on LocalPlayer & Character
+	pcall(function()
+		for attrName, attrVal in pairs(LocalPlayer:GetAttributes()) do
+			if typeof(attrVal) == "number" or typeof(attrVal) == "string" then
+				add(attrName, attrVal, "PlayerAttributes")
+			end
+		end
+	end)
+	pcall(function()
+		if LocalPlayer.Character then
+			for attrName, attrVal in pairs(LocalPlayer.Character:GetAttributes()) do
+				if typeof(attrVal) == "number" or typeof(attrVal) == "string" then
+					add(attrName, attrVal, "CharacterAttributes")
+				end
+			end
+		end
+	end)
+
 	return results
 end
 

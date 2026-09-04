@@ -29,7 +29,6 @@ local IceTycoon = require("Modules/IceTycoon.luau")
 local LuckyBlocks = require("Modules/LuckyBlocks.luau")
 local RestaurantTycoon = require("Modules/RestaurantTycoon.luau")
 local SeekerVsHider = require("Modules/SeekerVsHider.luau")
-local LuckyBlocks = require("Modules/LuckyBlocks.luau")
 local PlayerUtilities = require("Modules/PlayerUtilities.luau")
 local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
@@ -100,7 +99,10 @@ local coreGuiOverlays = {
 	Enum.CoreGuiType.Health,
 }
 
+local isRobloxCoreHidden = true
+
 local function disableRobloxTopBarApp(disable: boolean)
+	isRobloxCoreHidden = disable
 	pcall(function()
 		StarterGui:SetCore("TopbarEnabled", not disable)
 	end)
@@ -125,19 +127,18 @@ local function disableRobloxTopBarApp(disable: boolean)
 	end)
 end
 
-local function disableCoreGuis()
-	disableRobloxTopBarApp(true)
-	for _ = 1, 8 do
-		local ok = true
-		for _, guiType in ipairs(coreGuiOverlays) do
-			local success = pcall(function()
-				StarterGui:SetCoreGuiEnabled(guiType, false)
-			end)
-			if not success then ok = false end
-		end
-		if ok then break end
-		task.wait(0.2)
+local function setRobloxCoreHidden(hide: boolean)
+	isRobloxCoreHidden = hide
+	disableRobloxTopBarApp(hide)
+	for _, guiType in ipairs(coreGuiOverlays) do
+		pcall(function()
+			StarterGui:SetCoreGuiEnabled(guiType, not hide)
+		end)
 	end
+end
+
+local function disableCoreGuis()
+	setRobloxCoreHidden(true)
 end
 
 local isGameGuisHidden = false
@@ -279,7 +280,11 @@ end)
 
 localPlayer.CharacterAdded:Connect(function(char)
 	task.spawn(function()
-		disableCoreGuis()
+		if isRobloxCoreHidden then
+			disableCoreGuis()
+		else
+			setRobloxCoreHidden(false)
+		end
 		task.wait(0.1)
 		purgeBlackoutScreens()
 		hidePlayerGameGuis(isGameGuisHidden)
@@ -287,11 +292,13 @@ localPlayer.CharacterAdded:Connect(function(char)
 end)
 
 
--- Continuous enforcer so Roblox topbar never pops back up
+-- Continuous enforcer so Roblox topbar only stays hidden IF isRobloxCoreHidden is true!
 task.spawn(function()
 	while true do
 		task.wait(3)
-		disableRobloxTopBarApp(true)
+		if isRobloxCoreHidden then
+			disableRobloxTopBarApp(true)
+		end
 	end
 end)
 
@@ -324,13 +331,13 @@ playerListWidget.OnMinimize = function(isMin: boolean)
 end
 
 _G.__ToggleProjectFihBackpack = function()
-	if hotbarWidget then
+	if hotbarWidget and hotbarWidget.IsEnabled ~= false then
 		hotbarWidget.ToggleBackpack()
 	end
 end
 
 _G.__ToggleProjectFihEmotes = function()
-	if emotesWidget then
+	if emotesWidget and emotesWidget.IsEnabled ~= false then
 		emotesWidget.Toggle()
 	end
 end
@@ -346,9 +353,11 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 
 	if input.UserInputType == Enum.UserInputType.Keyboard then
 		if input.KeyCode == Enum.KeyCode.Tab then
-			playerListWidget:Toggle()
+			if playerListWidget and playerListWidget.IsEnabled ~= false then
+				playerListWidget:Toggle()
+			end
 		elseif input.KeyCode == Enum.KeyCode.Comma then
-			if emotesWidget then
+			if emotesWidget and emotesWidget.IsEnabled ~= false then
 				emotesWidget.Toggle()
 			end
 		end
@@ -358,6 +367,7 @@ end)
 local sharedEnv = {
 	cachedCharacterParts = cachedCharacterParts,
 	disableRobloxTopBarApp = disableRobloxTopBarApp,
+	setRobloxCoreHidden = setRobloxCoreHidden,
 	hidePlayerGameGuis = hidePlayerGameGuis,
 	coreGuiOverlays = coreGuiOverlays,
 	purgeBlackoutScreens = purgeBlackoutScreens,

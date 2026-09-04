@@ -53,12 +53,20 @@ function ChatWidget.new(): ChatWidgetInstance
 		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	end
 
-	-- Disable default Roblox CoreGuis cleanly
+	-- Disable default Roblox CoreGuis cleanly while keeping Chat tree active for message tracking
 	local function disableRobloxCoreGuis()
 		pcall(function()
-			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, false)
+			local expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
+			if expChat and expChat:IsA("ScreenGui") then
+				expChat.Enabled = false
+			end
+			local pgui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+			local legacyChat = pgui and pgui:FindFirstChild("Chat")
+			if legacyChat and legacyChat:IsA("ScreenGui") then
+				legacyChat.Enabled = false
+			end
 		end)
 	end
 	disableRobloxCoreGuis()
@@ -680,6 +688,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	local isTransitioning = false
 	local isProfileOpen = false
 	local isQuickOpen = false
+	local isWidgetEnabled = true
 
 	local closeProfilePopup: () -> ()
 	local closeQuickPopup: () -> ()
@@ -710,6 +719,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	end
 
 	local function toggleWidget(selfOrOnComplete: any, maybeOnComplete: any)
+		if not isWidgetEnabled then return end
 		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
 		if isOpen then
 			closeWidget(onComplete)
@@ -720,6 +730,7 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	local function setWidgetVisible(selfOrVal: any, maybeVal: any)
 		local v = if type(selfOrVal) == "boolean" then selfOrVal elseif type(maybeVal) == "boolean" then maybeVal else true
+		isWidgetEnabled = v
 		if v then
 			openWidget()
 		else
@@ -876,6 +887,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	end
 
 	createPopAction("Teleport To", 1, function(target)
+		if not target or not target.Parent then return end
 		local myChar = Players.LocalPlayer.Character
 		local tChar = target.Character
 		if myChar and tChar and myChar:FindFirstChild("HumanoidRootPart") and tChar:FindFirstChild("HumanoidRootPart") then
@@ -887,6 +899,7 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	local isSpying = false
 	createPopAction("Spectate / Spy", 2, function(target)
+		if not target or not target.Parent then return end
 		isSpying = not isSpying
 		local cam = workspace.CurrentCamera
 		if not cam then return end
@@ -901,24 +914,28 @@ function ChatWidget.new(): ChatWidgetInstance
 	end)
 
 	createPopAction("Add Friend", 3, function(target)
+		if not target or not target.Parent then return end
 		pcall(function()
 			StarterGui:SetCore("PromptSendFriendRequest", target)
 		end)
 	end)
 
 	createPopAction("Block Player", 4, function(target)
+		if not target or not target.Parent then return end
 		pcall(function()
 			StarterGui:SetCore("PromptBlockPlayer", target)
 		end)
 	end)
 
 	createPopAction("Report Player", 5, function(target)
+		if not target or not target.Parent then return end
 		pcall(function()
 			StarterGui:SetCore("PromptReportPlayer", target)
 		end)
 	end)
 
 	createPopAction("Copy Username", 6, function(target)
+		if not target or not target.Parent then return end
 		local setclip = setclipboard or (getgenv and getgenv().setclipboard) or toclipboard
 		if type(setclip) == "function" then
 			setclip(target.Name)
@@ -926,10 +943,19 @@ function ChatWidget.new(): ChatWidgetInstance
 	end)
 
 	local function openPlayerProfile(player: Player, clickPos: Vector2)
+		if not player or not player.Parent then return end
 		activeSelectedPlayer = player
 		popTitle.Text = player.DisplayName
 		popUser.Text = "@" .. player.Name
-		popAvatar.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
+		popAvatar.Image = ""
+		task.spawn(function()
+			local ok, thumb = pcall(function()
+				return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
+			end)
+			if ok and thumb and activeSelectedPlayer == player and popAvatar.Parent then
+				popAvatar.Image = thumb
+			end
+		end)
 		
 		local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
 		local x = math.clamp(clickPos.X, 8, math.max(8, vp.X - 198))
@@ -983,15 +1009,14 @@ function ChatWidget.new(): ChatWidgetInstance
 	quickPopHeader.Parent = quickPopup
 	UI.registerThemeElement(quickPopHeader, "Container")
 
-	local quickHeadStroke = Instance.new("UIStroke")
-	quickHeadStroke.Color = UI.Theme.Border
-	quickHeadStroke.Thickness = 1
-	quickHeadStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	quickHeadStroke.Parent = quickPopHeader
-	UI.registerThemeElement(quickHeadStroke, "Border")
+	local quickPopHeadStroke = Instance.new("UIStroke")
+	quickPopHeadStroke.Color = UI.Theme.Border
+	quickPopHeadStroke.Thickness = 0.8
+	quickPopHeadStroke.Parent = quickPopHeader
+	UI.registerThemeElement(quickPopHeadStroke, "Border")
 
 	local quickHeadLabel = Instance.new("TextLabel")
-	quickHeadLabel.Size = UDim2.new(1, -24, 1, 0)
+	quickHeadLabel.Size = UDim2.new(1, -26, 1, 0)
 	quickHeadLabel.Position = UDim2.new(0, 6, 0, 0)
 	quickHeadLabel.BackgroundTransparency = 1
 	quickHeadLabel.Text = "Quick Phrases"
@@ -1119,7 +1144,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	end)
 
 	-- ── Message Line Constructor (With Robust Deduplication + Profile Hook + Slide Animation) ──
-	local MAX_CHAT_HISTORY = 100
+	local MAX_CHAT_HISTORY = 150
 	local chatHistory: {TextButton} = {}
 	local seenMessageMap: {[string]: number} = {}
 	local lastPruneTime = tick()
@@ -1135,14 +1160,14 @@ function ChatWidget.new(): ChatWidgetInstance
 		end
 	end
 
-	local function addMessage(sender: string, text: string, msgId: string?)
+	local function addMessage(sender: string, text: string, msgId: string?, isHistorical: boolean?)
 		if not text or text == "" then return end
 		local now = tick()
 		pruneSeenMessages()
 
 		-- Message ID deduplication
 		if msgId and msgId ~= "" then
-			if seenMessageMap[msgId] and (now - seenMessageMap[msgId] < 8) then
+			if seenMessageMap[msgId] and (now - seenMessageMap[msgId] < 15) then
 				return
 			end
 			seenMessageMap[msgId] = now
@@ -1150,12 +1175,12 @@ function ChatWidget.new(): ChatWidgetInstance
 
 		-- Content + Sender deduplication window (prevents duplicate local echo / server echo)
 		local dedupeKey = string.format("%s:%s", sender, text)
-		if seenMessageMap[dedupeKey] and (now - seenMessageMap[dedupeKey] < 0.9) then
+		if not isHistorical and seenMessageMap[dedupeKey] and (now - seenMessageMap[dedupeKey] < 0.9) then
 			return
 		end
 		seenMessageMap[dedupeKey] = now
 
-		local isSystem = (sender == "System")
+		local isSystem = (sender == "System" or sender == "Server")
 		local targetPlayer: Player? = nil
 		if not isSystem then
 			for _, p in ipairs(Players:GetPlayers()) do
@@ -1169,12 +1194,12 @@ function ChatWidget.new(): ChatWidgetInstance
 		local msgBtn = Instance.new("TextButton")
 		msgBtn.Name = "MessageLine"
 		msgBtn.Size = UDim2.new(1, -8, 0, 0)
-		msgBtn.Position = UDim2.new(0, 16, 0, 0)
+		msgBtn.Position = if isHistorical then UDim2.new(0, 0, 0, 0) else UDim2.new(0, 16, 0, 0)
 		msgBtn.AutomaticSize = Enum.AutomaticSize.Y
 		msgBtn.BackgroundTransparency = 1
 		msgBtn.RichText = true
 		msgBtn.TextWrapped = true
-		msgBtn.TextTransparency = 1
+		msgBtn.TextTransparency = if isHistorical then 0 else 1
 		msgBtn.Font = UI.Fonts.Body
 		msgBtn.TextSize = 11
 		msgBtn.TextXAlignment = Enum.TextXAlignment.Left
@@ -1197,25 +1222,201 @@ function ChatWidget.new(): ChatWidgetInstance
 		local cleanMsg = text:gsub("<", "&lt;"):gsub(">", "&gt;")
 		msgBtn.Text = string.format("<font color='%s'><b>%s:</b></font> %s", senderHex, cleanName, cleanMsg)
 
-		if targetPlayer then
+		if not isSystem then
 			msgBtn.MouseButton1Click:Connect(function()
-				local mousePos = UserInputService:GetMouseLocation()
-				openPlayerProfile(targetPlayer :: Player, mousePos)
+				local resolvedPlayer = targetPlayer
+				if not resolvedPlayer or not resolvedPlayer.Parent then
+					for _, p in ipairs(Players:GetPlayers()) do
+						if p.Name == sender or p.DisplayName == sender then
+							resolvedPlayer = p
+							break
+						end
+					end
+				end
+				if resolvedPlayer and resolvedPlayer.Parent then
+					local mousePos = UserInputService:GetMouseLocation()
+					openPlayerProfile(resolvedPlayer, mousePos)
+				end
 			end)
 		end
 
-		-- Domino slide-in & text fade
-		TweenService:Create(msgBtn, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			Position = UDim2.new(0, 0, 0, 0)
-		}):Play()
-		TweenService:Create(msgBtn, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			TextTransparency = 0
-		}):Play()
+		if not isHistorical then
+			-- Domino slide-in & text fade
+			TweenService:Create(msgBtn, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0, 0, 0, 0)
+			}):Play()
+			TweenService:Create(msgBtn, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				TextTransparency = 0
+			}):Play()
+
+			task.defer(function()
+				container.CanvasPosition = Vector2.new(0, math.max(0, container.AbsoluteCanvasSize.Y - container.AbsoluteWindowSize.Y))
+			end)
+		end
+	end
+
+	-- ── Universal Chat History Tracker & Backfill Engine ─────────────
+	local function extractFromExperienceChatItem(item: Instance): (string, string)
+		local prefixLabel = item:FindFirstChild("PrefixText", true)
+		local bodyLabel = item:FindFirstChild("BodyText", true)
+		local sender = "System"
+		local message = ""
+
+		if prefixLabel and prefixLabel:IsA("TextLabel") and prefixLabel.Text ~= "" then
+			local cleanPfx = prefixLabel.Text:gsub("<[^>]+>", ""):gsub(":$", ""):gsub("^%s+", ""):gsub("%s+$", "")
+			if cleanPfx ~= "" then
+				sender = cleanPfx
+			end
+		end
+
+		if bodyLabel and bodyLabel:IsA("TextLabel") and bodyLabel.Text ~= "" then
+			message = bodyLabel.Text:gsub("<[^>]+>", ""):gsub("^%s+", ""):gsub("%s+$", "")
+			if sender ~= "System" and message:sub(1, #sender) == sender then
+				message = message:sub(#sender + 1):gsub("^:%s*", ""):gsub("^%s+", "")
+			end
+		end
+
+		return sender, message
+	end
+
+	local function extractFromLegacyChatItem(item: Instance): (string, string)
+		local nameBtn = item:FindFirstChildWhichIsA("TextButton", true)
+		local textLabel = item:FindFirstChildWhichIsA("TextLabel", true)
+		local sender = "System"
+		local message = ""
+
+		if nameBtn and nameBtn.Text ~= "" then
+			sender = nameBtn.Text:gsub("<[^>]+>", ""):gsub("[:%[%]%s]+", "")
+		end
+
+		if textLabel and textLabel.Text ~= "" then
+			local fullText = textLabel.Text:gsub("<[^>]+>", ""):gsub("^%s+", ""):gsub("%s+$", "")
+			if sender ~= "System" and fullText:find(sender, 1, true) then
+				local afterSender = fullText:gsub("^.-" .. sender .. "[%]:%s]*", "")
+				message = afterSender
+			else
+				local matchSender, matchMsg = fullText:match("^%[?([%w_]+)%]?%s*:%s*(.+)$")
+				if matchSender and matchMsg then
+					sender = matchSender
+					message = matchMsg
+				else
+					message = fullText
+				end
+			end
+		elseif nameBtn and nameBtn.Text ~= "" then
+			message = nameBtn.Text
+		end
+
+		return sender, message
+	end
+
+	local function backfillChatHistory(): number
+		local count = 0
+
+		-- 1. Modern ExperienceChat (CoreGui or PlayerGui)
+		local expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
+		if expChat then
+			local sv = expChat:FindFirstChild("scrollView", true)
+			if not sv then
+				pcall(function()
+					StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, true)
+				end)
+				task.wait(0.05)
+				expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
+				sv = expChat and expChat:FindFirstChild("scrollView", true)
+				if expChat and expChat:IsA("ScreenGui") then
+					expChat.Enabled = false
+				end
+			end
+			if sv and sv:IsA("ScrollingFrame") then
+				local children = sv:GetChildren()
+				table.sort(children, function(a, b)
+					local oa = a:IsA("GuiObject") and a.LayoutOrder or 0
+					local ob = b:IsA("GuiObject") and b.LayoutOrder or 0
+					return oa < ob
+				end)
+				for _, item in ipairs(children) do
+					if item:IsA("GuiObject") then
+						local s, m = extractFromExperienceChatItem(item)
+						if m ~= "" then
+							addMessage(s, m, item.Name, true)
+							count += 1
+						end
+					end
+				end
+
+				-- Hook future children added to scrollView
+				sv.ChildAdded:Connect(function(child)
+					task.defer(function()
+						if child and child.Parent and child:IsA("GuiObject") then
+							local s, m = extractFromExperienceChatItem(child)
+							if m ~= "" then
+								addMessage(s, m, child.Name)
+							end
+						end
+					end)
+				end)
+			end
+		end
+
+		-- 2. Legacy Chat (PlayerGui.Chat)
+		local pGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+		local legacyChat = pGui and pGui:FindFirstChild("Chat")
+		if legacyChat then
+			local scroller = legacyChat:FindFirstChild("Scroller", true)
+			if scroller and scroller:IsA("ScrollingFrame") then
+				local children = scroller:GetChildren()
+				table.sort(children, function(a, b)
+					local oa = a:IsA("GuiObject") and a.LayoutOrder or 0
+					local ob = b:IsA("GuiObject") and b.LayoutOrder or 0
+					return oa < ob
+				end)
+				for _, item in ipairs(children) do
+					if item:IsA("GuiObject") then
+						local s, m = extractFromLegacyChatItem(item)
+						if m ~= "" then
+							addMessage(s, m, item.Name, true)
+							count += 1
+						end
+					end
+				end
+
+				-- Hook future children added to scroller
+				scroller.ChildAdded:Connect(function(child)
+					task.defer(function()
+						if child and child.Parent and child:IsA("GuiObject") then
+							local s, m = extractFromLegacyChatItem(child)
+							if m ~= "" then
+								addMessage(s, m, child.Name)
+							end
+						end
+					end)
+				end)
+			end
+		end
 
 		task.defer(function()
 			container.CanvasPosition = Vector2.new(0, math.max(0, container.AbsoluteCanvasSize.Y - container.AbsoluteWindowSize.Y))
 		end)
+
+		return count
 	end
+
+	-- Initial backfill attempt
+	local initialCount = backfillChatHistory()
+
+	-- Asynchronous watcher if chat GUI initializes slightly later
+	task.spawn(function()
+		local attempts = 0
+		while attempts < 15 and initialCount == 0 do
+			task.wait(0.5)
+			attempts += 1
+			initialCount = backfillChatHistory()
+			if initialCount > 0 then
+				break
+			end
+		end
+	end)
 
 	-- ── Dragging & Full-Screen Boundaries Handlers ────────────────────
 	local dragging = false
@@ -1288,6 +1489,14 @@ function ChatWidget.new(): ChatWidgetInstance
 		if not useLegacyChat then
 			pcall(function()
 				local ch = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+				if not ch then
+					for _, c in ipairs(TextChatService.TextChannels:GetChildren()) do
+						if c:IsA("TextChannel") and c.Name ~= "RBXSystem" then
+							ch = c
+							break
+						end
+					end
+				end
 				if ch then
 					ch:SendAsync(msg)
 					sent = true
@@ -1312,6 +1521,7 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	-- Slash key opens & focuses chat input with smooth animation
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if not isWidgetEnabled then return end
 		if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Slash then
 			if not isOpen then
 				openWidget(function()
@@ -1337,15 +1547,45 @@ function ChatWidget.new(): ChatWidgetInstance
 	-- ── Single Incoming Message Hook ─────────────────────────────────
 	if not useLegacyChat then
 		pcall(function()
-			TextChatService.OnIncomingMessage = function(msg)
-				if not msg.TextSource then return end
-				-- Ignore initial Sending state to prevent duplicate with local echo/server delivery
+			TextChatService.MessageReceived:Connect(function(msg)
+				if not msg.TextSource then
+					if msg.Text and msg.Text ~= "" then
+						addMessage("System", msg.Text, msg.MessageId)
+					end
+					return
+				end
 				if msg.Status == Enum.TextChatMessageStatus.Sending then
 					return
 				end
 				local player = Players:GetPlayerByUserId(msg.TextSource.UserId)
-				local name = if player then (player.DisplayName ~= "" and player.DisplayName or player.Name) else "Server"
+				local name = if player then (player.DisplayName ~= "" and player.DisplayName or player.Name) else (msg.PrefixText ~= "" and msg.PrefixText:gsub(":$","") or "Server")
 				addMessage(name, msg.Text, msg.MessageId)
+			end)
+		end)
+
+		pcall(function()
+			local tc = TextChatService:FindFirstChild("TextChannels")
+			if tc then
+				local function hookChannel(ch: Instance)
+					if ch:IsA("TextChannel") then
+						ch.MessageReceived:Connect(function(msg)
+							if not msg.TextSource then
+								if msg.Text and msg.Text ~= "" then
+									addMessage("System", msg.Text, msg.MessageId)
+								end
+								return
+							end
+							if msg.Status == Enum.TextChatMessageStatus.Sending then return end
+							local player = Players:GetPlayerByUserId(msg.TextSource.UserId)
+							local name = if player then (player.DisplayName ~= "" and player.DisplayName or player.Name) else "Server"
+							addMessage(name, msg.Text, msg.MessageId)
+						end)
+					end
+				end
+				for _, ch in ipairs(tc:GetChildren()) do
+					hookChannel(ch)
+				end
+				tc.ChildAdded:Connect(hookChannel)
 			end
 		end)
 	else
@@ -1373,6 +1613,7 @@ function ChatWidget.new(): ChatWidgetInstance
 		UiScale = uiScale,
 		IsMinimized = false,
 		Visible = true,
+		IsEnabled = true,
 		IsOpen = function() return isOpen end,
 		Open = openWidget,
 		Close = closeWidget,

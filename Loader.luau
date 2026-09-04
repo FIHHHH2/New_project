@@ -78,7 +78,7 @@ Modules["UI/Animations.luau"] = function()
     	local dur = if config and config.duration ~= nil then config.duration else 0.15
     	local style = if config and config.easingStyle ~= nil then config.easingStyle else Enum.EasingStyle.Quad
     	local dir = if config and config.easingDirection ~= nil then config.easingDirection else Enum.EasingDirection.Out
-	
+
     	local tweenInfo = TweenInfo.new(dur, style, dir)
     	local tween = TweenService:Create(instance, tweenInfo, properties)
     	tween:Play()
@@ -591,9 +591,9 @@ Modules["UI/UI.luau"] = function()
     	UI.CurrentTheme = targetTheme
     	UI.Theme = targetTheme
     	UI.saveTheme(themeName)
-	
+
     	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	
+
     	for inst, propMap in pairs(UI.RegisteredElements) do
     		if inst and inst.Parent then
     			for pt in pairs(propMap) do
@@ -1464,7 +1464,7 @@ Modules["UI/Notification.luau"] = function()
     		notifGui.ResetOnSpawn = false
     		notifGui.DisplayOrder = 9999
     		notifGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		
+
     		pcall(function()
     			notifGui.Parent = CoreGui
     		end)
@@ -1487,7 +1487,7 @@ Modules["UI/Notification.luau"] = function()
     function Notification.show(title: string, message: string, duration: number?)
     	local gui = getNotificationGui()
     	local displayTime = duration or 3.8
-	
+
     	local card = Instance.new("Frame")
     	card.Name = "NotificationCard"
     	card.Size = UDim2.new(0, 260, 0, 74)
@@ -1498,7 +1498,7 @@ Modules["UI/Notification.luau"] = function()
     	card.ClipsDescendants = false
     	card.Parent = gui
     	UI.registerThemeElement(card, "Background")
-	
+
     	local bgGradient = Instance.new("UIGradient")
     	bgGradient.Rotation = 90
     	bgGradient.Color = ColorSequence.new({
@@ -1521,7 +1521,7 @@ Modules["UI/Notification.luau"] = function()
     	local cardScale = Instance.new("UIScale")
     	cardScale.Scale = 0.92
     	cardScale.Parent = card
-	
+
     	-- Inset Topbar
     	local topbar = Instance.new("Frame")
     	topbar.Name = "TopBar"
@@ -1547,7 +1547,7 @@ Modules["UI/Notification.luau"] = function()
     	topStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     	topStroke.Parent = topbar
     	UI.registerThemeElement(topStroke, "Border")
-	
+
     	local topTitle = Instance.new("TextLabel")
     	topTitle.Size = UDim2.new(1, -44, 1, 0)
     	topTitle.Position = UDim2.new(0, 6, 0, 0)
@@ -1559,7 +1559,7 @@ Modules["UI/Notification.luau"] = function()
     	topTitle.TextXAlignment = Enum.TextXAlignment.Left
     	topTitle.Parent = topbar
     	UI.registerThemeElement(topTitle, "TextPrimary")
-	
+
     	-- topbar icons: [-] and [□]
     	local minIcon = Instance.new("TextLabel")
     	minIcon.Size = UDim2.new(0, 14, 1, 0)
@@ -1571,7 +1571,7 @@ Modules["UI/Notification.luau"] = function()
     	minIcon.TextSize = 11
     	minIcon.Parent = topbar
     	UI.registerThemeElement(minIcon, "TextPrimary")
-	
+
     	local sqIcon = Instance.new("TextLabel")
     	sqIcon.Size = UDim2.new(0, 14, 1, 0)
     	sqIcon.Position = UDim2.new(1, -16, 0, 0)
@@ -1582,7 +1582,7 @@ Modules["UI/Notification.luau"] = function()
     	sqIcon.TextSize = 11
     	sqIcon.Parent = topbar
     	UI.registerThemeElement(sqIcon, "TextPrimary")
-	
+
     	-- message body
     	local bodyLabel = Instance.new("TextLabel")
     	bodyLabel.Name = "Message"
@@ -1596,10 +1596,10 @@ Modules["UI/Notification.luau"] = function()
     	bodyLabel.TextXAlignment = Enum.TextXAlignment.Center
     	bodyLabel.Parent = card
     	UI.registerThemeElement(bodyLabel, "TextPrimary")
-	
+
     	table.insert(activeCards, 1, card)
     	repositionCards()
-	
+
     	-- Slide in from right with snappy deceleration (0.94 -> 1.0)
     	card.Position = UDim2.new(1, 40, 1, -20 - 80)
     	TweenService:Create(cardScale, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -1608,7 +1608,7 @@ Modules["UI/Notification.luau"] = function()
     	TweenService:Create(card, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
     		Position = UDim2.new(1, -280, 1, -20 - 80)
     	}):Play()
-	
+
     	task.delay(displayTime, function()
     		if card and card.Parent then
     			local idx = table.find(activeCards, card)
@@ -1616,7 +1616,7 @@ Modules["UI/Notification.luau"] = function()
     				table.remove(activeCards, idx)
     			end
     			repositionCards()
-			
+
     			TweenService:Create(cardScale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
     				Scale = 0.94
     			}):Play()
@@ -1939,6 +1939,7 @@ Modules["UI/PlayerList.luau"] = function()
     	local isOpen = true
     	local isTransitioning = false
     	local isPopupOpen = false
+    	local isWidgetEnabled = true
 
     	-- Forward declare closeContextMenu
     	local closeContextMenu: () -> ()
@@ -1975,6 +1976,7 @@ Modules["UI/PlayerList.luau"] = function()
     	end
 
     	local function toggleWidget(selfOrOnComplete: any, maybeOnComplete: any)
+    		if not isWidgetEnabled then return end
     		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
     		if isOpen then
     			closeWidget(onComplete)
@@ -1985,6 +1987,8 @@ Modules["UI/PlayerList.luau"] = function()
 
     	local function setWidgetVisible(selfOrVal: any, maybeVal: any)
     		local v = if type(selfOrVal) == "boolean" then selfOrVal elseif type(maybeVal) == "boolean" then maybeVal else true
+    		isWidgetEnabled = v
+    		if widgetObj then widgetObj.IsEnabled = v end
     		if v then
     			openWidget()
     		else
@@ -2463,6 +2467,7 @@ Modules["UI/PlayerList.luau"] = function()
     		UiScale = uiScale,
     		IsMinimized = false,
     		Visible = true,
+    		IsEnabled = true,
     		IsOpen = function() return isOpen end,
     		Open = openWidget,
     		Close = closeWidget,
@@ -2535,12 +2540,20 @@ Modules["UI/ChatWidget.luau"] = function()
     		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
     	end
 
-    	-- Disable default Roblox CoreGuis cleanly
+    	-- Disable default Roblox CoreGuis cleanly while keeping Chat tree active for message tracking
     	local function disableRobloxCoreGuis()
     		pcall(function()
-    			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
     			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
     			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, false)
+    			local expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
+    			if expChat and expChat:IsA("ScreenGui") then
+    				expChat.Enabled = false
+    			end
+    			local pgui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+    			local legacyChat = pgui and pgui:FindFirstChild("Chat")
+    			if legacyChat and legacyChat:IsA("ScreenGui") then
+    				legacyChat.Enabled = false
+    			end
     		end)
     	end
     	disableRobloxCoreGuis()
@@ -3162,6 +3175,7 @@ Modules["UI/ChatWidget.luau"] = function()
     	local isTransitioning = false
     	local isProfileOpen = false
     	local isQuickOpen = false
+    	local isWidgetEnabled = true
 
     	local closeProfilePopup: () -> ()
     	local closeQuickPopup: () -> ()
@@ -3192,6 +3206,7 @@ Modules["UI/ChatWidget.luau"] = function()
     	end
 
     	local function toggleWidget(selfOrOnComplete: any, maybeOnComplete: any)
+    		if not isWidgetEnabled then return end
     		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
     		if isOpen then
     			closeWidget(onComplete)
@@ -3202,6 +3217,7 @@ Modules["UI/ChatWidget.luau"] = function()
 
     	local function setWidgetVisible(selfOrVal: any, maybeVal: any)
     		local v = if type(selfOrVal) == "boolean" then selfOrVal elseif type(maybeVal) == "boolean" then maybeVal else true
+    		isWidgetEnabled = v
     		if v then
     			openWidget()
     		else
@@ -3358,6 +3374,7 @@ Modules["UI/ChatWidget.luau"] = function()
     	end
 
     	createPopAction("Teleport To", 1, function(target)
+    		if not target or not target.Parent then return end
     		local myChar = Players.LocalPlayer.Character
     		local tChar = target.Character
     		if myChar and tChar and myChar:FindFirstChild("HumanoidRootPart") and tChar:FindFirstChild("HumanoidRootPart") then
@@ -3369,6 +3386,7 @@ Modules["UI/ChatWidget.luau"] = function()
 
     	local isSpying = false
     	createPopAction("Spectate / Spy", 2, function(target)
+    		if not target or not target.Parent then return end
     		isSpying = not isSpying
     		local cam = workspace.CurrentCamera
     		if not cam then return end
@@ -3383,24 +3401,28 @@ Modules["UI/ChatWidget.luau"] = function()
     	end)
 
     	createPopAction("Add Friend", 3, function(target)
+    		if not target or not target.Parent then return end
     		pcall(function()
     			StarterGui:SetCore("PromptSendFriendRequest", target)
     		end)
     	end)
 
     	createPopAction("Block Player", 4, function(target)
+    		if not target or not target.Parent then return end
     		pcall(function()
     			StarterGui:SetCore("PromptBlockPlayer", target)
     		end)
     	end)
 
     	createPopAction("Report Player", 5, function(target)
+    		if not target or not target.Parent then return end
     		pcall(function()
     			StarterGui:SetCore("PromptReportPlayer", target)
     		end)
     	end)
 
     	createPopAction("Copy Username", 6, function(target)
+    		if not target or not target.Parent then return end
     		local setclip = setclipboard or (getgenv and getgenv().setclipboard) or toclipboard
     		if type(setclip) == "function" then
     			setclip(target.Name)
@@ -3408,11 +3430,20 @@ Modules["UI/ChatWidget.luau"] = function()
     	end)
 
     	local function openPlayerProfile(player: Player, clickPos: Vector2)
+    		if not player or not player.Parent then return end
     		activeSelectedPlayer = player
     		popTitle.Text = player.DisplayName
     		popUser.Text = "@" .. player.Name
-    		popAvatar.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
-		
+    		popAvatar.Image = ""
+    		task.spawn(function()
+    			local ok, thumb = pcall(function()
+    				return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
+    			end)
+    			if ok and thumb and activeSelectedPlayer == player and popAvatar.Parent then
+    				popAvatar.Image = thumb
+    			end
+    		end)
+
     		local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
     		local x = math.clamp(clickPos.X, 8, math.max(8, vp.X - 198))
     		local y = math.clamp(clickPos.Y, 8, math.max(8, vp.Y - 248))
@@ -3465,15 +3496,14 @@ Modules["UI/ChatWidget.luau"] = function()
     	quickPopHeader.Parent = quickPopup
     	UI.registerThemeElement(quickPopHeader, "Container")
 
-    	local quickHeadStroke = Instance.new("UIStroke")
-    	quickHeadStroke.Color = UI.Theme.Border
-    	quickHeadStroke.Thickness = 1
-    	quickHeadStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    	quickHeadStroke.Parent = quickPopHeader
-    	UI.registerThemeElement(quickHeadStroke, "Border")
+    	local quickPopHeadStroke = Instance.new("UIStroke")
+    	quickPopHeadStroke.Color = UI.Theme.Border
+    	quickPopHeadStroke.Thickness = 0.8
+    	quickPopHeadStroke.Parent = quickPopHeader
+    	UI.registerThemeElement(quickPopHeadStroke, "Border")
 
     	local quickHeadLabel = Instance.new("TextLabel")
-    	quickHeadLabel.Size = UDim2.new(1, -24, 1, 0)
+    	quickHeadLabel.Size = UDim2.new(1, -26, 1, 0)
     	quickHeadLabel.Position = UDim2.new(0, 6, 0, 0)
     	quickHeadLabel.BackgroundTransparency = 1
     	quickHeadLabel.Text = "Quick Phrases"
@@ -3601,7 +3631,7 @@ Modules["UI/ChatWidget.luau"] = function()
     	end)
 
     	-- ── Message Line Constructor (With Robust Deduplication + Profile Hook + Slide Animation) ──
-    	local MAX_CHAT_HISTORY = 100
+    	local MAX_CHAT_HISTORY = 150
     	local chatHistory: {TextButton} = {}
     	local seenMessageMap: {[string]: number} = {}
     	local lastPruneTime = tick()
@@ -3617,14 +3647,14 @@ Modules["UI/ChatWidget.luau"] = function()
     		end
     	end
 
-    	local function addMessage(sender: string, text: string, msgId: string?)
+    	local function addMessage(sender: string, text: string, msgId: string?, isHistorical: boolean?)
     		if not text or text == "" then return end
     		local now = tick()
     		pruneSeenMessages()
 
     		-- Message ID deduplication
     		if msgId and msgId ~= "" then
-    			if seenMessageMap[msgId] and (now - seenMessageMap[msgId] < 8) then
+    			if seenMessageMap[msgId] and (now - seenMessageMap[msgId] < 15) then
     				return
     			end
     			seenMessageMap[msgId] = now
@@ -3632,12 +3662,12 @@ Modules["UI/ChatWidget.luau"] = function()
 
     		-- Content + Sender deduplication window (prevents duplicate local echo / server echo)
     		local dedupeKey = string.format("%s:%s", sender, text)
-    		if seenMessageMap[dedupeKey] and (now - seenMessageMap[dedupeKey] < 0.9) then
+    		if not isHistorical and seenMessageMap[dedupeKey] and (now - seenMessageMap[dedupeKey] < 0.9) then
     			return
     		end
     		seenMessageMap[dedupeKey] = now
 
-    		local isSystem = (sender == "System")
+    		local isSystem = (sender == "System" or sender == "Server")
     		local targetPlayer: Player? = nil
     		if not isSystem then
     			for _, p in ipairs(Players:GetPlayers()) do
@@ -3651,12 +3681,12 @@ Modules["UI/ChatWidget.luau"] = function()
     		local msgBtn = Instance.new("TextButton")
     		msgBtn.Name = "MessageLine"
     		msgBtn.Size = UDim2.new(1, -8, 0, 0)
-    		msgBtn.Position = UDim2.new(0, 16, 0, 0)
+    		msgBtn.Position = if isHistorical then UDim2.new(0, 0, 0, 0) else UDim2.new(0, 16, 0, 0)
     		msgBtn.AutomaticSize = Enum.AutomaticSize.Y
     		msgBtn.BackgroundTransparency = 1
     		msgBtn.RichText = true
     		msgBtn.TextWrapped = true
-    		msgBtn.TextTransparency = 1
+    		msgBtn.TextTransparency = if isHistorical then 0 else 1
     		msgBtn.Font = UI.Fonts.Body
     		msgBtn.TextSize = 11
     		msgBtn.TextXAlignment = Enum.TextXAlignment.Left
@@ -3679,25 +3709,201 @@ Modules["UI/ChatWidget.luau"] = function()
     		local cleanMsg = text:gsub("<", "&lt;"):gsub(">", "&gt;")
     		msgBtn.Text = string.format("<font color='%s'><b>%s:</b></font> %s", senderHex, cleanName, cleanMsg)
 
-    		if targetPlayer then
+    		if not isSystem then
     			msgBtn.MouseButton1Click:Connect(function()
-    				local mousePos = UserInputService:GetMouseLocation()
-    				openPlayerProfile(targetPlayer :: Player, mousePos)
+    				local resolvedPlayer = targetPlayer
+    				if not resolvedPlayer or not resolvedPlayer.Parent then
+    					for _, p in ipairs(Players:GetPlayers()) do
+    						if p.Name == sender or p.DisplayName == sender then
+    							resolvedPlayer = p
+    							break
+    						end
+    					end
+    				end
+    				if resolvedPlayer and resolvedPlayer.Parent then
+    					local mousePos = UserInputService:GetMouseLocation()
+    					openPlayerProfile(resolvedPlayer, mousePos)
+    				end
     			end)
     		end
 
-    		-- Domino slide-in & text fade
-    		TweenService:Create(msgBtn, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-    			Position = UDim2.new(0, 0, 0, 0)
-    		}):Play()
-    		TweenService:Create(msgBtn, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-    			TextTransparency = 0
-    		}):Play()
+    		if not isHistorical then
+    			-- Domino slide-in & text fade
+    			TweenService:Create(msgBtn, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+    				Position = UDim2.new(0, 0, 0, 0)
+    			}):Play()
+    			TweenService:Create(msgBtn, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    				TextTransparency = 0
+    			}):Play()
+
+    			task.defer(function()
+    				container.CanvasPosition = Vector2.new(0, math.max(0, container.AbsoluteCanvasSize.Y - container.AbsoluteWindowSize.Y))
+    			end)
+    		end
+    	end
+
+    	-- ── Universal Chat History Tracker & Backfill Engine ─────────────
+    	local function extractFromExperienceChatItem(item: Instance): (string, string)
+    		local prefixLabel = item:FindFirstChild("PrefixText", true)
+    		local bodyLabel = item:FindFirstChild("BodyText", true)
+    		local sender = "System"
+    		local message = ""
+
+    		if prefixLabel and prefixLabel:IsA("TextLabel") and prefixLabel.Text ~= "" then
+    			local cleanPfx = prefixLabel.Text:gsub("<[^>]+>", ""):gsub(":$", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    			if cleanPfx ~= "" then
+    				sender = cleanPfx
+    			end
+    		end
+
+    		if bodyLabel and bodyLabel:IsA("TextLabel") and bodyLabel.Text ~= "" then
+    			message = bodyLabel.Text:gsub("<[^>]+>", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    			if sender ~= "System" and message:sub(1, #sender) == sender then
+    				message = message:sub(#sender + 1):gsub("^:%s*", ""):gsub("^%s+", "")
+    			end
+    		end
+
+    		return sender, message
+    	end
+
+    	local function extractFromLegacyChatItem(item: Instance): (string, string)
+    		local nameBtn = item:FindFirstChildWhichIsA("TextButton", true)
+    		local textLabel = item:FindFirstChildWhichIsA("TextLabel", true)
+    		local sender = "System"
+    		local message = ""
+
+    		if nameBtn and nameBtn.Text ~= "" then
+    			sender = nameBtn.Text:gsub("<[^>]+>", ""):gsub("[:%[%]%s]+", "")
+    		end
+
+    		if textLabel and textLabel.Text ~= "" then
+    			local fullText = textLabel.Text:gsub("<[^>]+>", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    			if sender ~= "System" and fullText:find(sender, 1, true) then
+    				local afterSender = fullText:gsub("^.-" .. sender .. "[%]:%s]*", "")
+    				message = afterSender
+    			else
+    				local matchSender, matchMsg = fullText:match("^%[?([%w_]+)%]?%s*:%s*(.+)$")
+    				if matchSender and matchMsg then
+    					sender = matchSender
+    					message = matchMsg
+    				else
+    					message = fullText
+    				end
+    			end
+    		elseif nameBtn and nameBtn.Text ~= "" then
+    			message = nameBtn.Text
+    		end
+
+    		return sender, message
+    	end
+
+    	local function backfillChatHistory(): number
+    		local count = 0
+
+    		-- 1. Modern ExperienceChat (CoreGui or PlayerGui)
+    		local expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
+    		if expChat then
+    			local sv = expChat:FindFirstChild("scrollView", true)
+    			if not sv then
+    				pcall(function()
+    					StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, true)
+    				end)
+    				task.wait(0.05)
+    				expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
+    				sv = expChat and expChat:FindFirstChild("scrollView", true)
+    				if expChat and expChat:IsA("ScreenGui") then
+    					expChat.Enabled = false
+    				end
+    			end
+    			if sv and sv:IsA("ScrollingFrame") then
+    				local children = sv:GetChildren()
+    				table.sort(children, function(a, b)
+    					local oa = a:IsA("GuiObject") and a.LayoutOrder or 0
+    					local ob = b:IsA("GuiObject") and b.LayoutOrder or 0
+    					return oa < ob
+    				end)
+    				for _, item in ipairs(children) do
+    					if item:IsA("GuiObject") then
+    						local s, m = extractFromExperienceChatItem(item)
+    						if m ~= "" then
+    							addMessage(s, m, item.Name, true)
+    							count += 1
+    						end
+    					end
+    				end
+
+    				-- Hook future children added to scrollView
+    				sv.ChildAdded:Connect(function(child)
+    					task.defer(function()
+    						if child and child.Parent and child:IsA("GuiObject") then
+    							local s, m = extractFromExperienceChatItem(child)
+    							if m ~= "" then
+    								addMessage(s, m, child.Name)
+    							end
+    						end
+    					end)
+    				end)
+    			end
+    		end
+
+    		-- 2. Legacy Chat (PlayerGui.Chat)
+    		local pGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+    		local legacyChat = pGui and pGui:FindFirstChild("Chat")
+    		if legacyChat then
+    			local scroller = legacyChat:FindFirstChild("Scroller", true)
+    			if scroller and scroller:IsA("ScrollingFrame") then
+    				local children = scroller:GetChildren()
+    				table.sort(children, function(a, b)
+    					local oa = a:IsA("GuiObject") and a.LayoutOrder or 0
+    					local ob = b:IsA("GuiObject") and b.LayoutOrder or 0
+    					return oa < ob
+    				end)
+    				for _, item in ipairs(children) do
+    					if item:IsA("GuiObject") then
+    						local s, m = extractFromLegacyChatItem(item)
+    						if m ~= "" then
+    							addMessage(s, m, item.Name, true)
+    							count += 1
+    						end
+    					end
+    				end
+
+    				-- Hook future children added to scroller
+    				scroller.ChildAdded:Connect(function(child)
+    					task.defer(function()
+    						if child and child.Parent and child:IsA("GuiObject") then
+    							local s, m = extractFromLegacyChatItem(child)
+    							if m ~= "" then
+    								addMessage(s, m, child.Name)
+    							end
+    						end
+    					end)
+    				end)
+    			end
+    		end
 
     		task.defer(function()
     			container.CanvasPosition = Vector2.new(0, math.max(0, container.AbsoluteCanvasSize.Y - container.AbsoluteWindowSize.Y))
     		end)
+
+    		return count
     	end
+
+    	-- Initial backfill attempt
+    	local initialCount = backfillChatHistory()
+
+    	-- Asynchronous watcher if chat GUI initializes slightly later
+    	task.spawn(function()
+    		local attempts = 0
+    		while attempts < 15 and initialCount == 0 do
+    			task.wait(0.5)
+    			attempts += 1
+    			initialCount = backfillChatHistory()
+    			if initialCount > 0 then
+    				break
+    			end
+    		end
+    	end)
 
     	-- ── Dragging & Full-Screen Boundaries Handlers ────────────────────
     	local dragging = false
@@ -3770,6 +3976,14 @@ Modules["UI/ChatWidget.luau"] = function()
     		if not useLegacyChat then
     			pcall(function()
     				local ch = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+    				if not ch then
+    					for _, c in ipairs(TextChatService.TextChannels:GetChildren()) do
+    						if c:IsA("TextChannel") and c.Name ~= "RBXSystem" then
+    							ch = c
+    							break
+    						end
+    					end
+    				end
     				if ch then
     					ch:SendAsync(msg)
     					sent = true
@@ -3794,6 +4008,7 @@ Modules["UI/ChatWidget.luau"] = function()
 
     	-- Slash key opens & focuses chat input with smooth animation
     	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    		if not isWidgetEnabled then return end
     		if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Slash then
     			if not isOpen then
     				openWidget(function()
@@ -3819,15 +4034,45 @@ Modules["UI/ChatWidget.luau"] = function()
     	-- ── Single Incoming Message Hook ─────────────────────────────────
     	if not useLegacyChat then
     		pcall(function()
-    			TextChatService.OnIncomingMessage = function(msg)
-    				if not msg.TextSource then return end
-    				-- Ignore initial Sending state to prevent duplicate with local echo/server delivery
+    			TextChatService.MessageReceived:Connect(function(msg)
+    				if not msg.TextSource then
+    					if msg.Text and msg.Text ~= "" then
+    						addMessage("System", msg.Text, msg.MessageId)
+    					end
+    					return
+    				end
     				if msg.Status == Enum.TextChatMessageStatus.Sending then
     					return
     				end
     				local player = Players:GetPlayerByUserId(msg.TextSource.UserId)
-    				local name = if player then (player.DisplayName ~= "" and player.DisplayName or player.Name) else "Server"
+    				local name = if player then (player.DisplayName ~= "" and player.DisplayName or player.Name) else (msg.PrefixText ~= "" and msg.PrefixText:gsub(":$","") or "Server")
     				addMessage(name, msg.Text, msg.MessageId)
+    			end)
+    		end)
+
+    		pcall(function()
+    			local tc = TextChatService:FindFirstChild("TextChannels")
+    			if tc then
+    				local function hookChannel(ch: Instance)
+    					if ch:IsA("TextChannel") then
+    						ch.MessageReceived:Connect(function(msg)
+    							if not msg.TextSource then
+    								if msg.Text and msg.Text ~= "" then
+    									addMessage("System", msg.Text, msg.MessageId)
+    								end
+    								return
+    							end
+    							if msg.Status == Enum.TextChatMessageStatus.Sending then return end
+    							local player = Players:GetPlayerByUserId(msg.TextSource.UserId)
+    							local name = if player then (player.DisplayName ~= "" and player.DisplayName or player.Name) else "Server"
+    							addMessage(name, msg.Text, msg.MessageId)
+    						end)
+    					end
+    				end
+    				for _, ch in ipairs(tc:GetChildren()) do
+    					hookChannel(ch)
+    				end
+    				tc.ChildAdded:Connect(hookChannel)
     			end
     		end)
     	else
@@ -3855,6 +4100,7 @@ Modules["UI/ChatWidget.luau"] = function()
     		UiScale = uiScale,
     		IsMinimized = false,
     		Visible = true,
+    		IsEnabled = true,
     		IsOpen = function() return isOpen end,
     		Open = openWidget,
     		Close = closeWidget,
@@ -4611,8 +4857,10 @@ Modules["UI/MusicTracker.luau"] = function()
     	end)
 
     	-- ── Shortcuts: Ctrl + Alt + Left Click (Skip), Right Click (Replay / Go Back), Middle Click / Space (Play / Pause) ───
+    	local isWidgetEnabled = true
     	local lastShortcutTick = 0
     	UserInputService.InputBegan:Connect(function(input, gp)
+    		if not isWidgetEnabled then return end
     		local focused = UserInputService:GetFocusedTextBox()
     		if focused then return end
 
@@ -4957,6 +5205,7 @@ Modules["UI/MusicTracker.luau"] = function()
     		elseif type(maybeVal) == "boolean" then
     			v = maybeVal
     		end
+    		isWidgetEnabled = v
 
     		if v then
     			openWidget()
@@ -4969,15 +5218,18 @@ Modules["UI/MusicTracker.luau"] = function()
     		closeWidget()
     	end)
 
-    	return {
+    	local widgetObj: any = nil
+    	widgetObj = {
     		Frame = widget,
     		UiScale = uiScale,
+    		IsEnabled = true,
     		IsOpen = function() return isOpen end,
     		Open = openWidget,
     		Close = closeWidget,
     		SetVisible = setWidgetVisible,
     		Toggle = toggleWidget
     	}
+    	return widgetObj
     end
 
     return MusicTracker
@@ -6087,8 +6339,11 @@ Modules["UI/Hotbar.luau"] = function()
     		slotFrames[i] = slotBtn
     	end
 
+    	local isHotbarEnabled = true
+
     	-- ── 9. Dedicated Hamburger [ ≡ INV ] Button on Toolbar ────────────
     	local function toggleBackpack()
+    		if not isHotbarEnabled then return end
     		isBackpackOpen = not isBackpackOpen
     		bpWindow.Visible = isBackpackOpen
     		if isBackpackOpen then
@@ -6179,6 +6434,7 @@ Modules["UI/Hotbar.luau"] = function()
 
     	-- Keybinds for 1-0 hotbar selection and ` for inventory
     	table.insert(activeConnections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    		if not isHotbarEnabled then return end
     		if gameProcessed then return end
     		if input.UserInputType == Enum.UserInputType.Keyboard then
     			for slotNum, key in ipairs(KEYCODES) do
@@ -6396,13 +6652,20 @@ Modules["UI/Hotbar.luau"] = function()
     		updateHotbarVisuals()
     	end)
 
-    	local widgetObj: HotbarWidget = {
+    	local widgetObj: any = nil
+    	widgetObj = {
     		HotbarFrame = hotbarFrame,
     		BackpackWindow = bpWindow,
+    		IsEnabled = true,
     		SetVisible = function(selfOrVal: any, maybeVal: any)
     			local val = if typeof(selfOrVal) == "boolean" then selfOrVal else maybeVal
+    			isHotbarEnabled = val
+    			if widgetObj then widgetObj.IsEnabled = val end
     			hotbarFrame.Visible = val
-    			if not val then bpWindow.Visible = false end
+    			if not val then
+    				isBackpackOpen = false
+    				bpWindow.Visible = false
+    			end
     		end,
     		ToggleBackpack = toggleBackpack,
     		IsOpen = function() return isBackpackOpen end,
@@ -8583,7 +8846,10 @@ Modules["UI/EmotesWidget.luau"] = function()
     	end)
 
     	local isOpen = true
+    	local isWidgetEnabled = true
+
     	local function openWidget()
+    		if not isWidgetEnabled then return end
     		isOpen = true
     		widget.Visible = true
     		Animations.popIn(widget, uiScale)
@@ -8597,6 +8863,7 @@ Modules["UI/EmotesWidget.luau"] = function()
     	end
 
     	local function toggleWidget()
+    		if not isWidgetEnabled then return end
     		if isOpen and widget.Visible then
     			closeWidget()
     		else
@@ -8606,9 +8873,11 @@ Modules["UI/EmotesWidget.luau"] = function()
 
     	closeBtn.MouseButton1Click:Connect(closeWidget)
 
-    	local widgetObj: EmotesWidgetInstance = {
+    	local widgetObj: any = nil
+    	widgetObj = {
     		Frame = widget,
     		ScreenGui = screenGui,
+    		IsEnabled = true,
     		PlayEmote = function(item: EmoteItem)
     			return playRawAnimation(item.r15Id, item.name, item.isLooped, item.defaultSpeed)
     		end,
@@ -8622,6 +8891,8 @@ Modules["UI/EmotesWidget.luau"] = function()
     		SetVisible = function(selfOrVal: any, maybeVal: any)
     			local vis = if typeof(selfOrVal) == "boolean" then selfOrVal else maybeVal
     			if typeof(vis) ~= "boolean" then vis = true end
+    			isWidgetEnabled = vis
+    			if widgetObj then widgetObj.IsEnabled = vis end
     			if vis then openWidget() else closeWidget() end
     		end,
     		Cleanup = function()
@@ -8945,7 +9216,7 @@ Modules["Core/FeatureManager.luau"] = function()
     local function deleteConfigFile(name: string): boolean
     	ensureFolders()
     	local cleanName = name:gsub("^FihSuiteConfigs", ""):gsub("%.json$", "")
-	
+
     	configsIndex[cleanName] = nil
     	configsIndex[name] = nil
     	deletedConfigsSet[cleanName] = true
@@ -9010,9 +9281,9 @@ Modules["Core/FeatureManager.luau"] = function()
     			return
     		end
     	end
-	
+
     	if gameProcessed then return end
-	
+
     	if input.UserInputType == Enum.UserInputType.Keyboard then
     		local matching = keybindMap[input.KeyCode]
     		if matching then
@@ -9050,14 +9321,14 @@ Modules["Core/FeatureManager.luau"] = function()
     	}
     	registeredFeatures[id] = record
     	rebuildKeybindMap()
-	
+
     	task.spawn(function()
     		local success, err = pcall(callback, defaultState)
     		if not success then
     			warn(string.format("[FeatureManager] error initializing feature %s: %s", id, tostring(err)))
     		end
     	end)
-	
+
     	return record
     end
 
@@ -9110,7 +9381,7 @@ Modules["Core/FeatureManager.luau"] = function()
     	local feat = registeredFeatures[id]
     	if not feat then return end
     	if feat.state == state then return end
-	
+
     	feat.state = state
     	if feat.onStateChanged then feat.onStateChanged(state) end
     	if feat.stateListeners then
@@ -9342,7 +9613,7 @@ Modules["Core/CoreUI.luau"] = function()
 
     function CoreUI.new(titleText: string)
     	local self = setmetatable({}, CoreUI)
-	
+
     	pcall(function()
     		local containers = {
     			(type(gethui) == "function" and gethui()),
@@ -9366,12 +9637,12 @@ Modules["Core/CoreUI.luau"] = function()
     	screenGui.ResetOnSpawn = false
     	screenGui.IgnoreGuiInset = true
     	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	
+
     	safeParentGui(screenGui)
-	
+
     	local mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale = UI.createWindow(titleText)
     	mainFrame.Parent = screenGui
-	
+
     	self.ScreenGui = screenGui
     	self.MainFrame = mainFrame
     	self.Sidebar = sidebar
@@ -9390,7 +9661,7 @@ Modules["Core/CoreUI.luau"] = function()
     	self.ActiveToggles = {}
     	self.SliderFills = {}
     	self.SubTabGroups = {}
-	
+
     	-- Wire toggle click handlers for Settings and Configs
     	if self.SettingsBtn then
     		self.SettingsBtn.MouseButton1Click:Connect(function()
@@ -9419,7 +9690,7 @@ Modules["Core/CoreUI.luau"] = function()
     	UI.onThemeChanged(function(targetTheme)
     		self:UpdateTheme(targetTheme)
     	end)
-	
+
     	return self
     end
 
@@ -9509,7 +9780,7 @@ Modules["Core/CoreUI.luau"] = function()
     	tabButton.Parent = self.Sidebar
     	UI.registerThemeElement(tabButton, "Container")
     	UI.registerThemeElement(tabButton, "TextSecondary")
-	
+
     	-- Active tab gradient overlay
     	local tabGrad = Instance.new("UIGradient")
     	tabGrad.Name = "ActiveGradient"
@@ -9520,14 +9791,14 @@ Modules["Core/CoreUI.luau"] = function()
     	})
     	tabGrad.Enabled = false
     	tabGrad.Parent = tabButton
-	
+
     	local tabStroke = Instance.new("UIStroke")
     	tabStroke.Color = UI.Theme.Border
     	tabStroke.Thickness = 1.5
     	tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     	tabStroke.Parent = tabButton
     	UI.registerThemeElement(tabStroke, "Border")
-	
+
     	local tabContent = Instance.new("ScrollingFrame")
     	tabContent.Name = name .. "Page"
     	tabContent.Size = UDim2.new(1, 0, 1, 0)
@@ -9548,12 +9819,12 @@ Modules["Core/CoreUI.luau"] = function()
     	pad.PaddingTop = UDim.new(0, 2)
     	pad.PaddingBottom = UDim.new(0, 12)
     	pad.Parent = tabContent
-	
+
     	local layout = Instance.new("UIListLayout")
     	layout.Padding = UDim.new(0, 10)
     	layout.SortOrder = Enum.SortOrder.LayoutOrder
     	layout.Parent = tabContent
-	
+
     	local tabObj = {
     		Name = name,
     		Button = tabButton,
@@ -9564,7 +9835,7 @@ Modules["Core/CoreUI.luau"] = function()
     		IsVisible = not (isHiddenFromSidebar or false),
     		OnVisibilityChanged = nil
     	}
-	
+
     	tabButton.MouseEnter:Connect(function()
     		if self.ActiveTab ~= tabObj then
     			if tabStroke then TweenService:Create(tabStroke, TweenInfo.new(0.12), { Thickness = 2 }):Play() end
@@ -9593,13 +9864,13 @@ Modules["Core/CoreUI.luau"] = function()
     			handleRightClick()
     		end
     	end)
-	
+
     	table.insert(self.Tabs, tabObj)
-	
+
     	if not isHiddenFromSidebar and #self.Tabs == 1 then
     		self:SelectTab(tabObj)
     	end
-	
+
     	return tabObj
     end
 
@@ -9694,7 +9965,7 @@ Modules["Core/CoreUI.luau"] = function()
     		tabObj.Button.TextColor3 = UI.Theme.AccentText
     		tabObj.Stroke.Color = UI.Theme.Border
     		tabObj.Stroke.Thickness = 1.6
-		
+
     		Animations.pulseIndicator(tabObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
 
     		local grad = tabObj.Button:FindFirstChild("ActiveGradient") :: UIGradient?
@@ -9943,10 +10214,10 @@ Modules["Core/CoreUI.luau"] = function()
     				BackgroundTransparency = 0,
     				TextColor3 = UI.Theme.AccentText
     			}):Play()
-			
+
     			-- Active sub-tab indicator pulse
     			Animations.pulseIndicator(targetObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
-			
+
     			if targetObj.Gradient then targetObj.Gradient.Enabled = true end
     		end
 
@@ -10105,7 +10376,7 @@ Modules["Core/CoreUI.luau"] = function()
     -- 3-Segment Toggle Row: [ X ] [ Option Name ] [ Bind ]
     function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defaultState: boolean, defaultKeybind: Enum.KeyCode?, callback: (boolean) -> ())
     	local feature = FeatureManager.register(featureId, name, defaultState, defaultKeybind, callback)
-	
+
     	local row = Instance.new("Frame")
     	row.Name = featureId .. "Row"
     	row.Size = UDim2.new(1, -4, 0, 24)
@@ -10681,6 +10952,7 @@ Modules["Core/MainUI.luau"] = function()
     	local require          = _requireFn
     	local cachedCharacterParts   = (sharedEnv and sharedEnv.cachedCharacterParts) or {}
     	local disableRobloxTopBarApp = (sharedEnv and sharedEnv.disableRobloxTopBarApp) or function() end
+    	local setRobloxCoreHidden    = (sharedEnv and sharedEnv.setRobloxCoreHidden) or function(h) disableRobloxTopBarApp(h) end
     	local hidePlayerGameGuis     = (sharedEnv and sharedEnv.hidePlayerGameGuis) or function() end
     	local coreGuiOverlays        = (sharedEnv and sharedEnv.coreGuiOverlays) or {}
     	local purgeBlackoutScreens   = (sharedEnv and sharedEnv.purgeBlackoutScreens) or function() end
@@ -10709,6 +10981,7 @@ Modules["Core/MainUI.luau"] = function()
     	local PlayerUtilities  = require("Modules/PlayerUtilities.luau")
     	local Notification     = require("UI/Notification.luau")
     	local MusicTracker     = require("UI/MusicTracker.luau")
+    	local Animations       = require("UI/Animations.luau")
     	local emotesWidget     = emotesWidget
 
     	local function getGameTabName(): string
@@ -10896,51 +11169,101 @@ Modules["Core/MainUI.luau"] = function()
     			flySpeed = value
     		end)
 
-    		-- Right Column: Speed & Jump Modifiers (Persistent Locks)
+    		-- Right Column: Speed & Jump Modifiers (Persistent Locks & Attribute Overrides)
     		local speedSection = window:AddSection(mfRightCol, "Speed & Jump Modifiers")
 
     		local activeSpeedLock: number? = nil
     		local activeJumpLock: number? = nil
+    		local activeHipHeightLock: number? = nil
+
+    		local function getHumanoid(): Humanoid?
+    			local char = localPlayer.Character
+    			if not char then return nil end
+    			return char:FindFirstChildOfClass("Humanoid")
+    		end
+
+    		local function applySpeed(speedVal: number)
+    			local hum = getHumanoid()
+    			if hum then
+    				hum.WalkSpeed = speedVal
+    			end
+    			local char = localPlayer.Character
+    			if char then
+    				pcall(function()
+    					if char:GetAttribute("Speed") ~= nil then char:SetAttribute("Speed", speedVal) end
+    					if char:GetAttribute("WalkSpeed") ~= nil then char:SetAttribute("WalkSpeed", speedVal) end
+    					if char:GetAttribute("SpeedMult") ~= nil then char:SetAttribute("SpeedMult", speedVal / 16) end
+    				end)
+    			end
+    			pcall(function()
+    				if localPlayer:GetAttribute("Speed") ~= nil then localPlayer:SetAttribute("Speed", speedVal) end
+    				if localPlayer:GetAttribute("WalkSpeed") ~= nil then localPlayer:SetAttribute("WalkSpeed", speedVal) end
+    			end)
+    		end
+
+    		local function applyJump(jumpVal: number)
+    			local hum = getHumanoid()
+    			if hum then
+    				hum.UseJumpPower = true
+    				hum.JumpPower = jumpVal
+    				local grav = Workspace.Gravity
+    				if grav > 0 then
+    					hum.JumpHeight = (jumpVal ^ 2) / (2 * grav)
+    				end
+    			end
+    			local char = localPlayer.Character
+    			if char then
+    				pcall(function()
+    					if char:GetAttribute("JumpPower") ~= nil then char:SetAttribute("JumpPower", jumpVal) end
+    					if char:GetAttribute("JumpHeight") ~= nil then char:SetAttribute("JumpHeight", (jumpVal ^ 2) / (2 * math.max(1, Workspace.Gravity))) end
+    				end)
+    			end
+    			pcall(function()
+    				if localPlayer:GetAttribute("JumpPower") ~= nil then localPlayer:SetAttribute("JumpPower", jumpVal) end
+    			end)
+    		end
 
     		local function enforcePersistentStats()
-    			if not humanoid or humanoid.Health <= 0 then return end
-    			if activeSpeedLock ~= nil and humanoid.WalkSpeed ~= activeSpeedLock then
-    				humanoid.WalkSpeed = activeSpeedLock
+    			local hum = getHumanoid()
+    			if not hum or hum.Health <= 0 then return end
+    			if activeSpeedLock ~= nil and hum.WalkSpeed ~= activeSpeedLock then
+    				applySpeed(activeSpeedLock)
     			end
-    			if activeJumpLock ~= nil and humanoid.JumpPower ~= activeJumpLock then
-    				humanoid.JumpPower = activeJumpLock
+    			if activeJumpLock ~= nil then
+    				if not hum.UseJumpPower or hum.JumpPower ~= activeJumpLock then
+    					applyJump(activeJumpLock)
+    				end
+    			end
+    			if activeHipHeightLock ~= nil and hum.HipHeight ~= activeHipHeightLock then
+    				hum.HipHeight = activeHipHeightLock
     			end
     		end
 
     		RunService.RenderStepped:Connect(enforcePersistentStats)
     		RunService.Heartbeat:Connect(enforcePersistentStats)
+    		localPlayer.CharacterAdded:Connect(function()
+    			task.wait(0.12)
+    			enforcePersistentStats()
+    		end)
 
     		window:AddToggle(speedSection, "walkspeed_boost", "WalkSpeed Boost (32 WS)", false, nil, function(enabled)
     			activeSpeedLock = if enabled then 32 else nil
-    			if humanoid then
-    				humanoid.WalkSpeed = if enabled then 32 else 16
-    			end
+    			applySpeed(if enabled then 32 else 16)
     		end)
 
     		window:AddToggle(speedSection, "jumppower_boost", "JumpPower Boost (100 JP)", false, nil, function(enabled)
     			activeJumpLock = if enabled then 100 else nil
-    			if humanoid then
-    				humanoid.JumpPower = if enabled then 100 else 50
-    			end
+    			applyJump(if enabled then 100 else 50)
     		end)
 
     		window:AddSlider(speedSection, "Custom Speed", 16, 250, 16, function(value)
     			activeSpeedLock = if value > 16 then value else nil
-    			if humanoid then
-    				humanoid.WalkSpeed = value
-    			end
+    			applySpeed(value)
     		end)
 
     		window:AddSlider(speedSection, "Custom JumpPower", 50, 300, 50, function(value)
     			activeJumpLock = if value > 50 then value else nil
-    			if humanoid then
-    				humanoid.JumpPower = value
-    			end
+    			applyJump(value)
     		end)
 
     		-- ?????? MAIN SUB-TAB 2: PHYSICS & MODIFIERS ??????????????????????????????????????????????????????????????????
@@ -11180,11 +11503,10 @@ Modules["Core/MainUI.luau"] = function()
     		end)
 
     		window:AddSlider(charPhysSection, "Hip Height Offset", 0, 20, 0, function(value)
-    			if localPlayer.Character then
-    				local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-    				if hum then
-    					hum.HipHeight = value
-    				end
+    			activeHipHeightLock = if value > 0 then value else nil
+    			local hum = getHumanoid()
+    			if hum then
+    				hum.HipHeight = value
     			end
     		end)
 
@@ -11202,11 +11524,10 @@ Modules["Core/MainUI.luau"] = function()
     		end)
 
     		window:AddButton(envPhysSection, "Reset Character Height", function()
-    			if localPlayer.Character then
-    				local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-    				if hum then
-    					hum.HipHeight = 0
-    				end
+    			activeHipHeightLock = nil
+    			local hum = getHumanoid()
+    			if hum then
+    				hum.HipHeight = 0
     			end
     			FeatureManager.setSliderValue("Hip Height Offset", 0)
     			window:Notify("Physics", "Character hip height restored to default", 2)
@@ -11371,6 +11692,31 @@ Modules["Core/MainUI.luau"] = function()
     		end)
 
     		localPlayer.AttributeChanged:Connect(triggerInstantCurrencyRefresh)
+
+    		local function hookCharAttributes(char: Model)
+    			char.AttributeChanged:Connect(triggerInstantCurrencyRefresh)
+    			for _, fName in ipairs({"leaderstats", "Data", "Stats", "Values", "Currencies", "PlayerData", "Tycoon"}) do
+    				local f = char:FindFirstChild(fName)
+    				if f then hookCurrencyFolder(f) end
+    			end
+    			char.ChildAdded:Connect(function(child)
+    				for _, fName in ipairs({"leaderstats", "Data", "Stats", "Values", "Currencies", "PlayerData", "Tycoon"}) do
+    					if child.Name == fName then
+    						hookCurrencyFolder(child)
+    						triggerInstantCurrencyRefresh()
+    						break
+    					end
+    				end
+    			end)
+    		end
+
+    		if localPlayer.Character then
+    			hookCharAttributes(localPlayer.Character)
+    		end
+    		localPlayer.CharacterAdded:Connect(function(char)
+    			hookCharAttributes(char)
+    			triggerInstantCurrencyRefresh()
+    		end)
 
     		task.spawn(function()
     			while true do
@@ -12300,14 +12646,15 @@ Modules["Core/MainUI.luau"] = function()
     	local function setupVisualsTab(visualsTab)
     		-- ============================================================
     		-- 4. VISUALS TAB CONTENT (HORIZONTAL MINI SUB-TABS)
-    		--    [ 2D Overlays & ESP ] [ 3D Chams & Skeletons ] [ ESP Customizer ]
+    		--    [ 2D Overlays & ESP ] [ 3D Chams & Skeletons ] [ ESP Customizer ] [ Widgets ]
     		-- ============================================================
-    		local visSubTabs = window:CreateSubTabs(visualsTab, { "2D Overlays & ESP", "3D Chams & Skeletons", "ESP Customizer" })
+    		local visSubTabs = window:CreateSubTabs(visualsTab, { "2D Overlays & ESP", "3D Chams & Skeletons", "ESP Customizer", "Widgets" })
     		local esp2dSubTab = visSubTabs["2D Overlays & ESP"]
     		local chamsSubTab = visSubTabs["3D Chams & Skeletons"]
     		local customSubTab = visSubTabs["ESP Customizer"]
+    		local widgetsSubTab = visSubTabs["Widgets"]
 
-    		-- ?????? VISUALS SUB-TAB 1: 2D OVERLAYS & ESP ???????????????????????????????????????????????????????????????
+    		-- ── VISUALS SUB-TAB 1: 2D OVERLAYS & ESP ──
     		local v2dLeftCol, v2dRightCol = window:CreateColumns(esp2dSubTab)
 
     		-- Left Column: 2D Bounding Boxes & Tags
@@ -12329,51 +12676,15 @@ Modules["Core/MainUI.luau"] = function()
     			Visuals.HealthBar = enabled
     		end)
 
-    		window:AddToggle(boxSection, "esp_distance", "Distance Tags (Studs)", false, nil, function(enabled)
+    		-- Right Column: Distance Tags & Snaplines
+    		local tracerSection = window:AddSection(v2dRightCol, "Distance Tags & Snaplines")
+
+    		window:AddToggle(tracerSection, "esp_distance", "Distance Tags (Studs)", false, nil, function(enabled)
     			Visuals.Distance = enabled
     		end)
 
-    		window:AddToggle(boxSection, "esp_tracers", "Snapline Tracers", false, nil, function(enabled)
+    		window:AddToggle(tracerSection, "esp_tracers", "Snapline Tracers", false, nil, function(enabled)
     			Visuals.Tracers = enabled
-    		end)
-
-    		-- Right Column: Complete HUD & Widget Overlays
-    		local hudSection = window:AddSection(v2dRightCol, "Custom HUD & Widget Overlays")
-
-    		window:AddToggle(hudSection, "hud_playerlist", "Player List (Tab HUD)", true, nil, function(enabled)
-    			playerListWidget.SetVisible(enabled)
-    		end)
-
-    		window:AddToggle(hudSection, "hud_leaderstats", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
-    			leaderstatsWidget.SetVisible(enabled)
-    		end)
-
-    		window:AddToggle(hudSection, "hud_chat", "Custom Retro Chat Box HUD", true, nil, function(enabled)
-    			chatWidgetInstance.SetVisible(enabled)
-    		end)
-
-    		window:AddToggle(hudSection, "hud_music_player", "Music Tracker & Lyrics Player HUD", true, nil, function(enabled)
-    			musicTrackerWidget.SetVisible(enabled)
-    		end)
-
-    		window:AddToggle(hudSection, "hud_backpack", "Custom Backpack & Toolbar HUD", true, nil, function(enabled)
-    			hotbarWidget.SetVisible(enabled)
-    		end)
-
-    		window:AddToggle(hudSection, "hud_healthbar", "Health Bar HUD Widget", true, nil, function(enabled)
-    			healthWidget.SetVisible(enabled)
-    		end)
-
-    		window:AddToggle(hudSection, "hud_damage_indicators", "3D Floating Damage Numbers", true, nil, function(enabled)
-    			healthWidget.ToggleDamageNumbers(enabled)
-    		end)
-
-    		window:AddToggle(hudSection, "hud_damage_flash", "Damage Taken Screen Flash", true, nil, function(enabled)
-    			healthWidget.ToggleDamageFlash(enabled)
-    		end)
-
-    		window:AddToggle(hudSection, "hud_dynamic_health", "Dynamic Health Gradient (Green/Red)", true, nil, function(enabled)
-    			healthWidget.SetDynamicColors(enabled)
     		end)
 
     		-- ?????? VISUALS SUB-TAB 2: 3D CHAMS & SKELETONS ??????????????????????????????????????????????????????
@@ -12470,11 +12781,139 @@ Modules["Core/MainUI.luau"] = function()
     			window:Notify("Palette", "Ruby Palette applied", 2)
     		end)
 
-    		window:AddButton(paletteSection, "Amethyst Purple Palette", function()
-    			Visuals.BoxColor = Color3.fromRGB(180, 70, 255)
-    			Visuals.TracerColor = Color3.fromRGB(220, 120, 255)
-    			Visuals.SkeletonColor = Color3.fromRGB(200, 100, 255)
-    			window:Notify("Palette", "Amethyst Palette applied", 2)
+    		-- ── VISUALS SUB-TAB 4: WIDGETS (DEDICATED HUD & OVERLAY CONFIGURATION) ──
+    		local wLeftCol, wRightCol = window:CreateColumns(widgetsSubTab)
+
+    		-- Left Column: Master Controls & Core Peripheral HUDs
+    		local wMasterSection = window:AddSection(wLeftCol, "Master Widget Controls")
+
+    		local function setAllWidgets(enabled: boolean)
+    			FeatureManager.setFeatureState("hud_playerlist", enabled)
+    			playerListWidget.IsEnabled = enabled
+    			playerListWidget.SetVisible(enabled)
+
+    			FeatureManager.setFeatureState("hud_chat", enabled)
+    			chatWidgetInstance.IsEnabled = enabled
+    			chatWidgetInstance.SetVisible(enabled)
+
+    			FeatureManager.setFeatureState("hud_music_player", enabled)
+    			musicTrackerWidget.IsEnabled = enabled
+    			musicTrackerWidget.SetVisible(enabled)
+
+    			FeatureManager.setFeatureState("hud_backpack", enabled)
+    			hotbarWidget.IsEnabled = enabled
+    			hotbarWidget.SetVisible(enabled)
+
+    			FeatureManager.setFeatureState("hud_leaderstats", enabled)
+    			leaderstatsWidget.IsEnabled = enabled
+    			leaderstatsWidget.SetVisible(enabled)
+
+    			FeatureManager.setFeatureState("hud_emotes", enabled)
+    			if emotesWidget then
+    				emotesWidget.IsEnabled = enabled
+    				emotesWidget.SetVisible(enabled)
+    			end
+
+    			FeatureManager.setFeatureState("hud_healthbar", enabled)
+    			healthWidget.IsEnabled = enabled
+    			healthWidget.SetVisible(enabled)
+
+    			FeatureManager.setFeatureState("hud_damage_indicators", enabled)
+    			healthWidget.ToggleDamageNumbers(enabled)
+
+    			FeatureManager.setFeatureState("hud_damage_flash", enabled)
+    			healthWidget.ToggleDamageFlash(enabled)
+
+    			FeatureManager.setFeatureState("hud_dynamic_health", enabled)
+    			healthWidget.SetDynamicColors(enabled)
+    		end
+
+    		window:AddButton(wMasterSection, "Enable All Widgets & Hotkeys", function()
+    			setAllWidgets(true)
+    			window:Notify("Widgets", "All HUD widgets and hotkeys enabled", 2)
+    		end)
+
+    		window:AddButton(wMasterSection, "Disable All Widgets & Hotkeys", function()
+    			setAllWidgets(false)
+    			window:Notify("Widgets", "All HUD widgets and hotkeys disabled", 2)
+    		end)
+
+    		local coreWidgetsSection = window:AddSection(wLeftCol, "Core Peripheral HUD Widgets")
+
+    		window:AddToggle(coreWidgetsSection, "hud_playerlist", "Player List (Tab HUD)", true, nil, function(enabled)
+    			playerListWidget.IsEnabled = enabled
+    			playerListWidget.SetVisible(enabled)
+    		end)
+
+    		window:AddToggle(coreWidgetsSection, "hud_chat", "Custom Retro Chat Box HUD (/ Key)", true, nil, function(enabled)
+    			chatWidgetInstance.IsEnabled = enabled
+    			chatWidgetInstance.SetVisible(enabled)
+    		end)
+
+    		window:AddToggle(coreWidgetsSection, "hud_music_player", "Music Tracker HUD (Ctrl+Alt Keys)", true, nil, function(enabled)
+    			musicTrackerWidget.IsEnabled = enabled
+    			musicTrackerWidget.SetVisible(enabled)
+    		end)
+
+    		window:AddToggle(coreWidgetsSection, "hud_backpack", "Custom Backpack & Toolbar (~ Key)", true, nil, function(enabled)
+    			hotbarWidget.IsEnabled = enabled
+    			hotbarWidget.SetVisible(enabled)
+    		end)
+
+    		window:AddToggle(coreWidgetsSection, "hud_leaderstats", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
+    			leaderstatsWidget.IsEnabled = enabled
+    			leaderstatsWidget.SetVisible(enabled)
+    		end)
+
+    		window:AddToggle(coreWidgetsSection, "hud_emotes", "Emotes HUD Widget (, Key)", true, nil, function(enabled)
+    			if emotesWidget then
+    				emotesWidget.IsEnabled = enabled
+    				emotesWidget.SetVisible(enabled)
+    			end
+    		end)
+
+    		-- Right Column: Player & Combat Visual HUDs & Shortcuts
+    		local combatHudSection = window:AddSection(wRightCol, "Player & Combat Visual HUDs")
+
+    		window:AddToggle(combatHudSection, "hud_healthbar", "Health Bar HUD Widget", true, nil, function(enabled)
+    			healthWidget.IsEnabled = enabled
+    			healthWidget.SetVisible(enabled)
+    		end)
+
+    		window:AddToggle(combatHudSection, "hud_damage_indicators", "3D Floating Damage Numbers", true, nil, function(enabled)
+    			healthWidget.ToggleDamageNumbers(enabled)
+    		end)
+
+    		window:AddToggle(combatHudSection, "hud_damage_flash", "Damage Taken Screen Flash", true, nil, function(enabled)
+    			healthWidget.ToggleDamageFlash(enabled)
+    		end)
+
+    		window:AddToggle(combatHudSection, "hud_dynamic_health", "Dynamic Health Gradient (Green/Red)", true, nil, function(enabled)
+    			healthWidget.SetDynamicColors(enabled)
+    		end)
+
+    		local widgetActionsSection = window:AddSection(wRightCol, "Widget Quick Shortcuts")
+
+    		window:AddButton(widgetActionsSection, "Open Emotes Menu (,)", function()
+    			if emotesWidget and emotesWidget.IsEnabled ~= false then
+    				emotesWidget:Open()
+    			end
+    		end)
+
+    		window:AddButton(widgetActionsSection, "Toggle Backpack Window (~)", function()
+    			if hotbarWidget and hotbarWidget.IsEnabled ~= false then
+    				hotbarWidget.ToggleBackpack()
+    			end
+    		end)
+
+    		window:AddButton(widgetActionsSection, "Refresh Stats & Hotbar", function()
+    			if leaderstatsWidget and typeof(leaderstatsWidget.Refresh) == "function" then
+    				leaderstatsWidget.Refresh()
+    			end
+    			if hotbarWidget and typeof(hotbarWidget.Refresh) == "function" then
+    				hotbarWidget.Refresh()
+    			end
+    			window:Notify("Widgets", "Refreshed widget buffers and hotbar", 2)
     		end)
 
     	end
@@ -12624,33 +13063,6 @@ Modules["Core/MainUI.luau"] = function()
     			end
     		end)
 
-    		local widgetSection = window:AddSection(modRightCol, "Peripheral HUD Widgets")
-
-    		window:AddToggle(widgetSection, "mod_music_tracker", "Music Tracker Widget", true, nil, function(enabled)
-    			FeatureManager.setModuleState("music_tracker", enabled)
-    			musicTrackerWidget.SetVisible(enabled)
-    		end)
-
-    		window:AddToggle(widgetSection, "mod_player_list", "Player List Widget (Tab Key)", true, nil, function(enabled)
-    			FeatureManager.setModuleState("player_list", enabled)
-    			playerListWidget.Frame.Visible = enabled
-    		end)
-
-    		window:AddToggle(widgetSection, "mod_chat_widget", "Chat Widget", true, nil, function(enabled)
-    			FeatureManager.setModuleState("chat_widget", enabled)
-    			chatWidgetInstance.Frame.Visible = enabled
-    		end)
-
-    		window:AddToggle(widgetSection, "mod_custom_hotbar", "Custom Hotbar & Backpack HUD", true, nil, function(enabled)
-    			FeatureManager.setModuleState("custom_hotbar", enabled)
-    			hotbarWidget.SetVisible(enabled)
-    		end)
-
-    		window:AddToggle(widgetSection, "mod_leaderstats_widget", "Live Leaderstats & Currencies HUD", true, nil, function(enabled)
-    			FeatureManager.setModuleState("leaderstats_widget", enabled)
-    			leaderstatsWidget.SetVisible(enabled)
-    		end)
-
     		-- Hook tab right-click sync
     		combatTab.OnVisibilityChanged = function(vis: boolean)
     			local feat = FeatureManager.getFeature("tab_combat_module")
@@ -12721,12 +13133,8 @@ Modules["Core/MainUI.luau"] = function()
     		end)
 
     		window:AddToggle(perfSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar & Core)", true, nil, function(enabled)
-    			disableRobloxTopBarApp(enabled)
-    			for _, guiType in ipairs(coreGuiOverlays) do
-    				pcall(function()
-    					StarterGui:SetCoreGuiEnabled(guiType, not enabled)
-    				end)
-    			end
+    			setRobloxCoreHidden(enabled)
+    			FeatureManager.setFeatureState("hide_roblox_core_guis", enabled)
     		end)
 
     		window:AddToggle(perfSection, "hide_game_guis", "Hide Game HUD UIs (PlayerGui)", false, nil, function(enabled)
@@ -12799,12 +13207,8 @@ Modules["Core/MainUI.luau"] = function()
     		local cleanSection = window:AddSection(sysLeftCol, "Screen & GUI Optimization")
 
     		window:AddToggle(cleanSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar, Leaderboard, Chat)", true, nil, function(enabled)
-    			disableRobloxTopBarApp(enabled)
-    			for _, guiType in ipairs(coreGuiOverlays) do
-    				pcall(function()
-    					StarterGui:SetCoreGuiEnabled(guiType, not enabled)
-    				end)
-    			end
+    			setRobloxCoreHidden(enabled)
+    			FeatureManager.setFeatureState("hide_roblox_core_guis", enabled)
     			window:Notify("UI", if enabled then "Roblox Core UIs hidden" else "Roblox Core UIs restored", 2)
     		end)
 
@@ -13307,10 +13711,10 @@ Modules["Modules/Movement.luau"] = function()
     function Movement.init(window: any)
     	local moveTab = window:CreateTab("Movement")
     	local leftCol, rightCol = window:CreateColumns(moveTab)
-	
+
     	-- Flight & Collision
     	local flightSection = window:AddSection(leftCol, "Flight & Collision")
-	
+
     	local noclipConn: RBXScriptConnection? = nil
     	window:AddToggle(flightSection, "noclip_toggle", "Noclip", false, nil, function(enabled)
     		if enabled then
@@ -13335,7 +13739,7 @@ Modules["Modules/Movement.luau"] = function()
     			end
     		end
     	end)
-	
+
     	local infJumpConn: RBXScriptConnection? = nil
     	window:AddToggle(flightSection, "inf_jump", "Infinite Jump", false, nil, function(enabled)
     		if enabled then
@@ -13352,14 +13756,14 @@ Modules["Modules/Movement.luau"] = function()
     			infJumpConn = nil
     		end
     	end)
-	
+
     	-- Physics & Gravity
     	local physicsSection = window:AddSection(rightCol, "World Physics")
-	
+
     	window:AddSlider(physicsSection, "Custom Gravity", 0, 196, 196, function(value)
     		Workspace.Gravity = value
     	end)
-	
+
     	window:AddSlider(physicsSection, "Hip Height Offset", 0, 20, 0, function(value)
     		if LocalPlayer.Character then
     			local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -13368,7 +13772,7 @@ Modules["Modules/Movement.luau"] = function()
     			end
     		end
     	end)
-	
+
     	window:SelectTab(moveTab)
     	return moveTab
     end
@@ -13434,19 +13838,19 @@ Modules["Modules/Visuals.luau"] = function()
     	Box2D = false,
     	BoxOutlines = false,
     	BoxColor = Color3.fromRGB(55, 175, 245),
-	
+
     	HealthBar = false,
-	
+
     	Tracers = false,
     	TracerOrigin = "Bottom" :: "Bottom" | "Center" | "Mouse",
     	TracerColor = Color3.fromRGB(255, 255, 255),
-	
+
     	Distance = false,
     	DistanceColor = Color3.fromRGB(240, 240, 240),
-	
+
     	Skeleton = false,
     	SkeletonColor = Color3.fromRGB(255, 200, 50),
-	
+
     	-- 3D Chams / Highlights Settings
     	Chams = false,
     	ChamsTransparency = 0.5,
@@ -13478,7 +13882,7 @@ Modules["Modules/Visuals.luau"] = function()
     			return obj
     		end
     	end
-	
+
     	if hasDrawing then
     		local success, obj = pcall(function()
     			return Drawing.new(drawingType)
@@ -13496,7 +13900,7 @@ Modules["Modules/Visuals.luau"] = function()
     function Visuals.releaseDrawing(drawingTypeOrObj: any, maybeObj: any?)
     	local drawingType: string?
     	local obj: any?
-	
+
     	if typeof(drawingTypeOrObj) == "string" then
     		drawingType = drawingTypeOrObj
     		obj = maybeObj
@@ -13506,13 +13910,13 @@ Modules["Modules/Visuals.luau"] = function()
     			drawingType = maybeObj
     		end
     	end
-	
+
     	if not obj then return end
-	
+
     	pcall(function()
     		obj.Visible = false
     	end)
-	
+
     	if drawingType and DrawingPool[drawingType] then
     		table.insert(DrawingPool[drawingType], obj)
     	else
@@ -13580,14 +13984,14 @@ Modules["Modules/Visuals.luau"] = function()
     		pv.Parts = nil
     		return
     	end
-	
+
     	local humanoid = character:FindFirstChildOfClass("Humanoid")
     	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") :: BasePart?
     	local head = character:FindFirstChild("Head") :: BasePart?
     	local torso = character:FindFirstChild("Torso") :: BasePart?
     	local upperTorso = character:FindFirstChild("UpperTorso") :: BasePart?
     	local lowerTorso = character:FindFirstChild("LowerTorso") :: BasePart?
-	
+
     	local boneMap: {[string]: BasePart?} = {}
     	for _, pair in ipairs(BONE_PAIRS) do
     		local p1Name = pair[1]
@@ -13599,7 +14003,7 @@ Modules["Modules/Visuals.luau"] = function()
     			boneMap[p2Name] = character:FindFirstChild(p2Name) :: BasePart?
     		end
     	end
-	
+
     	-- Fallback resolution for R6 character rigs
     	if not boneMap["UpperTorso"] and torso then
     		boneMap["UpperTorso"] = torso
@@ -13617,7 +14021,7 @@ Modules["Modules/Visuals.luau"] = function()
     	if not boneMap["RightUpperLeg"] then
     		boneMap["RightUpperLeg"] = character:FindFirstChild("Right Leg") :: BasePart?
     	end
-	
+
     	pv.Parts = {
     		Character = character,
     		Humanoid = humanoid,
@@ -13658,7 +14062,7 @@ Modules["Modules/Visuals.luau"] = function()
     		CharRemovingConn = nil,
     		ChildAddedConn = nil,
     	}
-	
+
     	if hasDrawing then
     		-- Box Outline (Secondary black square for high contrast, Thickness = 3.5)
     		local boxOutline = Visuals.acquireDrawing("Square")
@@ -13685,7 +14089,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.Box = box
     		end
-		
+
     		-- Health Bar BG
     		local hbBg = Visuals.acquireDrawing("Square")
     		if hbBg then
@@ -13698,7 +14102,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.HealthBarBg = hbBg
     		end
-		
+
     		-- Health Bar Fill
     		local hbFill = Visuals.acquireDrawing("Square")
     		if hbFill then
@@ -13711,7 +14115,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.HealthBarFill = hbFill
     		end
-		
+
     		-- Tracer line
     		local tracer = Visuals.acquireDrawing("Line")
     		if tracer then
@@ -13723,7 +14127,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.Tracer = tracer
     		end
-		
+
     		-- Distance tag (3D stud distance text positioned below bounding box)
     		local distTag = Visuals.acquireDrawing("Text")
     		if distTag then
@@ -13754,7 +14158,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.NameTag = nameTag
     		end
-		
+
     		-- Skeleton bones (14 bone segments)
     		for i = 1, #BONE_PAIRS do
     			local bone = Visuals.acquireDrawing("Line")
@@ -13769,12 +14173,12 @@ Modules["Modules/Visuals.luau"] = function()
     			end
     		end
     	end
-	
+
     	-- Cache character parts and listen for character lifecycle
     	if player.Character then
     		cachePlayerParts(pv, player.Character)
     	end
-	
+
     	pv.CharAddedConn = player.CharacterAdded:Connect(function(char)
     		cachePlayerParts(pv, char)
     		if pv.ChildAddedConn then
@@ -13787,7 +14191,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end
     		end)
     	end)
-	
+
     	pv.CharRemovingConn = player.CharacterRemoving:Connect(function()
     		pv.Parts = nil
     		pv.LastDistance = nil
@@ -13797,7 +14201,7 @@ Modules["Modules/Visuals.luau"] = function()
     		end
     		hideAll(pv)
     	end)
-	
+
     	return pv
     end
 
@@ -13814,12 +14218,12 @@ Modules["Modules/Visuals.luau"] = function()
     		pv.ChildAddedConn:Disconnect()
     		pv.ChildAddedConn = nil
     	end
-	
+
     	if pv.Highlight then
     		pcall(function() pv.Highlight:Destroy() end)
     		pv.Highlight = nil
     	end
-	
+
     	if pv.BoxOutline then
     		Visuals.releaseDrawing("Square", pv.BoxOutline)
     		pv.BoxOutline = nil
@@ -13870,29 +14274,29 @@ Modules["Modules/Visuals.luau"] = function()
     		hideAll(pv)
     		return
     	end
-	
+
     	-- Verify and update cached character parts if needed
     	local parts = pv.Parts
     	if not parts or parts.Character ~= character or not parts.RootPart or not parts.Humanoid then
     		cachePlayerParts(pv, character)
     		parts = pv.Parts
     	end
-	
+
     	if not parts or not parts.Humanoid or not parts.RootPart or parts.Humanoid.Health <= 0 then
     		hideAll(pv)
     		return
     	end
-	
+
     	local humanoid = parts.Humanoid
     	local rootPart = parts.RootPart
-	
+
     	-- 3D Chams / Highlight
     	if Visuals.Chams then
     		local fillColor = Visuals.ChamsFillColor or Visuals.ChamsColor or Color3.fromRGB(180, 70, 255)
     		local outlineColor = Visuals.ChamsOutlineColor or Color3.fromRGB(255, 255, 255)
     		local fillTransparency = Visuals.ChamsTransparency or 0.5
     		local outlineTransparency = Visuals.ChamsOutlineTransparency or 0.2
-		
+
     		if not pv.Highlight or pv.Highlight.Parent ~= character then
     			if pv.Highlight then
     				pcall(function() pv.Highlight:Destroy() end)
@@ -13922,7 +14326,7 @@ Modules["Modules/Visuals.luau"] = function()
     	elseif pv.Highlight then
     		pv.Highlight.Enabled = false
     	end
-	
+
     	-- 2D Calculations
     	local rootPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
     	if not onScreen or not hasDrawing then
@@ -13936,19 +14340,19 @@ Modules["Modules/Visuals.luau"] = function()
     		for _, bone in ipairs(pv.Bones) do bone.Visible = false end
     		return
     	end
-	
+
     	-- Bounding Box size estimation
     	local head = parts.Head
     	local headPos = if head then Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0)) else Vector3.new(rootPos.X, rootPos.Y - 30, 0)
     	local legPos = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
-	
+
     	local boxHeight = math.abs(legPos.Y - headPos.Y)
     	local boxWidth = boxHeight * 0.65
     	local boxX = rootPos.X - (boxWidth * 0.5)
     	local boxY = headPos.Y
     	local boxSize = Vector2.new(boxWidth, boxHeight)
     	local boxPosition = Vector2.new(boxX, boxY)
-	
+
     	-- Render Player Name Tag (Above Head / Box for both 2D ESP & 3D Chams)
     	local shouldShowNames = Visuals.Names and (Visuals.Box2D or Visuals.Chams)
     	if shouldShowNames and pv.NameTag then
@@ -13987,18 +14391,18 @@ Modules["Modules/Visuals.luau"] = function()
     		if pv.Box then pv.Box.Visible = false end
     		if pv.BoxOutline then pv.BoxOutline.Visible = false end
     	end
-	
+
     	-- Render Health Bar next to 2D Box
     	if Visuals.HealthBar and pv.HealthBarBg and pv.HealthBarFill then
     		local barWidth = 3
     		local barX = boxX - 6
     		local healthRatio = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
     		local fillHeight = boxHeight * healthRatio
-		
+
     		pv.HealthBarBg.Size = Vector2.new(barWidth + 2, boxHeight + 2)
     		pv.HealthBarBg.Position = Vector2.new(barX - 1, boxY - 1)
     		pv.HealthBarBg.Visible = true
-		
+
     		pv.HealthBarFill.Size = Vector2.new(barWidth, fillHeight)
     		pv.HealthBarFill.Position = Vector2.new(barX, boxY + (boxHeight - fillHeight))
     		pv.HealthBarFill.Color = Color3.fromHSV(healthRatio * 0.33, 0.9, 0.9)
@@ -14007,12 +14411,12 @@ Modules["Modules/Visuals.luau"] = function()
     		if pv.HealthBarBg then pv.HealthBarBg.Visible = false end
     		if pv.HealthBarFill then pv.HealthBarFill.Visible = false end
     	end
-	
+
     	-- Render Tracer with Origin Selector ("Bottom", "Center", "Mouse")
     	if Visuals.Tracers and pv.Tracer then
     		local tracerOrigin = Visuals.TracerOrigin or "Bottom"
     		local fromPos: Vector2
-		
+
     		if tracerOrigin == "Center" then
     			fromPos = screenCenter
     		elseif tracerOrigin == "Mouse" then
@@ -14020,7 +14424,7 @@ Modules["Modules/Visuals.luau"] = function()
     		else -- "Bottom" or default fallback
     			fromPos = screenBottom
     		end
-		
+
     		pv.Tracer.From = fromPos
     		pv.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
     		pv.Tracer.Color = Visuals.TracerColor
@@ -14028,25 +14432,25 @@ Modules["Modules/Visuals.luau"] = function()
     	elseif pv.Tracer then
     		pv.Tracer.Visible = false
     	end
-	
+
     	-- Render Distance Tag (3D stud distance calculation with delta threshold cache)
     	if Visuals.Distance and pv.DistanceTag then
     		local myPos = if myRootPart then myRootPart.Position else Camera.CFrame.Position
     		local targetPos = rootPart.Position
     		local dist = math.floor((targetPos - myPos).Magnitude)
-		
+
     		if not pv.LastDistance or math.abs(dist - pv.LastDistance) >= 1 then
     			pv.LastDistance = dist
     			pv.DistanceTag.Text = tostring(dist) .. "m"
     		end
-		
+
     		pv.DistanceTag.Position = Vector2.new(boxX + (boxWidth * 0.5), boxY + boxHeight + 2)
     		pv.DistanceTag.Color = Visuals.DistanceColor or Color3.fromRGB(240, 240, 240)
     		pv.DistanceTag.Visible = true
     	elseif pv.DistanceTag then
     		pv.DistanceTag.Visible = false
     	end
-	
+
     	-- Render Skeleton ESP
     	if Visuals.Skeleton and #pv.Bones > 0 and parts then
     		local boneMap = parts.BoneMap
@@ -14091,7 +14495,7 @@ Modules["Modules/Visuals.luau"] = function()
     		return
     	end
     	wasAnyVisualEnabled = true
-	
+
     	-- Cache viewport dimensions and origin vectors once per frame
     	local viewportSize = Camera.ViewportSize
     	local screenCenter = Vector2.new(viewportSize.X * 0.5, viewportSize.Y * 0.5)
@@ -14100,10 +14504,10 @@ Modules["Modules/Visuals.luau"] = function()
     	if Visuals.Tracers and Visuals.TracerOrigin == "Mouse" then
     		mousePos = UserInputService:GetMouseLocation()
     	end
-	
+
     	local localChar = LocalPlayer.Character
     	local myRootPart: BasePart? = if localChar then (localChar:FindFirstChild("HumanoidRootPart") or localChar:FindFirstChild("Torso") or localChar:FindFirstChild("UpperTorso")) :: BasePart? else nil
-	
+
     	for _, player in ipairs(Players:GetPlayers()) do
     		if player ~= LocalPlayer then
     			local pv = playerVisuals[player]
@@ -14171,7 +14575,7 @@ Modules["Modules/Visuals.luau"] = function()
     		cleanPlayerVisual(pv)
     	end
     	playerVisuals = {}
-	
+
     	-- 2. Drain and permanently remove all pooled Drawing instances
     	for typeName, pool in pairs(DrawingPool) do
     		for _, obj in ipairs(pool) do
@@ -14181,7 +14585,7 @@ Modules["Modules/Visuals.luau"] = function()
     		end
     		DrawingPool[typeName] = {}
     	end
-	
+
     	-- 3. Disconnect all module-level connections
     	for _, conn in ipairs(moduleConnections) do
     		pcall(function()
@@ -18829,7 +19233,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	WallCheck = false,
     	TeamCheck = false,
     	Prediction = 0.035,
-	
+
     	-- Weapon Configs
     	NoRecoil = true,
     	NoSpread = true,
@@ -19248,7 +19652,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     			local mat = obj.Material
     			local name = obj.Name:lower()
     			local isGlass = (mat == Enum.Material.Glass or mat == Enum.Material.Foil or mat == Enum.Material.Ice or mat == Enum.Material.ForceField or name:find("glass") or name:find("window") or name:find("pane"))
-			
+
     			if isGlass and not (cam and obj:IsDescendantOf(cam)) and not (myChar and obj:IsDescendantOf(myChar)) then
     				if bg then
     					pcall(function()
@@ -19777,6 +20181,24 @@ Modules["Modules/PlayerUtilities.luau"] = function()
     		end
     	end
 
+    	-- 5. Attributes on LocalPlayer & Character
+    	pcall(function()
+    		for attrName, attrVal in pairs(LocalPlayer:GetAttributes()) do
+    			if typeof(attrVal) == "number" or typeof(attrVal) == "string" then
+    				add(attrName, attrVal, "PlayerAttributes")
+    			end
+    		end
+    	end)
+    	pcall(function()
+    		if LocalPlayer.Character then
+    			for attrName, attrVal in pairs(LocalPlayer.Character:GetAttributes()) do
+    				if typeof(attrVal) == "number" or typeof(attrVal) == "string" then
+    					add(attrName, attrVal, "CharacterAttributes")
+    				end
+    			end
+    		end
+    	end)
+
     	return results
     end
 
@@ -19817,7 +20239,6 @@ local IceTycoon = require("Modules/IceTycoon.luau")
 local LuckyBlocks = require("Modules/LuckyBlocks.luau")
 local RestaurantTycoon = require("Modules/RestaurantTycoon.luau")
 local SeekerVsHider = require("Modules/SeekerVsHider.luau")
-local LuckyBlocks = require("Modules/LuckyBlocks.luau")
 local PlayerUtilities = require("Modules/PlayerUtilities.luau")
 local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
@@ -19888,7 +20309,10 @@ local coreGuiOverlays = {
 	Enum.CoreGuiType.Health,
 }
 
+local isRobloxCoreHidden = true
+
 local function disableRobloxTopBarApp(disable: boolean)
+	isRobloxCoreHidden = disable
 	pcall(function()
 		StarterGui:SetCore("TopbarEnabled", not disable)
 	end)
@@ -19913,19 +20337,18 @@ local function disableRobloxTopBarApp(disable: boolean)
 	end)
 end
 
-local function disableCoreGuis()
-	disableRobloxTopBarApp(true)
-	for _ = 1, 8 do
-		local ok = true
-		for _, guiType in ipairs(coreGuiOverlays) do
-			local success = pcall(function()
-				StarterGui:SetCoreGuiEnabled(guiType, false)
-			end)
-			if not success then ok = false end
-		end
-		if ok then break end
-		task.wait(0.2)
+local function setRobloxCoreHidden(hide: boolean)
+	isRobloxCoreHidden = hide
+	disableRobloxTopBarApp(hide)
+	for _, guiType in ipairs(coreGuiOverlays) do
+		pcall(function()
+			StarterGui:SetCoreGuiEnabled(guiType, not hide)
+		end)
 	end
+end
+
+local function disableCoreGuis()
+	setRobloxCoreHidden(true)
 end
 
 local isGameGuisHidden = false
@@ -20067,7 +20490,11 @@ end)
 
 localPlayer.CharacterAdded:Connect(function(char)
 	task.spawn(function()
-		disableCoreGuis()
+		if isRobloxCoreHidden then
+			disableCoreGuis()
+		else
+			setRobloxCoreHidden(false)
+		end
 		task.wait(0.1)
 		purgeBlackoutScreens()
 		hidePlayerGameGuis(isGameGuisHidden)
@@ -20075,11 +20502,13 @@ localPlayer.CharacterAdded:Connect(function(char)
 end)
 
 
--- Continuous enforcer so Roblox topbar never pops back up
+-- Continuous enforcer so Roblox topbar only stays hidden IF isRobloxCoreHidden is true!
 task.spawn(function()
 	while true do
 		task.wait(3)
-		disableRobloxTopBarApp(true)
+		if isRobloxCoreHidden then
+			disableRobloxTopBarApp(true)
+		end
 	end
 end)
 
@@ -20112,13 +20541,13 @@ playerListWidget.OnMinimize = function(isMin: boolean)
 end
 
 _G.__ToggleProjectFihBackpack = function()
-	if hotbarWidget then
+	if hotbarWidget and hotbarWidget.IsEnabled ~= false then
 		hotbarWidget.ToggleBackpack()
 	end
 end
 
 _G.__ToggleProjectFihEmotes = function()
-	if emotesWidget then
+	if emotesWidget and emotesWidget.IsEnabled ~= false then
 		emotesWidget.Toggle()
 	end
 end
@@ -20134,9 +20563,11 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 
 	if input.UserInputType == Enum.UserInputType.Keyboard then
 		if input.KeyCode == Enum.KeyCode.Tab then
-			playerListWidget:Toggle()
+			if playerListWidget and playerListWidget.IsEnabled ~= false then
+				playerListWidget:Toggle()
+			end
 		elseif input.KeyCode == Enum.KeyCode.Comma then
-			if emotesWidget then
+			if emotesWidget and emotesWidget.IsEnabled ~= false then
 				emotesWidget.Toggle()
 			end
 		end
@@ -20146,6 +20577,7 @@ end)
 local sharedEnv = {
 	cachedCharacterParts = cachedCharacterParts,
 	disableRobloxTopBarApp = disableRobloxTopBarApp,
+	setRobloxCoreHidden = setRobloxCoreHidden,
 	hidePlayerGameGuis = hidePlayerGameGuis,
 	coreGuiOverlays = coreGuiOverlays,
 	purgeBlackoutScreens = purgeBlackoutScreens,

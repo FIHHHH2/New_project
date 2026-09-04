@@ -2,7 +2,7 @@ import os
 import re
 import sys
 
-REPO_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 KNOWN_SERVICES = {
     "Players": "Players",

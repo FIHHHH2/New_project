@@ -56,16 +56,18 @@ function ChatWidget.new(): ChatWidgetInstance
 	-- Disable default Roblox CoreGuis cleanly while keeping Chat tree active for message tracking
 	local function disableRobloxCoreGuis()
 		pcall(function()
-			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
-			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, false)
-			local expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
-			if expChat and expChat:IsA("ScreenGui") then
-				expChat.Enabled = false
-			end
-			local pgui = Players.LocalPlayer:FindFirstChild("PlayerGui")
-			local legacyChat = pgui and pgui:FindFirstChild("Chat")
-			if legacyChat and legacyChat:IsA("ScreenGui") then
-				legacyChat.Enabled = false
+			if _G.__ModularSuite_IsRobloxCoreHidden == true then
+				StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+				StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, false)
+				local expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
+				if expChat and expChat:IsA("ScreenGui") then
+					expChat.Enabled = false
+				end
+				local pgui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+				local legacyChat = pgui and pgui:FindFirstChild("Chat")
+				if legacyChat and legacyChat:IsA("ScreenGui") then
+					legacyChat.Enabled = false
+				end
 			end
 		end)
 	end
@@ -1324,7 +1326,7 @@ function ChatWidget.new(): ChatWidgetInstance
 				task.wait(0.05)
 				expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
 				sv = expChat and expChat:FindFirstChild("scrollView", true)
-				if expChat and expChat:IsA("ScreenGui") then
+				if _G.__ModularSuite_IsRobloxCoreHidden == true and expChat and expChat:IsA("ScreenGui") then
 					expChat.Enabled = false
 				end
 			end

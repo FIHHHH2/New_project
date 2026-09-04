@@ -1926,6 +1926,18 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
+		local robloxGuiSection = window:AddSection(wLeftCol, "Roblox Core & Game GUI Overlays")
+
+		window:AddToggle(robloxGuiSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar, Leaderboard, Chat)", false, nil, function(enabled)
+			setRobloxCoreHidden(enabled)
+			window:Notify("UI", if enabled then "Roblox Core UIs hidden" else "Roblox Core UIs restored", 2)
+		end)
+
+		window:AddToggle(robloxGuiSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui HUDs)", false, nil, function(enabled)
+			hidePlayerGameGuis(enabled)
+			window:Notify("UI", if enabled then "Game custom GUIs hidden" else "Game custom GUIs restored", 2)
+		end)
+
 		-- Right Column: Player & Combat Visual HUDs & Shortcuts
 		local combatHudSection = window:AddSection(wRightCol, "Player & Combat Visual HUDs")
 
@@ -2186,15 +2198,6 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		window:AddToggle(perfSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar & Core)", true, nil, function(enabled)
-			setRobloxCoreHidden(enabled)
-			FeatureManager.setFeatureState("hide_roblox_core_guis", enabled)
-		end)
-
-		window:AddToggle(perfSection, "hide_game_guis", "Hide Game HUD UIs (PlayerGui)", false, nil, function(enabled)
-			hidePlayerGameGuis(enabled)
-		end)
-
 		-- Right Column: 3D & Texture Optimization
 		local renderSection = window:AddSection(prfRightCol, "3D & Texture Optimization")
 
@@ -2260,15 +2263,9 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		-- Left Column: Screen & GUI Optimization
 		local cleanSection = window:AddSection(sysLeftCol, "Screen & GUI Optimization")
 
-		window:AddToggle(cleanSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar, Leaderboard, Chat)", true, nil, function(enabled)
-			setRobloxCoreHidden(enabled)
-			FeatureManager.setFeatureState("hide_roblox_core_guis", enabled)
-			window:Notify("UI", if enabled then "Roblox Core UIs hidden" else "Roblox Core UIs restored", 2)
-		end)
-
-		window:AddToggle(cleanSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui HUDs & Menus)", false, nil, function(enabled)
-			hidePlayerGameGuis(enabled)
-			window:Notify("UI", if enabled then "Game custom GUIs hidden" else "Game custom GUIs restored", 2)
+		window:AddButton(cleanSection, "Purge Blackout & Transition Screens", function()
+			purgeBlackoutScreens()
+			window:Notify("UI", "Purged obstruction & blackout screens", 2)
 		end)
 
 		-- Right Column: Universal Master Audio Controller (Native C++ Zero-Lag Engine)

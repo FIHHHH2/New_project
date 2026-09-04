@@ -13,6 +13,12 @@ if _G.__ModularSuite_Cleanup then
 	_G.__ModularSuite_Cleanup = nil
 end
 
+if _G.__ModularSuite_TopBarEnforcer then
+	pcall(task.cancel, _G.__ModularSuite_TopBarEnforcer)
+	_G.__ModularSuite_TopBarEnforcer = nil
+end
+_G.__ModularSuite_IsRobloxCoreHidden = false
+
 local function purge(c)
 	if not c then return end
 	pcall(function()
@@ -2543,16 +2549,18 @@ Modules["UI/ChatWidget.luau"] = function()
     	-- Disable default Roblox CoreGuis cleanly while keeping Chat tree active for message tracking
     	local function disableRobloxCoreGuis()
     		pcall(function()
-    			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
-    			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, false)
-    			local expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
-    			if expChat and expChat:IsA("ScreenGui") then
-    				expChat.Enabled = false
-    			end
-    			local pgui = Players.LocalPlayer:FindFirstChild("PlayerGui")
-    			local legacyChat = pgui and pgui:FindFirstChild("Chat")
-    			if legacyChat and legacyChat:IsA("ScreenGui") then
-    				legacyChat.Enabled = false
+    			if _G.__ModularSuite_IsRobloxCoreHidden == true then
+    				StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+    				StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, false)
+    				local expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
+    				if expChat and expChat:IsA("ScreenGui") then
+    					expChat.Enabled = false
+    				end
+    				local pgui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+    				local legacyChat = pgui and pgui:FindFirstChild("Chat")
+    				if legacyChat and legacyChat:IsA("ScreenGui") then
+    					legacyChat.Enabled = false
+    				end
     			end
     		end)
     	end
@@ -3811,7 +3819,7 @@ Modules["UI/ChatWidget.luau"] = function()
     				task.wait(0.05)
     				expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
     				sv = expChat and expChat:FindFirstChild("scrollView", true)
-    				if expChat and expChat:IsA("ScreenGui") then
+    				if _G.__ModularSuite_IsRobloxCoreHidden == true and expChat and expChat:IsA("ScreenGui") then
     					expChat.Enabled = false
     				end
     			end
@@ -12872,6 +12880,18 @@ Modules["Core/MainUI.luau"] = function()
     			end
     		end)
 
+    		local robloxGuiSection = window:AddSection(wLeftCol, "Roblox Core & Game GUI Overlays")
+
+    		window:AddToggle(robloxGuiSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar, Leaderboard, Chat)", false, nil, function(enabled)
+    			setRobloxCoreHidden(enabled)
+    			window:Notify("UI", if enabled then "Roblox Core UIs hidden" else "Roblox Core UIs restored", 2)
+    		end)
+
+    		window:AddToggle(robloxGuiSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui HUDs)", false, nil, function(enabled)
+    			hidePlayerGameGuis(enabled)
+    			window:Notify("UI", if enabled then "Game custom GUIs hidden" else "Game custom GUIs restored", 2)
+    		end)
+
     		-- Right Column: Player & Combat Visual HUDs & Shortcuts
     		local combatHudSection = window:AddSection(wRightCol, "Player & Combat Visual HUDs")
 
@@ -13132,15 +13152,6 @@ Modules["Core/MainUI.luau"] = function()
     			end
     		end)
 
-    		window:AddToggle(perfSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar & Core)", true, nil, function(enabled)
-    			setRobloxCoreHidden(enabled)
-    			FeatureManager.setFeatureState("hide_roblox_core_guis", enabled)
-    		end)
-
-    		window:AddToggle(perfSection, "hide_game_guis", "Hide Game HUD UIs (PlayerGui)", false, nil, function(enabled)
-    			hidePlayerGameGuis(enabled)
-    		end)
-
     		-- Right Column: 3D & Texture Optimization
     		local renderSection = window:AddSection(prfRightCol, "3D & Texture Optimization")
 
@@ -13206,15 +13217,9 @@ Modules["Core/MainUI.luau"] = function()
     		-- Left Column: Screen & GUI Optimization
     		local cleanSection = window:AddSection(sysLeftCol, "Screen & GUI Optimization")
 
-    		window:AddToggle(cleanSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar, Leaderboard, Chat)", true, nil, function(enabled)
-    			setRobloxCoreHidden(enabled)
-    			FeatureManager.setFeatureState("hide_roblox_core_guis", enabled)
-    			window:Notify("UI", if enabled then "Roblox Core UIs hidden" else "Roblox Core UIs restored", 2)
-    		end)
-
-    		window:AddToggle(cleanSection, "hide_game_guis", "Hide Game Custom GUIs (PlayerGui HUDs & Menus)", false, nil, function(enabled)
-    			hidePlayerGameGuis(enabled)
-    			window:Notify("UI", if enabled then "Game custom GUIs hidden" else "Game custom GUIs restored", 2)
+    		window:AddButton(cleanSection, "Purge Blackout & Transition Screens", function()
+    			purgeBlackoutScreens()
+    			window:Notify("UI", "Purged obstruction & blackout screens", 2)
     		end)
 
     		-- Right Column: Universal Master Audio Controller (Native C++ Zero-Lag Engine)
@@ -20309,10 +20314,12 @@ local coreGuiOverlays = {
 	Enum.CoreGuiType.Health,
 }
 
-local isRobloxCoreHidden = true
+local isRobloxCoreHidden = false
+_G.__ModularSuite_IsRobloxCoreHidden = false
 
 local function disableRobloxTopBarApp(disable: boolean)
 	isRobloxCoreHidden = disable
+	_G.__ModularSuite_IsRobloxCoreHidden = disable
 	pcall(function()
 		StarterGui:SetCore("TopbarEnabled", not disable)
 	end)
@@ -20339,12 +20346,24 @@ end
 
 local function setRobloxCoreHidden(hide: boolean)
 	isRobloxCoreHidden = hide
+	_G.__ModularSuite_IsRobloxCoreHidden = hide
 	disableRobloxTopBarApp(hide)
 	for _, guiType in ipairs(coreGuiOverlays) do
 		pcall(function()
 			StarterGui:SetCoreGuiEnabled(guiType, not hide)
 		end)
 	end
+	pcall(function()
+		local expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
+		if expChat and expChat:IsA("ScreenGui") then
+			expChat.Enabled = not hide
+		end
+		local pgui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+		local legacyChat = pgui and pgui:FindFirstChild("Chat")
+		if legacyChat and legacyChat:IsA("ScreenGui") then
+			legacyChat.Enabled = not hide
+		end
+	end)
 end
 
 local function disableCoreGuis()
@@ -20502,11 +20521,17 @@ localPlayer.CharacterAdded:Connect(function(char)
 end)
 
 
+-- Clean up previous enforcer if it exists
+if _G.__ModularSuite_TopBarEnforcer then
+	pcall(task.cancel, _G.__ModularSuite_TopBarEnforcer)
+	_G.__ModularSuite_TopBarEnforcer = nil
+end
+
 -- Continuous enforcer so Roblox topbar only stays hidden IF isRobloxCoreHidden is true!
-task.spawn(function()
+_G.__ModularSuite_TopBarEnforcer = task.spawn(function()
 	while true do
-		task.wait(3)
-		if isRobloxCoreHidden then
+		task.wait(2.5)
+		if _G.__ModularSuite_IsRobloxCoreHidden == true and isRobloxCoreHidden == true then
 			disableRobloxTopBarApp(true)
 		end
 	end

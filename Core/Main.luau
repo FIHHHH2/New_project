@@ -99,10 +99,12 @@ local coreGuiOverlays = {
 	Enum.CoreGuiType.Health,
 }
 
-local isRobloxCoreHidden = true
+local isRobloxCoreHidden = false
+_G.__ModularSuite_IsRobloxCoreHidden = false
 
 local function disableRobloxTopBarApp(disable: boolean)
 	isRobloxCoreHidden = disable
+	_G.__ModularSuite_IsRobloxCoreHidden = disable
 	pcall(function()
 		StarterGui:SetCore("TopbarEnabled", not disable)
 	end)
@@ -129,12 +131,24 @@ end
 
 local function setRobloxCoreHidden(hide: boolean)
 	isRobloxCoreHidden = hide
+	_G.__ModularSuite_IsRobloxCoreHidden = hide
 	disableRobloxTopBarApp(hide)
 	for _, guiType in ipairs(coreGuiOverlays) do
 		pcall(function()
 			StarterGui:SetCoreGuiEnabled(guiType, not hide)
 		end)
 	end
+	pcall(function()
+		local expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
+		if expChat and expChat:IsA("ScreenGui") then
+			expChat.Enabled = not hide
+		end
+		local pgui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+		local legacyChat = pgui and pgui:FindFirstChild("Chat")
+		if legacyChat and legacyChat:IsA("ScreenGui") then
+			legacyChat.Enabled = not hide
+		end
+	end)
 end
 
 local function disableCoreGuis()
@@ -292,11 +306,17 @@ localPlayer.CharacterAdded:Connect(function(char)
 end)
 
 
+-- Clean up previous enforcer if it exists
+if _G.__ModularSuite_TopBarEnforcer then
+	pcall(task.cancel, _G.__ModularSuite_TopBarEnforcer)
+	_G.__ModularSuite_TopBarEnforcer = nil
+end
+
 -- Continuous enforcer so Roblox topbar only stays hidden IF isRobloxCoreHidden is true!
-task.spawn(function()
+_G.__ModularSuite_TopBarEnforcer = task.spawn(function()
 	while true do
-		task.wait(3)
-		if isRobloxCoreHidden then
+		task.wait(2.5)
+		if _G.__ModularSuite_IsRobloxCoreHidden == true and isRobloxCoreHidden == true then
 			disableRobloxTopBarApp(true)
 		end
 	end

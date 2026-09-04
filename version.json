@@ -1,7 +1,7 @@
 {
-  "version": "1.4.4",
+  "version": "1.4.5",
   "name": "Project Fih MusicBridge",
-  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.4",
+  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.5",
   "download_url": "https://github.com/FIHHHH2/New_project/raw/main/dist/MusicBridge.exe",
-  "changelog": "Enable on Windows startup by default. Removed all keyboard hotkeys and set media navigation strictly to Ctrl+Alt+Left Click (Skip) and Ctrl+Alt+Right Click (Replay/Go Back)."
+  "changelog": "Multi-source media tracking across Spotify and browser sites, monotonic timeline clock, master WASAPI loudness metering, and added Play/Pause to Ctrl+Alt+Middle Click and Ctrl+Alt+Space."
 }

@@ -27,12 +27,12 @@ import winreg
 import urllib.request
 import urllib.parse
 import re
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 import pystray
 from PIL import Image, ImageDraw
 
 APP_NAME = "ModularMusicBridge"
-VERSION = "1.4.4"
+VERSION = "1.4.5"
 REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PORT = 8888
 VERSION_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/version.json"
@@ -73,14 +73,30 @@ EXCLUDE_PROCS = {
 MEDIA_PROCS = {
     "spotify.exe", "applemusic.exe", "tidal.exe", "chrome.exe",
     "msedge.exe", "firefox.exe", "librewolf.exe", "brave.exe",
-    "opera.exe", "vivaldi.exe", "vlc.exe", "music.ui.exe",
-    "wmplayer.exe", "foobar2000.exe", "itunes.exe", "aimp.exe"
+    "opera.exe", "opera_gx.exe", "vivaldi.exe", "vlc.exe", "music.ui.exe",
+    "wmplayer.exe", "foobar2000.exe", "itunes.exe", "aimp.exe",
+    "zen.exe", "arc.exe", "yandex.exe", "floorp.exe", "waterfox.exe"
 }
 
 smoothed_peak = 0.0
 max_recent_peak = 0.02
 band_energy = [0.20] * 16
 phase = 0.0
+
+_master_meter = None
+
+def get_master_meter():
+    global _master_meter
+    if _master_meter is None:
+        try:
+            from pycaw.pycaw import AudioUtilities, IAudioMeterInformation
+            from comtypes import CLSCTX_ALL
+            device = AudioUtilities.GetSpeakers()
+            if device and device._dev:
+                _master_meter = device._dev.Activate(IAudioMeterInformation._iid_, CLSCTX_ALL, None).QueryInterface(IAudioMeterInformation)
+        except Exception:
+            _master_meter = None
+    return _master_meter
 
 def get_media_peak() -> float:
     try:
@@ -111,7 +127,21 @@ def get_media_peak() -> float:
                 except Exception:
                     pass
 
-        return media_peak if media_peak > 0.001 else fallback_peak
+        if media_peak > 0.001:
+            return media_peak
+        if fallback_peak > 0.001:
+            return fallback_peak
+
+        # Fallback to master device endpoint meter if per-process returned near zero
+        mm = get_master_meter()
+        if mm:
+            try:
+                mp = float(mm.GetPeakValue())
+                if mp > 0.001:
+                    return mp
+            except Exception:
+                pass
+        return 0.0
     except Exception:
         return 0.0
 
@@ -420,11 +450,15 @@ def get_current_lyric_line(title: str, artist: str, position: float, duration: f
 
 # ── Windows Media Session Poller with Real-Time Timestamp Clock ───
 last_song_query = ""
+last_track_id = ""
+clock_base_pos = 0.0
+clock_sync_time = 0.0
+last_timeline_pos = -1.0
 
 PREFERRED_SOURCE_IDS = ["spotify", "spicetify", "spotifyab", "itunes", "music"]
 
 def pick_best_session(manager):
-    """Return Spotify > any actively playing > current > first."""
+    """Prioritizes actively playing media (Spotify > any browser/app) over paused apps."""
     try:
         sessions = manager.get_sessions()
         if not sessions:
@@ -433,42 +467,51 @@ def pick_best_session(manager):
     except Exception:
         return manager.get_current_session()
 
-    # 1. Prefer preferred sources that are actively playing
-    for pref in PREFERRED_SOURCE_IDS:
-        for s in all_sessions:
-            try:
-                src = (s.source_app_user_model_id or "").lower()
-                pb = s.get_playback_info()
-                if pref in src and pb and pb.playback_status.value == 4:
-                    return s
-            except Exception:
-                pass
+    # 1. Any preferred source that is actively playing (playback_status == 4)
+    for s in all_sessions:
+        try:
+            src = (s.source_app_user_model_id or "").lower()
+            pb = s.get_playback_info()
+            if pb and int(pb.playback_status) == 4:
+                for pref in PREFERRED_SOURCE_IDS:
+                    if pref in src:
+                        return s
+        except Exception:
+            pass
 
-    # 2. Any preferred source even if paused
-    for pref in PREFERRED_SOURCE_IDS:
-        for s in all_sessions:
-            try:
-                src = (s.source_app_user_model_id or "").lower()
-                if pref in src:
-                    return s
-            except Exception:
-                pass
-
-    # 3. Any actively playing session
+    # 2. ANY session that is actively playing (YouTube, SoundCloud in Chrome, Edge, Firefox, Brave, etc.)
     for s in all_sessions:
         try:
             pb = s.get_playback_info()
-            if pb and pb.playback_status.value == 4:
+            if pb and int(pb.playback_status) == 4:
                 return s
         except Exception:
             pass
 
-    # 4. Fall back to system current or first
-    cur = manager.get_current_session()
-    return cur if cur else (all_sessions[0] if all_sessions else None)
+    # 3. System current session if designated by Windows SMTC
+    try:
+        cur = manager.get_current_session()
+        if cur:
+            return cur
+    except Exception:
+        pass
+
+    # 4. Any preferred source even if paused
+    for s in all_sessions:
+        try:
+            src = (s.source_app_user_model_id or "").lower()
+            for pref in PREFERRED_SOURCE_IDS:
+                if pref in src:
+                    return s
+        except Exception:
+            pass
+
+    # 5. Fall back to first available session
+    return all_sessions[0] if all_sessions else None
 
 async def fetch_windows_media():
     global current_cover_bytes, last_song_query, cover_version_counter
+    global last_track_id, clock_base_pos, clock_sync_time, last_timeline_pos
     try:
         from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionManager as SessionManager
         from winrt.windows.storage.streams import DataReader
@@ -486,28 +529,69 @@ async def fetch_windows_media():
             if media_props:
                 t = media_props.title or "Unknown Track"
                 a = media_props.artist or "Unknown Artist"
-                is_playing = (playback.playback_status.value == 4) if playback else True
+                is_playing = (int(playback.playback_status) == 4) if playback and playback.playback_status is not None else True
 
                 current_media["title"] = t
                 current_media["artist"] = a
                 current_media["isPlaying"] = is_playing
 
-                pos = 0.0
-                dur = 0.0
-                if timeline:
-                    base_pos = timeline.position.total_seconds() if timeline.position else 0.0
-                    dur = timeline.end_time.total_seconds() if timeline.end_time else 0.0
-                    if is_playing and timeline.last_updated_time:
-                        now_utc = datetime.datetime.now(datetime.timezone.utc)
-                        elapsed = (now_utc - timeline.last_updated_time).total_seconds()
-                        if 0 <= elapsed < 7200:
-                            base_pos += elapsed
-                    pos = base_pos
-                    if dur > 0:
-                        pos = min(pos, dur)
+                track_id = f"{t}_{a}".lower()
+                now = time.time()
 
-                current_media["position"] = round(pos, 2)
-                current_media["duration"] = round(dur, 2)
+                tl_pos = 0.0
+                tl_dur = 0.0
+                has_timeline_pos = False
+
+                if timeline:
+                    if timeline.position is not None:
+                        tl_pos = timeline.position.total_seconds()
+                        has_timeline_pos = True
+                    if timeline.end_time is not None:
+                        tl_dur = timeline.end_time.total_seconds()
+
+                if track_id != last_track_id:
+                    last_track_id = track_id
+                    clock_base_pos = tl_pos
+                    clock_sync_time = now
+                    last_timeline_pos = tl_pos
+                else:
+                    if has_timeline_pos and abs(tl_pos - last_timeline_pos) > 1.2:
+                        clock_base_pos = tl_pos
+                        clock_sync_time = now
+                        last_timeline_pos = tl_pos
+
+                # Safe elapsed calculation across naive and aware timestamps
+                lut_elapsed = None
+                if is_playing and timeline and timeline.last_updated_time:
+                    lut = timeline.last_updated_time
+                    try:
+                        if hasattr(lut, "tzinfo") and lut.tzinfo is not None:
+                            lut_elapsed = (datetime.datetime.now(datetime.timezone.utc) - lut).total_seconds()
+                        elif hasattr(lut, "timestamp"):
+                            lut_elapsed = now - lut.timestamp()
+                        else:
+                            lut_elapsed = (datetime.datetime.now() - lut).total_seconds()
+                        if not (0 <= lut_elapsed < 7200):
+                            lut_elapsed = None
+                    except Exception:
+                        lut_elapsed = None
+
+                if is_playing:
+                    if lut_elapsed is not None:
+                        calc_pos = tl_pos + lut_elapsed
+                    else:
+                        calc_pos = clock_base_pos + (now - clock_sync_time)
+                else:
+                    calc_pos = clock_base_pos
+                    clock_sync_time = now
+
+                if tl_dur > 0:
+                    calc_pos = max(0.0, min(calc_pos, tl_dur))
+                else:
+                    calc_pos = max(0.0, calc_pos)
+
+                current_media["position"] = round(calc_pos, 2)
+                current_media["duration"] = round(tl_dur, 2)
 
                 song_query = f"{t}_{a}".lower()
                 if song_query != last_song_query:
@@ -545,7 +629,7 @@ async def fetch_windows_media():
                 current_media["hasCover"] = len(current_cover_bytes) > 0
                 current_media["coverVersion"] = cover_version_counter
 
-                current_lyric = get_current_lyric_line(t, a, pos, dur)
+                current_lyric = get_current_lyric_line(t, a, calc_pos, tl_dur)
                 current_media["lyrics"] = current_lyric
     except Exception:
         pass
@@ -557,23 +641,40 @@ async def send_media_control(cmd: str) -> bool:
         manager = await SessionManager.request_async()
         if not manager:
             return False
-        # pick_best_session is sync — do NOT await it
         session = pick_best_session(manager)
         if not session:
             session = manager.get_current_session()
         if session:
             if cmd == "toggle":
                 result = await session.try_toggle_play_pause_async()
+                if not result:
+                    pb = session.get_playback_info()
+                    if pb and int(pb.playback_status) == 4:
+                        result = await session.try_pause_async()
+                    else:
+                        result = await session.try_play_async()
                 print(f"[MediaControl] WinRT toggle -> {result}")
-                return result
+                return bool(result)
+            elif cmd == "pause":
+                result = await session.try_pause_async()
+                if not result:
+                    result = await session.try_toggle_play_pause_async()
+                print(f"[MediaControl] WinRT pause -> {result}")
+                return bool(result)
+            elif cmd == "play":
+                result = await session.try_play_async()
+                if not result:
+                    result = await session.try_toggle_play_pause_async()
+                print(f"[MediaControl] WinRT play -> {result}")
+                return bool(result)
             elif cmd == "skip":
                 result = await session.try_skip_next_async()
                 print(f"[MediaControl] WinRT skip -> {result}")
-                return result
+                return bool(result)
             elif cmd == "prev":
                 result = await session.try_skip_previous_async()
                 print(f"[MediaControl] WinRT prev -> {result}")
-                return result
+                return bool(result)
     except Exception as e:
         print(f"[MediaControl] WinRT error: {e}")
     return False
@@ -638,7 +739,14 @@ def trigger_media_command(cmd: str) -> bool:
     return success
 
 def setup_global_hotkeys():
-    """Listens for global Windows mouse shortcuts: Ctrl+Alt+Left Click (Skip Song) and Ctrl+Alt+Right Click (Replay / Go Back)."""
+    """Listens for global Windows shortcuts:
+    - Ctrl + Alt + Left Click   -> Skip Song
+    - Ctrl + Alt + Right Click  -> Replay / Go Back
+    - Ctrl + Alt + Middle Click -> Play / Pause
+    - Ctrl + Alt + Space        -> Play / Pause
+    """
+    hook_mouse_id = None
+    hook_kbd_id = None
     try:
         import ctypes
         from ctypes import wintypes
@@ -646,15 +754,29 @@ def setup_global_hotkeys():
         user32 = ctypes.windll.user32
         kernel32 = ctypes.windll.kernel32
 
+        WH_KEYBOARD_LL = 13
         WH_MOUSE_LL = 14
+        WM_KEYDOWN = 0x0100
+        WM_SYSKEYDOWN = 0x0104
         WM_LBUTTONDOWN = 0x0201
         WM_RBUTTONDOWN = 0x0204
+        WM_MBUTTONDOWN = 0x0207
         VK_CONTROL = 0x11
         VK_LCONTROL = 0xA2
         VK_RCONTROL = 0xA3
         VK_MENU = 0x12  # Alt
         VK_LMENU = 0xA4
         VK_RMENU = 0xA5
+        VK_SPACE = 0x20
+
+        class KBDLLHOOKSTRUCT(ctypes.Structure):
+            _fields_ = [
+                ('vkCode', wintypes.DWORD),
+                ('scanCode', wintypes.DWORD),
+                ('flags', wintypes.DWORD),
+                ('time', wintypes.DWORD),
+                ('dwExtraInfo', ctypes.c_size_t)
+            ]
 
         HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
 
@@ -675,14 +797,33 @@ def setup_global_hotkeys():
                         print("[Hotkey] Ctrl + Alt + Right Click -> Replay / Go Back")
                         threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
                         return 1
+                    elif wParam == WM_MBUTTONDOWN:
+                        print("[Hotkey] Ctrl + Alt + Middle Click -> Play / Pause")
+                        threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
+                        return 1
+            return user32.CallNextHookEx(None, nCode, wParam, lParam)
+
+        def low_level_kbd_proc(nCode, wParam, lParam):
+            if nCode >= 0 and wParam in (WM_KEYDOWN, WM_SYSKEYDOWN):
+                if is_ctrl_down() and is_alt_down():
+                    kb_struct = KBDLLHOOKSTRUCT.from_address(lParam)
+                    if kb_struct.vkCode == VK_SPACE:
+                        print("[Hotkey] Ctrl + Alt + Space -> Play / Pause")
+                        threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
+                        return 1
             return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
         hook_mouse_cb = HOOKPROC(low_level_mouse_proc)
         hook_mouse_id = user32.SetWindowsHookExW(WH_MOUSE_LL, hook_mouse_cb, kernel32.GetModuleHandleW(None), 0)
 
+        hook_kbd_cb = HOOKPROC(low_level_kbd_proc)
+        hook_kbd_id = user32.SetWindowsHookExW(WH_KEYBOARD_LL, hook_kbd_cb, kernel32.GetModuleHandleW(None), 0)
+
         print("[Shortcuts] Universal Windows Hotkeys Active:")
-        print("  - Ctrl + Alt + Left Click  -> Skip Song")
-        print("  - Ctrl + Alt + Right Click -> Replay / Go Back")
+        print("  - Ctrl + Alt + Left Click   -> Skip Song")
+        print("  - Ctrl + Alt + Right Click  -> Replay / Go Back")
+        print("  - Ctrl + Alt + Middle Click -> Play / Pause")
+        print("  - Ctrl + Alt + Space        -> Play / Pause")
 
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), 0, 0, 0) != 0:
@@ -690,72 +831,73 @@ def setup_global_hotkeys():
             user32.DispatchMessageW(ctypes.byref(msg))
     except Exception as e:
         print(f"[Shortcuts] Low-level hook error: {e}")
-
-        msg = wintypes.MSG()
-        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
-            user32.TranslateMessage(ctypes.byref(msg))
-            user32.DispatchMessageW(ctypes.byref(msg))
-
+    finally:
         if hook_kbd_id:
             user32.UnhookWindowsHookEx(hook_kbd_id)
         if hook_mouse_id:
             user32.UnhookWindowsHookEx(hook_mouse_id)
-    except Exception as e:
-        print(f"[Shortcuts] Global hotkey error: {e}")
 
 # ── HTTP Server Request Handler ───────────────────────────────────
 class BridgeHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         return
 
+    def _send_response_data(self, content_type: str, body: bytes, status: int = 200):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "*")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self._send_response_data("text/plain", b"OK")
+
     def do_GET(self):
         path = self.path.lower()
 
         if path.startswith("/cover.png") or path.startswith("/cover"):
             if current_cover_bytes and len(current_cover_bytes) > 50:
-                self.send_response(200)
-                self.send_header("Content-Type", "image/png")
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Content-Length", str(len(current_cover_bytes)))
-                self.end_headers()
-                self.wfile.write(current_cover_bytes)
-                return
+                self._send_response_data("image/png", current_cover_bytes)
             else:
-                self.send_response(404)
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
-                self.wfile.write(b"No cover available")
-                return
-
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
+                self._send_response_data("text/plain", b"No cover available", status=404)
+            return
 
         if path.startswith("/current"):
-            self.wfile.write(json.dumps(current_media).encode("utf-8"))
+            data = json.dumps(current_media).encode("utf-8")
+            self._send_response_data("application/json", data)
         elif path.startswith("/spectrum"):
-            self.wfile.write(json.dumps({
+            data = json.dumps({
                 "peak": current_media["audioPeak"],
                 "spectrum": current_media["spectrum"]
-            }).encode("utf-8"))
+            }).encode("utf-8")
+            self._send_response_data("application/json", data)
         elif path.startswith("/toggle"):
             trigger_media_command("toggle")
-            self.wfile.write(b'{"status":"toggled"}')
+            self._send_response_data("application/json", b'{"status":"toggled"}')
+        elif path.startswith("/pause"):
+            trigger_media_command("pause")
+            self._send_response_data("application/json", b'{"status":"paused"}')
+        elif path.startswith("/play"):
+            trigger_media_command("play")
+            self._send_response_data("application/json", b'{"status":"playing"}')
         elif path.startswith("/skip"):
             trigger_media_command("skip")
-            self.wfile.write(b'{"status":"skipped"}')
+            self._send_response_data("application/json", b'{"status":"skipped"}')
         elif path.startswith("/prev"):
             trigger_media_command("prev")
-            self.wfile.write(b'{"status":"previous"}')
+            self._send_response_data("application/json", b'{"status":"previous"}')
         elif path.startswith("/update"):
             threading.Thread(target=lambda: check_for_updates(auto=False), daemon=True).start()
-            self.wfile.write(b'{"status":"checking_updates"}')
+            self._send_response_data("application/json", b'{"status":"checking_updates"}')
         else:
-            self.wfile.write(b'{"status":"ok"}')
+            self._send_response_data("application/json", b'{"status":"ok"}')
 
 def run_http_server():
-    server = HTTPServer(("127.0.0.1", PORT), BridgeHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", PORT), BridgeHandler)
     server.serve_forever()
 
 def run_media_loop():
@@ -775,6 +917,14 @@ def run_audio_loop():
         time.sleep(0.016)
 
 # ── Auto-Updater & Version Management ──────────────────────────────
+def is_newer_version(remote: str, current: str) -> bool:
+    try:
+        r_parts = [int(p) for p in re.findall(r'\d+', str(remote))]
+        c_parts = [int(p) for p in re.findall(r'\d+', str(current))]
+        return r_parts > c_parts
+    except Exception:
+        return False
+
 def check_for_updates(auto: bool = False) -> bool:
     """Checks remote repository for newer builds and auto-applies updates."""
     try:
@@ -795,7 +945,7 @@ def check_for_updates(auto: bool = False) -> bool:
                 if m_dl:
                     dl_url = m_dl.group(1)
 
-            if remote_ver != VERSION:
+            if is_newer_version(remote_ver, VERSION):
                 print(f"[Updater] Update detected: v{remote_ver} (Current: v{VERSION})")
                 is_frozen = getattr(sys, "frozen", False)
                 if is_frozen:
@@ -922,9 +1072,9 @@ def main():
 
     menu = pystray.Menu(
         pystray.MenuItem(f"Modular MusicBridge v{VERSION} (Port {PORT})", None, enabled=False),
-        pystray.MenuItem("Play / Pause Media", on_toggle_play),
-        pystray.MenuItem("Previous Track (Ctrl + Alt + Right Click)", on_prev),
+        pystray.MenuItem("Play / Pause (Ctrl + Alt + Middle Click / Space)", on_toggle_play),
         pystray.MenuItem("Next Track / Skip (Ctrl + Alt + Left Click)", on_skip),
+        pystray.MenuItem("Previous Track (Ctrl + Alt + Right Click)", on_prev),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Check for Updates", on_check_updates),
         pystray.MenuItem("Run on Startup", toggle_startup, checked=lambda item: is_startup_enabled()),

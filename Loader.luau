@@ -4610,7 +4610,7 @@ Modules["UI/MusicTracker.luau"] = function()
     		end)
     	end)
 
-    	-- ── Shortcuts: Ctrl + Alt + Left Click (Skip) & Ctrl + Alt + Right Click (Replay / Go Back) ───
+    	-- ── Shortcuts: Ctrl + Alt + Left Click (Skip), Right Click (Replay / Go Back), Middle Click / Space (Play / Pause) ───
     	local lastShortcutTick = 0
     	UserInputService.InputBegan:Connect(function(input, gp)
     		local focused = UserInputService:GetFocusedTextBox()
@@ -4632,6 +4632,16 @@ Modules["UI/MusicTracker.luau"] = function()
     				lastShortcutTick = now
     				task.spawn(function()
     					httpFetch(BRIDGE_URL .. "/prev")
+    				end)
+    			elseif input.UserInputType == Enum.UserInputType.MouseButton3 then
+    				lastShortcutTick = now
+    				task.spawn(function()
+    					httpFetch(BRIDGE_URL .. "/toggle")
+    				end)
+    			elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Space then
+    				lastShortcutTick = now
+    				task.spawn(function()
+    					httpFetch(BRIDGE_URL .. "/toggle")
     				end)
     			end
     		end

@@ -725,7 +725,9 @@ def trigger_media_command(cmd: str) -> bool:
             vk_map = {
                 "skip": VK_MEDIA_NEXT_TRACK,
                 "prev": VK_MEDIA_PREV_TRACK,
-                "toggle": VK_MEDIA_PLAY_PAUSE
+                "toggle": VK_MEDIA_PLAY_PAUSE,
+                "pause": VK_MEDIA_PLAY_PAUSE,
+                "play": VK_MEDIA_PLAY_PAUSE
             }
             vk = vk_map.get(cmd)
             if vk:

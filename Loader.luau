@@ -4344,9 +4344,55 @@ Modules["UI/ChatWidget.luau"] = function()
     		resetInactivity()
     	end)
 
+    	local lastKnownPos = widget.AbsolutePosition
+    	local lastKnownSize = widget.AbsoluteSize
+
+    	widget:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+    		if widget.AbsolutePosition.X ~= 0 or widget.AbsolutePosition.Y ~= 0 then
+    			lastKnownPos = widget.AbsolutePosition
+    		end
+    	end)
+    	widget:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+    		if widget.AbsoluteSize.X > 50 and widget.AbsoluteSize.Y > 50 then
+    			lastKnownSize = widget.AbsoluteSize
+    		end
+    	end)
+
+    	local function isMouseOverWidget(mousePos: Vector2): boolean
+    		local pos = if widget.Visible and widget.AbsoluteSize.X > 50 then widget.AbsolutePosition else lastKnownPos
+    		local size = if widget.Visible and widget.AbsoluteSize.X > 50 then widget.AbsoluteSize else lastKnownSize
+    		return mousePos.X >= pos.X and mousePos.X <= (pos.X + size.X)
+    		   and mousePos.Y >= pos.Y and mousePos.Y <= (pos.Y + size.Y)
+    	end
+
+    	UserInputService.InputChanged:Connect(function(input)
+    		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+    			local mousePos = UserInputService:GetMouseLocation()
+    			if isMouseOverWidget(mousePos) then
+    				if not isMouseHovered then
+    					isMouseHovered = true
+    					resetInactivity()
+    					if not isOpen and not isTransitioning and isWidgetEnabled then
+    						openWidget()
+    					end
+    				else
+    					resetInactivity()
+    				end
+    			else
+    				if isMouseHovered then
+    					isMouseHovered = false
+    					resetInactivity()
+    				end
+    			end
+    		end
+    	end)
+
     	widget.MouseEnter:Connect(function()
     		isMouseHovered = true
     		resetInactivity()
+    		if not isOpen and not isTransitioning and isWidgetEnabled then
+    			openWidget()
+    		end
     	end)
 
     	widget.MouseLeave:Connect(function()

@@ -350,6 +350,8 @@ _G.__ToggleProjectFihMenu = function()
 	window:Toggle()
 end
 
+_G.__ModularSuite_Window = window
+
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	local focused = UserInputService:GetFocusedTextBox()

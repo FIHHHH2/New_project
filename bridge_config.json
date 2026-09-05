@@ -1,6 +1,7 @@
 {
   "enable_global_hotkeys": true,
   "enable_mouse_shortcuts": true,
+  "mouse_sidebutton2_require_alt": true,
   "hotkeys": {
     "skip": {
       "name": "Ctrl + Alt + Right",

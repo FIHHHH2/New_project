@@ -174,6 +174,7 @@ function HealthWidget.new(): HealthWidgetInstance
 	hudFrame.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	hudFrame.BorderSizePixel = 0
 	hudFrame.ClipsDescendants = false
+	hudFrame.Visible = false
 	hudFrame.Parent = screenGui
 	UI.registerThemeElement(hudFrame, "Background")
 

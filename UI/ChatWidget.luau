@@ -125,69 +125,87 @@ function ChatWidget.new(): ChatWidgetInstance
 	topbar.Name = "TopBar"
 	topbar.Size = UDim2.new(1, -12, 0, TOPBAR_H)
 	topbar.Position = UDim2.new(0, 6, 0, 6)
-	topbar.BackgroundColor3 = UI.Theme.Container
-	topbar.BackgroundTransparency = UI.Theme.ContainerTransparency
+	topbar.BackgroundTransparency = 1
 	topbar.BorderSizePixel = 0
 	topbar.Parent = widget
-	UI.registerThemeElement(topbar, "Container")
 
-	local topGradient = Instance.new("UIGradient")
-	topGradient.Rotation = 45
-	topGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 230))
-	})
-	topGradient.Parent = topbar
+	-- [ Chat Badge ] on Left (matches VersionBox in Main GUI)
+	local chatBadge = Instance.new("Frame")
+	chatBadge.Name = "ChatBadge"
+	chatBadge.Size = UDim2.new(0, 52, 1, 0)
+	chatBadge.Position = UDim2.new(0, 0, 0, 0)
+	chatBadge.BackgroundColor3 = UI.Theme.Container
+	chatBadge.BackgroundTransparency = UI.Theme.ContainerTransparency
+	chatBadge.BorderSizePixel = 0
+	chatBadge.Parent = topbar
+	UI.registerThemeElement(chatBadge, "Container")
 
-	local topStroke = Instance.new("UIStroke")
-	topStroke.Color = UI.Theme.Border
-	topStroke.Thickness = 1.5
-	topStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	topStroke.Parent = topbar
-	UI.registerThemeElement(topStroke, "Border")
+	local badgeStroke = Instance.new("UIStroke")
+	badgeStroke.Color = UI.Theme.Border
+	badgeStroke.Thickness = 1.0
+	badgeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	badgeStroke.Parent = chatBadge
+	UI.registerThemeElement(badgeStroke, "Border")
 
-	-- Avatar Thumbnail
-	local mugBox = Instance.new("Frame")
-	mugBox.Size = UDim2.new(0, 22, 0, 22)
-	mugBox.Position = UDim2.new(0, 3, 0, 3)
-	mugBox.BackgroundColor3 = UI.Theme.ContainerDark
-	mugBox.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
-	mugBox.BorderSizePixel = 0
-	mugBox.Parent = topbar
-	UI.registerThemeElement(mugBox, "ContainerDark")
+	local badgeLabel = Instance.new("TextLabel")
+	badgeLabel.Size = UDim2.new(1, 0, 1, 0)
+	badgeLabel.BackgroundTransparency = 1
+	badgeLabel.Text = "Chat"
+	badgeLabel.TextColor3 = UI.Theme.TextPrimary
+	badgeLabel.Font = UI.Fonts.Header
+	badgeLabel.TextSize = 11
+	badgeLabel.Parent = chatBadge
+	UI.registerThemeElement(badgeLabel, "TextPrimary")
 
-	local mugStroke = Instance.new("UIStroke")
-	mugStroke.Color = UI.Theme.Border
-	mugStroke.Thickness = 1
-	mugStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	mugStroke.Parent = mugBox
-	UI.registerThemeElement(mugStroke, "Border")
+	-- [ Channel Box ] (matches Main GUI tabs)
+	local channelBtn = Instance.new("TextButton")
+	channelBtn.Name = "ChannelBtn"
+	channelBtn.Size = UDim2.new(0, 58, 1, 0)
+	channelBtn.Position = UDim2.new(0, 58, 0, 0)
+	channelBtn.BackgroundColor3 = UI.Theme.Accent
+	channelBtn.BackgroundTransparency = 0.15
+	channelBtn.BorderSizePixel = 0
+	channelBtn.Text = "[ All ]"
+	channelBtn.TextColor3 = UI.Theme.AccentText
+	channelBtn.Font = UI.Fonts.Header
+	channelBtn.TextSize = 11
+	channelBtn.Parent = topbar
 
-	local mugImg = Instance.new("ImageLabel")
-	mugImg.Size = UDim2.new(1, 0, 1, 0)
-	mugImg.BackgroundTransparency = 1
-	mugImg.Parent = mugBox
-	task.spawn(function()
-		local ok, thumb = pcall(function()
-			return Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
-		end)
-		if ok and thumb and mugImg.Parent then
-			mugImg.Image = thumb
-		end
-	end)
+	local chStroke = Instance.new("UIStroke")
+	chStroke.Color = UI.Theme.Border
+	chStroke.Thickness = 1.0
+	chStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	chStroke.Parent = channelBtn
+	UI.registerThemeElement(chStroke, "Border")
 
-	-- Title: Chat : @Username
+	-- [ Title & Controls Box ] on Right (matches TitleBox in Main GUI)
+	local titleBox = Instance.new("Frame")
+	titleBox.Name = "TitleBox"
+	titleBox.Size = UDim2.new(0, 138, 1, 0)
+	titleBox.Position = UDim2.new(1, -138, 0, 0)
+	titleBox.BackgroundColor3 = UI.Theme.Container
+	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
+	titleBox.BorderSizePixel = 0
+	titleBox.Parent = topbar
+	UI.registerThemeElement(titleBox, "Container")
+
+	local titleBoxStroke = Instance.new("UIStroke")
+	titleBoxStroke.Color = UI.Theme.Border
+	titleBoxStroke.Thickness = 1.0
+	titleBoxStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	titleBoxStroke.Parent = titleBox
+	UI.registerThemeElement(titleBoxStroke, "Border")
+
 	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(0, 115, 1, 0)
-	titleLabel.Position = UDim2.new(0, 29, 0, 0)
+	titleLabel.Size = UDim2.new(1, -50, 1, 0)
+	titleLabel.Position = UDim2.new(0, 6, 0, 0)
 	titleLabel.BackgroundTransparency = 1
-	titleLabel.Text = string.format("Chat : @%s", Players.LocalPlayer.Name)
+	titleLabel.Text = "Chat Box"
 	titleLabel.TextColor3 = UI.Theme.TextPrimary
 	titleLabel.Font = UI.Fonts.Header
-	titleLabel.TextSize = 10
-	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextSize = 11
 	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
-	titleLabel.Parent = topbar
+	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
 	-- ── Center Action Buttons: [ ⯎ ] [ ≡ ] [ 🎙 ] ─────────────────────
@@ -429,29 +447,6 @@ function ChatWidget.new(): ChatWidgetInstance
 		end
 	end)
 
-	createDropItem("Emotes", function()
-		if _G.__ToggleProjectFihEmotes then
-			_G.__ToggleProjectFihEmotes()
-		else
-			local function toggleEmotes(parent: Instance?)
-				if not parent then return false end
-				local g = parent:FindFirstChild("ModularEmotesGui")
-				if g then
-					local w = g:FindFirstChild("EmotesWidget")
-					if w and w:IsA("Frame") then
-						w.Visible = not w.Visible
-						return true
-					end
-				end
-				return false
-			end
-			if not toggleEmotes(CoreGui) then
-				local lp = Players.LocalPlayer
-				if lp then toggleEmotes(lp:FindFirstChild("PlayerGui")) end
-			end
-		end
-	end)
-
 	createDropItem("Main Menu", function()
 		if _G.__ToggleProjectFihMenu then
 			_G.__ToggleProjectFihMenu()
@@ -474,19 +469,19 @@ function ChatWidget.new(): ChatWidgetInstance
 		dropdown.Visible = not dropdown.Visible
 	end)
 
-	-- Right: Minimize [-] & Close [X] Buttons
+	-- Right: Minimize [—] & Close [X] Buttons inside TitleBox (matching Main GUI)
 	local minBtn = Instance.new("TextButton")
 	minBtn.Name = "MinBtn"
-	minBtn.Size = UDim2.new(0, 20, 0, 18)
-	minBtn.Position = UDim2.new(1, -50, 0, 5)
+	minBtn.Size = UDim2.new(0, 20, 1, -4)
+	minBtn.Position = UDim2.new(1, -44, 0, 2)
 	minBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	minBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	minBtn.BorderSizePixel = 0
-	minBtn.Text = "-"
+	minBtn.Text = "—"
 	minBtn.TextColor3 = UI.Theme.TextPrimary
-	minBtn.Font = UI.Fonts.Mono
-	minBtn.TextSize = 13
-	minBtn.Parent = topbar
+	minBtn.Font = UI.Fonts.Header
+	minBtn.TextSize = 12
+	minBtn.Parent = titleBox
 	UI.registerThemeElement(minBtn, "ContainerDark")
 	UI.registerThemeElement(minBtn, "TextPrimary")
 
@@ -499,16 +494,16 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.Name = "CloseBtn"
-	closeBtn.Size = UDim2.new(0, 20, 0, 18)
-	closeBtn.Position = UDim2.new(1, -26, 0, 5)
+	closeBtn.Size = UDim2.new(0, 20, 1, -4)
+	closeBtn.Position = UDim2.new(1, -22, 0, 2)
 	closeBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	closeBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	closeBtn.BorderSizePixel = 0
 	closeBtn.Text = "X"
 	closeBtn.TextColor3 = UI.Theme.TextPrimary
-	closeBtn.Font = UI.Fonts.Mono
+	closeBtn.Font = UI.Fonts.Header
 	closeBtn.TextSize = 11
-	closeBtn.Parent = topbar
+	closeBtn.Parent = titleBox
 	UI.registerThemeElement(closeBtn, "ContainerDark")
 	UI.registerThemeElement(closeBtn, "TextPrimary")
 
@@ -520,7 +515,9 @@ function ChatWidget.new(): ChatWidgetInstance
 	UI.registerThemeElement(closeStroke, "Border")
 
 	-- ── Topbar Dragging (Zero-drift cursor locked) ────────────────────
-			UI.makeDraggable(topbar, widget)
+	UI.makeDraggable(topbar, widget)
+	UI.makeDraggable(chatBadge, widget)
+	UI.makeDraggable(titleBox, widget)
 
 	-- ============================================================
 	-- ── MESSAGE CONTAINER (CHAT LOGS) ───────────────────────────
@@ -626,10 +623,10 @@ function ChatWidget.new(): ChatWidgetInstance
 	sendBtn.Position = UDim2.new(1, -60, 0, 0)
 	sendBtn.BackgroundColor3 = UI.Theme.Accent
 	sendBtn.BorderSizePixel = 0
-	sendBtn.Text = "Send Msg"
+	sendBtn.Text = "Send"
 	sendBtn.TextColor3 = UI.Theme.AccentText
 	sendBtn.Font = UI.Fonts.Header
-	sendBtn.TextSize = 10
+	sendBtn.TextSize = 11
 	sendBtn.ZIndex = 7
 	sendBtn.Parent = bottomBar
 	UI.registerThemeElement(sendBtn, "Accent")

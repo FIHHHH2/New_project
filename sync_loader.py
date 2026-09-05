@@ -11,9 +11,14 @@ def sync():
     pattern = re.compile(r'(Modules\["([^"]+)"\] = function\(\)\n)(.*?)(^end\n)', re.DOTALL | re.MULTILINE)
 
     targets = [
-        "UI/HealthWidget.luau",
-        "UI/LeaderstatsWidget.luau",
+        "UI/UI.luau",
+        "Core/CoreUI.luau",
         "Core/MainUI.luau",
+        "UI/Hotbar.luau",
+        "UI/HealthWidget.luau",
+        "UI/PlayerList.luau",
+        "UI/ChatWidget.luau",
+        "UI/LeaderstatsWidget.luau",
         "UI/MusicTracker.luau",
         "Modules/DisasterSurvival.luau",
     ]
@@ -40,6 +45,16 @@ def sync():
         return match.group(0)
 
     new_loader_text = pattern.sub(replacer, loader_text)
+    
+    # Update bootstrap part (Core/Main.luau)
+    bootstrap_marker = "-- MAIN APPLICATION BOOTSTRAP\n"
+    if bootstrap_marker in new_loader_text and os.path.exists("Core/Main.luau"):
+        print("Updating Core/Main.luau bootstrap in Loader.luau...")
+        with open("Core/Main.luau", "r", encoding="utf-8") as mf:
+            main_body = mf.read()
+        
+        prefix, _ = new_loader_text.split(bootstrap_marker, 1)
+        new_loader_text = prefix + bootstrap_marker + "local require = requireModule\n\n" + main_body
     
     with open(LOADER_PATH, "w", encoding="utf-8") as f:
         f.write(new_loader_text)

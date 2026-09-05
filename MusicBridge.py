@@ -34,7 +34,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 APP_NAME = "ModularMusicBridge"
-VERSION = "1.4.8"
+VERSION = "1.4.9"
 REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PORT = 8888
 VERSION_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/version.json"
@@ -44,7 +44,9 @@ EXE_URL = "https://github.com/FIHHHH2/New_project/raw/main/dist/MusicBridge.exe"
 current_media = {
     "title": "No Song Playing",
     "artist": "Waiting for Media...",
-    "lyrics": "Play a track on Spotify / SoundCloud / YouTube",
+    "lyrics": "Play a song on Spotify, YouTube, or In-Game Audio",
+    "has_synced_lyrics": False,
+    "lyric_status": "none",
     "current_word": "",
     "synced_lyrics": [],
     "isPlaying": False,
@@ -329,7 +331,6 @@ def download_cover_image_bytes(title: str, artist: str) -> bytes:
 
 # ── Multi-Source Synchronized Lyrics Engine ─────────────────────────
 def parse_lrc_words(line_text: str, line_start: float, line_end: float):
-    # Check for enhanced LRC inline timestamps e.g. <00:12.34>word or <12.34>word
     inline_matches = list(re.finditer(r'<(\d+:)?(\d+(?:\.\d+)?)>([^<]+)', line_text))
     words = []
     if inline_matches:
@@ -346,27 +347,7 @@ def parse_lrc_words(line_text: str, line_start: float, line_end: float):
             words[i]["end_ms"] = int(next_sec * 1000)
             del words[i]["sec"]
         return words
-
-    clean_line = re.sub(r'<[^>]+>', '', line_text).strip()
-    raw_words = clean_line.split()
-    if not raw_words:
-        return []
-
-    line_dur = max(0.4, line_end - line_start)
-    weights = [max(1, len(re.sub(r'[^a-zA-Z0-9]', '', w))) for w in raw_words]
-    total_weight = sum(weights) or 1
-    active_dur = line_dur * 0.92
-    cur_t = line_start
-
-    for w, wt in zip(raw_words, weights):
-        w_dur = (wt / total_weight) * active_dur
-        words.append({
-            "word": w,
-            "start_ms": int(cur_t * 1000),
-            "end_ms": int((cur_t + w_dur) * 1000)
-        })
-        cur_t += w_dur
-    return words
+    return []
 
 def parse_lrc(lrc_text: str):
     raw_lines = []
@@ -396,115 +377,170 @@ def parse_lrc(lrc_text: str):
         })
     return structured
 
+def normalize_title_token(s: str) -> str:
+    return re.sub(r'[^a-zA-Z0-9]', '', s).lower()
+
 def fetch_synced_lyrics(title: str, artist: str, duration: float):
-    clean_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*|prod\..*', '', title, flags=re.IGNORECASE).strip()
-    cache_key = f"{clean_title}_{artist}".lower()
+    clean_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*|prod\..*|- remastered.*|- official.*', '', title, flags=re.IGNORECASE).strip()
+    clean_artist = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*|prod\..*', '', artist, flags=re.IGNORECASE).strip()
+    cache_key = f"{clean_title}_{clean_artist}".lower()
     if cache_key in lyrics_cache:
         return lyrics_cache[cache_key]
 
-    headers = {"User-Agent": "Mozilla/5.0"}
-    
-    extracted_artist, extracted_title = artist, clean_title
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+
+    extracted_artist, extracted_title = clean_artist, clean_title
     if " - " in title:
         parts = title.split(" - ", 1)
         extracted_artist = parts[0].strip()
         extracted_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*', '', parts[1], flags=re.IGNORECASE).strip()
 
-    search_queries = [
+    target_title_norm = normalize_title_token(extracted_title) or normalize_title_token(clean_title)
+
+    has_plain_fallback = False
+
+    # 1. Direct GET request with artist and track
+    queries = [
         (extracted_artist, extracted_title),
-        (artist, clean_title),
-        ("", extracted_title),
-        ("", clean_title)
+        (clean_artist, clean_title)
     ]
 
-    for a_name, t_name in search_queries:
+    for a_name, t_name in queries:
         if not t_name: continue
         try:
-            if a_name:
-                q_t = urllib.parse.quote(t_name)
-                q_a = urllib.parse.quote(a_name)
-                url = f"https://lrclib.net/api/get?artist_name={q_a}&track_name={q_t}"
-                if duration > 0:
-                    url += f"&duration={int(duration)}"
-                req = urllib.request.Request(url, headers=headers)
-                with urllib.request.urlopen(req, timeout=3.0) as resp:
-                    data = json.loads(resp.read().decode("utf-8-sig"))
-                    if data.get("syncedLyrics"):
-                        parsed = parse_lrc(data["syncedLyrics"])
-                        if len(parsed) > 0:
-                            lyrics_cache[cache_key] = {"type": "synced", "lines": parsed}
-                            return lyrics_cache[cache_key]
-                    elif data.get("plainLyrics"):
-                        plain_lines = [l.strip() for l in data["plainLyrics"].splitlines() if l.strip()]
-                        if len(plain_lines) > 0:
-                            lyrics_cache[cache_key] = {"type": "plain", "lines": plain_lines}
-                            return lyrics_cache[cache_key]
+            q_t = urllib.parse.quote(t_name)
+            q_a = urllib.parse.quote(a_name)
+            url = f"https://lrclib.net/api/get?artist_name={q_a}&track_name={q_t}"
+            if duration > 0:
+                url += f"&duration={int(duration)}"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                data = json.loads(resp.read().decode("utf-8-sig"))
+                cand_dur = data.get("duration")
+                dur_ok = True
+                if duration > 15 and cand_dur:
+                    dur_ok = abs(float(cand_dur) - duration) <= 8.0
+
+                if dur_ok and data.get("syncedLyrics"):
+                    parsed = parse_lrc(data["syncedLyrics"])
+                    if len(parsed) > 0:
+                        lyrics_cache[cache_key] = {"type": "synced", "lines": parsed}
+                        return lyrics_cache[cache_key]
+                elif data.get("plainLyrics"):
+                    has_plain_fallback = True
         except Exception:
             pass
 
+    # 2. Targeted search if direct lookup missed, with strict title and duration verification
+    search_terms = [
+        f"{extracted_title} {extracted_artist}".strip(),
+        f"{clean_title} {clean_artist}".strip()
+    ]
+
+    for term in search_terms:
+        if not term: continue
         try:
-            q = urllib.parse.quote(f"{t_name} {a_name}".strip())
+            q = urllib.parse.quote(term)
             url = f"https://lrclib.net/api/search?q={q}"
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=3.0) as resp:
                 results = json.loads(resp.read().decode("utf-8-sig"))
-                if results and isinstance(results, list) and len(results) > 0:
-                    for item in results[:3]:
+                if results and isinstance(results, list):
+                    for item in results:
+                        cand_title_norm = normalize_title_token(item.get("trackName", ""))
+                        if target_title_norm and cand_title_norm:
+                            if target_title_norm not in cand_title_norm and cand_title_norm not in target_title_norm:
+                                continue
+
+                        cand_dur = item.get("duration")
+                        if duration > 15 and cand_dur:
+                            if abs(float(cand_dur) - duration) > 8.0:
+                                continue
+
                         if item.get("syncedLyrics"):
                             parsed = parse_lrc(item["syncedLyrics"])
                             if len(parsed) > 0:
                                 lyrics_cache[cache_key] = {"type": "synced", "lines": parsed}
                                 return lyrics_cache[cache_key]
                         elif item.get("plainLyrics"):
-                            plain_lines = [l.strip() for l in item["plainLyrics"].splitlines() if l.strip()]
-                            if len(plain_lines) > 0:
-                                lyrics_cache[cache_key] = {"type": "plain", "lines": plain_lines}
-                                return lyrics_cache[cache_key]
+                            has_plain_fallback = True
         except Exception:
             pass
 
-    try:
-        if extracted_artist and extracted_title:
-            q_a = urllib.parse.quote(extracted_artist)
-            q_t = urllib.parse.quote(extracted_title)
-            url = f"https://api.lyrics.ovh/v1/{q_a}/{q_t}"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=3.0) as resp:
-                data = json.loads(resp.read().decode("utf-8-sig"))
-                if data.get("lyrics"):
-                    plain_lines = [l.strip() for l in data["lyrics"].splitlines() if l.strip()]
-                    if len(plain_lines) > 0:
-                        lyrics_cache[cache_key] = {"type": "plain", "lines": plain_lines}
-                        return lyrics_cache[cache_key]
-    except Exception:
-        pass
+    if has_plain_fallback:
+        res = {"type": "no_synced", "lines": [], "message": "Unable to track along song timestamps"}
+        lyrics_cache[cache_key] = res
+        return res
 
-    lyrics_cache[cache_key] = None
-    return None
+    res = {"type": "none", "lines": [], "message": "No lyrics available"}
+    lyrics_cache[cache_key] = res
+    return res
 
-def get_current_lyric_line(title: str, artist: str, position: float, duration: float) -> str:
+def get_current_lyric_status(title: str, artist: str, position: float, duration: float):
     lyrics_obj = fetch_synced_lyrics(title, artist, duration)
-    if not lyrics_obj:
-        return f"{title}"
+    if not lyrics_obj or lyrics_obj.get("type") == "none":
+        return {
+            "text": "No lyrics available",
+            "has_synced": False,
+            "status": "none",
+            "lines": []
+        }
 
-    if lyrics_obj["type"] == "synced":
-        lines = lyrics_obj["lines"]
-        active_text = ""
+    if lyrics_obj.get("type") == "no_synced":
+        return {
+            "text": "Unable to track along song timestamps",
+            "has_synced": False,
+            "status": "no_synced",
+            "lines": []
+        }
+
+    if lyrics_obj.get("type") == "synced":
+        lines = lyrics_obj.get("lines", [])
+        if not lines:
+            return {
+                "text": "No lyrics available",
+                "has_synced": False,
+                "status": "none",
+                "lines": []
+            }
+
+        if lines and position < lines[0]["sec"]:
+            return {
+                "text": "(Instrumental Intro)",
+                "has_synced": True,
+                "status": "synced",
+                "lines": lines
+            }
+
+        active_line = lines[0]
         for line in lines:
             if position >= line["sec"]:
-                active_text = line["text"]
+                active_line = line
             else:
                 break
-        return active_text if active_text else (lines[0]["text"] if lines else title)
 
-    elif lyrics_obj["type"] == "plain":
-        lines = lyrics_obj["lines"]
-        if lines and duration > 0:
-            idx = int((position / max(1, duration)) * len(lines))
-            idx = max(0, min(len(lines) - 1, idx))
-            return lines[idx]
+        active_text = active_line.get("text", "")
+        if position > (active_line.get("end_ms", 0) / 1000.0) + 7.0:
+            if active_line != lines[-1]:
+                active_text = "(Music)"
 
-    return f"{title}"
+        return {
+            "text": active_text if active_text else "No lyrics available",
+            "has_synced": True,
+            "status": "synced",
+            "lines": lines
+        }
+
+    return {
+        "text": "No lyrics available",
+        "has_synced": False,
+        "status": "none",
+        "lines": []
+    }
+
+def get_current_lyric_line(title: str, artist: str, position: float, duration: float) -> str:
+    status = get_current_lyric_status(title, artist, position, duration)
+    return status.get("text", "No lyrics available")
 
 # ── Windows Media Session Poller with Real-Time Timestamp Clock ───
 last_song_query = ""
@@ -687,25 +723,12 @@ async def fetch_windows_media():
                 current_media["hasCover"] = len(current_cover_bytes) > 0
                 current_media["coverVersion"] = cover_version_counter
 
-                current_lyric = get_current_lyric_line(t, a, calc_pos, tl_dur)
-                current_media["lyrics"] = current_lyric
-                lyrics_obj = fetch_synced_lyrics(t, a, tl_dur)
-                if lyrics_obj and lyrics_obj.get("type") == "synced":
-                    lines = lyrics_obj.get("lines", [])
-                    current_media["synced_lyrics"] = lines
-                    pos_ms = int(calc_pos * 1000)
-                    cur_w = ""
-                    for line in lines:
-                        if line["ms"] <= pos_ms <= line["end_ms"]:
-                            for w in line.get("words", []):
-                                if w["start_ms"] <= pos_ms <= w["end_ms"]:
-                                    cur_w = w["word"]
-                                    break
-                            break
-                    current_media["current_word"] = cur_w
-                else:
-                    current_media["synced_lyrics"] = []
-                    current_media["current_word"] = ""
+                lyric_status = get_current_lyric_status(t, a, calc_pos, tl_dur)
+                current_media["lyrics"] = lyric_status.get("text", "No lyrics available")
+                current_media["has_synced_lyrics"] = lyric_status.get("has_synced", False)
+                current_media["lyric_status"] = lyric_status.get("status", "none")
+                current_media["synced_lyrics"] = lyric_status.get("lines", [])
+                current_media["current_word"] = ""
     except Exception:
         pass
 
@@ -860,6 +883,7 @@ VK_NAMES = {
 DEFAULT_CONFIG = {
     "enable_global_hotkeys": True,
     "enable_mouse_shortcuts": True,
+    "mouse_sidebutton2_require_alt": True,
     "hotkeys": {
         "skip": {
             "name": "Ctrl + Alt + Right",
@@ -1017,48 +1041,127 @@ def setup_global_hotkeys():
 
     register_all()
 
-    # Low-level mouse hook for Ctrl + Alt + Left/Right/Middle Click
-    WH_MOUSE_LL = 14
-    WM_LBUTTONDOWN = 0x0201
-    WM_RBUTTONDOWN = 0x0204
-    WM_MBUTTONDOWN = 0x0207
-    HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_longlong, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+    # ── Non-blocking Raw Input Mouse Listener ─────────────────────────
+    # Uses asynchronous hardware notifications via a hidden sink window.
+    # Never blocks cursor motion or mouse pipeline.
+    RIDEV_INPUTSINK = 0x00000100
+    RID_INPUT = 0x10000003
+    RIM_TYPEMOUSE = 0
 
-    def is_ctrl_down():
-        return (user32.GetAsyncKeyState(0x11) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA2) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA3) & 0x8000 != 0)
+    class RAWINPUTHEADER(ctypes.Structure):
+        _fields_ = [
+            ("dwType", wintypes.DWORD),
+            ("dwSize", wintypes.DWORD),
+            ("hDevice", wintypes.HANDLE),
+            ("wParam", wintypes.WPARAM),
+        ]
 
-    def is_alt_down():
-        return (user32.GetAsyncKeyState(0x12) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA4) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA5) & 0x8000 != 0)
+    class RAWMOUSE(ctypes.Structure):
+        class _U1(ctypes.Union):
+            class _S2(ctypes.Structure):
+                _fields_ = [
+                    ("usButtonFlags", wintypes.USHORT),
+                    ("usButtonData", wintypes.USHORT),
+                ]
+            _fields_ = [
+                ("ulButtons", wintypes.ULONG),
+                ("_s2", _S2),
+            ]
+            _anonymous_ = ("_s2",)
 
-    last_mouse_tick = 0.0
+        _fields_ = [
+            ("usFlags", wintypes.USHORT),
+            ("_u1", _U1),
+            ("ulRawButtons", wintypes.ULONG),
+            ("lLastX", wintypes.LONG),
+            ("lLastY", wintypes.LONG),
+            ("ulExtraInformation", wintypes.ULONG),
+        ]
+        _anonymous_ = ("_u1",)
 
-    def low_level_mouse_proc(nCode, wParam, lParam):
-        nonlocal last_mouse_tick
-        if nCode >= 0 and bridge_config.get("enable_mouse_shortcuts", True):
-            if is_ctrl_down() and is_alt_down():
-                now = time.time()
-                if (now - last_mouse_tick) > 0.30:
-                    if wParam == WM_LBUTTONDOWN:
-                        last_mouse_tick = now
-                        print("[Hotkey] Mouse Gesture: Ctrl + Alt + Left Click -> Skip Song")
-                        threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
-                        return 1
-                    elif wParam == WM_RBUTTONDOWN:
-                        last_mouse_tick = now
-                        print("[Hotkey] Mouse Gesture: Ctrl + Alt + Right Click -> Replay / Go Back")
-                        threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
-                        return 1
-                    elif wParam == WM_MBUTTONDOWN:
-                        last_mouse_tick = now
-                        print("[Hotkey] Mouse Gesture: Ctrl + Alt + Middle Click -> Play / Pause")
-                        threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
-                        return 1
-        return user32.CallNextHookEx(None, nCode, wParam, lParam)
+    class RAWINPUT(ctypes.Structure):
+        class _U(ctypes.Union):
+            _fields_ = [("mouse", RAWMOUSE)]
+        _fields_ = [
+            ("header", RAWINPUTHEADER),
+            ("_u", _U),
+        ]
+        _anonymous_ = ("_u",)
 
-    hook_mouse_cb = HOOKPROC(low_level_mouse_proc)
-    hook_mouse_id = user32.SetWindowsHookExW(WH_MOUSE_LL, hook_mouse_cb, 0, 0)
-    if hook_mouse_id:
-        print("[Shortcuts] Mouse gestures active (Ctrl + Alt + Clicks)")
+    class RAWINPUTDEVICE(ctypes.Structure):
+        _fields_ = [
+            ("usUsagePage", wintypes.USHORT),
+            ("usUsage", wintypes.USHORT),
+            ("dwFlags", wintypes.DWORD),
+            ("hwndTarget", wintypes.HWND),
+        ]
+
+    LRESULT = ctypes.c_int64 if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_long
+    user32.GetRawInputData.argtypes = [wintypes.LPARAM, wintypes.UINT, wintypes.LPVOID, ctypes.POINTER(wintypes.UINT), wintypes.UINT]
+    user32.GetRawInputData.restype = wintypes.UINT
+    user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    user32.DefWindowProcW.restype = LRESULT
+
+    WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+
+    last_sb1_click = [0.0]
+
+    def raw_mouse_wnd_proc(hwnd, msg, wparam, lparam):
+        if msg == 0x00FF:  # WM_INPUT
+            raw = RAWINPUT()
+            size = wintypes.UINT(ctypes.sizeof(raw))
+            res = user32.GetRawInputData(lparam, RID_INPUT, ctypes.byref(raw), ctypes.byref(size), ctypes.sizeof(RAWINPUTHEADER))
+            if res != 0xFFFFFFFF and raw.header.dwType == RIM_TYPEMOUSE:
+                flags = raw.mouse.usButtonFlags
+                if bridge_config.get("enable_mouse_shortcuts", True):
+                    alt_down = bool(user32.GetAsyncKeyState(0x12) & 0x8000)
+                    if flags & 0x0040:  # RI_MOUSE_BUTTON_4_DOWN (Side Button 1 / XBUTTON1)
+                        if alt_down:
+                            now = time.time()
+                            if (now - last_sb1_click[0]) < 0.45:
+                                last_sb1_click[0] = 0.0
+                                print("[Mouse] Alt + Side Button 1 (Double Click) -> Skip")
+                                threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
+                            else:
+                                last_sb1_click[0] = now
+                    elif flags & 0x0100:  # RI_MOUSE_BUTTON_5_DOWN (Side Button 2 / XBUTTON2)
+                        require_alt = bridge_config.get("mouse_sidebutton2_require_alt", True)
+                        if alt_down or not require_alt:
+                            print("[Mouse] Side Button 2 -> Prev")
+                            threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
+        return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
+
+    proc_holder = WNDPROC(raw_mouse_wnd_proc)
+
+    class WNDCLASSW(ctypes.Structure):
+        _fields_ = [
+            ("style", wintypes.UINT),
+            ("lpfnWndProc", WNDPROC),
+            ("cbClsExtra", ctypes.c_int),
+            ("cbWndExtra", ctypes.c_int),
+            ("hInstance", wintypes.HINSTANCE),
+            ("hIcon", wintypes.HICON),
+            ("hCursor", wintypes.HCURSOR),
+            ("hbrBackground", wintypes.HBRUSH),
+            ("lpszMenuName", wintypes.LPCWSTR),
+            ("lpszClassName", wintypes.LPCWSTR),
+        ]
+
+    cls_name = "MusicBridgeRawInputSink"
+    wc = WNDCLASSW()
+    wc.lpfnWndProc = proc_holder
+    wc.hInstance = kernel32.GetModuleHandleW(None)
+    wc.lpszClassName = cls_name
+    user32.RegisterClassW(ctypes.byref(wc))
+
+    sink_hwnd = user32.CreateWindowExW(0, cls_name, "Sink", 0, 0, 0, 0, 0, None, None, wc.hInstance, None)
+
+    rid = RAWINPUTDEVICE()
+    rid.usUsagePage = 0x01
+    rid.usUsage = 0x02
+    rid.dwFlags = RIDEV_INPUTSINK
+    rid.hwndTarget = sink_hwnd
+    user32.RegisterRawInputDevices(ctypes.byref(rid), 1, ctypes.sizeof(rid))
 
     msg = wintypes.MSG()
     user32.PeekMessageW(ctypes.byref(msg), 0, 0, 0, 0)
@@ -1075,8 +1178,6 @@ def setup_global_hotkeys():
         user32.TranslateMessage(ctypes.byref(msg))
         user32.DispatchMessageW(ctypes.byref(msg))
 
-    if hook_mouse_id:
-        user32.UnhookWindowsHookEx(hook_mouse_id)
     for hid in list(registered_ids):
         user32.UnregisterHotKey(None, hid)
 
@@ -1696,7 +1797,7 @@ class MusicBridgeApp:
 
         chk_mouse = tk.Checkbutton(
             toggles_frame,
-            text="Enable Mouse Gestures (Ctrl + Alt + Left/Right/Middle Click)",
+            text="Enable Mouse Side Buttons (Alt+Side1 x2: Skip | Side2: Prev)",
             variable=self.mouse_toggle_var,
             font=("Segoe UI", 9),
             bg="#181822",
@@ -1706,7 +1807,8 @@ class MusicBridgeApp:
             selectcolor="#22222e",
             command=on_toggle_mouse
         )
-        chk_mouse.pack(anchor="w")
+        chk_mouse.pack(anchor="w", pady=(4, 0))
+
 
         # ── Card 3: System & Integration Options ─────────────────────
         card_sys = tk.Frame(container, bg="#181822", highlightbackground="#282836", highlightthickness=1, padx=12, pady=10)

@@ -34,7 +34,6 @@ local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
 local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
 local HealthWidget = require("UI/HealthWidget.luau")
-local EmotesWidget = require("UI/EmotesWidget.luau")
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character
@@ -329,7 +328,6 @@ local musicTrackerWidget = MusicTracker.new()
 local hotbarWidget = Hotbar.new()
 local leaderstatsWidget = LeaderstatsWidget.new()
 local healthWidget = HealthWidget.new()
-local emotesWidget = EmotesWidget.new()
 
 -- Synchronize Player List with Leaderstats and Player Profile Sub-GUIs
 playerListWidget.OnClose = function()
@@ -356,12 +354,6 @@ _G.__ToggleProjectFihBackpack = function()
 	end
 end
 
-_G.__ToggleProjectFihEmotes = function()
-	if emotesWidget and emotesWidget.IsEnabled ~= false then
-		emotesWidget.Toggle()
-	end
-end
-
 _G.__ToggleProjectFihMenu = function()
 	window:Toggle()
 end
@@ -376,10 +368,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			if playerListWidget and playerListWidget.IsEnabled ~= false then
 				playerListWidget:Toggle()
 			end
-		elseif input.KeyCode == Enum.KeyCode.Comma then
-			if emotesWidget and emotesWidget.IsEnabled ~= false then
-				emotesWidget.Toggle()
-			end
 		end
 	end
 end)
@@ -393,4 +381,4 @@ local sharedEnv = {
 	purgeBlackoutScreens = purgeBlackoutScreens,
 }
 
-require("Core/MainUI.luau")(require, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, emotesWidget, sharedEnv)
+require("Core/MainUI.luau")(require, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, nil, sharedEnv)

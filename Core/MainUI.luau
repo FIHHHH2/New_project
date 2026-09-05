@@ -2163,13 +2163,6 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			leaderstatsWidget.SetVisible(enabled)
 		end)
 
-		window:AddToggle(coreWidgetsSection, "hud_emotes", "Emotes HUD Widget (, Key)", true, nil, function(enabled)
-			if emotesWidget then
-				emotesWidget.IsEnabled = enabled
-				emotesWidget.SetVisible(enabled)
-			end
-		end)
-
 		local robloxGuiSection = window:AddSection(wLeftCol, "Roblox Core & Game GUI Overlays")
 
 		window:AddToggle(robloxGuiSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar, Leaderboard, Chat)", false, nil, function(enabled)
@@ -2203,12 +2196,6 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		end)
 
 		local widgetActionsSection = window:AddSection(wRightCol, "Widget Quick Shortcuts")
-
-		window:AddButton(widgetActionsSection, "Open Emotes Menu (,)", function()
-			if emotesWidget and emotesWidget.IsEnabled ~= false then
-				emotesWidget:Open()
-			end
-		end)
 
 		window:AddButton(widgetActionsSection, "Toggle Backpack Window (~)", function()
 			if hotbarWidget and hotbarWidget.IsEnabled ~= false then

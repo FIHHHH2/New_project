@@ -1,7 +1,7 @@
 {
-  "version": "1.4.8",
+  "version": "1.4.9",
   "name": "Project Fih MusicBridge",
-  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.8",
+  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.9",
   "download_url": "https://github.com/FIHHHH2/New_project/raw/main/dist/MusicBridge.exe",
-  "changelog": "Standalone desktop application with live playback monitor, customizable global hotkeys for skip/prev/pause, and real-time tray integration."
+  "changelog": "Strict synchronized lyrics matching with duration validation, timestamp fallback indicators, and stationary bounding box with smooth text translation."
 }

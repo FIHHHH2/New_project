@@ -315,7 +315,7 @@ function MusicTracker.new()
 	songTitleLabel.Parent = titleBox
 	UI.registerThemeElement(songTitleLabel, "TextPrimary")
 
-	-- Box 2: Dedicated Lyrics Container
+	-- Box 2: Dedicated Lyrics Container (Stationary Outer Frame)
 	local lyricsBox = Instance.new("Frame")
 	lyricsBox.Name = "LyricsBox"
 	lyricsBox.Size = UDim2.new(1, 0, 0, 46)
@@ -327,11 +327,6 @@ function MusicTracker.new()
 	lyricsBox.Parent = rightCol
 	UI.registerThemeElement(lyricsBox, "ContainerDark")
 
-	local lyricsBoxScale = Instance.new("UIScale")
-	lyricsBoxScale.Name = "LyricsBoxScale"
-	lyricsBoxScale.Scale = 1.0
-	lyricsBoxScale.Parent = lyricsBox
-
 	local lyricsStroke = Instance.new("UIStroke")
 	lyricsStroke.Color = UI.Theme.Border
 	lyricsStroke.Thickness = 1
@@ -339,49 +334,21 @@ function MusicTracker.new()
 	lyricsStroke.Parent = lyricsBox
 	UI.registerThemeElement(lyricsStroke, "Border")
 
-	local function colorToHex(c: Color3): string
-		return string.format("#%02x%02x%02x", math.clamp(math.floor(c.R * 255 + 0.5), 0, 255), math.clamp(math.floor(c.G * 255 + 0.5), 0, 255), math.clamp(math.floor(c.B * 255 + 0.5), 0, 255))
-	end
-
-	local function buildWordSyncedMarkup(lineItem: any, curMs: number): (string, boolean, string?)
-		if not lineItem or not lineItem.words or #lineItem.words == 0 then
-			return "♫ " .. (lineItem.text or ""), false, nil
-		end
-
-		local words = lineItem.words
-		local primaryHex = colorToHex(UI.Theme.TextPrimary)
-		local accentHex = colorToHex(UI.Theme.Accent)
-		local secondaryHex = colorToHex(UI.Theme.TextSecondary)
-
-		local rendered = {}
-		local activeWordText: string? = nil
-
-		for i, w in ipairs(words) do
-			local sMs = w.start_ms or 0
-			local eMs = w.end_ms or (sMs + 350)
-			local wordText = w.word or ""
-
-			if curMs >= eMs then
-				-- Already sung: primary text, bold
-				table.insert(rendered, string.format('<font color="%s"><b>%s</b></font>', primaryHex, wordText))
-			elseif curMs >= sMs and curMs < eMs then
-				-- Actively being sung: vibrant accent highlight, bold with underline
-				activeWordText = wordText
-				table.insert(rendered, string.format('<font color="%s"><b><u>%s</u></b></font>', accentHex, wordText))
-			else
-				-- Upcoming words: dimmed secondary color
-				table.insert(rendered, string.format('<font color="%s">%s</font>', secondaryHex, wordText))
-			end
-		end
-
-		return "♫ " .. table.concat(rendered, " "), activeWordText ~= nil, activeWordText
-	end
+	-- Separate Inner Text Container with No Background (Stationary frame, only text slides inside)
+	local lyricsTextContainer = Instance.new("Frame")
+	lyricsTextContainer.Name = "LyricsTextContainer"
+	lyricsTextContainer.Size = UDim2.new(1, -16, 1, -4)
+	lyricsTextContainer.Position = UDim2.new(0, 8, 0, 2)
+	lyricsTextContainer.BackgroundTransparency = 1
+	lyricsTextContainer.BorderSizePixel = 0
+	lyricsTextContainer.ClipsDescendants = true
+	lyricsTextContainer.Parent = lyricsBox
 
 	local function createLyricSlot(slotName: string): (TextLabel, UIGradient)
 		local label = Instance.new("TextLabel")
 		label.Name = slotName
-		label.Size = UDim2.new(1, -12, 1, -4)
-		label.Position = UDim2.new(0, 6, 0, 2)
+		label.Size = UDim2.new(1, 0, 1, 0)
+		label.Position = UDim2.new(0, 0, 0, 0)
 		label.BackgroundTransparency = 1
 		label.Text = ""
 		label.TextColor3 = UI.Theme.TextPrimary
@@ -391,19 +358,19 @@ function MusicTracker.new()
 		label.TextYAlignment = Enum.TextYAlignment.Center
 		label.TextWrapped = true
 		label.RichText = true
-		label.Parent = lyricsBox
+		label.Parent = lyricsTextContainer
 		UI.registerThemeElement(label, "TextPrimary")
 
 		local grad = Instance.new("UIGradient")
 		grad.Name = "KaraokeSweepGradient"
 		grad.Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0.0, UI.Theme.TextPrimary),
-			ColorSequenceKeypoint.new(0.4, UI.Theme.Accent),
-			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
-			ColorSequenceKeypoint.new(0.6, UI.Theme.Accent),
-			ColorSequenceKeypoint.new(1.0, UI.Theme.TextPrimary),
+			ColorSequenceKeypoint.new(0.46, UI.Theme.TextPrimary),
+			ColorSequenceKeypoint.new(0.50, UI.Theme.Accent),
+			ColorSequenceKeypoint.new(0.54, UI.Theme.TextSecondary),
+			ColorSequenceKeypoint.new(1.0, UI.Theme.TextSecondary),
 		})
-		grad.Offset = Vector2.new(-1.0, 0)
+		grad.Offset = Vector2.new(-2.0, 0)
 		grad.Parent = label
 
 		return label, grad
@@ -412,10 +379,10 @@ function MusicTracker.new()
 	local lyricLabelA, gradA = createLyricSlot("LyricSlotA")
 	local lyricLabelB, gradB = createLyricSlot("LyricSlotB")
 	lyricLabelA.Text = "♫ Play a song on Spotify, YouTube, or In-Game Audio"
-	lyricLabelA.Position = UDim2.new(0, 6, 0, 2)
+	lyricLabelA.Position = UDim2.new(0, 0, 0, 0)
 	lyricLabelA.TextTransparency = 0
 	lyricLabelB.Visible = false
-	lyricLabelB.Position = UDim2.new(0, 6, 0, 16)
+	lyricLabelB.Position = UDim2.new(0, 0, 0, 14)
 	lyricLabelB.TextTransparency = 1
 
 	local activeLyricLabel = lyricLabelA
@@ -425,10 +392,10 @@ function MusicTracker.new()
 	local function updateLyricGradients()
 		local seq = ColorSequence.new({
 			ColorSequenceKeypoint.new(0.0, UI.Theme.TextPrimary),
-			ColorSequenceKeypoint.new(0.4, UI.Theme.Accent),
-			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
-			ColorSequenceKeypoint.new(0.6, UI.Theme.Accent),
-			ColorSequenceKeypoint.new(1.0, UI.Theme.TextPrimary),
+			ColorSequenceKeypoint.new(0.46, UI.Theme.TextPrimary),
+			ColorSequenceKeypoint.new(0.50, UI.Theme.Accent),
+			ColorSequenceKeypoint.new(0.54, UI.Theme.TextSecondary),
+			ColorSequenceKeypoint.new(1.0, UI.Theme.TextSecondary),
 		})
 		gradA.Color = seq
 		gradB.Color = seq
@@ -450,7 +417,7 @@ function MusicTracker.new()
 			if currentLyricTransitionTween then pcall(function() currentLyricTransitionTween:Cancel() end) end
 			if currentIncomingTween then pcall(function() currentIncomingTween:Cancel() end) end
 			activeLyricLabel.Text = newText
-			activeLyricLabel.Position = UDim2.new(0, 6, 0, 2)
+			activeLyricLabel.Position = UDim2.new(0, 0, 0, 0)
 			activeLyricLabel.TextTransparency = 0
 			inactiveLyricLabel.Visible = false
 			return
@@ -460,18 +427,18 @@ function MusicTracker.new()
 		if currentIncomingTween then pcall(function() currentIncomingTween:Cancel() end) end
 
 		inactiveLyricLabel.Text = newText
-		inactiveLyricLabel.Position = UDim2.new(0, 6, 0, 16)
+		inactiveLyricLabel.Position = UDim2.new(0, 0, 0, 14)
 		inactiveLyricLabel.TextTransparency = 1
 		inactiveLyricLabel.Visible = true
 
 		currentLyricTransitionTween = TweenService:Create(activeLyricLabel, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Position = UDim2.new(0, 6, 0, -16),
+			Position = UDim2.new(0, 0, 0, -14),
 			TextTransparency = 1,
 		})
 		currentLyricTransitionTween:Play()
 
-		currentIncomingTween = TweenService:Create(inactiveLyricLabel, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Position = UDim2.new(0, 6, 0, 2),
+		currentIncomingTween = TweenService:Create(inactiveLyricLabel, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0, 0, 0, 0),
 			TextTransparency = 0,
 		})
 		currentIncomingTween:Play()
@@ -485,12 +452,6 @@ function MusicTracker.new()
 			inactiveLyricLabel = lyricLabelB
 			activeGradient = gradA
 		end
-
-		Animations.pulseIndicator(lyricsStroke, UI.Theme.Accent, UI.Theme.Border, 0.35, 1.2)
-		lyricsBoxScale.Scale = 1.025
-		TweenService:Create(lyricsBoxScale, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Scale = 1.0,
-		}):Play()
 	end
 
 	-- Box 3: Seek Track Bar & Timestamps
@@ -713,34 +674,6 @@ function MusicTracker.new()
 			if #wordsList > 0 then return wordsList end
 		end
 
-		local cleanLine = string.gsub(lineText, "<[^>]+>", "")
-		local rawWords = {}
-		for w in string.gmatch(cleanLine, "%S+") do
-			table.insert(rawWords, w)
-		end
-		if #rawWords == 0 then return wordsList end
-
-		local lineDur = math.max(endMs - startMs, 400)
-		local weights = {}
-		local totalWeight = 0
-		for i, w in ipairs(rawWords) do
-			local clean = string.gsub(w, "[^%w]", "")
-			local wt = math.max(#clean, 1)
-			weights[i] = wt
-			totalWeight += wt
-		end
-
-		local activeDur = lineDur * 0.92
-		local curMs = startMs
-		for i, w in ipairs(rawWords) do
-			local wDur = math.floor((weights[i] / math.max(totalWeight, 1)) * activeDur)
-			table.insert(wordsList, {
-				word = w,
-				start_ms = curMs,
-				end_ms = curMs + wDur,
-			})
-			curMs += wDur
-		end
 		return wordsList
 	end
 
@@ -769,7 +702,7 @@ function MusicTracker.new()
 		return lrcList
 	end
 
-	local function fetchLyricsForTrack(title: string, artist: string)
+	local function fetchLyricsForTrack(title: string, artist: string, durationSec: number?)
 		local songKey = string.lower(title) .. "::" .. string.lower(artist)
 		if songKey == lastLrcTrack or title == "Waiting for Audio Session..." or title == "No Media Playing" then return end
 		lastLrcTrack = songKey
@@ -780,6 +713,7 @@ function MusicTracker.new()
 				cleanTitle = string.gsub(cleanTitle, "%b[]", "")
 				cleanTitle = string.gsub(cleanTitle, "[Ff]eat%..*", "")
 				cleanTitle = string.gsub(cleanTitle, "[Ff]t%..*", "")
+				cleanTitle = string.gsub(cleanTitle, "%- [Rr]emaster.*", "")
 				cleanTitle = string.gsub(cleanTitle, "^%s*(.-)%s*$", "%1")
 
 				local cleanArtist = string.gsub(artist, "%b()", "")
@@ -788,31 +722,17 @@ function MusicTracker.new()
 				cleanArtist = string.gsub(cleanArtist, "[Ff]t%..*", "")
 				cleanArtist = string.gsub(cleanArtist, "^%s*(.-)%s*$", "%1")
 
+				local durParam = if durationSec and durationSec > 10 then ("&duration=" .. math.floor(durationSec)) else ""
 				local url = string.format(
-					"https://lrclib.net/api/get?artist_name=%s&track_name=%s",
+					"https://lrclib.net/api/get?artist_name=%s&track_name=%s%s",
 					HttpService:UrlEncode(cleanArtist),
-					HttpService:UrlEncode(cleanTitle)
+					HttpService:UrlEncode(cleanTitle),
+					durParam
 				)
 
 				local raw = nil
+				local hasPlain = false
 				pcall(function() raw = game:HttpGet(url) end)
-				if not raw or raw == "" or not raw:find("{") then
-					local searchUrl = string.format("https://lrclib.net/api/search?q=%s", HttpService:UrlEncode(cleanTitle .. " " .. cleanArtist))
-					pcall(function() raw = game:HttpGet(searchUrl) end)
-					if raw and raw ~= "" and raw:find("%[") then
-						local searchResults = HttpService:JSONDecode(raw)
-						if searchResults and typeof(searchResults) == "table" and #searchResults > 0 then
-							local first = searchResults[1]
-							if first and first.syncedLyrics then
-								local lines = parseLrcString(first.syncedLyrics)
-								if #lines > 0 then
-									parsedLrcLines = lines
-									return
-								end
-							end
-						end
-					end
-				end
 
 				if raw and raw ~= "" and raw:find("{") then
 					local data = HttpService:JSONDecode(raw)
@@ -823,33 +743,72 @@ function MusicTracker.new()
 							return
 						end
 					elseif data and data.plainLyrics then
-						local lines = {}
-						for l in string.gmatch(data.plainLyrics, "([^\n\r]+)") do
-							local t = string.gsub(l, "^%s*(.-)%s*$", "%1")
-							if t ~= "" then table.insert(lines, { ms = 0, text = t }) end
-						end
-						parsedLrcLines = lines
-						return
+						hasPlain = true
 					end
+				end
+
+				local searchUrl = string.format("https://lrclib.net/api/search?q=%s", HttpService:UrlEncode(cleanTitle .. " " .. cleanArtist))
+				pcall(function() raw = game:HttpGet(searchUrl) end)
+				if raw and raw ~= "" and raw:find("%[") then
+					local searchResults = HttpService:JSONDecode(raw)
+					if searchResults and typeof(searchResults) == "table" and #searchResults > 0 then
+						local cleanTarget = string.lower(string.gsub(cleanTitle, "[^%w]", ""))
+						for _, item in ipairs(searchResults) do
+							local candTitle = if item.trackName then string.lower(string.gsub(item.trackName, "[^%w]", "")) else ""
+							if cleanTarget ~= "" and candTitle ~= "" then
+								if candTitle == cleanTarget or string.find(candTitle, cleanTarget, 1, true) or string.find(cleanTarget, candTitle, 1, true) then
+									local durOk = true
+									if durationSec and durationSec > 15 and item.duration then
+										durOk = math.abs(item.duration - durationSec) <= 8
+									end
+									if durOk then
+										if item.syncedLyrics then
+											local lines = parseLrcString(item.syncedLyrics)
+											if #lines > 0 then
+												parsedLrcLines = lines
+												return
+											end
+										elseif item.plainLyrics then
+											hasPlain = true
+										end
+									end
+								end
+							end
+						end
+					end
+				end
+
+				parsedLrcLines = {}
+				if hasPlain then
+					displayLyric("♫ Unable to track along song timestamps", false)
+				else
+					displayLyric("♫ No lyrics available", false)
 				end
 			end)
 		end)
 	end
 
 	local activeLineItem: any = nil
-	local lastActiveMarkup = ""
-	local lastActiveWord = ""
 
 	local function updateActiveLyricFromTime(posMs: number)
 		if #parsedLrcLines == 0 then return end
+
+		local firstItem = parsedLrcLines[1]
+		if firstItem and posMs < firstItem.ms then
+			activeLyricStartMs = 0
+			activeLyricEndMs = firstItem.ms
+			if activeLineItem ~= "intro" then
+				activeLineItem = "intro"
+				displayLyric("♫ (Instrumental Intro)", false)
+			end
+			return
+		end
+
 		local curIndex = 0
 		for i, item in ipairs(parsedLrcLines) do
 			if posMs >= item.ms then
 				curIndex = i
 			else
-				if curIndex == 0 and i == 1 then
-					curIndex = 1
-				end
 				break
 			end
 		end
@@ -860,33 +819,19 @@ function MusicTracker.new()
 			activeLyricStartMs = item.ms
 			activeLyricEndMs = if item.end_ms then item.end_ms else (if nextItem then nextItem.ms else (item.ms + 4000))
 
-			if not item.words or #item.words == 0 then
-				item.words = parseLineWords(item.text, item.ms, activeLyricEndMs)
+			if nextItem and posMs > (activeLyricEndMs + 7000) then
+				if activeLineItem ~= "music_break" then
+					activeLineItem = "music_break"
+					displayLyric("♫ (Music)", false)
+				end
+				return
 			end
 
 			-- Line change: trigger slide-up transition
 			if item ~= activeLineItem then
 				activeLineItem = item
 				lastActiveLyric = item.text
-				local markup, _, curW = buildWordSyncedMarkup(item, posMs)
-				lastActiveMarkup = markup
-				displayLyric(markup, true)
-				if curW then lastActiveWord = curW end
-			else
-				-- Intra-line progression: update word highlighting on point
-				local markup, hasActive, curW = buildWordSyncedMarkup(item, posMs)
-				if markup ~= lastActiveMarkup then
-					lastActiveMarkup = markup
-					activeLyricLabel.Text = markup
-				end
-				-- Tactile micro-bounce on active word transition
-				if curW and curW ~= lastActiveWord then
-					lastActiveWord = curW
-					lyricsBoxScale.Scale = 1.018
-					TweenService:Create(lyricsBoxScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-						Scale = 1.0,
-					}):Play()
-				end
+				displayLyric("♫ " .. item.text, true)
 			end
 		end
 	end
@@ -1128,22 +1073,13 @@ function MusicTracker.new()
 		end
 
 		-- Real-time Karaoke sweep animation across active lyric line
-		if activeLyricEndMs > activeLyricStartMs and isPlaying then
+		if activeLyricEndMs > activeLyricStartMs and isPlaying and #parsedLrcLines > 0 and activeLineItem ~= "intro" and activeLineItem ~= "music_break" then
 			local curPosMs = if hasExternalBridge then (serverProgressMs + (os.clock() - lastSyncClock) * 1000) else (if activeGameSound then activeGameSound.TimePosition * 1000 else 0)
 			local lineDur = math.max(activeLyricEndMs - activeLyricStartMs, 500)
 			local lineRatio = math.clamp((curPosMs - activeLyricStartMs) / lineDur, 0, 1)
 			activeGradient.Offset = Vector2.new(-1.0 + lineRatio * 2.0, 0)
 		else
-			local shimmer = math.sin(os.clock() * 2.6) * 0.35
-			activeGradient.Offset = Vector2.new(shimmer, 0)
-		end
-
-		-- Audio beat micro-pulse on lyrics box
-		if currentAudioPeak > 0.4 and isPlaying then
-			local beatBoost = math.clamp((currentAudioPeak - 0.4) * 0.06, 0, 0.03)
-			lyricsBoxScale.Scale = 1.0 + beatBoost
-		else
-			lyricsBoxScale.Scale = 1.0
+			activeGradient.Offset = Vector2.new(-2.0, 0)
 		end
 	end)
 
@@ -1229,28 +1165,33 @@ function MusicTracker.new()
 									updateCover(nil, true, false, 0)
 								else
 									songTitleLabel.Text = string.format("%s — %s", title, artist)
-									if data.lyrics and data.lyrics ~= "" then
-										displayLyric("♫ " .. data.lyrics, true)
-										lastActiveLyric = data.lyrics
-									end
+									local rawLyric = data.lyrics or "No lyrics available"
+									local formattedLyric = if rawLyric:sub(1, 3) == "♫ " then rawLyric else ("♫ " .. rawLyric)
+									displayLyric(formattedLyric, false)
+									lastActiveLyric = rawLyric
 									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
 									playBtn.Text = if isPlaying then "❚❚" else "▶"
 									updateCover(data.cover, false, data.hasCover == true, coverVer)
 
-									if data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 then
+									if data.has_synced_lyrics == true and data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 then
 										parsedLrcLines = data.synced_lyrics
 									else
-										fetchLyricsForTrack(title, artist)
+										parsedLrcLines = {}
+										if not (data.lyric_status == "no_synced" or data.lyric_status == "none") then
+											fetchLyricsForTrack(title, artist, serverDurationMs / 1000)
+										end
 									end
 								end
 							else
 								if not isIdle then
 									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
 									playBtn.Text = if isPlaying then "❚❚" else "▶"
-									if data.lyrics and data.lyrics ~= "" and #parsedLrcLines == 0 then
-										displayLyric("♫ " .. data.lyrics, true)
+									if #parsedLrcLines == 0 and data.lyrics and data.lyrics ~= "" then
+										local rawLyric = data.lyrics
+										local formattedLyric = if rawLyric:sub(1, 3) == "♫ " then rawLyric else ("♫ " .. rawLyric)
+										displayLyric(formattedLyric, false)
 									end
-									if data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 and #parsedLrcLines == 0 then
+									if data.has_synced_lyrics == true and data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 and #parsedLrcLines == 0 then
 										parsedLrcLines = data.synced_lyrics
 									end
 									-- Update cover art when bridge signals new version

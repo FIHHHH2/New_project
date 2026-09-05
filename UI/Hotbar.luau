@@ -297,6 +297,65 @@ function Hotbar.new(): HotbarWidget
 	hotbarList.SortOrder = Enum.SortOrder.LayoutOrder
 	hotbarList.Parent = hotbarFrame
 
+	-- ── Integrated Toolbar Health Bar ─────────────────────────────────
+	-- A large green line across the toolbar that smoothly drops by HP
+	local healthBarContainer = Instance.new("Frame")
+	healthBarContainer.Name = "ToolbarHealthBar"
+	healthBarContainer.Size = UDim2.new(1, 0, 0, 6)
+	healthBarContainer.Position = UDim2.new(0, 0, 0, -10)
+	healthBarContainer.BackgroundColor3 = Color3.fromRGB(15, 25, 18)
+	healthBarContainer.BackgroundTransparency = 0.25
+	healthBarContainer.BorderSizePixel = 0
+	healthBarContainer.ClipsDescendants = true
+	healthBarContainer.Parent = hotbarFrame
+
+	local healthBarStroke = Instance.new("UIStroke")
+	healthBarStroke.Color = UI.Theme.Border
+	healthBarStroke.Thickness = 1.0
+	healthBarStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	healthBarStroke.Parent = healthBarContainer
+	UI.registerThemeElement(healthBarStroke, "Border")
+
+	local healthBarFill = Instance.new("Frame")
+	healthBarFill.Name = "HealthFill"
+	healthBarFill.Size = UDim2.new(1, 0, 1, 0)
+	healthBarFill.Position = UDim2.new(0, 0, 0, 0)
+	healthBarFill.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+	healthBarFill.BorderSizePixel = 0
+	healthBarFill.Parent = healthBarContainer
+
+	local healthGrad = Instance.new("UIGradient")
+	healthGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 235, 120)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 195, 95))
+	})
+	healthGrad.Parent = healthBarFill
+
+	local function updateToolbarHealth(currentHp: number, maxHp: number)
+		local ratio = math.clamp(currentHp / math.max(1, maxHp), 0, 1)
+		TweenService:Create(healthBarFill, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(ratio, 0, 1, 0)
+		}):Play()
+	end
+
+	local function bindCharHealth(char: Model)
+		local hum = char:WaitForChild("Humanoid", 5) :: Humanoid?
+		if hum then
+			updateToolbarHealth(hum.Health, hum.MaxHealth)
+			local conn = hum.HealthChanged:Connect(function(newHp)
+				updateToolbarHealth(newHp, hum.MaxHealth)
+			end)
+			table.insert(activeConnections, conn)
+		end
+	end
+
+	if LocalPlayer.Character then
+		task.spawn(bindCharHealth, LocalPlayer.Character)
+	end
+	table.insert(activeConnections, LocalPlayer.CharacterAdded:Connect(function(char)
+		task.spawn(bindCharHealth, char)
+	end))
+
 	-- ── 2. Backpack Inventory Window ──────────────────────────────────
 	local BP_WIDTH = 700
 	local BP_HEIGHT = 480

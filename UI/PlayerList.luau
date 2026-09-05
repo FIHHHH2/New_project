@@ -586,7 +586,20 @@ function PlayerList.new(): PlayerListWidget
 		pAvatarImg.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
 		pNameLabel.Text = player.DisplayName
 		local teamStr = if player.Team then string.format("[%s] ", player.Team.Name) else ""
-		pSubLabel.Text = string.format("%s@%s | ID:%d", teamStr, player.Name, player.UserId)
+		local ls = player:FindFirstChild("leaderstats") or player:FindFirstChild("Data") or player:FindFirstChild("Stats")
+		local statItems = {}
+		if ls then
+			for _, c in ipairs(ls:GetChildren()) do
+				if c:IsA("ValueBase") then
+					table.insert(statItems, string.format("%s: %s", c.Name, tostring((c :: any).Value)))
+				end
+			end
+		end
+		if #statItems > 0 then
+			pSubLabel.Text = string.format("%s@%s | %s", teamStr, player.Name, table.concat(statItems, " • "))
+		else
+			pSubLabel.Text = string.format("%s@%s | ID:%d", teamStr, player.Name, player.UserId)
+		end
 
 		-- Update Friend Button text based on status
 		pcall(function()
@@ -691,13 +704,11 @@ function PlayerList.new(): PlayerListWidget
 		nameLabel.Parent = rowBtn
 		UI.registerThemeElement(nameLabel, "TextPrimary")
 
-		-- Details Label
+		-- Details Label (Live Leaderstats & Info)
 		local subLabel = Instance.new("TextLabel")
 		subLabel.Size = UDim2.new(1, -42, 0, 14)
 		subLabel.Position = UDim2.new(0, 38, 0, 19)
 		subLabel.BackgroundTransparency = 1
-		local teamStr = if player.Team then string.format("[%s] ", player.Team.Name) else ""
-		subLabel.Text = string.format("%sID:%d | %dd", teamStr, player.UserId, player.AccountAge)
 		subLabel.TextColor3 = UI.Theme.TextSecondary
 		subLabel.Font = UI.Fonts.Mono
 		subLabel.TextSize = 9
@@ -705,6 +716,81 @@ function PlayerList.new(): PlayerListWidget
 		subLabel.TextTruncate = Enum.TextTruncate.AtEnd
 		subLabel.Parent = rowBtn
 		UI.registerThemeElement(subLabel, "TextSecondary")
+
+		local function formatStatVal(val: any): string
+			if typeof(val) == "number" then
+				if math.abs(val) >= 1_000_000_000 then
+					return string.format("%.1fB", val / 1_000_000_000)
+				elseif math.abs(val) >= 1_000_000 then
+					return string.format("%.1fM", val / 1_000_000)
+				elseif math.abs(val) >= 1_000 then
+					return string.format("%.1fK", val / 1_000)
+				else
+					return tostring(val)
+				end
+			end
+			return tostring(val)
+		end
+
+		local function getPlayerStatsSummary(plr: Player): string
+			local ls = plr:FindFirstChild("leaderstats") or plr:FindFirstChild("Data") or plr:FindFirstChild("Stats")
+			if not ls then return "" end
+			local items = {}
+			for _, c in ipairs(ls:GetChildren()) do
+				if c:IsA("ValueBase") then
+					table.insert(items, string.format("%s: %s", c.Name, formatStatVal((c :: any).Value)))
+					if #items >= 3 then break end
+				end
+			end
+			return table.concat(items, " • ")
+		end
+
+		local function refreshStats()
+			if not rowBtn or not rowBtn.Parent then return end
+			local teamStr = if player.Team then string.format("[%s] ", player.Team.Name) else ""
+			local statsStr = getPlayerStatsSummary(player)
+			if statsStr ~= "" then
+				subLabel.Text = string.format("%s%s", teamStr, statsStr)
+				subLabel.TextColor3 = UI.Theme.AccentText
+			else
+				subLabel.Text = string.format("%sID:%d | %dd", teamStr, player.UserId, player.AccountAge)
+				subLabel.TextColor3 = UI.Theme.TextSecondary
+			end
+		end
+
+		refreshStats()
+
+		local statConns: {RBXScriptConnection} = {}
+		local function watchStatsFolder(folder: Instance)
+			for _, c in ipairs(folder:GetChildren()) do
+				if c:IsA("ValueBase") then
+					table.insert(statConns, (c :: any).Changed:Connect(refreshStats))
+				end
+			end
+			table.insert(statConns, folder.ChildAdded:Connect(function(c)
+				if c:IsA("ValueBase") then
+					table.insert(statConns, (c :: any).Changed:Connect(refreshStats))
+					refreshStats()
+				end
+			end))
+			table.insert(statConns, folder.ChildRemoved:Connect(refreshStats))
+		end
+
+		local existingLs = player:FindFirstChild("leaderstats") or player:FindFirstChild("Data") or player:FindFirstChild("Stats")
+		if existingLs then watchStatsFolder(existingLs) end
+
+		table.insert(statConns, player.ChildAdded:Connect(function(child)
+			if child.Name == "leaderstats" or child.Name == "Data" or child.Name == "Stats" then
+				watchStatsFolder(child)
+				refreshStats()
+			end
+		end))
+
+		rowBtn.Destroying:Connect(function()
+			for _, conn in ipairs(statConns) do
+				pcall(function() conn:Disconnect() end)
+			end
+		end)
 
 		-- Row Hover FX
 		rowBtn.MouseEnter:Connect(function()

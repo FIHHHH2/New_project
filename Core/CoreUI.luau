@@ -225,7 +225,7 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 	tabButton.Font = UI.Fonts.Header
 	tabButton.TextSize = 11
 	tabButton.TextTruncate = Enum.TextTruncate.AtEnd
-	tabButton.ClipsDescendants = true
+	tabButton.ClipsDescendants = false
 	tabButton.LayoutOrder = #self.Tabs + 1
 	tabButton.Visible = not (isHiddenFromSidebar or false)
 	tabButton.Parent = self.Sidebar
@@ -249,11 +249,11 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 	tabGrad.Parent = tabButton
 	
 	local tabStroke = Instance.new("UIStroke")
-	tabStroke.Color = UI.Theme.BorderDim
+	tabStroke.Color = UI.Theme.Border
 	tabStroke.Thickness = 1.0
 	tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	tabStroke.Parent = tabButton
-	UI.registerThemeElement(tabStroke, "BorderDim")
+	UI.registerThemeElement(tabStroke, "Border")
 	
 	local tabContent = Instance.new("ScrollingFrame")
 	tabContent.Name = name .. "Page"
@@ -395,7 +395,7 @@ function CoreUI:SelectTab(tabObj)
 				tab.Button.BackgroundColor3 = UI.Theme.Container
 				tab.Button.BackgroundTransparency = UI.Theme.ContainerTransparency
 				tab.Button.TextColor3 = UI.Theme.TextSecondary
-				tab.Stroke.Color = UI.Theme.BorderDim
+				tab.Stroke.Color = UI.Theme.Border
 				tab.Stroke.Thickness = 1.0
 				local grad = tab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
 				if grad then grad.Enabled = false end

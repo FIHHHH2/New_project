@@ -378,23 +378,23 @@ Modules["UI/UI.luau"] = function()
     	Dark = {
     		Name = "Dark",
     		Background = Color3.fromRGB(13, 13, 15),
-    		BackgroundTransparency = 0.02,
+    		BackgroundTransparency = 0.22,
     		Border = Color3.fromRGB(250, 250, 255), -- Crisp white outlines for dark mode
-    		BorderDim = Color3.fromRGB(85, 85, 95),
+    		BorderDim = Color3.fromRGB(120, 120, 135),
     		Accent = Color3.fromRGB(55, 175, 245), -- Light blue-ish selection accent
     		AccentDark = Color3.fromRGB(30, 120, 200),
     		AccentText = Color3.fromRGB(255, 255, 255),
     		TextPrimary = Color3.fromRGB(245, 245, 245),
-    		TextSecondary = Color3.fromRGB(160, 160, 170),
-    		Container = Color3.fromRGB(22, 22, 26),
-    		ContainerTransparency = 0,
-    		ContainerDark = Color3.fromRGB(15, 15, 18),
-    		ContainerDarkTransparency = 0
+    		TextSecondary = Color3.fromRGB(170, 170, 185),
+    		Container = Color3.fromRGB(22, 22, 28),
+    		ContainerTransparency = 0.28,
+    		ContainerDark = Color3.fromRGB(15, 15, 20),
+    		ContainerDarkTransparency = 0.35
     	},
     	Light = {
     		Name = "Light",
     		Background = Color3.fromRGB(242, 243, 246),
-    		BackgroundTransparency = 0.02,
+    		BackgroundTransparency = 0.22,
     		Border = Color3.fromRGB(12, 12, 16), -- True black outlines for light mode
     		BorderDim = Color3.fromRGB(130, 130, 140),
     		Accent = Color3.fromRGB(45, 155, 235), -- Light blue accent
@@ -403,9 +403,9 @@ Modules["UI/UI.luau"] = function()
     		TextPrimary = Color3.fromRGB(15, 15, 20),
     		TextSecondary = Color3.fromRGB(75, 75, 85),
     		Container = Color3.fromRGB(255, 255, 255),
-    		ContainerTransparency = 0,
+    		ContainerTransparency = 0.25,
     		ContainerDark = Color3.fromRGB(228, 230, 236),
-    		ContainerDarkTransparency = 0
+    		ContainerDarkTransparency = 0.32
     	},
     	TranslucentDark = {
     		Name = "Translucent Dark",
@@ -597,9 +597,9 @@ Modules["UI/UI.luau"] = function()
     	UI.CurrentTheme = targetTheme
     	UI.Theme = targetTheme
     	UI.saveTheme(themeName)
-
+	
     	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-
+	
     	for inst, propMap in pairs(UI.RegisteredElements) do
     		if inst and inst.Parent then
     			for pt in pairs(propMap) do
@@ -844,11 +844,11 @@ Modules["UI/UI.luau"] = function()
     	sidebar.ScrollBarThickness = 0
     	sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
     	sidebar.AutomaticCanvasSize = Enum.AutomaticSize.X
-    	sidebar.ClipsDescendants = true
+    	sidebar.ClipsDescendants = false
     	sidebar.Parent = topbar
 
     	local sideList = Instance.new("UIListLayout")
-    	sideList.Padding = UDim.new(0, 4)
+    	sideList.Padding = UDim.new(0, 6)
     	sideList.SortOrder = Enum.SortOrder.LayoutOrder
     	sideList.FillDirection = Enum.FillDirection.Horizontal
     	sideList.VerticalAlignment = Enum.VerticalAlignment.Center
@@ -2211,7 +2211,20 @@ Modules["UI/PlayerList.luau"] = function()
     		pAvatarImg.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
     		pNameLabel.Text = player.DisplayName
     		local teamStr = if player.Team then string.format("[%s] ", player.Team.Name) else ""
-    		pSubLabel.Text = string.format("%s@%s | ID:%d", teamStr, player.Name, player.UserId)
+    		local ls = player:FindFirstChild("leaderstats") or player:FindFirstChild("Data") or player:FindFirstChild("Stats")
+    		local statItems = {}
+    		if ls then
+    			for _, c in ipairs(ls:GetChildren()) do
+    				if c:IsA("ValueBase") then
+    					table.insert(statItems, string.format("%s: %s", c.Name, tostring((c :: any).Value)))
+    				end
+    			end
+    		end
+    		if #statItems > 0 then
+    			pSubLabel.Text = string.format("%s@%s | %s", teamStr, player.Name, table.concat(statItems, " • "))
+    		else
+    			pSubLabel.Text = string.format("%s@%s | ID:%d", teamStr, player.Name, player.UserId)
+    		end
 
     		-- Update Friend Button text based on status
     		pcall(function()
@@ -2316,13 +2329,11 @@ Modules["UI/PlayerList.luau"] = function()
     		nameLabel.Parent = rowBtn
     		UI.registerThemeElement(nameLabel, "TextPrimary")
 
-    		-- Details Label
+    		-- Details Label (Live Leaderstats & Info)
     		local subLabel = Instance.new("TextLabel")
     		subLabel.Size = UDim2.new(1, -42, 0, 14)
     		subLabel.Position = UDim2.new(0, 38, 0, 19)
     		subLabel.BackgroundTransparency = 1
-    		local teamStr = if player.Team then string.format("[%s] ", player.Team.Name) else ""
-    		subLabel.Text = string.format("%sID:%d | %dd", teamStr, player.UserId, player.AccountAge)
     		subLabel.TextColor3 = UI.Theme.TextSecondary
     		subLabel.Font = UI.Fonts.Mono
     		subLabel.TextSize = 9
@@ -2330,6 +2341,81 @@ Modules["UI/PlayerList.luau"] = function()
     		subLabel.TextTruncate = Enum.TextTruncate.AtEnd
     		subLabel.Parent = rowBtn
     		UI.registerThemeElement(subLabel, "TextSecondary")
+
+    		local function formatStatVal(val: any): string
+    			if typeof(val) == "number" then
+    				if math.abs(val) >= 1_000_000_000 then
+    					return string.format("%.1fB", val / 1_000_000_000)
+    				elseif math.abs(val) >= 1_000_000 then
+    					return string.format("%.1fM", val / 1_000_000)
+    				elseif math.abs(val) >= 1_000 then
+    					return string.format("%.1fK", val / 1_000)
+    				else
+    					return tostring(val)
+    				end
+    			end
+    			return tostring(val)
+    		end
+
+    		local function getPlayerStatsSummary(plr: Player): string
+    			local ls = plr:FindFirstChild("leaderstats") or plr:FindFirstChild("Data") or plr:FindFirstChild("Stats")
+    			if not ls then return "" end
+    			local items = {}
+    			for _, c in ipairs(ls:GetChildren()) do
+    				if c:IsA("ValueBase") then
+    					table.insert(items, string.format("%s: %s", c.Name, formatStatVal((c :: any).Value)))
+    					if #items >= 3 then break end
+    				end
+    			end
+    			return table.concat(items, " • ")
+    		end
+
+    		local function refreshStats()
+    			if not rowBtn or not rowBtn.Parent then return end
+    			local teamStr = if player.Team then string.format("[%s] ", player.Team.Name) else ""
+    			local statsStr = getPlayerStatsSummary(player)
+    			if statsStr ~= "" then
+    				subLabel.Text = string.format("%s%s", teamStr, statsStr)
+    				subLabel.TextColor3 = UI.Theme.AccentText
+    			else
+    				subLabel.Text = string.format("%sID:%d | %dd", teamStr, player.UserId, player.AccountAge)
+    				subLabel.TextColor3 = UI.Theme.TextSecondary
+    			end
+    		end
+
+    		refreshStats()
+
+    		local statConns: {RBXScriptConnection} = {}
+    		local function watchStatsFolder(folder: Instance)
+    			for _, c in ipairs(folder:GetChildren()) do
+    				if c:IsA("ValueBase") then
+    					table.insert(statConns, (c :: any).Changed:Connect(refreshStats))
+    				end
+    			end
+    			table.insert(statConns, folder.ChildAdded:Connect(function(c)
+    				if c:IsA("ValueBase") then
+    					table.insert(statConns, (c :: any).Changed:Connect(refreshStats))
+    					refreshStats()
+    				end
+    			end))
+    			table.insert(statConns, folder.ChildRemoved:Connect(refreshStats))
+    		end
+
+    		local existingLs = player:FindFirstChild("leaderstats") or player:FindFirstChild("Data") or player:FindFirstChild("Stats")
+    		if existingLs then watchStatsFolder(existingLs) end
+
+    		table.insert(statConns, player.ChildAdded:Connect(function(child)
+    			if child.Name == "leaderstats" or child.Name == "Data" or child.Name == "Stats" then
+    				watchStatsFolder(child)
+    				refreshStats()
+    			end
+    		end))
+
+    		rowBtn.Destroying:Connect(function()
+    			for _, conn in ipairs(statConns) do
+    				pcall(function() conn:Disconnect() end)
+    			end
+    		end)
 
     		-- Row Hover FX
     		rowBtn.MouseEnter:Connect(function()
@@ -2549,69 +2635,87 @@ Modules["UI/ChatWidget.luau"] = function()
     	topbar.Name = "TopBar"
     	topbar.Size = UDim2.new(1, -12, 0, TOPBAR_H)
     	topbar.Position = UDim2.new(0, 6, 0, 6)
-    	topbar.BackgroundColor3 = UI.Theme.Container
-    	topbar.BackgroundTransparency = UI.Theme.ContainerTransparency
+    	topbar.BackgroundTransparency = 1
     	topbar.BorderSizePixel = 0
     	topbar.Parent = widget
-    	UI.registerThemeElement(topbar, "Container")
 
-    	local topGradient = Instance.new("UIGradient")
-    	topGradient.Rotation = 45
-    	topGradient.Color = ColorSequence.new({
-    		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-    		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 230))
-    	})
-    	topGradient.Parent = topbar
+    	-- [ Chat Badge ] on Left (matches VersionBox in Main GUI)
+    	local chatBadge = Instance.new("Frame")
+    	chatBadge.Name = "ChatBadge"
+    	chatBadge.Size = UDim2.new(0, 52, 1, 0)
+    	chatBadge.Position = UDim2.new(0, 0, 0, 0)
+    	chatBadge.BackgroundColor3 = UI.Theme.Container
+    	chatBadge.BackgroundTransparency = UI.Theme.ContainerTransparency
+    	chatBadge.BorderSizePixel = 0
+    	chatBadge.Parent = topbar
+    	UI.registerThemeElement(chatBadge, "Container")
 
-    	local topStroke = Instance.new("UIStroke")
-    	topStroke.Color = UI.Theme.Border
-    	topStroke.Thickness = 1.5
-    	topStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    	topStroke.Parent = topbar
-    	UI.registerThemeElement(topStroke, "Border")
+    	local badgeStroke = Instance.new("UIStroke")
+    	badgeStroke.Color = UI.Theme.Border
+    	badgeStroke.Thickness = 1.0
+    	badgeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    	badgeStroke.Parent = chatBadge
+    	UI.registerThemeElement(badgeStroke, "Border")
 
-    	-- Avatar Thumbnail
-    	local mugBox = Instance.new("Frame")
-    	mugBox.Size = UDim2.new(0, 22, 0, 22)
-    	mugBox.Position = UDim2.new(0, 3, 0, 3)
-    	mugBox.BackgroundColor3 = UI.Theme.ContainerDark
-    	mugBox.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
-    	mugBox.BorderSizePixel = 0
-    	mugBox.Parent = topbar
-    	UI.registerThemeElement(mugBox, "ContainerDark")
+    	local badgeLabel = Instance.new("TextLabel")
+    	badgeLabel.Size = UDim2.new(1, 0, 1, 0)
+    	badgeLabel.BackgroundTransparency = 1
+    	badgeLabel.Text = "Chat"
+    	badgeLabel.TextColor3 = UI.Theme.TextPrimary
+    	badgeLabel.Font = UI.Fonts.Header
+    	badgeLabel.TextSize = 11
+    	badgeLabel.Parent = chatBadge
+    	UI.registerThemeElement(badgeLabel, "TextPrimary")
 
-    	local mugStroke = Instance.new("UIStroke")
-    	mugStroke.Color = UI.Theme.Border
-    	mugStroke.Thickness = 1
-    	mugStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    	mugStroke.Parent = mugBox
-    	UI.registerThemeElement(mugStroke, "Border")
+    	-- [ Channel Box ] (matches Main GUI tabs)
+    	local channelBtn = Instance.new("TextButton")
+    	channelBtn.Name = "ChannelBtn"
+    	channelBtn.Size = UDim2.new(0, 58, 1, 0)
+    	channelBtn.Position = UDim2.new(0, 58, 0, 0)
+    	channelBtn.BackgroundColor3 = UI.Theme.Accent
+    	channelBtn.BackgroundTransparency = 0.15
+    	channelBtn.BorderSizePixel = 0
+    	channelBtn.Text = "[ All ]"
+    	channelBtn.TextColor3 = UI.Theme.AccentText
+    	channelBtn.Font = UI.Fonts.Header
+    	channelBtn.TextSize = 11
+    	channelBtn.Parent = topbar
 
-    	local mugImg = Instance.new("ImageLabel")
-    	mugImg.Size = UDim2.new(1, 0, 1, 0)
-    	mugImg.BackgroundTransparency = 1
-    	mugImg.Parent = mugBox
-    	task.spawn(function()
-    		local ok, thumb = pcall(function()
-    			return Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
-    		end)
-    		if ok and thumb and mugImg.Parent then
-    			mugImg.Image = thumb
-    		end
-    	end)
+    	local chStroke = Instance.new("UIStroke")
+    	chStroke.Color = UI.Theme.Border
+    	chStroke.Thickness = 1.0
+    	chStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    	chStroke.Parent = channelBtn
+    	UI.registerThemeElement(chStroke, "Border")
 
-    	-- Title: Chat : @Username
+    	-- [ Title & Controls Box ] on Right (matches TitleBox in Main GUI)
+    	local titleBox = Instance.new("Frame")
+    	titleBox.Name = "TitleBox"
+    	titleBox.Size = UDim2.new(0, 138, 1, 0)
+    	titleBox.Position = UDim2.new(1, -138, 0, 0)
+    	titleBox.BackgroundColor3 = UI.Theme.Container
+    	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
+    	titleBox.BorderSizePixel = 0
+    	titleBox.Parent = topbar
+    	UI.registerThemeElement(titleBox, "Container")
+
+    	local titleBoxStroke = Instance.new("UIStroke")
+    	titleBoxStroke.Color = UI.Theme.Border
+    	titleBoxStroke.Thickness = 1.0
+    	titleBoxStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    	titleBoxStroke.Parent = titleBox
+    	UI.registerThemeElement(titleBoxStroke, "Border")
+
     	local titleLabel = Instance.new("TextLabel")
-    	titleLabel.Size = UDim2.new(0, 115, 1, 0)
-    	titleLabel.Position = UDim2.new(0, 29, 0, 0)
+    	titleLabel.Size = UDim2.new(1, -50, 1, 0)
+    	titleLabel.Position = UDim2.new(0, 6, 0, 0)
     	titleLabel.BackgroundTransparency = 1
-    	titleLabel.Text = string.format("Chat : @%s", Players.LocalPlayer.Name)
+    	titleLabel.Text = "Chat Box"
     	titleLabel.TextColor3 = UI.Theme.TextPrimary
     	titleLabel.Font = UI.Fonts.Header
-    	titleLabel.TextSize = 10
-    	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    	titleLabel.TextSize = 11
     	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    	titleLabel.Parent = topbar
+    	titleLabel.Parent = titleBox
     	UI.registerThemeElement(titleLabel, "TextPrimary")
 
     	-- ── Center Action Buttons: [ ⯎ ] [ ≡ ] [ 🎙 ] ─────────────────────
@@ -2853,29 +2957,6 @@ Modules["UI/ChatWidget.luau"] = function()
     		end
     	end)
 
-    	createDropItem("Emotes", function()
-    		if _G.__ToggleProjectFihEmotes then
-    			_G.__ToggleProjectFihEmotes()
-    		else
-    			local function toggleEmotes(parent: Instance?)
-    				if not parent then return false end
-    				local g = parent:FindFirstChild("ModularEmotesGui")
-    				if g then
-    					local w = g:FindFirstChild("EmotesWidget")
-    					if w and w:IsA("Frame") then
-    						w.Visible = not w.Visible
-    						return true
-    					end
-    				end
-    				return false
-    			end
-    			if not toggleEmotes(CoreGui) then
-    				local lp = Players.LocalPlayer
-    				if lp then toggleEmotes(lp:FindFirstChild("PlayerGui")) end
-    			end
-    		end
-    	end)
-
     	createDropItem("Main Menu", function()
     		if _G.__ToggleProjectFihMenu then
     			_G.__ToggleProjectFihMenu()
@@ -2898,19 +2979,19 @@ Modules["UI/ChatWidget.luau"] = function()
     		dropdown.Visible = not dropdown.Visible
     	end)
 
-    	-- Right: Minimize [-] & Close [X] Buttons
+    	-- Right: Minimize [—] & Close [X] Buttons inside TitleBox (matching Main GUI)
     	local minBtn = Instance.new("TextButton")
     	minBtn.Name = "MinBtn"
-    	minBtn.Size = UDim2.new(0, 20, 0, 18)
-    	minBtn.Position = UDim2.new(1, -50, 0, 5)
+    	minBtn.Size = UDim2.new(0, 20, 1, -4)
+    	minBtn.Position = UDim2.new(1, -44, 0, 2)
     	minBtn.BackgroundColor3 = UI.Theme.ContainerDark
     	minBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
     	minBtn.BorderSizePixel = 0
-    	minBtn.Text = "-"
+    	minBtn.Text = "—"
     	minBtn.TextColor3 = UI.Theme.TextPrimary
-    	minBtn.Font = UI.Fonts.Mono
-    	minBtn.TextSize = 13
-    	minBtn.Parent = topbar
+    	minBtn.Font = UI.Fonts.Header
+    	minBtn.TextSize = 12
+    	minBtn.Parent = titleBox
     	UI.registerThemeElement(minBtn, "ContainerDark")
     	UI.registerThemeElement(minBtn, "TextPrimary")
 
@@ -2923,16 +3004,16 @@ Modules["UI/ChatWidget.luau"] = function()
 
     	local closeBtn = Instance.new("TextButton")
     	closeBtn.Name = "CloseBtn"
-    	closeBtn.Size = UDim2.new(0, 20, 0, 18)
-    	closeBtn.Position = UDim2.new(1, -26, 0, 5)
+    	closeBtn.Size = UDim2.new(0, 20, 1, -4)
+    	closeBtn.Position = UDim2.new(1, -22, 0, 2)
     	closeBtn.BackgroundColor3 = UI.Theme.ContainerDark
     	closeBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
     	closeBtn.BorderSizePixel = 0
     	closeBtn.Text = "X"
     	closeBtn.TextColor3 = UI.Theme.TextPrimary
-    	closeBtn.Font = UI.Fonts.Mono
+    	closeBtn.Font = UI.Fonts.Header
     	closeBtn.TextSize = 11
-    	closeBtn.Parent = topbar
+    	closeBtn.Parent = titleBox
     	UI.registerThemeElement(closeBtn, "ContainerDark")
     	UI.registerThemeElement(closeBtn, "TextPrimary")
 
@@ -2944,7 +3025,9 @@ Modules["UI/ChatWidget.luau"] = function()
     	UI.registerThemeElement(closeStroke, "Border")
 
     	-- ── Topbar Dragging (Zero-drift cursor locked) ────────────────────
-    			UI.makeDraggable(topbar, widget)
+    	UI.makeDraggable(topbar, widget)
+    	UI.makeDraggable(chatBadge, widget)
+    	UI.makeDraggable(titleBox, widget)
 
     	-- ============================================================
     	-- ── MESSAGE CONTAINER (CHAT LOGS) ───────────────────────────
@@ -3050,10 +3133,10 @@ Modules["UI/ChatWidget.luau"] = function()
     	sendBtn.Position = UDim2.new(1, -60, 0, 0)
     	sendBtn.BackgroundColor3 = UI.Theme.Accent
     	sendBtn.BorderSizePixel = 0
-    	sendBtn.Text = "Send Msg"
+    	sendBtn.Text = "Send"
     	sendBtn.TextColor3 = UI.Theme.AccentText
     	sendBtn.Font = UI.Fonts.Header
-    	sendBtn.TextSize = 10
+    	sendBtn.TextSize = 11
     	sendBtn.ZIndex = 7
     	sendBtn.Parent = bottomBar
     	UI.registerThemeElement(sendBtn, "Accent")
@@ -3382,7 +3465,7 @@ Modules["UI/ChatWidget.luau"] = function()
     				popAvatar.Image = thumb
     			end
     		end)
-
+		
     		local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
     		local x = math.clamp(clickPos.X, 8, math.max(8, vp.X - 198))
     		local y = math.clamp(clickPos.Y, 8, math.max(8, vp.Y - 248))
@@ -4370,7 +4453,7 @@ Modules["UI/MusicTracker.luau"] = function()
     	songTitleLabel.Parent = titleBox
     	UI.registerThemeElement(songTitleLabel, "TextPrimary")
 
-    	-- Box 2: Dedicated Lyrics Container
+    	-- Box 2: Dedicated Lyrics Container (Stationary Outer Frame)
     	local lyricsBox = Instance.new("Frame")
     	lyricsBox.Name = "LyricsBox"
     	lyricsBox.Size = UDim2.new(1, 0, 0, 46)
@@ -4382,11 +4465,6 @@ Modules["UI/MusicTracker.luau"] = function()
     	lyricsBox.Parent = rightCol
     	UI.registerThemeElement(lyricsBox, "ContainerDark")
 
-    	local lyricsBoxScale = Instance.new("UIScale")
-    	lyricsBoxScale.Name = "LyricsBoxScale"
-    	lyricsBoxScale.Scale = 1.0
-    	lyricsBoxScale.Parent = lyricsBox
-
     	local lyricsStroke = Instance.new("UIStroke")
     	lyricsStroke.Color = UI.Theme.Border
     	lyricsStroke.Thickness = 1
@@ -4394,49 +4472,21 @@ Modules["UI/MusicTracker.luau"] = function()
     	lyricsStroke.Parent = lyricsBox
     	UI.registerThemeElement(lyricsStroke, "Border")
 
-    	local function colorToHex(c: Color3): string
-    		return string.format("#%02x%02x%02x", math.clamp(math.floor(c.R * 255 + 0.5), 0, 255), math.clamp(math.floor(c.G * 255 + 0.5), 0, 255), math.clamp(math.floor(c.B * 255 + 0.5), 0, 255))
-    	end
-
-    	local function buildWordSyncedMarkup(lineItem: any, curMs: number): (string, boolean, string?)
-    		if not lineItem or not lineItem.words or #lineItem.words == 0 then
-    			return "♫ " .. (lineItem.text or ""), false, nil
-    		end
-
-    		local words = lineItem.words
-    		local primaryHex = colorToHex(UI.Theme.TextPrimary)
-    		local accentHex = colorToHex(UI.Theme.Accent)
-    		local secondaryHex = colorToHex(UI.Theme.TextSecondary)
-
-    		local rendered = {}
-    		local activeWordText: string? = nil
-
-    		for i, w in ipairs(words) do
-    			local sMs = w.start_ms or 0
-    			local eMs = w.end_ms or (sMs + 350)
-    			local wordText = w.word or ""
-
-    			if curMs >= eMs then
-    				-- Already sung: primary text, bold
-    				table.insert(rendered, string.format('<font color="%s"><b>%s</b></font>', primaryHex, wordText))
-    			elseif curMs >= sMs and curMs < eMs then
-    				-- Actively being sung: vibrant accent highlight, bold with underline
-    				activeWordText = wordText
-    				table.insert(rendered, string.format('<font color="%s"><b><u>%s</u></b></font>', accentHex, wordText))
-    			else
-    				-- Upcoming words: dimmed secondary color
-    				table.insert(rendered, string.format('<font color="%s">%s</font>', secondaryHex, wordText))
-    			end
-    		end
-
-    		return "♫ " .. table.concat(rendered, " "), activeWordText ~= nil, activeWordText
-    	end
+    	-- Separate Inner Text Container with No Background (Stationary frame, only text slides inside)
+    	local lyricsTextContainer = Instance.new("Frame")
+    	lyricsTextContainer.Name = "LyricsTextContainer"
+    	lyricsTextContainer.Size = UDim2.new(1, -16, 1, -4)
+    	lyricsTextContainer.Position = UDim2.new(0, 8, 0, 2)
+    	lyricsTextContainer.BackgroundTransparency = 1
+    	lyricsTextContainer.BorderSizePixel = 0
+    	lyricsTextContainer.ClipsDescendants = true
+    	lyricsTextContainer.Parent = lyricsBox
 
     	local function createLyricSlot(slotName: string): (TextLabel, UIGradient)
     		local label = Instance.new("TextLabel")
     		label.Name = slotName
-    		label.Size = UDim2.new(1, -12, 1, -4)
-    		label.Position = UDim2.new(0, 6, 0, 2)
+    		label.Size = UDim2.new(1, 0, 1, 0)
+    		label.Position = UDim2.new(0, 0, 0, 0)
     		label.BackgroundTransparency = 1
     		label.Text = ""
     		label.TextColor3 = UI.Theme.TextPrimary
@@ -4446,19 +4496,19 @@ Modules["UI/MusicTracker.luau"] = function()
     		label.TextYAlignment = Enum.TextYAlignment.Center
     		label.TextWrapped = true
     		label.RichText = true
-    		label.Parent = lyricsBox
+    		label.Parent = lyricsTextContainer
     		UI.registerThemeElement(label, "TextPrimary")
 
     		local grad = Instance.new("UIGradient")
     		grad.Name = "KaraokeSweepGradient"
     		grad.Color = ColorSequence.new({
     			ColorSequenceKeypoint.new(0.0, UI.Theme.TextPrimary),
-    			ColorSequenceKeypoint.new(0.4, UI.Theme.Accent),
-    			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
-    			ColorSequenceKeypoint.new(0.6, UI.Theme.Accent),
-    			ColorSequenceKeypoint.new(1.0, UI.Theme.TextPrimary),
+    			ColorSequenceKeypoint.new(0.46, UI.Theme.TextPrimary),
+    			ColorSequenceKeypoint.new(0.50, UI.Theme.Accent),
+    			ColorSequenceKeypoint.new(0.54, UI.Theme.TextSecondary),
+    			ColorSequenceKeypoint.new(1.0, UI.Theme.TextSecondary),
     		})
-    		grad.Offset = Vector2.new(-1.0, 0)
+    		grad.Offset = Vector2.new(-2.0, 0)
     		grad.Parent = label
 
     		return label, grad
@@ -4467,10 +4517,10 @@ Modules["UI/MusicTracker.luau"] = function()
     	local lyricLabelA, gradA = createLyricSlot("LyricSlotA")
     	local lyricLabelB, gradB = createLyricSlot("LyricSlotB")
     	lyricLabelA.Text = "♫ Play a song on Spotify, YouTube, or In-Game Audio"
-    	lyricLabelA.Position = UDim2.new(0, 6, 0, 2)
+    	lyricLabelA.Position = UDim2.new(0, 0, 0, 0)
     	lyricLabelA.TextTransparency = 0
     	lyricLabelB.Visible = false
-    	lyricLabelB.Position = UDim2.new(0, 6, 0, 16)
+    	lyricLabelB.Position = UDim2.new(0, 0, 0, 14)
     	lyricLabelB.TextTransparency = 1
 
     	local activeLyricLabel = lyricLabelA
@@ -4480,10 +4530,10 @@ Modules["UI/MusicTracker.luau"] = function()
     	local function updateLyricGradients()
     		local seq = ColorSequence.new({
     			ColorSequenceKeypoint.new(0.0, UI.Theme.TextPrimary),
-    			ColorSequenceKeypoint.new(0.4, UI.Theme.Accent),
-    			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
-    			ColorSequenceKeypoint.new(0.6, UI.Theme.Accent),
-    			ColorSequenceKeypoint.new(1.0, UI.Theme.TextPrimary),
+    			ColorSequenceKeypoint.new(0.46, UI.Theme.TextPrimary),
+    			ColorSequenceKeypoint.new(0.50, UI.Theme.Accent),
+    			ColorSequenceKeypoint.new(0.54, UI.Theme.TextSecondary),
+    			ColorSequenceKeypoint.new(1.0, UI.Theme.TextSecondary),
     		})
     		gradA.Color = seq
     		gradB.Color = seq
@@ -4505,7 +4555,7 @@ Modules["UI/MusicTracker.luau"] = function()
     			if currentLyricTransitionTween then pcall(function() currentLyricTransitionTween:Cancel() end) end
     			if currentIncomingTween then pcall(function() currentIncomingTween:Cancel() end) end
     			activeLyricLabel.Text = newText
-    			activeLyricLabel.Position = UDim2.new(0, 6, 0, 2)
+    			activeLyricLabel.Position = UDim2.new(0, 0, 0, 0)
     			activeLyricLabel.TextTransparency = 0
     			inactiveLyricLabel.Visible = false
     			return
@@ -4515,18 +4565,18 @@ Modules["UI/MusicTracker.luau"] = function()
     		if currentIncomingTween then pcall(function() currentIncomingTween:Cancel() end) end
 
     		inactiveLyricLabel.Text = newText
-    		inactiveLyricLabel.Position = UDim2.new(0, 6, 0, 16)
+    		inactiveLyricLabel.Position = UDim2.new(0, 0, 0, 14)
     		inactiveLyricLabel.TextTransparency = 1
     		inactiveLyricLabel.Visible = true
 
     		currentLyricTransitionTween = TweenService:Create(activeLyricLabel, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-    			Position = UDim2.new(0, 6, 0, -16),
+    			Position = UDim2.new(0, 0, 0, -14),
     			TextTransparency = 1,
     		})
     		currentLyricTransitionTween:Play()
 
-    		currentIncomingTween = TweenService:Create(inactiveLyricLabel, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-    			Position = UDim2.new(0, 6, 0, 2),
+    		currentIncomingTween = TweenService:Create(inactiveLyricLabel, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    			Position = UDim2.new(0, 0, 0, 0),
     			TextTransparency = 0,
     		})
     		currentIncomingTween:Play()
@@ -4540,12 +4590,6 @@ Modules["UI/MusicTracker.luau"] = function()
     			inactiveLyricLabel = lyricLabelB
     			activeGradient = gradA
     		end
-
-    		Animations.pulseIndicator(lyricsStroke, UI.Theme.Accent, UI.Theme.Border, 0.35, 1.2)
-    		lyricsBoxScale.Scale = 1.025
-    		TweenService:Create(lyricsBoxScale, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-    			Scale = 1.0,
-    		}):Play()
     	end
 
     	-- Box 3: Seek Track Bar & Timestamps
@@ -4768,34 +4812,6 @@ Modules["UI/MusicTracker.luau"] = function()
     			if #wordsList > 0 then return wordsList end
     		end
 
-    		local cleanLine = string.gsub(lineText, "<[^>]+>", "")
-    		local rawWords = {}
-    		for w in string.gmatch(cleanLine, "%S+") do
-    			table.insert(rawWords, w)
-    		end
-    		if #rawWords == 0 then return wordsList end
-
-    		local lineDur = math.max(endMs - startMs, 400)
-    		local weights = {}
-    		local totalWeight = 0
-    		for i, w in ipairs(rawWords) do
-    			local clean = string.gsub(w, "[^%w]", "")
-    			local wt = math.max(#clean, 1)
-    			weights[i] = wt
-    			totalWeight += wt
-    		end
-
-    		local activeDur = lineDur * 0.92
-    		local curMs = startMs
-    		for i, w in ipairs(rawWords) do
-    			local wDur = math.floor((weights[i] / math.max(totalWeight, 1)) * activeDur)
-    			table.insert(wordsList, {
-    				word = w,
-    				start_ms = curMs,
-    				end_ms = curMs + wDur,
-    			})
-    			curMs += wDur
-    		end
     		return wordsList
     	end
 
@@ -4824,7 +4840,7 @@ Modules["UI/MusicTracker.luau"] = function()
     		return lrcList
     	end
 
-    	local function fetchLyricsForTrack(title: string, artist: string)
+    	local function fetchLyricsForTrack(title: string, artist: string, durationSec: number?)
     		local songKey = string.lower(title) .. "::" .. string.lower(artist)
     		if songKey == lastLrcTrack or title == "Waiting for Audio Session..." or title == "No Media Playing" then return end
     		lastLrcTrack = songKey
@@ -4835,6 +4851,7 @@ Modules["UI/MusicTracker.luau"] = function()
     				cleanTitle = string.gsub(cleanTitle, "%b[]", "")
     				cleanTitle = string.gsub(cleanTitle, "[Ff]eat%..*", "")
     				cleanTitle = string.gsub(cleanTitle, "[Ff]t%..*", "")
+    				cleanTitle = string.gsub(cleanTitle, "%- [Rr]emaster.*", "")
     				cleanTitle = string.gsub(cleanTitle, "^%s*(.-)%s*$", "%1")
 
     				local cleanArtist = string.gsub(artist, "%b()", "")
@@ -4843,31 +4860,17 @@ Modules["UI/MusicTracker.luau"] = function()
     				cleanArtist = string.gsub(cleanArtist, "[Ff]t%..*", "")
     				cleanArtist = string.gsub(cleanArtist, "^%s*(.-)%s*$", "%1")
 
+    				local durParam = if durationSec and durationSec > 10 then ("&duration=" .. math.floor(durationSec)) else ""
     				local url = string.format(
-    					"https://lrclib.net/api/get?artist_name=%s&track_name=%s",
+    					"https://lrclib.net/api/get?artist_name=%s&track_name=%s%s",
     					HttpService:UrlEncode(cleanArtist),
-    					HttpService:UrlEncode(cleanTitle)
+    					HttpService:UrlEncode(cleanTitle),
+    					durParam
     				)
 
     				local raw = nil
+    				local hasPlain = false
     				pcall(function() raw = game:HttpGet(url) end)
-    				if not raw or raw == "" or not raw:find("{") then
-    					local searchUrl = string.format("https://lrclib.net/api/search?q=%s", HttpService:UrlEncode(cleanTitle .. " " .. cleanArtist))
-    					pcall(function() raw = game:HttpGet(searchUrl) end)
-    					if raw and raw ~= "" and raw:find("%[") then
-    						local searchResults = HttpService:JSONDecode(raw)
-    						if searchResults and typeof(searchResults) == "table" and #searchResults > 0 then
-    							local first = searchResults[1]
-    							if first and first.syncedLyrics then
-    								local lines = parseLrcString(first.syncedLyrics)
-    								if #lines > 0 then
-    									parsedLrcLines = lines
-    									return
-    								end
-    							end
-    						end
-    					end
-    				end
 
     				if raw and raw ~= "" and raw:find("{") then
     					local data = HttpService:JSONDecode(raw)
@@ -4878,33 +4881,72 @@ Modules["UI/MusicTracker.luau"] = function()
     							return
     						end
     					elseif data and data.plainLyrics then
-    						local lines = {}
-    						for l in string.gmatch(data.plainLyrics, "([^\n\r]+)") do
-    							local t = string.gsub(l, "^%s*(.-)%s*$", "%1")
-    							if t ~= "" then table.insert(lines, { ms = 0, text = t }) end
-    						end
-    						parsedLrcLines = lines
-    						return
+    						hasPlain = true
     					end
+    				end
+
+    				local searchUrl = string.format("https://lrclib.net/api/search?q=%s", HttpService:UrlEncode(cleanTitle .. " " .. cleanArtist))
+    				pcall(function() raw = game:HttpGet(searchUrl) end)
+    				if raw and raw ~= "" and raw:find("%[") then
+    					local searchResults = HttpService:JSONDecode(raw)
+    					if searchResults and typeof(searchResults) == "table" and #searchResults > 0 then
+    						local cleanTarget = string.lower(string.gsub(cleanTitle, "[^%w]", ""))
+    						for _, item in ipairs(searchResults) do
+    							local candTitle = if item.trackName then string.lower(string.gsub(item.trackName, "[^%w]", "")) else ""
+    							if cleanTarget ~= "" and candTitle ~= "" then
+    								if candTitle == cleanTarget or string.find(candTitle, cleanTarget, 1, true) or string.find(cleanTarget, candTitle, 1, true) then
+    									local durOk = true
+    									if durationSec and durationSec > 15 and item.duration then
+    										durOk = math.abs(item.duration - durationSec) <= 8
+    									end
+    									if durOk then
+    										if item.syncedLyrics then
+    											local lines = parseLrcString(item.syncedLyrics)
+    											if #lines > 0 then
+    												parsedLrcLines = lines
+    												return
+    											end
+    										elseif item.plainLyrics then
+    											hasPlain = true
+    										end
+    									end
+    								end
+    							end
+    						end
+    					end
+    				end
+
+    				parsedLrcLines = {}
+    				if hasPlain then
+    					displayLyric("♫ Unable to track along song timestamps", false)
+    				else
+    					displayLyric("♫ No lyrics available", false)
     				end
     			end)
     		end)
     	end
 
     	local activeLineItem: any = nil
-    	local lastActiveMarkup = ""
-    	local lastActiveWord = ""
 
     	local function updateActiveLyricFromTime(posMs: number)
     		if #parsedLrcLines == 0 then return end
+
+    		local firstItem = parsedLrcLines[1]
+    		if firstItem and posMs < firstItem.ms then
+    			activeLyricStartMs = 0
+    			activeLyricEndMs = firstItem.ms
+    			if activeLineItem ~= "intro" then
+    				activeLineItem = "intro"
+    				displayLyric("♫ (Instrumental Intro)", false)
+    			end
+    			return
+    		end
+
     		local curIndex = 0
     		for i, item in ipairs(parsedLrcLines) do
     			if posMs >= item.ms then
     				curIndex = i
     			else
-    				if curIndex == 0 and i == 1 then
-    					curIndex = 1
-    				end
     				break
     			end
     		end
@@ -4915,33 +4957,19 @@ Modules["UI/MusicTracker.luau"] = function()
     			activeLyricStartMs = item.ms
     			activeLyricEndMs = if item.end_ms then item.end_ms else (if nextItem then nextItem.ms else (item.ms + 4000))
 
-    			if not item.words or #item.words == 0 then
-    				item.words = parseLineWords(item.text, item.ms, activeLyricEndMs)
+    			if nextItem and posMs > (activeLyricEndMs + 7000) then
+    				if activeLineItem ~= "music_break" then
+    					activeLineItem = "music_break"
+    					displayLyric("♫ (Music)", false)
+    				end
+    				return
     			end
 
     			-- Line change: trigger slide-up transition
     			if item ~= activeLineItem then
     				activeLineItem = item
     				lastActiveLyric = item.text
-    				local markup, _, curW = buildWordSyncedMarkup(item, posMs)
-    				lastActiveMarkup = markup
-    				displayLyric(markup, true)
-    				if curW then lastActiveWord = curW end
-    			else
-    				-- Intra-line progression: update word highlighting on point
-    				local markup, hasActive, curW = buildWordSyncedMarkup(item, posMs)
-    				if markup ~= lastActiveMarkup then
-    					lastActiveMarkup = markup
-    					activeLyricLabel.Text = markup
-    				end
-    				-- Tactile micro-bounce on active word transition
-    				if curW and curW ~= lastActiveWord then
-    					lastActiveWord = curW
-    					lyricsBoxScale.Scale = 1.018
-    					TweenService:Create(lyricsBoxScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-    						Scale = 1.0,
-    					}):Play()
-    				end
+    				displayLyric("♫ " .. item.text, true)
     			end
     		end
     	end
@@ -5183,22 +5211,13 @@ Modules["UI/MusicTracker.luau"] = function()
     		end
 
     		-- Real-time Karaoke sweep animation across active lyric line
-    		if activeLyricEndMs > activeLyricStartMs and isPlaying then
+    		if activeLyricEndMs > activeLyricStartMs and isPlaying and #parsedLrcLines > 0 and activeLineItem ~= "intro" and activeLineItem ~= "music_break" then
     			local curPosMs = if hasExternalBridge then (serverProgressMs + (os.clock() - lastSyncClock) * 1000) else (if activeGameSound then activeGameSound.TimePosition * 1000 else 0)
     			local lineDur = math.max(activeLyricEndMs - activeLyricStartMs, 500)
     			local lineRatio = math.clamp((curPosMs - activeLyricStartMs) / lineDur, 0, 1)
     			activeGradient.Offset = Vector2.new(-1.0 + lineRatio * 2.0, 0)
     		else
-    			local shimmer = math.sin(os.clock() * 2.6) * 0.35
-    			activeGradient.Offset = Vector2.new(shimmer, 0)
-    		end
-
-    		-- Audio beat micro-pulse on lyrics box
-    		if currentAudioPeak > 0.4 and isPlaying then
-    			local beatBoost = math.clamp((currentAudioPeak - 0.4) * 0.06, 0, 0.03)
-    			lyricsBoxScale.Scale = 1.0 + beatBoost
-    		else
-    			lyricsBoxScale.Scale = 1.0
+    			activeGradient.Offset = Vector2.new(-2.0, 0)
     		end
     	end)
 
@@ -5284,28 +5303,33 @@ Modules["UI/MusicTracker.luau"] = function()
     									updateCover(nil, true, false, 0)
     								else
     									songTitleLabel.Text = string.format("%s — %s", title, artist)
-    									if data.lyrics and data.lyrics ~= "" then
-    										displayLyric("♫ " .. data.lyrics, true)
-    										lastActiveLyric = data.lyrics
-    									end
+    									local rawLyric = data.lyrics or "No lyrics available"
+    									local formattedLyric = if rawLyric:sub(1, 3) == "♫ " then rawLyric else ("♫ " .. rawLyric)
+    									displayLyric(formattedLyric, false)
+    									lastActiveLyric = rawLyric
     									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
     									playBtn.Text = if isPlaying then "❚❚" else "▶"
     									updateCover(data.cover, false, data.hasCover == true, coverVer)
 
-    									if data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 then
+    									if data.has_synced_lyrics == true and data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 then
     										parsedLrcLines = data.synced_lyrics
     									else
-    										fetchLyricsForTrack(title, artist)
+    										parsedLrcLines = {}
+    										if not (data.lyric_status == "no_synced" or data.lyric_status == "none") then
+    											fetchLyricsForTrack(title, artist, serverDurationMs / 1000)
+    										end
     									end
     								end
     							else
     								if not isIdle then
     									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
     									playBtn.Text = if isPlaying then "❚❚" else "▶"
-    									if data.lyrics and data.lyrics ~= "" and #parsedLrcLines == 0 then
-    										displayLyric("♫ " .. data.lyrics, true)
+    									if #parsedLrcLines == 0 and data.lyrics and data.lyrics ~= "" then
+    										local rawLyric = data.lyrics
+    										local formattedLyric = if rawLyric:sub(1, 3) == "♫ " then rawLyric else ("♫ " .. rawLyric)
+    										displayLyric(formattedLyric, false)
     									end
-    									if data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 and #parsedLrcLines == 0 then
+    									if data.has_synced_lyrics == true and data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 and #parsedLrcLines == 0 then
     										parsedLrcLines = data.synced_lyrics
     									end
     									-- Update cover art when bridge signals new version
@@ -5742,6 +5766,65 @@ Modules["UI/Hotbar.luau"] = function()
     	hotbarList.Padding = UDim.new(0, SLOT_GAP)
     	hotbarList.SortOrder = Enum.SortOrder.LayoutOrder
     	hotbarList.Parent = hotbarFrame
+
+    	-- ── Integrated Toolbar Health Bar ─────────────────────────────────
+    	-- A large green line across the toolbar that smoothly drops by HP
+    	local healthBarContainer = Instance.new("Frame")
+    	healthBarContainer.Name = "ToolbarHealthBar"
+    	healthBarContainer.Size = UDim2.new(1, 0, 0, 6)
+    	healthBarContainer.Position = UDim2.new(0, 0, 0, -10)
+    	healthBarContainer.BackgroundColor3 = Color3.fromRGB(15, 25, 18)
+    	healthBarContainer.BackgroundTransparency = 0.25
+    	healthBarContainer.BorderSizePixel = 0
+    	healthBarContainer.ClipsDescendants = true
+    	healthBarContainer.Parent = hotbarFrame
+
+    	local healthBarStroke = Instance.new("UIStroke")
+    	healthBarStroke.Color = UI.Theme.Border
+    	healthBarStroke.Thickness = 1.0
+    	healthBarStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    	healthBarStroke.Parent = healthBarContainer
+    	UI.registerThemeElement(healthBarStroke, "Border")
+
+    	local healthBarFill = Instance.new("Frame")
+    	healthBarFill.Name = "HealthFill"
+    	healthBarFill.Size = UDim2.new(1, 0, 1, 0)
+    	healthBarFill.Position = UDim2.new(0, 0, 0, 0)
+    	healthBarFill.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+    	healthBarFill.BorderSizePixel = 0
+    	healthBarFill.Parent = healthBarContainer
+
+    	local healthGrad = Instance.new("UIGradient")
+    	healthGrad.Color = ColorSequence.new({
+    		ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 235, 120)),
+    		ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 195, 95))
+    	})
+    	healthGrad.Parent = healthBarFill
+
+    	local function updateToolbarHealth(currentHp: number, maxHp: number)
+    		local ratio = math.clamp(currentHp / math.max(1, maxHp), 0, 1)
+    		TweenService:Create(healthBarFill, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    			Size = UDim2.new(ratio, 0, 1, 0)
+    		}):Play()
+    	end
+
+    	local function bindCharHealth(char: Model)
+    		local hum = char:WaitForChild("Humanoid", 5) :: Humanoid?
+    		if hum then
+    			updateToolbarHealth(hum.Health, hum.MaxHealth)
+    			local conn = hum.HealthChanged:Connect(function(newHp)
+    				updateToolbarHealth(newHp, hum.MaxHealth)
+    			end)
+    			table.insert(activeConnections, conn)
+    		end
+    	end
+
+    	if LocalPlayer.Character then
+    		task.spawn(bindCharHealth, LocalPlayer.Character)
+    	end
+    	table.insert(activeConnections, LocalPlayer.CharacterAdded:Connect(function(char)
+    		task.spawn(bindCharHealth, char)
+    	end))
 
     	-- ── 2. Backpack Inventory Window ──────────────────────────────────
     	local BP_WIDTH = 700
@@ -8010,6 +8093,7 @@ Modules["UI/HealthWidget.luau"] = function()
     	hudFrame.BackgroundTransparency = UI.Theme.BackgroundTransparency
     	hudFrame.BorderSizePixel = 0
     	hudFrame.ClipsDescendants = false
+    	hudFrame.Visible = false
     	hudFrame.Parent = screenGui
     	UI.registerThemeElement(hudFrame, "Background")
 
@@ -9723,7 +9807,7 @@ Modules["Core/CoreUI.luau"] = function()
 
     function CoreUI.new(titleText: string)
     	local self = setmetatable({}, CoreUI)
-
+	
     	pcall(function()
     		local containers = {
     			(type(gethui) == "function" and gethui()),
@@ -9747,12 +9831,12 @@ Modules["Core/CoreUI.luau"] = function()
     	screenGui.ResetOnSpawn = false
     	screenGui.IgnoreGuiInset = true
     	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
+	
     	safeParentGui(screenGui)
-
+	
     	local mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale, controller, themesBtn, statusLabel = UI.createWindow(titleText)
     	mainFrame.Parent = screenGui
-
+	
     	self.ScreenGui = screenGui
     	self.MainFrame = mainFrame
     	self.Sidebar = sidebar
@@ -9774,7 +9858,7 @@ Modules["Core/CoreUI.luau"] = function()
     	self.ActiveToggles = {}
     	self.SliderFills = {}
     	self.SubTabGroups = {}
-
+	
     	-- Wire toggle click handlers for Settings and Themes
     	if self.SettingsBtn then
     		self.SettingsBtn.MouseButton1Click:Connect(function()
@@ -9816,7 +9900,7 @@ Modules["Core/CoreUI.luau"] = function()
     	UI.onThemeChanged(function(targetTheme)
     		self:UpdateTheme(targetTheme)
     	end)
-
+	
     	return self
     end
 
@@ -9901,7 +9985,7 @@ Modules["Core/CoreUI.luau"] = function()
     	tabButton.Font = UI.Fonts.Header
     	tabButton.TextSize = 11
     	tabButton.TextTruncate = Enum.TextTruncate.AtEnd
-    	tabButton.ClipsDescendants = true
+    	tabButton.ClipsDescendants = false
     	tabButton.LayoutOrder = #self.Tabs + 1
     	tabButton.Visible = not (isHiddenFromSidebar or false)
     	tabButton.Parent = self.Sidebar
@@ -9912,7 +9996,7 @@ Modules["Core/CoreUI.luau"] = function()
     	tabPad.PaddingLeft = UDim.new(0, 10)
     	tabPad.PaddingRight = UDim.new(0, 10)
     	tabPad.Parent = tabButton
-
+	
     	-- Active tab gradient overlay
     	local tabGrad = Instance.new("UIGradient")
     	tabGrad.Name = "ActiveGradient"
@@ -9923,14 +10007,14 @@ Modules["Core/CoreUI.luau"] = function()
     	})
     	tabGrad.Enabled = false
     	tabGrad.Parent = tabButton
-
+	
     	local tabStroke = Instance.new("UIStroke")
-    	tabStroke.Color = UI.Theme.BorderDim
+    	tabStroke.Color = UI.Theme.Border
     	tabStroke.Thickness = 1.0
     	tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     	tabStroke.Parent = tabButton
-    	UI.registerThemeElement(tabStroke, "BorderDim")
-
+    	UI.registerThemeElement(tabStroke, "Border")
+	
     	local tabContent = Instance.new("ScrollingFrame")
     	tabContent.Name = name .. "Page"
     	tabContent.Size = UDim2.new(1, 0, 1, 0)
@@ -9951,12 +10035,12 @@ Modules["Core/CoreUI.luau"] = function()
     	pad.PaddingTop = UDim.new(0, 2)
     	pad.PaddingBottom = UDim.new(0, 12)
     	pad.Parent = tabContent
-
+	
     	local layout = Instance.new("UIListLayout")
     	layout.Padding = UDim.new(0, 10)
     	layout.SortOrder = Enum.SortOrder.LayoutOrder
     	layout.Parent = tabContent
-
+	
     	local tabObj = {
     		Name = name,
     		Button = tabButton,
@@ -9967,7 +10051,7 @@ Modules["Core/CoreUI.luau"] = function()
     		IsVisible = not (isHiddenFromSidebar or false),
     		OnVisibilityChanged = nil
     	}
-
+	
     	tabButton.MouseEnter:Connect(function()
     		if self.ActiveTab ~= tabObj then
     			if tabStroke then TweenService:Create(tabStroke, TweenInfo.new(0.12), { Thickness = 1.5 }):Play() end
@@ -9996,13 +10080,13 @@ Modules["Core/CoreUI.luau"] = function()
     			handleRightClick()
     		end
     	end)
-
+	
     	table.insert(self.Tabs, tabObj)
-
+	
     	if not isHiddenFromSidebar and #self.Tabs == 1 then
     		self:SelectTab(tabObj)
     	end
-
+	
     	return tabObj
     end
 
@@ -10071,7 +10155,7 @@ Modules["Core/CoreUI.luau"] = function()
     				tab.Button.BackgroundColor3 = UI.Theme.Container
     				tab.Button.BackgroundTransparency = UI.Theme.ContainerTransparency
     				tab.Button.TextColor3 = UI.Theme.TextSecondary
-    				tab.Stroke.Color = UI.Theme.BorderDim
+    				tab.Stroke.Color = UI.Theme.Border
     				tab.Stroke.Thickness = 1.0
     				local grad = tab.Button:FindFirstChild("ActiveGradient") :: UIGradient?
     				if grad then grad.Enabled = false end
@@ -10093,7 +10177,7 @@ Modules["Core/CoreUI.luau"] = function()
     		tabObj.Button.TextColor3 = UI.Theme.AccentText
     		tabObj.Stroke.Color = UI.Theme.Border
     		tabObj.Stroke.Thickness = 1.2
-
+		
     		Animations.pulseIndicator(tabObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
 
     		local grad = tabObj.Button:FindFirstChild("ActiveGradient") :: UIGradient?
@@ -10350,10 +10434,10 @@ Modules["Core/CoreUI.luau"] = function()
     				BackgroundTransparency = 0,
     				TextColor3 = UI.Theme.AccentText
     			}):Play()
-
+			
     			-- Active sub-tab indicator pulse
     			Animations.pulseIndicator(targetObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
-
+			
     			if targetObj.Gradient then targetObj.Gradient.Enabled = true end
     		end
 
@@ -10645,7 +10729,7 @@ Modules["Core/CoreUI.luau"] = function()
     -- 3-Segment Toggle Row: [ X ] Option Name [ Bind ]
     function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defaultState: boolean, defaultKeybind: Enum.KeyCode?, callback: (boolean) -> ())
     	local feature = FeatureManager.register(featureId, name, defaultState, defaultKeybind, callback)
-
+	
     	local row = Instance.new("Frame")
     	row.Name = featureId .. "Row"
     	row.Size = UDim2.new(1, -4, 0, 24)
@@ -13350,13 +13434,6 @@ Modules["Core/MainUI.luau"] = function()
     			leaderstatsWidget.SetVisible(enabled)
     		end)
 
-    		window:AddToggle(coreWidgetsSection, "hud_emotes", "Emotes HUD Widget (, Key)", true, nil, function(enabled)
-    			if emotesWidget then
-    				emotesWidget.IsEnabled = enabled
-    				emotesWidget.SetVisible(enabled)
-    			end
-    		end)
-
     		local robloxGuiSection = window:AddSection(wLeftCol, "Roblox Core & Game GUI Overlays")
 
     		window:AddToggle(robloxGuiSection, "hide_roblox_core_guis", "Hide Roblox Core UIs (Topbar, Leaderboard, Chat)", false, nil, function(enabled)
@@ -13390,12 +13467,6 @@ Modules["Core/MainUI.luau"] = function()
     		end)
 
     		local widgetActionsSection = window:AddSection(wRightCol, "Widget Quick Shortcuts")
-
-    		window:AddButton(widgetActionsSection, "Open Emotes Menu (,)", function()
-    			if emotesWidget and emotesWidget.IsEnabled ~= false then
-    				emotesWidget:Open()
-    			end
-    		end)
 
     		window:AddButton(widgetActionsSection, "Toggle Backpack Window (~)", function()
     			if hotbarWidget and hotbarWidget.IsEnabled ~= false then
@@ -20765,7 +20836,6 @@ local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
 local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
 local HealthWidget = require("UI/HealthWidget.luau")
-local EmotesWidget = require("UI/EmotesWidget.luau")
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character
@@ -21060,7 +21130,6 @@ local musicTrackerWidget = MusicTracker.new()
 local hotbarWidget = Hotbar.new()
 local leaderstatsWidget = LeaderstatsWidget.new()
 local healthWidget = HealthWidget.new()
-local emotesWidget = EmotesWidget.new()
 
 -- Synchronize Player List with Leaderstats and Player Profile Sub-GUIs
 playerListWidget.OnClose = function()
@@ -21087,12 +21156,6 @@ _G.__ToggleProjectFihBackpack = function()
 	end
 end
 
-_G.__ToggleProjectFihEmotes = function()
-	if emotesWidget and emotesWidget.IsEnabled ~= false then
-		emotesWidget.Toggle()
-	end
-end
-
 _G.__ToggleProjectFihMenu = function()
 	window:Toggle()
 end
@@ -21107,10 +21170,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			if playerListWidget and playerListWidget.IsEnabled ~= false then
 				playerListWidget:Toggle()
 			end
-		elseif input.KeyCode == Enum.KeyCode.Comma then
-			if emotesWidget and emotesWidget.IsEnabled ~= false then
-				emotesWidget.Toggle()
-			end
 		end
 	end
 end)
@@ -21124,4 +21183,4 @@ local sharedEnv = {
 	purgeBlackoutScreens = purgeBlackoutScreens,
 }
 
-require("Core/MainUI.luau")(require, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, emotesWidget, sharedEnv)
+require("Core/MainUI.luau")(require, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, nil, sharedEnv)

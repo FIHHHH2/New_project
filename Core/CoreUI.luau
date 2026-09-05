@@ -74,7 +74,7 @@ function CoreUI.new(titleText: string)
 	
 	safeParentGui(screenGui)
 	
-	local mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale = UI.createWindow(titleText)
+	local mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale, controller, themesBtn, statusLabel = UI.createWindow(titleText)
 	mainFrame.Parent = screenGui
 	
 	self.ScreenGui = screenGui
@@ -82,9 +82,12 @@ function CoreUI.new(titleText: string)
 	self.Sidebar = sidebar
 	self.ContentContainer = contentContainer
 	self.ActiveTagLabel = activeTagLabel
+	self.StatusLabel = statusLabel
 	self.SettingsBtn = settingsBtn
 	self.ConfigsBtn = configsBtn
+	self.ThemesBtn = themesBtn
 	self.UiScale = uiScale
+	self.Controller = controller
 	self.IsOpen = true
 	self.IsTransitioning = false
 	self.Tabs = {}
@@ -96,7 +99,7 @@ function CoreUI.new(titleText: string)
 	self.SliderFills = {}
 	self.SubTabGroups = {}
 	
-	-- Wire toggle click handlers for Settings and Configs
+	-- Wire toggle click handlers for Settings and Themes
 	if self.SettingsBtn then
 		self.SettingsBtn.MouseButton1Click:Connect(function()
 			if self.SettingsTab then
@@ -109,7 +112,20 @@ function CoreUI.new(titleText: string)
 		end)
 	end
 
-	if self.ConfigsBtn then
+	if self.ThemesBtn then
+		self.ThemesBtn.MouseButton1Click:Connect(function()
+			if self.SettingsTab then
+				self:SelectTab(self.SettingsTab)
+				for _, subGroup in ipairs(self.SubTabGroups or {}) do
+					if subGroup.Tabs and (subGroup.Tabs["Themes & Visuals"] or subGroup.Tabs["Themes"]) then
+						subGroup:Select(subGroup.Tabs["Themes & Visuals"] and "Themes & Visuals" or "Themes")
+					end
+				end
+			end
+		end)
+	end
+
+	if self.ConfigsBtn and self.ConfigsBtn ~= self.ThemesBtn then
 		self.ConfigsBtn.MouseButton1Click:Connect(function()
 			if self.ConfigsTab then
 				if self.ActiveTab == self.ConfigsTab then
@@ -198,15 +214,15 @@ end
 function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 	local tabButton = Instance.new("TextButton")
 	tabButton.Name = name .. "TabBtn"
-	tabButton.Size = UDim2.new(1, -4, 0, 30)
-	tabButton.Position = UDim2.new(0, 2, 0, 0)
+	tabButton.Size = UDim2.new(1, 0, 0, 26)
+	tabButton.Position = UDim2.new(0, 0, 0, 0)
 	tabButton.BackgroundColor3 = UI.Theme.Container
 	tabButton.BackgroundTransparency = UI.Theme.ContainerTransparency
 	tabButton.BorderSizePixel = 0
 	tabButton.Text = name
 	tabButton.TextColor3 = UI.Theme.TextSecondary
 	tabButton.Font = UI.Fonts.Header
-	tabButton.TextSize = 12
+	tabButton.TextSize = 11
 	tabButton.TextTruncate = Enum.TextTruncate.AtEnd
 	tabButton.ClipsDescendants = true
 	tabButton.LayoutOrder = #self.Tabs + 1
@@ -227,11 +243,11 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 	tabGrad.Parent = tabButton
 	
 	local tabStroke = Instance.new("UIStroke")
-	tabStroke.Color = UI.Theme.Border
-	tabStroke.Thickness = 1.5
+	tabStroke.Color = UI.Theme.BorderDim
+	tabStroke.Thickness = 1.2
 	tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	tabStroke.Parent = tabButton
-	UI.registerThemeElement(tabStroke, "Border")
+	UI.registerThemeElement(tabStroke, "BorderDim")
 	
 	local tabContent = Instance.new("ScrollingFrame")
 	tabContent.Name = name .. "Page"
@@ -370,8 +386,8 @@ function CoreUI:SelectTab(tabObj)
 			tab.Page.Visible = false
 			tab.Page.Position = UDim2.new(0, 0, 0, 0)
 			if tab.Button and tab.Stroke then
-				tab.Button.Size = UDim2.new(1, -4, 0, 30)
-				tab.Button.Position = UDim2.new(0, 2, 0, 0)
+				tab.Button.Size = UDim2.new(1, 0, 0, 26)
+				tab.Button.Position = UDim2.new(0, 0, 0, 0)
 				tab.Button.BackgroundColor3 = UI.Theme.Container
 				tab.Button.BackgroundTransparency = UI.Theme.ContainerTransparency
 				tab.Button.TextColor3 = UI.Theme.TextSecondary
@@ -392,13 +408,13 @@ function CoreUI:SelectTab(tabObj)
 
 	-- 3. Highlight Tab Button if present
 	if tabObj.Button and tabObj.Stroke then
-		tabObj.Button.Size = UDim2.new(1, -4, 0, 30)
-		tabObj.Button.Position = UDim2.new(0, 2, 0, 0)
+		tabObj.Button.Size = UDim2.new(1, 0, 0, 26)
+		tabObj.Button.Position = UDim2.new(0, 0, 0, 0)
 		tabObj.Button.BackgroundColor3 = UI.Theme.Accent
 		tabObj.Button.BackgroundTransparency = 0
 		tabObj.Button.TextColor3 = UI.Theme.AccentText
 		tabObj.Stroke.Color = UI.Theme.Border
-		tabObj.Stroke.Thickness = 1.6
+		tabObj.Stroke.Thickness = 1.5
 		
 		Animations.pulseIndicator(tabObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
 
@@ -409,6 +425,9 @@ function CoreUI:SelectTab(tabObj)
 	self.ActiveTab = tabObj
 	if self.ActiveTagLabel then
 		self.ActiveTagLabel.Text = tabObj.Name
+	end
+	if self.StatusLabel then
+		self.StatusLabel.Text = tabObj.Name
 	end
 
 	-- Subheader buttons active state
@@ -700,7 +719,7 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 	return subTabs
 end
 
-function CoreUI:CreateColumns(tabObj: any): (Frame, Frame)
+function CoreUI:CreateColumns(tabObj: any, leftTitle: string?, rightTitle: string?): (Frame, Frame)
 	local parentPage: GuiObject? = if type(tabObj) == "table" and tabObj.Page then tabObj.Page elseif typeof(tabObj) == "Instance" and tabObj:IsA("GuiObject") then tabObj else nil
 	if not parentPage then
 		error("[CoreUI:CreateColumns] Expected tabObj table or GuiObject instance.")
@@ -715,42 +734,156 @@ function CoreUI:CreateColumns(tabObj: any): (Frame, Frame)
 	columnsContainer.ClipsDescendants = false
 	columnsContainer.Parent = parentPage
 
-	local leftCol = Instance.new("Frame")
-	leftCol.Name = "LeftColumn"
-	leftCol.Size = UDim2.new(0.5, -5, 0, 0)
-	leftCol.Position = UDim2.new(0, 0, 0, 0)
-	leftCol.AutomaticSize = Enum.AutomaticSize.Y
-	leftCol.BackgroundTransparency = 1
-	leftCol.BorderSizePixel = 0
-	leftCol.ClipsDescendants = false
-	leftCol.Parent = columnsContainer
+	-- ── Left Panel (Side Tab Header + Tab Card) ──────────────────────
+	local leftPanel = Instance.new("Frame")
+	leftPanel.Name = "LeftPanel"
+	leftPanel.Size = UDim2.new(0.5, -4, 0, 0)
+	leftPanel.Position = UDim2.new(0, 0, 0, 0)
+	leftPanel.AutomaticSize = Enum.AutomaticSize.Y
+	leftPanel.BackgroundTransparency = 1
+	leftPanel.BorderSizePixel = 0
+	leftPanel.ClipsDescendants = false
+	leftPanel.Parent = columnsContainer
+
+	local leftHeaderBox = Instance.new("Frame")
+	leftHeaderBox.Name = "HeaderBox"
+	leftHeaderBox.Size = UDim2.new(1, 0, 0, 24)
+	leftHeaderBox.Position = UDim2.new(0, 0, 0, 0)
+	leftHeaderBox.BackgroundColor3 = UI.Theme.Container
+	leftHeaderBox.BackgroundTransparency = UI.Theme.ContainerTransparency
+	leftHeaderBox.BorderSizePixel = 0
+	leftHeaderBox.Parent = leftPanel
+	UI.registerThemeElement(leftHeaderBox, "Container")
+
+	local leftHeaderStroke = Instance.new("UIStroke")
+	leftHeaderStroke.Color = UI.Theme.Border
+	leftHeaderStroke.Thickness = 1.2
+	leftHeaderStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	leftHeaderStroke.Parent = leftHeaderBox
+	UI.registerThemeElement(leftHeaderStroke, "Border")
+
+	local leftHeaderLabel = Instance.new("TextLabel")
+	leftHeaderLabel.Name = "HeaderLabel"
+	leftHeaderLabel.Size = UDim2.new(1, 0, 1, 0)
+	leftHeaderLabel.BackgroundTransparency = 1
+	leftHeaderLabel.Text = leftTitle or "Side Tab"
+	leftHeaderLabel.TextColor3 = UI.Theme.TextPrimary
+	leftHeaderLabel.Font = UI.Fonts.Header
+	leftHeaderLabel.TextSize = 11
+	leftHeaderLabel.TextXAlignment = Enum.TextXAlignment.Center
+	leftHeaderLabel.Parent = leftHeaderBox
+	UI.registerThemeElement(leftHeaderLabel, "TextPrimary")
+
+	local leftCard = Instance.new("Frame")
+	leftCard.Name = "LeftCard"
+	leftCard.Size = UDim2.new(1, 0, 0, 0)
+	leftCard.Position = UDim2.new(0, 0, 0, 28)
+	leftCard.AutomaticSize = Enum.AutomaticSize.Y
+	leftCard.BackgroundColor3 = UI.Theme.ContainerDark
+	leftCard.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	leftCard.BorderSizePixel = 0
+	leftCard.ClipsDescendants = false
+	leftCard.Parent = leftPanel
+	UI.registerThemeElement(leftCard, "ContainerDark")
+
+	local leftCardStroke = Instance.new("UIStroke")
+	leftCardStroke.Color = UI.Theme.Border
+	leftCardStroke.Thickness = 1.2
+	leftCardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	leftCardStroke.Parent = leftCard
+	UI.registerThemeElement(leftCardStroke, "Border")
+
+	local leftCardPad = Instance.new("UIPadding")
+	leftCardPad.PaddingLeft = UDim.new(0, 6)
+	leftCardPad.PaddingRight = UDim.new(0, 6)
+	leftCardPad.PaddingTop = UDim.new(0, 6)
+	leftCardPad.PaddingBottom = UDim.new(0, 6)
+	leftCardPad.Parent = leftCard
 
 	local leftLayout = Instance.new("UIListLayout")
-	leftLayout.Padding = UDim.new(0, 8)
+	leftLayout.Padding = UDim.new(0, 6)
 	leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	leftLayout.Parent = leftCol
+	leftLayout.Parent = leftCard
 
-	local rightCol = Instance.new("Frame")
-	rightCol.Name = "RightColumn"
-	rightCol.Size = UDim2.new(0.5, -5, 0, 0)
-	rightCol.Position = UDim2.new(0.5, 5, 0, 0)
-	rightCol.AutomaticSize = Enum.AutomaticSize.Y
-	rightCol.BackgroundTransparency = 1
-	rightCol.BorderSizePixel = 0
-	rightCol.ClipsDescendants = false
-	rightCol.Parent = columnsContainer
+	-- ── Right Panel (Side Tab Header + Tab Card) ─────────────────────
+	local rightPanel = Instance.new("Frame")
+	rightPanel.Name = "RightPanel"
+	rightPanel.Size = UDim2.new(0.5, -4, 0, 0)
+	rightPanel.Position = UDim2.new(0.5, 4, 0, 0)
+	rightPanel.AutomaticSize = Enum.AutomaticSize.Y
+	rightPanel.BackgroundTransparency = 1
+	rightPanel.BorderSizePixel = 0
+	rightPanel.ClipsDescendants = false
+	rightPanel.Parent = columnsContainer
+
+	local rightHeaderBox = Instance.new("Frame")
+	rightHeaderBox.Name = "HeaderBox"
+	rightHeaderBox.Size = UDim2.new(1, 0, 0, 24)
+	rightHeaderBox.Position = UDim2.new(0, 0, 0, 0)
+	rightHeaderBox.BackgroundColor3 = UI.Theme.Container
+	rightHeaderBox.BackgroundTransparency = UI.Theme.ContainerTransparency
+	rightHeaderBox.BorderSizePixel = 0
+	rightHeaderBox.Parent = rightPanel
+	UI.registerThemeElement(rightHeaderBox, "Container")
+
+	local rightHeaderStroke = Instance.new("UIStroke")
+	rightHeaderStroke.Color = UI.Theme.Border
+	rightHeaderStroke.Thickness = 1.2
+	rightHeaderStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	rightHeaderStroke.Parent = rightHeaderBox
+	UI.registerThemeElement(rightHeaderStroke, "Border")
+
+	local rightHeaderLabel = Instance.new("TextLabel")
+	rightHeaderLabel.Name = "HeaderLabel"
+	rightHeaderLabel.Size = UDim2.new(1, 0, 1, 0)
+	rightHeaderLabel.BackgroundTransparency = 1
+	rightHeaderLabel.Text = rightTitle or "Side Tab"
+	rightHeaderLabel.TextColor3 = UI.Theme.TextPrimary
+	rightHeaderLabel.Font = UI.Fonts.Header
+	rightHeaderLabel.TextSize = 11
+	rightHeaderLabel.TextXAlignment = Enum.TextXAlignment.Center
+	rightHeaderLabel.Parent = rightHeaderBox
+	UI.registerThemeElement(rightHeaderLabel, "TextPrimary")
+
+	local rightCard = Instance.new("Frame")
+	rightCard.Name = "RightCard"
+	rightCard.Size = UDim2.new(1, 0, 0, 0)
+	rightCard.Position = UDim2.new(0, 0, 0, 28)
+	rightCard.AutomaticSize = Enum.AutomaticSize.Y
+	rightCard.BackgroundColor3 = UI.Theme.ContainerDark
+	rightCard.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	rightCard.BorderSizePixel = 0
+	rightCard.ClipsDescendants = false
+	rightCard.Parent = rightPanel
+	UI.registerThemeElement(rightCard, "ContainerDark")
+
+	local rightCardStroke = Instance.new("UIStroke")
+	rightCardStroke.Color = UI.Theme.Border
+	rightCardStroke.Thickness = 1.2
+	rightCardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	rightCardStroke.Parent = rightCard
+	UI.registerThemeElement(rightCardStroke, "Border")
+
+	local rightCardPad = Instance.new("UIPadding")
+	rightCardPad.PaddingLeft = UDim.new(0, 6)
+	rightCardPad.PaddingRight = UDim.new(0, 6)
+	rightCardPad.PaddingTop = UDim.new(0, 6)
+	rightCardPad.PaddingBottom = UDim.new(0, 6)
+	rightCardPad.Parent = rightCard
 
 	local rightLayout = Instance.new("UIListLayout")
-	rightLayout.Padding = UDim.new(0, 8)
+	rightLayout.Padding = UDim.new(0, 6)
 	rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	rightLayout.Parent = rightCol
+	rightLayout.Parent = rightCard
 
 	if type(tabObj) == "table" then
-		tabObj.LeftColumn = leftCol
-		tabObj.RightColumn = rightCol
+		tabObj.LeftColumn = leftCard
+		tabObj.RightColumn = rightCard
+		tabObj.LeftHeaderLabel = leftHeaderLabel
+		tabObj.RightHeaderLabel = rightHeaderLabel
 	end
 
-	return leftCol, rightCol
+	return leftCard, rightCard
 end
 
 function CoreUI:AddSection(parent: GuiObject, title: string): Frame
@@ -764,43 +897,37 @@ function CoreUI:AddSection(parent: GuiObject, title: string): Frame
 	section.Parent = parent
 
 	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 6)
+	layout.Padding = UDim.new(0, 5)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = section
 
-	-- standalone boxed header [ Category Name ]
+	-- clean minimal section header [ Category Name ]
 	local headerBox = Instance.new("Frame")
 	headerBox.Name = "HeaderBox"
-	headerBox.Size = UDim2.new(1, -4, 0, 24)
-	headerBox.Position = UDim2.new(0, 2, 0, 0)
+	headerBox.Size = UDim2.new(1, 0, 0, 22)
+	headerBox.Position = UDim2.new(0, 0, 0, 0)
 	headerBox.BackgroundColor3 = UI.Theme.Container
 	headerBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	headerBox.BorderSizePixel = 0
 	headerBox.Parent = section
 	UI.registerThemeElement(headerBox, "Container")
 
-	local headerGrad = Instance.new("UIGradient")
-	headerGrad.Rotation = 90
-	headerGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 230))
-	})
-	headerGrad.Parent = headerBox
-
 	local headerStroke = Instance.new("UIStroke")
 	headerStroke.Color = UI.Theme.Border
-	headerStroke.Thickness = 1.2
+	headerStroke.Thickness = 1.0
 	headerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	headerStroke.Parent = headerBox
 	UI.registerThemeElement(headerStroke, "Border")
 
 	local headerLabel = Instance.new("TextLabel")
-	headerLabel.Size = UDim2.new(1, 0, 1, 0)
+	headerLabel.Size = UDim2.new(1, -8, 1, 0)
+	headerLabel.Position = UDim2.new(0, 4, 0, 0)
 	headerLabel.BackgroundTransparency = 1
 	headerLabel.Text = title
 	headerLabel.TextColor3 = UI.Theme.TextPrimary
 	headerLabel.Font = UI.Fonts.Header
 	headerLabel.TextSize = 11
+	headerLabel.TextXAlignment = Enum.TextXAlignment.Left
 	headerLabel.Parent = headerBox
 	UI.registerThemeElement(headerLabel, "TextPrimary")
 

@@ -420,21 +420,9 @@ function UI.createWindow(titleText: string)
 	mainFrame.ClipsDescendants = false
 	UI.registerThemeElement(mainFrame, "Background")
 
-	local bgGradient = Instance.new("UIGradient")
-	bgGradient.Rotation = 90
-	bgGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 210))
-	})
-	bgGradient.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0),
-		NumberSequenceKeypoint.new(1, 0.15)
-	})
-	bgGradient.Parent = mainFrame
-
 	local outerStroke = Instance.new("UIStroke")
 	outerStroke.Color = UI.Theme.Border
-	outerStroke.Thickness = 2
+	outerStroke.Thickness = 1.5
 	outerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	outerStroke.Parent = mainFrame
 	UI.registerThemeElement(outerStroke, "Border")
@@ -443,254 +431,242 @@ function UI.createWindow(titleText: string)
 	uiScale.Scale = 1.0
 	uiScale.Parent = mainFrame
 
+	-- ── Top Bar (Segmented: [Version] [Title               — X]) ──────
 	local topbar = Instance.new("Frame")
 	topbar.Name = "TopBar"
-	topbar.Size = UDim2.new(1, -16, 0, 28)
+	topbar.Size = UDim2.new(1, -16, 0, 26)
 	topbar.Position = UDim2.new(0, 8, 0, 8)
 	topbar.BackgroundTransparency = 1
 	topbar.BorderSizePixel = 0
 	topbar.Parent = mainFrame
 
+	-- [ Version ] Box on Left (Aligned with Sidebar)
+	local versionBox = Instance.new("Frame")
+	versionBox.Name = "VersionBox"
+	versionBox.Size = UDim2.new(0, 110, 1, 0)
+	versionBox.Position = UDim2.new(0, 0, 0, 0)
+	versionBox.BackgroundColor3 = UI.Theme.Container
+	versionBox.BackgroundTransparency = UI.Theme.ContainerTransparency
+	versionBox.BorderSizePixel = 0
+	versionBox.Parent = topbar
+	UI.registerThemeElement(versionBox, "Container")
+
+	local versionStroke = Instance.new("UIStroke")
+	versionStroke.Color = UI.Theme.Border
+	versionStroke.Thickness = 1.2
+	versionStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	versionStroke.Parent = versionBox
+	UI.registerThemeElement(versionStroke, "Border")
+
+	local versionLabel = Instance.new("TextLabel")
+	versionLabel.Name = "VersionLabel"
+	versionLabel.Size = UDim2.new(1, 0, 1, 0)
+	versionLabel.BackgroundTransparency = 1
+	versionLabel.Text = "Version"
+	versionLabel.TextColor3 = UI.Theme.TextPrimary
+	versionLabel.Font = UI.Fonts.Header
+	versionLabel.TextSize = 11
+	versionLabel.Parent = versionBox
+	UI.registerThemeElement(versionLabel, "TextPrimary")
+
+	-- [ Title ] Header Box on Right
 	local titleBox = Instance.new("Frame")
 	titleBox.Name = "TitleBox"
-	titleBox.Size = UDim2.new(0, 220, 1, 0)
-	titleBox.Position = UDim2.new(0, 0, 0, 0)
+	titleBox.Size = UDim2.new(1, -118, 1, 0)
+	titleBox.Position = UDim2.new(0, 118, 0, 0)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
-	titleBox.ClipsDescendants = true
 	titleBox.Parent = topbar
 	UI.registerThemeElement(titleBox, "Container")
 
-	local titleGradient = Instance.new("UIGradient")
-	titleGradient.Rotation = 45
-	titleGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 230))
-	})
-	titleGradient.Parent = titleBox
-
 	local titleStroke = Instance.new("UIStroke")
 	titleStroke.Color = UI.Theme.Border
-	titleStroke.Thickness = 1.5
+	titleStroke.Thickness = 1.2
 	titleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	titleStroke.Parent = titleBox
 	UI.registerThemeElement(titleStroke, "Border")
 
 	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(1, -12, 1, 0)
+	titleLabel.Name = "TitleLabel"
+	titleLabel.Size = UDim2.new(1, -70, 1, 0)
 	titleLabel.Position = UDim2.new(0, 8, 0, 0)
 	titleLabel.BackgroundTransparency = 1
-	titleLabel.Text = string.format("%s >>>>>", titleText)
+	titleLabel.Text = titleText
 	titleLabel.TextColor3 = UI.Theme.TextPrimary
 	titleLabel.Font = UI.Fonts.Header
-	titleLabel.TextSize = 12
-	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextSize = 11
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Center
 	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
-	titleLabel.ClipsDescendants = true
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
-	local decoBar = Instance.new("Frame")
-	decoBar.Name = "DecoBar"
-	decoBar.Size = UDim2.new(1, -298, 1, 0)
-	decoBar.Position = UDim2.new(0, 228, 0, 0)
-	decoBar.BackgroundColor3 = UI.Theme.Container
-	decoBar.BackgroundTransparency = UI.Theme.ContainerTransparency
-	decoBar.BorderSizePixel = 0
-	decoBar.ClipsDescendants = true
-	decoBar.Parent = topbar
-	UI.registerThemeElement(decoBar, "Container")
-
-	local decoStroke = Instance.new("UIStroke")
-	decoStroke.Color = UI.Theme.Border
-	decoStroke.Thickness = 1.5
-	decoStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	decoStroke.Parent = decoBar
-	UI.registerThemeElement(decoStroke, "Border")
-
-	local decoLabel = Instance.new("TextLabel")
-	decoLabel.Size = UDim2.new(1, 0, 1, 0)
-	decoLabel.BackgroundTransparency = 1
-	decoLabel.Text = ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-	decoLabel.TextColor3 = UI.Theme.BorderDim
-	decoLabel.Font = UI.Fonts.Mono
-	decoLabel.TextSize = 12
-	decoLabel.Parent = decoBar
-	UI.registerThemeElement(decoLabel, "BorderDimText")
-
+	-- Minimize button [ — ]
 	local minButton = Instance.new("TextButton")
 	minButton.Name = "MinButton"
-	minButton.Size = UDim2.new(0, 30, 1, 0)
-	minButton.Position = UDim2.new(1, -66, 0, 0)
-	minButton.BackgroundColor3 = UI.Theme.Container
-	minButton.BackgroundTransparency = UI.Theme.ContainerTransparency
+	minButton.Size = UDim2.new(0, 24, 1, -4)
+	minButton.Position = UDim2.new(1, -54, 0, 2)
+	minButton.BackgroundColor3 = UI.Theme.ContainerDark
+	minButton.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	minButton.BorderSizePixel = 0
 	minButton.Text = "—"
 	minButton.TextColor3 = UI.Theme.TextPrimary
 	minButton.Font = UI.Fonts.Header
-	minButton.TextSize = 13
-	minButton.Parent = topbar
-	UI.registerThemeElement(minButton, "Container")
+	minButton.TextSize = 12
+	minButton.Parent = titleBox
+	UI.registerThemeElement(minButton, "ContainerDark")
 	UI.registerThemeElement(minButton, "TextPrimary")
 
 	local minStroke = Instance.new("UIStroke")
 	minStroke.Color = UI.Theme.Border
-	minStroke.Thickness = 1.5
+	minStroke.Thickness = 1.0
 	minStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	minStroke.Parent = minButton
 	UI.registerThemeElement(minStroke, "Border")
 
+	-- Close button [ X ]
 	local closeButton = Instance.new("TextButton")
 	closeButton.Name = "CloseButton"
-	closeButton.Size = UDim2.new(0, 30, 1, 0)
-	closeButton.Position = UDim2.new(1, -30, 0, 0)
-	closeButton.BackgroundColor3 = UI.Theme.Container
-	closeButton.BackgroundTransparency = UI.Theme.ContainerTransparency
+	closeButton.Size = UDim2.new(0, 22, 1, -4)
+	closeButton.Position = UDim2.new(1, -26, 0, 2)
+	closeButton.BackgroundColor3 = UI.Theme.ContainerDark
+	closeButton.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	closeButton.BorderSizePixel = 0
 	closeButton.Text = "X"
 	closeButton.TextColor3 = UI.Theme.TextPrimary
 	closeButton.Font = UI.Fonts.Header
-	closeButton.TextSize = 13
-	closeButton.Parent = topbar
-	UI.registerThemeElement(closeButton, "Container")
+	closeButton.TextSize = 11
+	closeButton.Parent = titleBox
+	UI.registerThemeElement(closeButton, "ContainerDark")
 	UI.registerThemeElement(closeButton, "TextPrimary")
 
 	local closeStroke = Instance.new("UIStroke")
 	closeStroke.Color = UI.Theme.Border
-	closeStroke.Thickness = 1.5
+	closeStroke.Thickness = 1.0
 	closeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	closeStroke.Parent = closeButton
 	UI.registerThemeElement(closeStroke, "Border")
 
-	local topDivider = Instance.new("Frame")
-	topDivider.Name = "TopDivider"
-	topDivider.Size = UDim2.new(1, 0, 0, 2)
-	topDivider.Position = UDim2.new(0, 0, 0, 42)
-	topDivider.BackgroundColor3 = UI.Theme.Border
-	topDivider.BorderSizePixel = 0
-	topDivider.Parent = mainFrame
-	UI.registerThemeElement(topDivider, "Border")
-
+	-- ── Body Frame (Middle Area) ──────────────────────────────────────
 	local bodyFrame = Instance.new("Frame")
 	bodyFrame.Name = "BodyFrame"
-	bodyFrame.Size = UDim2.new(1, 0, 1, -62)
-	bodyFrame.Position = UDim2.new(0, 0, 0, 44)
+	bodyFrame.Size = UDim2.new(1, -16, 1, -74)
+	bodyFrame.Position = UDim2.new(0, 8, 0, 40)
 	bodyFrame.BackgroundTransparency = 1
 	bodyFrame.BorderSizePixel = 0
 	bodyFrame.Parent = mainFrame
 
+	-- Left Sidebar Frame
+	local sidebarFrame = Instance.new("Frame")
+	sidebarFrame.Name = "SidebarFrame"
+	sidebarFrame.Size = UDim2.new(0, 110, 1, 0)
+	sidebarFrame.Position = UDim2.new(0, 0, 0, 0)
+	sidebarFrame.BackgroundColor3 = UI.Theme.ContainerDark
+	sidebarFrame.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	sidebarFrame.BorderSizePixel = 0
+	sidebarFrame.Parent = bodyFrame
+	UI.registerThemeElement(sidebarFrame, "ContainerDark")
+
+	local sidebarStroke = Instance.new("UIStroke")
+	sidebarStroke.Color = UI.Theme.Border
+	sidebarStroke.Thickness = 1.2
+	sidebarStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	sidebarStroke.Parent = sidebarFrame
+	UI.registerThemeElement(sidebarStroke, "Border")
+
 	local sidebar = Instance.new("ScrollingFrame")
 	sidebar.Name = "Sidebar"
-	sidebar.Size = UDim2.new(0, 126, 1, -12)
-	sidebar.Position = UDim2.new(0, 8, 0, 6)
+	sidebar.Size = UDim2.new(1, 0, 1, 0)
+	sidebar.Position = UDim2.new(0, 0, 0, 0)
 	sidebar.BackgroundTransparency = 1
 	sidebar.BorderSizePixel = 0
 	sidebar.ScrollBarThickness = 0
 	sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
 	sidebar.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	sidebar.ClipsDescendants = false
-	sidebar.Parent = bodyFrame
+	sidebar.Parent = sidebarFrame
 
 	local sidePad = Instance.new("UIPadding")
-	sidePad.PaddingLeft = UDim.new(0, 2)
-	sidePad.PaddingRight = UDim.new(0, 2)
-	sidePad.PaddingTop = UDim.new(0, 2)
-	sidePad.PaddingBottom = UDim.new(0, 2)
+	sidePad.PaddingLeft = UDim.new(0, 6)
+	sidePad.PaddingRight = UDim.new(0, 6)
+	sidePad.PaddingTop = UDim.new(0, 6)
+	sidePad.PaddingBottom = UDim.new(0, 6)
 	sidePad.Parent = sidebar
 
 	local sideList = Instance.new("UIListLayout")
 	sideList.Padding = UDim.new(0, 6)
 	sideList.SortOrder = Enum.SortOrder.LayoutOrder
+	sideList.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	sideList.Parent = sidebar
 
-	local vertDivider = Instance.new("Frame")
-	vertDivider.Name = "VertDivider"
-	vertDivider.Size = UDim2.new(0, 2, 1, 0)
-	vertDivider.Position = UDim2.new(0, 142, 0, 0)
-	vertDivider.BackgroundColor3 = UI.Theme.Border
-	vertDivider.BorderSizePixel = 0
-	vertDivider.Parent = bodyFrame
-	UI.registerThemeElement(vertDivider, "Border")
-
+	-- Right Content Area
 	local rightMain = Instance.new("Frame")
 	rightMain.Name = "RightMain"
-	rightMain.Size = UDim2.new(1, -154, 1, -12)
-	rightMain.Position = UDim2.new(0, 150, 0, 6)
+	rightMain.Size = UDim2.new(1, -118, 1, 0)
+	rightMain.Position = UDim2.new(0, 118, 0, 0)
 	rightMain.BackgroundTransparency = 1
 	rightMain.BorderSizePixel = 0
-	rightMain.ClipsDescendants = true
+	rightMain.ClipsDescendants = false
 	rightMain.Parent = bodyFrame
 
-	local subHeader = Instance.new("Frame")
-	subHeader.Name = "SubHeader"
-	subHeader.Size = UDim2.new(1, 0, 0, 26)
-	subHeader.Position = UDim2.new(0, 0, 0, 0)
-	subHeader.BackgroundTransparency = 1
-	subHeader.BorderSizePixel = 0
-	subHeader.Parent = rightMain
+	local contentContainer = Instance.new("Frame")
+	contentContainer.Name = "ContentContainer"
+	contentContainer.Size = UDim2.new(1, 0, 1, 0)
+	contentContainer.Position = UDim2.new(0, 0, 0, 0)
+	contentContainer.BackgroundTransparency = 1
+	contentContainer.BorderSizePixel = 0
+	contentContainer.ClipsDescendants = false
+	contentContainer.Parent = rightMain
 
-	local activeTagBox = Instance.new("Frame")
-	activeTagBox.Name = "ActiveTagBox"
-	activeTagBox.Size = UDim2.new(0, 110, 0, 24)
-	activeTagBox.Position = UDim2.new(0, 2, 0, 1)
-	activeTagBox.BackgroundColor3 = UI.Theme.Container
-	activeTagBox.BackgroundTransparency = UI.Theme.ContainerTransparency
-	activeTagBox.BorderSizePixel = 0
-	activeTagBox.ClipsDescendants = true
-	activeTagBox.Parent = subHeader
-	UI.registerThemeElement(activeTagBox, "Container")
+	-- ── Footer Bar (Segmented: [Status / Info Bar] [Settings] [Themes]) ─
+	local footerBar = Instance.new("Frame")
+	footerBar.Name = "FooterBar"
+	footerBar.Size = UDim2.new(1, -16, 0, 24)
+	footerBar.Position = UDim2.new(0, 8, 1, -30)
+	footerBar.BackgroundTransparency = 1
+	footerBar.BorderSizePixel = 0
+	footerBar.Parent = mainFrame
 
-	local activeTagStroke = Instance.new("UIStroke")
-	activeTagStroke.Color = UI.Theme.Border
-	activeTagStroke.Thickness = 1.5
-	activeTagStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	activeTagStroke.Parent = activeTagBox
-	UI.registerThemeElement(activeTagStroke, "Border")
+	-- Left Status / Info Bar
+	local statusBox = Instance.new("Frame")
+	statusBox.Name = "StatusBox"
+	statusBox.Size = UDim2.new(1, -196, 1, 0)
+	statusBox.Position = UDim2.new(0, 0, 0, 0)
+	statusBox.BackgroundColor3 = UI.Theme.Container
+	statusBox.BackgroundTransparency = UI.Theme.ContainerTransparency
+	statusBox.BorderSizePixel = 0
+	statusBox.ClipsDescendants = true
+	statusBox.Parent = footerBar
+	UI.registerThemeElement(statusBox, "Container")
 
-	local activeTagLabel = Instance.new("TextLabel")
-	activeTagLabel.Name = "Label"
-	activeTagLabel.Size = UDim2.new(1, -8, 1, 0)
-	activeTagLabel.Position = UDim2.new(0, 4, 0, 0)
-	activeTagLabel.BackgroundTransparency = 1
-	activeTagLabel.Text = "Main"
-	activeTagLabel.TextColor3 = UI.Theme.TextPrimary
-	activeTagLabel.Font = UI.Fonts.Header
-	activeTagLabel.TextSize = 11
-	activeTagLabel.TextTruncate = Enum.TextTruncate.AtEnd
-	activeTagLabel.ClipsDescendants = true
-	activeTagLabel.Parent = activeTagBox
-	UI.registerThemeElement(activeTagLabel, "TextPrimary")
+	local statusStroke = Instance.new("UIStroke")
+	statusStroke.Color = UI.Theme.Border
+	statusStroke.Thickness = 1.2
+	statusStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	statusStroke.Parent = statusBox
+	UI.registerThemeElement(statusStroke, "Border")
 
-	local configsBtn = Instance.new("TextButton")
-	configsBtn.Name = "ConfigsBtn"
-	configsBtn.Size = UDim2.new(0, 72, 0, 24)
-	configsBtn.Position = UDim2.new(1, -76, 0, 1)
-	configsBtn.BackgroundColor3 = UI.Theme.Container
-	configsBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
-	configsBtn.BorderSizePixel = 0
-	configsBtn.Text = "configs"
-	configsBtn.TextColor3 = UI.Theme.TextPrimary
-	configsBtn.Font = UI.Fonts.Header
-	configsBtn.TextSize = 11
-	configsBtn.TextTruncate = Enum.TextTruncate.AtEnd
-	configsBtn.ClipsDescendants = true
-	configsBtn.Visible = true
-	configsBtn.Parent = subHeader
-	UI.registerThemeElement(configsBtn, "Container")
-	UI.registerThemeElement(configsBtn, "TextPrimary")
+	local statusLabel = Instance.new("TextLabel")
+	statusLabel.Name = "StatusLabel"
+	statusLabel.Size = UDim2.new(1, -12, 1, 0)
+	statusLabel.Position = UDim2.new(0, 6, 0, 0)
+	statusLabel.BackgroundTransparency = 1
+	statusLabel.Text = "Main"
+	statusLabel.TextColor3 = UI.Theme.TextSecondary
+	statusLabel.Font = UI.Fonts.Header
+	statusLabel.TextSize = 11
+	statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+	statusLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	statusLabel.Parent = statusBox
+	UI.registerThemeElement(statusLabel, "TextSecondary")
 
-	local configsStroke = Instance.new("UIStroke")
-	configsStroke.Color = UI.Theme.Border
-	configsStroke.Thickness = 1.5
-	configsStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	configsStroke.Parent = configsBtn
-	UI.registerThemeElement(configsStroke, "Border")
+	local activeTagLabel = statusLabel -- Seamless compatibility
 
+	-- Settings Button
 	local settingsBtn = Instance.new("TextButton")
 	settingsBtn.Name = "SettingsBtn"
-	settingsBtn.Size = UDim2.new(0, 72, 0, 24)
-	settingsBtn.Position = UDim2.new(1, -154, 0, 1)
+	settingsBtn.Size = UDim2.new(0, 92, 1, 0)
+	settingsBtn.Position = UDim2.new(1, -190, 0, 0)
 	settingsBtn.BackgroundColor3 = UI.Theme.Container
 	settingsBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
 	settingsBtn.BorderSizePixel = 0
@@ -698,72 +674,59 @@ function UI.createWindow(titleText: string)
 	settingsBtn.TextColor3 = UI.Theme.TextPrimary
 	settingsBtn.Font = UI.Fonts.Header
 	settingsBtn.TextSize = 11
-	settingsBtn.TextTruncate = Enum.TextTruncate.AtEnd
-	settingsBtn.ClipsDescendants = true
-	settingsBtn.Visible = true
-	settingsBtn.Parent = subHeader
+	settingsBtn.Parent = footerBar
 	UI.registerThemeElement(settingsBtn, "Container")
 	UI.registerThemeElement(settingsBtn, "TextPrimary")
 
 	local settingsStroke = Instance.new("UIStroke")
 	settingsStroke.Color = UI.Theme.Border
-	settingsStroke.Thickness = 1.5
+	settingsStroke.Thickness = 1.2
 	settingsStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	settingsStroke.Parent = settingsBtn
 	UI.registerThemeElement(settingsStroke, "Border")
 
-	local contentContainer = Instance.new("Frame")
-	contentContainer.Name = "ContentContainer"
-	contentContainer.Size = UDim2.new(1, 0, 1, -32)
-	contentContainer.Position = UDim2.new(0, 0, 0, 32)
-	contentContainer.BackgroundTransparency = 1
-	contentContainer.BorderSizePixel = 0
-	contentContainer.ClipsDescendants = true
-	contentContainer.Parent = rightMain
+	-- Themes Button
+	local themesBtn = Instance.new("TextButton")
+	themesBtn.Name = "ThemesBtn"
+	themesBtn.Size = UDim2.new(0, 92, 1, 0)
+	themesBtn.Position = UDim2.new(1, -92, 0, 0)
+	themesBtn.BackgroundColor3 = UI.Theme.Container
+	themesBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
+	themesBtn.BorderSizePixel = 0
+	themesBtn.Text = "Themes"
+	themesBtn.TextColor3 = UI.Theme.TextPrimary
+	themesBtn.Font = UI.Fonts.Header
+	themesBtn.TextSize = 11
+	themesBtn.Parent = footerBar
+	UI.registerThemeElement(themesBtn, "Container")
+	UI.registerThemeElement(themesBtn, "TextPrimary")
 
-	local footerBar = Instance.new("Frame")
-	footerBar.Name = "FooterBar"
-	footerBar.Size = UDim2.new(1, 0, 0, 14)
-	footerBar.Position = UDim2.new(0, 0, 1, -14)
-	footerBar.BackgroundColor3 = UI.Theme.Background
-	footerBar.BackgroundTransparency = UI.Theme.BackgroundTransparency
-	footerBar.BorderSizePixel = 0
-	footerBar.ClipsDescendants = true
-	footerBar.Parent = mainFrame
-	UI.registerThemeElement(footerBar, "Background")
+	local themesStroke = Instance.new("UIStroke")
+	themesStroke.Color = UI.Theme.Border
+	themesStroke.Thickness = 1.2
+	themesStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	themesStroke.Parent = themesBtn
+	UI.registerThemeElement(themesStroke, "Border")
 
-	local footerStroke = Instance.new("UIStroke")
-	footerStroke.Color = UI.Theme.Border
-	footerStroke.Thickness = 1.5
-	footerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	footerStroke.Parent = footerBar
-	UI.registerThemeElement(footerStroke, "Border")
-
-	local footerHatch = Instance.new("TextLabel")
-	footerHatch.Size = UDim2.new(1, 0, 1, 0)
-	footerHatch.BackgroundTransparency = 1
-	footerHatch.Text = "////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////"
-	footerHatch.TextColor3 = UI.Theme.BorderDim
-	footerHatch.Font = UI.Fonts.Mono
-	footerHatch.TextSize = 11
-	footerHatch.Parent = footerBar
-	UI.registerThemeElement(footerHatch, "BorderDimText")
+	local configsBtn = themesBtn -- Seamless compatibility
 
 	UI.makeDraggable(topbar, mainFrame)
+	UI.makeDraggable(titleBox, mainFrame)
+	UI.makeDraggable(versionBox, mainFrame)
 
 	-- Button Hover & Click animations
 	local function attachBtnFX(btn: TextButton, isClose: boolean?)
 		local stroke = btn:FindFirstChildWhichIsA("UIStroke")
 		btn.MouseEnter:Connect(function()
 			if stroke then
-				TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 2 }):Play()
+				TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1.8 }):Play()
 			end
 			local hoverCol = if isClose then Color3.fromRGB(220, 60, 60) else UI.Theme.Accent
 			TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = hoverCol, TextColor3 = Color3.fromRGB(255, 255, 255) }):Play()
 		end)
 		btn.MouseLeave:Connect(function()
 			if stroke then
-				TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1.5 }):Play()
+				TweenService:Create(stroke, TweenInfo.new(0.12), { Thickness = 1.2 }):Play()
 			end
 			TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container, TextColor3 = UI.Theme.TextPrimary }):Play()
 		end)
@@ -772,7 +735,7 @@ function UI.createWindow(titleText: string)
 	attachBtnFX(minButton, false)
 	attachBtnFX(closeButton, true)
 	attachBtnFX(settingsBtn, false)
-	attachBtnFX(configsBtn, false)
+	attachBtnFX(themesBtn, false)
 
 	local minimized = false
 	minButton.MouseButton1Click:Connect(function()
@@ -855,7 +818,7 @@ function UI.createWindow(titleText: string)
 		isTransitioning = function() return isTransitioning end,
 	}
 
-	return mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale, controller
+	return mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale, controller, themesBtn, statusLabel
 end
 
 function UI.createBannerCard(parent: GuiObject): Frame

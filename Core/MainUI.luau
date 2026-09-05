@@ -685,6 +685,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			cStroke.Thickness = 1.0
 			cStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 			cStroke.Parent = cBtn
+			UI.registerThemeElement(cStroke, "BorderDim")
 
 			cBtn.MouseButton1Click:Connect(function()
 				activeCategory = cat.id
@@ -697,8 +698,18 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				if renderStatsContent then renderStatsContent() end
 			end)
 
+			cBtn:SetAttribute("KeepTextColor", true)
 			catButtons[cat.id] = cBtn
 		end
+
+		UI.onThemeChanged(function(targetTheme)
+			for id, b in pairs(catButtons) do
+				local isAct = (id == activeCategory)
+				b.BackgroundColor3 = if isAct then targetTheme.Accent else targetTheme.Container
+				b.BackgroundTransparency = if isAct then 0 else targetTheme.ContainerTransparency
+				b.TextColor3 = if isAct then targetTheme.AccentText else targetTheme.TextSecondary
+			end
+		end)
 
 		-- Search filter box
 		local searchFrame = Instance.new("Frame")
@@ -732,6 +743,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		searchBox.TextXAlignment = Enum.TextXAlignment.Left
 		searchBox.ClearTextOnFocus = false
 		searchBox.Parent = searchFrame
+		UI.registerThemeElement(searchBox, "TextPrimary")
 
 		searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 			searchFilter = searchBox.Text:lower()
@@ -839,6 +851,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 						rankLabel.TextSize = 10
 						rankLabel.TextXAlignment = Enum.TextXAlignment.Left
 						rankLabel.Parent = row
+						UI.registerThemeElement(rankLabel, if rank <= 3 then "Accent" else "TextSecondary")
 
 						local nameLabel = Instance.new("TextLabel")
 						nameLabel.Size = UDim2.new(0.55, -34, 1, 0)
@@ -864,7 +877,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 						valLabel.TextXAlignment = Enum.TextXAlignment.Right
 						valLabel.TextTruncate = Enum.TextTruncate.AtEnd
 						valLabel.Parent = row
-						UI.registerThemeElement(valLabel, "AccentText")
+						UI.registerThemeElement(valLabel, "Accent")
 					end
 				end
 
@@ -884,6 +897,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 					emptyLabel.Font = UI.Fonts.Body
 					emptyLabel.TextSize = 10
 					emptyLabel.Parent = emptyRow
+					UI.registerThemeElement(emptyLabel, "TextSecondary")
 				end
 			else
 				local rawStats = PlayerUtilities.getCurrenciesAndStats()
@@ -913,6 +927,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 					emptyLabel.Font = UI.Fonts.Body
 					emptyLabel.TextSize = 10
 					emptyLabel.Parent = emptyRow
+					UI.registerThemeElement(emptyLabel, "TextSecondary")
 				else
 					for idx, s in ipairs(filtered) do
 						local row = Instance.new("TextButton")
@@ -957,7 +972,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 						valLabel.TextXAlignment = Enum.TextXAlignment.Right
 						valLabel.TextTruncate = Enum.TextTruncate.AtEnd
 						valLabel.Parent = row
-						UI.registerThemeElement(valLabel, "AccentText")
+						UI.registerThemeElement(valLabel, "Accent")
 
 						row.MouseButton1Click:Connect(function()
 							Animations.buttonClickPop(row)
@@ -3022,6 +3037,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 					rowLoadBtn.Font = UI.Fonts.Header
 					rowLoadBtn.TextSize = 10
 					rowLoadBtn.Parent = pRow
+					UI.registerThemeElement(rowLoadBtn, "Accent")
+					UI.registerThemeElement(rowLoadBtn, "AccentText")
 
 					rowLoadBtn.MouseButton1Click:Connect(function()
 						Animations.buttonClickPop(rowLoadBtn)
@@ -3075,6 +3092,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 					rowDelBtn.TextSize = 11
 					rowDelBtn.ZIndex = 25
 					rowDelBtn.Parent = pRow
+					rowDelBtn:SetAttribute("KeepTextColor", true)
 					UI.registerThemeElement(rowDelBtn, "ContainerDark")
 
 					rowDelBtn.MouseButton1Click:Connect(function()

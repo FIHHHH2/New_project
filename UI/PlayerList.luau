@@ -704,6 +704,7 @@ function PlayerList.new(): PlayerListWidget
 				nameLbl.TextXAlignment = Enum.TextXAlignment.Left
 				nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
 				nameLbl.Parent = sRow
+				UI.registerThemeElement(nameLbl, "TextPrimary")
 
 				local valLbl = Instance.new("TextLabel")
 				valLbl.Size = UDim2.new(0.45, -4, 1, 0)
@@ -716,6 +717,7 @@ function PlayerList.new(): PlayerListWidget
 				valLbl.TextXAlignment = Enum.TextXAlignment.Right
 				valLbl.TextTruncate = Enum.TextTruncate.AtEnd
 				valLbl.Parent = sRow
+				UI.registerThemeElement(valLbl, "Accent")
 
 				local conn = (valObj :: any).Changed:Connect(function(newVal)
 					valLbl.Text = tostring(newVal)
@@ -732,6 +734,7 @@ function PlayerList.new(): PlayerListWidget
 			emptyLbl.TextSize = 10
 			emptyLbl.TextXAlignment = Enum.TextXAlignment.Center
 			emptyLbl.Parent = statsContainer
+			UI.registerThemeElement(emptyLbl, "TextSecondary")
 		end
 
 		-- Update Friend Button text based on status

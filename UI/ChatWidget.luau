@@ -170,6 +170,8 @@ function ChatWidget.new(): ChatWidgetInstance
 	channelBtn.Font = UI.Fonts.Header
 	channelBtn.TextSize = 11
 	channelBtn.Parent = topbar
+	UI.registerThemeElement(channelBtn, "Accent")
+	UI.registerThemeElement(channelBtn, "AccentText")
 
 	local chStroke = Instance.new("UIStroke")
 	chStroke.Color = UI.Theme.Border
@@ -270,6 +272,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	micBtn.TextSize = 8
 	micBtn.LayoutOrder = 2
 	micBtn.Parent = actionGroup
+	micBtn:SetAttribute("KeepTextColor", true)
 	UI.registerThemeElement(micBtn, "ContainerDark")
 
 	local micStroke = Instance.new("UIStroke")
@@ -1236,9 +1239,13 @@ function ChatWidget.new(): ChatWidgetInstance
 			end
 		end
 
-		local senderHex = if isSystem then "#A0A0AA" else "#37AFF5"
+		local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
+		local senderHex = if isSystem then (if isLight then "#4A4A58" else "#A0A0AA") else (if isLight then "#147DE1" else "#37AFF5")
 		local cleanName = sender:gsub("<", "&lt;"):gsub(">", "&gt;")
 		local cleanMsg = text:gsub("<", "&lt;"):gsub(">", "&gt;")
+		msgBtn:SetAttribute("IsSystemMsg", isSystem)
+		msgBtn:SetAttribute("SenderName", cleanName)
+		msgBtn:SetAttribute("MessageContent", cleanMsg)
 		msgBtn.Text = string.format("<font color='%s'><b>%s:</b></font> %s", senderHex, cleanName, cleanMsg)
 
 		if not isSystem then
@@ -1739,6 +1746,21 @@ function ChatWidget.new(): ChatWidgetInstance
 			end
 		end)
 	end
+
+	UI.onThemeChanged(function(targetTheme)
+		local isLight = targetTheme and targetTheme.Name and string.find(targetTheme.Name, "Light") ~= nil
+		for _, btn in ipairs(chatHistory) do
+			if btn and btn.Parent then
+				local isSys = btn:GetAttribute("IsSystemMsg") == true
+				local sName = btn:GetAttribute("SenderName")
+				local mText = btn:GetAttribute("MessageContent")
+				if sName and mText then
+					local sHex = if isSys then (if isLight then "#4A4A58" else "#A0A0AA") else (if isLight then "#147DE1" else "#37AFF5")
+					btn.Text = string.format("<font color='%s'><b>%s:</b></font> %s", sHex, tostring(sName), tostring(mText))
+				end
+			end
+		end
+	end)
 
 	addMessage("System", "Chat connected.")
 

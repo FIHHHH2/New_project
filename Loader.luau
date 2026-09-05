@@ -455,18 +455,18 @@ Modules["UI/UI.luau"] = function()
     	},
     	Light = {
     		Name = "Light",
-    		Background = Color3.fromRGB(242, 243, 246),
+    		Background = Color3.fromRGB(244, 245, 248),
     		BackgroundTransparency = 0.85,
-    		Border = Color3.fromRGB(12, 12, 16), -- True black outlines for light mode
-    		BorderDim = Color3.fromRGB(130, 130, 140),
-    		Accent = Color3.fromRGB(45, 155, 235), -- Light blue accent
-    		AccentDark = Color3.fromRGB(25, 110, 185),
+    		Border = Color3.fromRGB(20, 22, 28), -- True dark crisp borders for light mode
+    		BorderDim = Color3.fromRGB(150, 155, 168),
+    		Accent = Color3.fromRGB(20, 125, 225), -- High-contrast vibrant azure blue
+    		AccentDark = Color3.fromRGB(14, 95, 180),
     		AccentText = Color3.fromRGB(255, 255, 255),
-    		TextPrimary = Color3.fromRGB(15, 15, 20),
-    		TextSecondary = Color3.fromRGB(75, 75, 85),
+    		TextPrimary = Color3.fromRGB(15, 17, 24), -- Deep near-black for maximum readability
+    		TextSecondary = Color3.fromRGB(65, 70, 82), -- Balanced readable secondary text
     		Container = Color3.fromRGB(255, 255, 255),
     		ContainerTransparency = 0.85,
-    		ContainerDark = Color3.fromRGB(228, 230, 236),
+    		ContainerDark = Color3.fromRGB(228, 231, 238),
     		ContainerDarkTransparency = 0.88
     	},
     	TranslucentDark = {
@@ -487,18 +487,18 @@ Modules["UI/UI.luau"] = function()
     	},
     	TranslucentLight = {
     		Name = "Translucent Light",
-    		Background = Color3.fromRGB(240, 242, 248),
+    		Background = Color3.fromRGB(242, 244, 250),
     		BackgroundTransparency = 0.85,
-    		Border = Color3.fromRGB(12, 12, 16), -- Black outlines
-    		BorderDim = Color3.fromRGB(120, 120, 135),
-    		Accent = Color3.fromRGB(45, 155, 235), -- Light blue accent
-    		AccentDark = Color3.fromRGB(25, 110, 185),
+    		Border = Color3.fromRGB(20, 22, 28), -- Black outlines
+    		BorderDim = Color3.fromRGB(145, 150, 165),
+    		Accent = Color3.fromRGB(20, 125, 225), -- High-contrast vibrant azure blue
+    		AccentDark = Color3.fromRGB(14, 95, 180),
     		AccentText = Color3.fromRGB(255, 255, 255),
-    		TextPrimary = Color3.fromRGB(12, 12, 16),
-    		TextSecondary = Color3.fromRGB(70, 70, 80),
+    		TextPrimary = Color3.fromRGB(12, 14, 20),
+    		TextSecondary = Color3.fromRGB(60, 65, 78),
     		Container = Color3.fromRGB(255, 255, 255),
     		ContainerTransparency = 0.85,
-    		ContainerDark = Color3.fromRGB(225, 228, 236),
+    		ContainerDark = Color3.fromRGB(224, 228, 238),
     		ContainerDarkTransparency = 0.88
     	},
     	Adaptive = {
@@ -680,10 +680,14 @@ Modules["UI/UI.luau"] = function()
     						BackgroundColor3 = targetTheme.ContainerDark,
     						BackgroundTransparency = targetTheme.ContainerDarkTransparency
     					}):Play()
-    				elseif pt == "Accent" and inst:IsA("GuiObject") then
-    					TweenService:Create(inst, tweenInfo, {
-    						BackgroundColor3 = targetTheme.Accent
-    					}):Play()
+    				elseif pt == "Accent" then
+    					if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+    						TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.Accent }):Play()
+    					elseif inst:IsA("GuiObject") then
+    						TweenService:Create(inst, tweenInfo, {
+    							BackgroundColor3 = targetTheme.Accent
+    						}):Play()
+    					end
     				elseif pt == "Border" and inst:IsA("UIStroke") then
     					TweenService:Create(inst, tweenInfo, { Color = targetTheme.Border }):Play()
     				elseif pt == "BorderDim" and inst:IsA("UIStroke") then
@@ -701,7 +705,7 @@ Modules["UI/UI.luau"] = function()
     					if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
     						TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextSecondary }):Play()
     					end
-    				elseif pt == "AccentText" and (inst:IsA("TextLabel") or inst:IsA("TextButton")) then
+    				elseif pt == "AccentText" and (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox")) then
     					TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.AccentText }):Play()
     				elseif pt == "BorderDimText" and inst:IsA("TextLabel") then
     					TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.BorderDim }):Play()
@@ -763,45 +767,102 @@ Modules["UI/UI.luau"] = function()
     					end
     				elseif inst:IsA("TextButton") then
     					local propMap = UI.RegisteredElements[inst]
+    					local isTransparent = inst.BackgroundTransparency >= 0.95
     					if propMap and propMap["Accent"] then
-    						inst.BackgroundColor3 = targetTheme.Accent
-    						inst.TextColor3 = targetTheme.AccentText
-    					elseif propMap and propMap["ContainerDark"] then
-    						inst.BackgroundColor3 = targetTheme.ContainerDark
-    						inst.BackgroundTransparency = targetTheme.ContainerDarkTransparency
-    						if propMap["TextSecondary"] then
-    							inst.TextColor3 = targetTheme.TextSecondary
+    						if propMap["Container"] or propMap["ContainerDark"] or isTransparent then
+    							inst.TextColor3 = targetTheme.Accent
+    							if not isTransparent then
+    								inst.BackgroundColor3 = if propMap["ContainerDark"] then targetTheme.ContainerDark else targetTheme.Container
+    							end
     						else
-    							inst.TextColor3 = targetTheme.TextPrimary
+    							inst.BackgroundColor3 = targetTheme.Accent
+    							inst.TextColor3 = targetTheme.AccentText
+    						end
+    					elseif propMap and propMap["ContainerDark"] then
+    						if not isTransparent then
+    							inst.BackgroundColor3 = targetTheme.ContainerDark
+    							inst.BackgroundTransparency = targetTheme.ContainerDarkTransparency
+    						end
+    						if not inst:GetAttribute("KeepTextColor") then
+    							if propMap["TextSecondary"] then
+    								inst.TextColor3 = targetTheme.TextSecondary
+    							elseif propMap["BorderDimText"] then
+    								inst.TextColor3 = targetTheme.BorderDim
+    							elseif propMap["AccentText"] then
+    								inst.TextColor3 = targetTheme.AccentText
+    							else
+    								inst.TextColor3 = targetTheme.TextPrimary
+    							end
+    						end
+    					elseif propMap and (propMap["Container"] or propMap["Background"]) then
+    						if not isTransparent then
+    							inst.BackgroundColor3 = targetTheme.Container
+    							inst.BackgroundTransparency = targetTheme.ContainerTransparency
+    						end
+    						if not inst:GetAttribute("KeepTextColor") then
+    							if propMap["TextSecondary"] then
+    								inst.TextColor3 = targetTheme.TextSecondary
+    							elseif propMap["BorderDimText"] then
+    								inst.TextColor3 = targetTheme.BorderDim
+    							elseif propMap["AccentText"] then
+    								inst.TextColor3 = targetTheme.AccentText
+    							else
+    								inst.TextColor3 = targetTheme.TextPrimary
+    							end
     						end
     					else
-    						inst.BackgroundColor3 = targetTheme.Container
-    						inst.BackgroundTransparency = targetTheme.ContainerTransparency
-    						if propMap and propMap["TextSecondary"] then
-    							inst.TextColor3 = targetTheme.TextSecondary
-    						else
-    							inst.TextColor3 = targetTheme.TextPrimary
+    						if not isTransparent and (inst.Name == "ActionBtn" or string.find(inst.Name, "Btn") or string.find(inst.Name, "Button")) then
+    							inst.BackgroundColor3 = targetTheme.Container
+    							inst.BackgroundTransparency = targetTheme.ContainerTransparency
+    						end
+    						if not inst:GetAttribute("KeepTextColor") then
+    							if propMap and propMap["BorderDimText"] then
+    								inst.TextColor3 = targetTheme.BorderDim
+    							elseif propMap and propMap["TextSecondary"] then
+    								inst.TextColor3 = targetTheme.TextSecondary
+    							elseif propMap and propMap["Accent"] then
+    								inst.TextColor3 = targetTheme.Accent
+    							elseif propMap and propMap["AccentText"] then
+    								inst.TextColor3 = targetTheme.AccentText
+    							else
+    								inst.TextColor3 = targetTheme.TextPrimary
+    							end
     						end
     					end
     				elseif inst:IsA("TextLabel") then
-    					if inst:GetAttribute("KeepTextColor") or inst.Name == "HealthIndicator" then
+    					if inst:GetAttribute("KeepTextColor") or inst.Name == "HealthIndicator" or inst.Name == "StackBadge" or inst.Name == "EquippedBadge" or inst.Name == "GhostBadge" then
     						continue
     					end
     					local propMap = UI.RegisteredElements[inst]
     					if propMap and propMap["AccentText"] then
     						inst.TextColor3 = targetTheme.AccentText
+    					elseif propMap and propMap["Accent"] then
+    						inst.TextColor3 = targetTheme.Accent
     					elseif propMap and propMap["TextSecondary"] then
     						inst.TextColor3 = targetTheme.TextSecondary
     					elseif propMap and propMap["BorderDimText"] then
     						inst.TextColor3 = targetTheme.BorderDim
+    					elseif propMap and propMap["TextPrimary"] then
+    						inst.TextColor3 = targetTheme.TextPrimary
     					else
     						inst.TextColor3 = targetTheme.TextPrimary
     					end
     				elseif inst:IsA("TextBox") then
-    					inst.TextColor3 = targetTheme.TextPrimary
-    					inst.PlaceholderColor3 = targetTheme.TextSecondary
-    					inst.BackgroundColor3 = targetTheme.ContainerDark
-    					inst.BackgroundTransparency = targetTheme.ContainerDarkTransparency
+    					local propMap = UI.RegisteredElements[inst]
+    					if not inst:GetAttribute("KeepTextColor") then
+    						if propMap and propMap["Accent"] then
+    							inst.TextColor3 = targetTheme.Accent
+    						elseif propMap and propMap["TextSecondary"] then
+    							inst.TextColor3 = targetTheme.TextSecondary
+    						else
+    							inst.TextColor3 = targetTheme.TextPrimary
+    						end
+    						inst.PlaceholderColor3 = targetTheme.TextSecondary
+    					end
+    					if inst.BackgroundTransparency < 0.95 then
+    						inst.BackgroundColor3 = targetTheme.ContainerDark
+    						inst.BackgroundTransparency = targetTheme.ContainerDarkTransparency
+    					end
     				end
     			end
     		end
@@ -2486,6 +2547,7 @@ Modules["UI/PlayerList.luau"] = function()
     				nameLbl.TextXAlignment = Enum.TextXAlignment.Left
     				nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
     				nameLbl.Parent = sRow
+    				UI.registerThemeElement(nameLbl, "TextPrimary")
 
     				local valLbl = Instance.new("TextLabel")
     				valLbl.Size = UDim2.new(0.45, -4, 1, 0)
@@ -2498,6 +2560,7 @@ Modules["UI/PlayerList.luau"] = function()
     				valLbl.TextXAlignment = Enum.TextXAlignment.Right
     				valLbl.TextTruncate = Enum.TextTruncate.AtEnd
     				valLbl.Parent = sRow
+    				UI.registerThemeElement(valLbl, "Accent")
 
     				local conn = (valObj :: any).Changed:Connect(function(newVal)
     					valLbl.Text = tostring(newVal)
@@ -2514,6 +2577,7 @@ Modules["UI/PlayerList.luau"] = function()
     			emptyLbl.TextSize = 10
     			emptyLbl.TextXAlignment = Enum.TextXAlignment.Center
     			emptyLbl.Parent = statsContainer
+    			UI.registerThemeElement(emptyLbl, "TextSecondary")
     		end
 
     		-- Update Friend Button text based on status
@@ -2970,6 +3034,8 @@ Modules["UI/ChatWidget.luau"] = function()
     	channelBtn.Font = UI.Fonts.Header
     	channelBtn.TextSize = 11
     	channelBtn.Parent = topbar
+    	UI.registerThemeElement(channelBtn, "Accent")
+    	UI.registerThemeElement(channelBtn, "AccentText")
 
     	local chStroke = Instance.new("UIStroke")
     	chStroke.Color = UI.Theme.Border
@@ -3070,6 +3136,7 @@ Modules["UI/ChatWidget.luau"] = function()
     	micBtn.TextSize = 8
     	micBtn.LayoutOrder = 2
     	micBtn.Parent = actionGroup
+    	micBtn:SetAttribute("KeepTextColor", true)
     	UI.registerThemeElement(micBtn, "ContainerDark")
 
     	local micStroke = Instance.new("UIStroke")
@@ -4036,9 +4103,13 @@ Modules["UI/ChatWidget.luau"] = function()
     			end
     		end
 
-    		local senderHex = if isSystem then "#A0A0AA" else "#37AFF5"
+    		local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
+    		local senderHex = if isSystem then (if isLight then "#4A4A58" else "#A0A0AA") else (if isLight then "#147DE1" else "#37AFF5")
     		local cleanName = sender:gsub("<", "&lt;"):gsub(">", "&gt;")
     		local cleanMsg = text:gsub("<", "&lt;"):gsub(">", "&gt;")
+    		msgBtn:SetAttribute("IsSystemMsg", isSystem)
+    		msgBtn:SetAttribute("SenderName", cleanName)
+    		msgBtn:SetAttribute("MessageContent", cleanMsg)
     		msgBtn.Text = string.format("<font color='%s'><b>%s:</b></font> %s", senderHex, cleanName, cleanMsg)
 
     		if not isSystem then
@@ -4539,6 +4610,21 @@ Modules["UI/ChatWidget.luau"] = function()
     			end
     		end)
     	end
+
+    	UI.onThemeChanged(function(targetTheme)
+    		local isLight = targetTheme and targetTheme.Name and string.find(targetTheme.Name, "Light") ~= nil
+    		for _, btn in ipairs(chatHistory) do
+    			if btn and btn.Parent then
+    				local isSys = btn:GetAttribute("IsSystemMsg") == true
+    				local sName = btn:GetAttribute("SenderName")
+    				local mText = btn:GetAttribute("MessageContent")
+    				if sName and mText then
+    					local sHex = if isSys then (if isLight then "#4A4A58" else "#A0A0AA") else (if isLight then "#147DE1" else "#37AFF5")
+    					btn.Text = string.format("<font color='%s'><b>%s:</b></font> %s", sHex, tostring(sName), tostring(mText))
+    				end
+    			end
+    		end
+    	end)
 
     	addMessage("System", "Chat connected.")
 
@@ -6195,6 +6281,7 @@ Modules["UI/Hotbar.luau"] = function()
     	ghostBadge.Font = UI.Fonts.Mono
     	ghostBadge.TextSize = 8
     	ghostBadge.ZIndex = 201
+    	ghostBadge:SetAttribute("KeepTextColor", true)
     	ghostBadge.Parent = dragGhost
 
     	local ghostLabel = Instance.new("TextLabel")
@@ -6206,6 +6293,7 @@ Modules["UI/Hotbar.luau"] = function()
     	ghostLabel.TextSize = 10
     	ghostLabel.TextTruncate = Enum.TextTruncate.AtEnd
     	ghostLabel.ZIndex = 201
+    	ghostLabel:SetAttribute("KeepTextColor", true)
     	ghostLabel.Parent = dragGhost
 
     	-- ── 1. Hotbar HUD Container ───────────────────────────────────────
@@ -6573,15 +6661,40 @@ Modules["UI/Hotbar.luau"] = function()
 
     				if nameLabel then
     					nameLabel.Text = name
-    					nameLabel.TextColor3 = if anyEquipped then UI.Theme.AccentText else UI.Theme.TextPrimary
-    					nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
-    					nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
+    					if anyEquipped then
+    						nameLabel.TextColor3 = UI.Theme.AccentText
+    						nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    						nameLabel.TextStrokeTransparency = 0.5
+    					else
+    						nameLabel.TextColor3 = UI.Theme.TextPrimary
+    						nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    						nameLabel.TextStrokeTransparency = if isLight then 1.0 else 0.5
+    					end
+    				end
+
+    				local keyLabel = slotBtn:FindFirstChild("KeyLabel") :: TextLabel?
+    				if keyLabel then
+    					if anyEquipped then
+    						keyLabel.TextColor3 = UI.Theme.AccentText
+    						keyLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    						keyLabel.TextStrokeTransparency = 0.6
+    					else
+    						keyLabel.TextColor3 = UI.Theme.TextSecondary
+    						keyLabel.TextStrokeTransparency = 1.0
+    					end
     				end
 
     				if stackBadge then
     					if count > 1 then
     						stackBadge.Text = "x" .. tostring(count)
     						stackBadge.Visible = true
+    						if isLight then
+    							stackBadge.BackgroundColor3 = if anyEquipped then Color3.fromRGB(15, 85, 160) else Color3.fromRGB(45, 48, 58)
+    							stackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+    						else
+    							stackBadge.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    							stackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+    						end
     					else
     						stackBadge.Visible = false
     					end
@@ -6752,18 +6865,42 @@ Modules["UI/Hotbar.luau"] = function()
     				end
 
     				renderToolViewportCached(slotBtn, repTool, slotNum, slotCaches)
-    				local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
     				if nameLabel then
     					nameLabel.Text = name
-    					nameLabel.TextColor3 = if anyEquipped then UI.Theme.AccentText else UI.Theme.TextPrimary
-    					nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
-    					nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
+    					if anyEquipped then
+    						nameLabel.TextColor3 = UI.Theme.AccentText
+    						nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    						nameLabel.TextStrokeTransparency = 0.5
+    					else
+    						nameLabel.TextColor3 = UI.Theme.TextPrimary
+    						nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    						nameLabel.TextStrokeTransparency = if isLight then 1.0 else 0.5
+    					end
+    				end
+
+    				local keyLabel = slotBtn:FindFirstChild("KeyLabel") :: TextLabel?
+    				if keyLabel then
+    					if anyEquipped then
+    						keyLabel.TextColor3 = UI.Theme.AccentText
+    						keyLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    						keyLabel.TextStrokeTransparency = 0.6
+    					else
+    						keyLabel.TextColor3 = UI.Theme.TextSecondary
+    						keyLabel.TextStrokeTransparency = 1.0
+    					end
     				end
 
     				if stackBadge then
     					if count > 1 then
     						stackBadge.Text = "x" .. tostring(count)
     						stackBadge.Visible = true
+    						if isLight then
+    							stackBadge.BackgroundColor3 = if anyEquipped then Color3.fromRGB(15, 85, 160) else Color3.fromRGB(45, 48, 58)
+    							stackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+    						else
+    							stackBadge.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    							stackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+    						end
     					else
     						stackBadge.Visible = false
     					end
@@ -6844,10 +6981,19 @@ Modules["UI/Hotbar.luau"] = function()
     					itemStroke.Thickness = if anyEquipped then 2.5 else 1.0
     				end
 
+    				local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
     				local tName = existingCard:FindFirstChild("ToolLabel") :: TextLabel?
     				if tName then
     					tName.Text = name
-    					tName.TextColor3 = if anyEquipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+    					if anyEquipped then
+    						tName.TextColor3 = UI.Theme.AccentText
+    						tName.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    						tName.TextStrokeTransparency = 0.5
+    					else
+    						tName.TextColor3 = UI.Theme.TextPrimary
+    						tName.TextStrokeTransparency = if isLight then 1.0 else 0.5
+    						tName.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    					end
     				end
 
     				local badge = existingCard:FindFirstChild("EquippedBadge") :: TextLabel?
@@ -6906,8 +7052,8 @@ Modules["UI/Hotbar.luau"] = function()
     				tLabel.TextSize = 9
     				tLabel.TextTruncate = Enum.TextTruncate.AtEnd
     				tLabel.ZIndex = 5
+    				tLabel:SetAttribute("KeepTextColor", true)
     				tLabel.Parent = itemCard
-    				UI.registerThemeElement(tLabel, "TextPrimary")
 
     				local eqBadge = Instance.new("TextLabel")
     				eqBadge.Name = "EquippedBadge"
@@ -6922,12 +7068,13 @@ Modules["UI/Hotbar.luau"] = function()
     				eqBadge.Parent = itemCard
     				UI.registerThemeElement(eqBadge, "AccentText")
 
+    				local isLightCard = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
     				local cardStackBadge = Instance.new("TextLabel")
     				cardStackBadge.Name = "StackBadge"
     				cardStackBadge.Size = UDim2.new(0, 20, 0, 13)
     				cardStackBadge.Position = UDim2.new(1, -2, 0, 2)
     				cardStackBadge.AnchorPoint = Vector2.new(1, 0)
-    				cardStackBadge.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    				cardStackBadge.BackgroundColor3 = if isLightCard then Color3.fromRGB(45, 48, 58) else Color3.fromRGB(20, 20, 25)
     				cardStackBadge.BackgroundTransparency = 0.25
     				cardStackBadge.Text = if count > 1 then "x" .. tostring(count) else ""
     				cardStackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -6935,6 +7082,7 @@ Modules["UI/Hotbar.luau"] = function()
     				cardStackBadge.TextSize = 9
     				cardStackBadge.Visible = (count > 1)
     				cardStackBadge.ZIndex = 6
+    				cardStackBadge:SetAttribute("KeepTextColor", true)
     				cardStackBadge.Parent = itemCard
 
     				local badgeCorner = Instance.new("UICorner")
@@ -7320,16 +7468,17 @@ Modules["UI/Hotbar.luau"] = function()
     		keyLabel.Font = UI.Fonts.Header
     		keyLabel.TextSize = 9
     		keyLabel.ZIndex = 10
+    		keyLabel:SetAttribute("KeepTextColor", true)
     		keyLabel.Parent = slotBtn
-    		UI.registerThemeElement(keyLabel, "TextSecondary")
 
     		-- Stack Count Badge (e.g. "x5") in Top-Right Corner
+    		local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
     		local stackBadge = Instance.new("TextLabel")
     		stackBadge.Name = "StackBadge"
     		stackBadge.Size = UDim2.new(0, 20, 0, 13)
     		stackBadge.Position = UDim2.new(1, -2, 0, 2)
     		stackBadge.AnchorPoint = Vector2.new(1, 0)
-    		stackBadge.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    		stackBadge.BackgroundColor3 = if isLight then Color3.fromRGB(45, 48, 58) else Color3.fromRGB(20, 20, 25)
     		stackBadge.BackgroundTransparency = 0.25
     		stackBadge.Text = ""
     		stackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -7337,6 +7486,7 @@ Modules["UI/Hotbar.luau"] = function()
     		stackBadge.TextSize = 9
     		stackBadge.Visible = false
     		stackBadge.ZIndex = 12
+    		stackBadge:SetAttribute("KeepTextColor", true)
     		stackBadge.Parent = slotBtn
 
     		local badgeCorner = Instance.new("UICorner")
@@ -7344,7 +7494,6 @@ Modules["UI/Hotbar.luau"] = function()
     		badgeCorner.Parent = stackBadge
 
     		-- Tool Name Label at Bottom of Slot
-    		local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
     		local nameLabel = Instance.new("TextLabel")
     		nameLabel.Name = "ToolName"
     		nameLabel.Size = UDim2.new(1, -4, 0, 12)
@@ -7354,12 +7503,12 @@ Modules["UI/Hotbar.luau"] = function()
     		nameLabel.TextColor3 = UI.Theme.TextPrimary
     		nameLabel.Font = UI.Fonts.Header
     		nameLabel.TextSize = 8
-    		nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
-    		nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
+    		nameLabel.TextStrokeTransparency = if isLight then 1.0 else 0.5
+    		nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
     		nameLabel.ZIndex = 10
+    		nameLabel:SetAttribute("KeepTextColor", true)
     		nameLabel.Parent = slotBtn
-    		UI.registerThemeElement(nameLabel, "TextPrimary")
 
     		Animations.buttonHoverPush(slotBtn)
 
@@ -8941,6 +9090,7 @@ Modules["UI/HealthWidget.luau"] = function()
     		dmgLabel.TextSize = if isCrit then 16 else 13
     		dmgLabel.TextStrokeTransparency = 0.5
     		dmgLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    		dmgLabel:SetAttribute("KeepTextColor", true)
     		dmgLabel.Parent = dmgBox
 
     		local scale = Instance.new("UIScale")
@@ -11133,6 +11283,7 @@ Modules["Core/CoreUI.luau"] = function()
     	checkMark.TextSize = 12
     	checkMark.Visible = feature.state
     	checkMark.Parent = checkBtn
+    	UI.registerThemeElement(checkMark, "AccentText")
 
     	local checkScale = Instance.new("UIScale")
     	checkScale.Scale = if feature.state then 1.0 else 0.0
@@ -11335,6 +11486,7 @@ Modules["Core/CoreUI.luau"] = function()
     	valInput.ClearTextOnFocus = false
     	valInput.ClipsDescendants = true
     	valInput.Parent = valBox
+    	UI.registerThemeElement(valInput, "Accent")
 
     	-- track (TextButton to sink clicks inside scrolling frames and guarantee input reception)
     	local bar = Instance.new("TextButton")
@@ -11648,6 +11800,7 @@ Modules["Core/CoreUI.luau"] = function()
     	btn.ClipsDescendants = true
     	btn.Parent = row
     	UI.registerThemeElement(btn, "Container")
+    	UI.registerThemeElement(btn, "Accent")
 
     	local btnStroke = Instance.new("UIStroke")
     	btnStroke.Color = UI.Theme.Border
@@ -12426,6 +12579,7 @@ Modules["Core/MainUI.luau"] = function()
     			cStroke.Thickness = 1.0
     			cStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     			cStroke.Parent = cBtn
+    			UI.registerThemeElement(cStroke, "BorderDim")
 
     			cBtn.MouseButton1Click:Connect(function()
     				activeCategory = cat.id
@@ -12438,8 +12592,18 @@ Modules["Core/MainUI.luau"] = function()
     				if renderStatsContent then renderStatsContent() end
     			end)
 
+    			cBtn:SetAttribute("KeepTextColor", true)
     			catButtons[cat.id] = cBtn
     		end
+
+    		UI.onThemeChanged(function(targetTheme)
+    			for id, b in pairs(catButtons) do
+    				local isAct = (id == activeCategory)
+    				b.BackgroundColor3 = if isAct then targetTheme.Accent else targetTheme.Container
+    				b.BackgroundTransparency = if isAct then 0 else targetTheme.ContainerTransparency
+    				b.TextColor3 = if isAct then targetTheme.AccentText else targetTheme.TextSecondary
+    			end
+    		end)
 
     		-- Search filter box
     		local searchFrame = Instance.new("Frame")
@@ -12473,6 +12637,7 @@ Modules["Core/MainUI.luau"] = function()
     		searchBox.TextXAlignment = Enum.TextXAlignment.Left
     		searchBox.ClearTextOnFocus = false
     		searchBox.Parent = searchFrame
+    		UI.registerThemeElement(searchBox, "TextPrimary")
 
     		searchBox:GetPropertyChangedSignal("Text"):Connect(function()
     			searchFilter = searchBox.Text:lower()
@@ -12580,6 +12745,7 @@ Modules["Core/MainUI.luau"] = function()
     						rankLabel.TextSize = 10
     						rankLabel.TextXAlignment = Enum.TextXAlignment.Left
     						rankLabel.Parent = row
+    						UI.registerThemeElement(rankLabel, if rank <= 3 then "Accent" else "TextSecondary")
 
     						local nameLabel = Instance.new("TextLabel")
     						nameLabel.Size = UDim2.new(0.55, -34, 1, 0)
@@ -12605,7 +12771,7 @@ Modules["Core/MainUI.luau"] = function()
     						valLabel.TextXAlignment = Enum.TextXAlignment.Right
     						valLabel.TextTruncate = Enum.TextTruncate.AtEnd
     						valLabel.Parent = row
-    						UI.registerThemeElement(valLabel, "AccentText")
+    						UI.registerThemeElement(valLabel, "Accent")
     					end
     				end
 
@@ -12625,6 +12791,7 @@ Modules["Core/MainUI.luau"] = function()
     					emptyLabel.Font = UI.Fonts.Body
     					emptyLabel.TextSize = 10
     					emptyLabel.Parent = emptyRow
+    					UI.registerThemeElement(emptyLabel, "TextSecondary")
     				end
     			else
     				local rawStats = PlayerUtilities.getCurrenciesAndStats()
@@ -12654,6 +12821,7 @@ Modules["Core/MainUI.luau"] = function()
     					emptyLabel.Font = UI.Fonts.Body
     					emptyLabel.TextSize = 10
     					emptyLabel.Parent = emptyRow
+    					UI.registerThemeElement(emptyLabel, "TextSecondary")
     				else
     					for idx, s in ipairs(filtered) do
     						local row = Instance.new("TextButton")
@@ -12698,7 +12866,7 @@ Modules["Core/MainUI.luau"] = function()
     						valLabel.TextXAlignment = Enum.TextXAlignment.Right
     						valLabel.TextTruncate = Enum.TextTruncate.AtEnd
     						valLabel.Parent = row
-    						UI.registerThemeElement(valLabel, "AccentText")
+    						UI.registerThemeElement(valLabel, "Accent")
 
     						row.MouseButton1Click:Connect(function()
     							Animations.buttonClickPop(row)
@@ -14763,6 +14931,8 @@ Modules["Core/MainUI.luau"] = function()
     					rowLoadBtn.Font = UI.Fonts.Header
     					rowLoadBtn.TextSize = 10
     					rowLoadBtn.Parent = pRow
+    					UI.registerThemeElement(rowLoadBtn, "Accent")
+    					UI.registerThemeElement(rowLoadBtn, "AccentText")
 
     					rowLoadBtn.MouseButton1Click:Connect(function()
     						Animations.buttonClickPop(rowLoadBtn)
@@ -14816,6 +14986,7 @@ Modules["Core/MainUI.luau"] = function()
     					rowDelBtn.TextSize = 11
     					rowDelBtn.ZIndex = 25
     					rowDelBtn.Parent = pRow
+    					rowDelBtn:SetAttribute("KeepTextColor", true)
     					UI.registerThemeElement(rowDelBtn, "ContainerDark")
 
     					rowDelBtn.MouseButton1Click:Connect(function()

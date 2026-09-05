@@ -283,6 +283,7 @@ function Hotbar.new(): HotbarWidget
 	ghostBadge.Font = UI.Fonts.Mono
 	ghostBadge.TextSize = 8
 	ghostBadge.ZIndex = 201
+	ghostBadge:SetAttribute("KeepTextColor", true)
 	ghostBadge.Parent = dragGhost
 
 	local ghostLabel = Instance.new("TextLabel")
@@ -294,6 +295,7 @@ function Hotbar.new(): HotbarWidget
 	ghostLabel.TextSize = 10
 	ghostLabel.TextTruncate = Enum.TextTruncate.AtEnd
 	ghostLabel.ZIndex = 201
+	ghostLabel:SetAttribute("KeepTextColor", true)
 	ghostLabel.Parent = dragGhost
 
 	-- ── 1. Hotbar HUD Container ───────────────────────────────────────
@@ -661,15 +663,40 @@ function Hotbar.new(): HotbarWidget
 
 				if nameLabel then
 					nameLabel.Text = name
-					nameLabel.TextColor3 = if anyEquipped then UI.Theme.AccentText else UI.Theme.TextPrimary
-					nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
-					nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
+					if anyEquipped then
+						nameLabel.TextColor3 = UI.Theme.AccentText
+						nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+						nameLabel.TextStrokeTransparency = 0.5
+					else
+						nameLabel.TextColor3 = UI.Theme.TextPrimary
+						nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+						nameLabel.TextStrokeTransparency = if isLight then 1.0 else 0.5
+					end
+				end
+
+				local keyLabel = slotBtn:FindFirstChild("KeyLabel") :: TextLabel?
+				if keyLabel then
+					if anyEquipped then
+						keyLabel.TextColor3 = UI.Theme.AccentText
+						keyLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+						keyLabel.TextStrokeTransparency = 0.6
+					else
+						keyLabel.TextColor3 = UI.Theme.TextSecondary
+						keyLabel.TextStrokeTransparency = 1.0
+					end
 				end
 
 				if stackBadge then
 					if count > 1 then
 						stackBadge.Text = "x" .. tostring(count)
 						stackBadge.Visible = true
+						if isLight then
+							stackBadge.BackgroundColor3 = if anyEquipped then Color3.fromRGB(15, 85, 160) else Color3.fromRGB(45, 48, 58)
+							stackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+						else
+							stackBadge.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+							stackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+						end
 					else
 						stackBadge.Visible = false
 					end
@@ -840,18 +867,42 @@ function Hotbar.new(): HotbarWidget
 				end
 
 				renderToolViewportCached(slotBtn, repTool, slotNum, slotCaches)
-				local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
 				if nameLabel then
 					nameLabel.Text = name
-					nameLabel.TextColor3 = if anyEquipped then UI.Theme.AccentText else UI.Theme.TextPrimary
-					nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
-					nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
+					if anyEquipped then
+						nameLabel.TextColor3 = UI.Theme.AccentText
+						nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+						nameLabel.TextStrokeTransparency = 0.5
+					else
+						nameLabel.TextColor3 = UI.Theme.TextPrimary
+						nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+						nameLabel.TextStrokeTransparency = if isLight then 1.0 else 0.5
+					end
+				end
+
+				local keyLabel = slotBtn:FindFirstChild("KeyLabel") :: TextLabel?
+				if keyLabel then
+					if anyEquipped then
+						keyLabel.TextColor3 = UI.Theme.AccentText
+						keyLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+						keyLabel.TextStrokeTransparency = 0.6
+					else
+						keyLabel.TextColor3 = UI.Theme.TextSecondary
+						keyLabel.TextStrokeTransparency = 1.0
+					end
 				end
 
 				if stackBadge then
 					if count > 1 then
 						stackBadge.Text = "x" .. tostring(count)
 						stackBadge.Visible = true
+						if isLight then
+							stackBadge.BackgroundColor3 = if anyEquipped then Color3.fromRGB(15, 85, 160) else Color3.fromRGB(45, 48, 58)
+							stackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+						else
+							stackBadge.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+							stackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+						end
 					else
 						stackBadge.Visible = false
 					end
@@ -932,10 +983,19 @@ function Hotbar.new(): HotbarWidget
 					itemStroke.Thickness = if anyEquipped then 2.5 else 1.0
 				end
 
+				local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
 				local tName = existingCard:FindFirstChild("ToolLabel") :: TextLabel?
 				if tName then
 					tName.Text = name
-					tName.TextColor3 = if anyEquipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+					if anyEquipped then
+						tName.TextColor3 = UI.Theme.AccentText
+						tName.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+						tName.TextStrokeTransparency = 0.5
+					else
+						tName.TextColor3 = UI.Theme.TextPrimary
+						tName.TextStrokeTransparency = if isLight then 1.0 else 0.5
+						tName.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+					end
 				end
 
 				local badge = existingCard:FindFirstChild("EquippedBadge") :: TextLabel?
@@ -994,8 +1054,8 @@ function Hotbar.new(): HotbarWidget
 				tLabel.TextSize = 9
 				tLabel.TextTruncate = Enum.TextTruncate.AtEnd
 				tLabel.ZIndex = 5
+				tLabel:SetAttribute("KeepTextColor", true)
 				tLabel.Parent = itemCard
-				UI.registerThemeElement(tLabel, "TextPrimary")
 
 				local eqBadge = Instance.new("TextLabel")
 				eqBadge.Name = "EquippedBadge"
@@ -1010,12 +1070,13 @@ function Hotbar.new(): HotbarWidget
 				eqBadge.Parent = itemCard
 				UI.registerThemeElement(eqBadge, "AccentText")
 
+				local isLightCard = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
 				local cardStackBadge = Instance.new("TextLabel")
 				cardStackBadge.Name = "StackBadge"
 				cardStackBadge.Size = UDim2.new(0, 20, 0, 13)
 				cardStackBadge.Position = UDim2.new(1, -2, 0, 2)
 				cardStackBadge.AnchorPoint = Vector2.new(1, 0)
-				cardStackBadge.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+				cardStackBadge.BackgroundColor3 = if isLightCard then Color3.fromRGB(45, 48, 58) else Color3.fromRGB(20, 20, 25)
 				cardStackBadge.BackgroundTransparency = 0.25
 				cardStackBadge.Text = if count > 1 then "x" .. tostring(count) else ""
 				cardStackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1023,6 +1084,7 @@ function Hotbar.new(): HotbarWidget
 				cardStackBadge.TextSize = 9
 				cardStackBadge.Visible = (count > 1)
 				cardStackBadge.ZIndex = 6
+				cardStackBadge:SetAttribute("KeepTextColor", true)
 				cardStackBadge.Parent = itemCard
 
 				local badgeCorner = Instance.new("UICorner")
@@ -1408,16 +1470,17 @@ function Hotbar.new(): HotbarWidget
 		keyLabel.Font = UI.Fonts.Header
 		keyLabel.TextSize = 9
 		keyLabel.ZIndex = 10
+		keyLabel:SetAttribute("KeepTextColor", true)
 		keyLabel.Parent = slotBtn
-		UI.registerThemeElement(keyLabel, "TextSecondary")
 
 		-- Stack Count Badge (e.g. "x5") in Top-Right Corner
+		local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
 		local stackBadge = Instance.new("TextLabel")
 		stackBadge.Name = "StackBadge"
 		stackBadge.Size = UDim2.new(0, 20, 0, 13)
 		stackBadge.Position = UDim2.new(1, -2, 0, 2)
 		stackBadge.AnchorPoint = Vector2.new(1, 0)
-		stackBadge.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+		stackBadge.BackgroundColor3 = if isLight then Color3.fromRGB(45, 48, 58) else Color3.fromRGB(20, 20, 25)
 		stackBadge.BackgroundTransparency = 0.25
 		stackBadge.Text = ""
 		stackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1425,6 +1488,7 @@ function Hotbar.new(): HotbarWidget
 		stackBadge.TextSize = 9
 		stackBadge.Visible = false
 		stackBadge.ZIndex = 12
+		stackBadge:SetAttribute("KeepTextColor", true)
 		stackBadge.Parent = slotBtn
 
 		local badgeCorner = Instance.new("UICorner")
@@ -1432,7 +1496,6 @@ function Hotbar.new(): HotbarWidget
 		badgeCorner.Parent = stackBadge
 
 		-- Tool Name Label at Bottom of Slot
-		local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
 		local nameLabel = Instance.new("TextLabel")
 		nameLabel.Name = "ToolName"
 		nameLabel.Size = UDim2.new(1, -4, 0, 12)
@@ -1442,12 +1505,12 @@ function Hotbar.new(): HotbarWidget
 		nameLabel.TextColor3 = UI.Theme.TextPrimary
 		nameLabel.Font = UI.Fonts.Header
 		nameLabel.TextSize = 8
-		nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
-		nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
+		nameLabel.TextStrokeTransparency = if isLight then 1.0 else 0.5
+		nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 		nameLabel.ZIndex = 10
+		nameLabel:SetAttribute("KeepTextColor", true)
 		nameLabel.Parent = slotBtn
-		UI.registerThemeElement(nameLabel, "TextPrimary")
 
 		Animations.buttonHoverPush(slotBtn)
 

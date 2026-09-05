@@ -133,6 +133,7 @@ function HealthWidget.new(): HealthWidgetInstance
 		dmgLabel.TextSize = if isCrit then 16 else 13
 		dmgLabel.TextStrokeTransparency = 0.5
 		dmgLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+		dmgLabel:SetAttribute("KeepTextColor", true)
 		dmgLabel.Parent = dmgBox
 
 		local scale = Instance.new("UIScale")

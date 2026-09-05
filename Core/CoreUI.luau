@@ -1088,6 +1088,7 @@ function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defau
 	checkMark.TextSize = 12
 	checkMark.Visible = feature.state
 	checkMark.Parent = checkBtn
+	UI.registerThemeElement(checkMark, "AccentText")
 
 	local checkScale = Instance.new("UIScale")
 	checkScale.Scale = if feature.state then 1.0 else 0.0
@@ -1290,6 +1291,7 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	valInput.ClearTextOnFocus = false
 	valInput.ClipsDescendants = true
 	valInput.Parent = valBox
+	UI.registerThemeElement(valInput, "Accent")
 
 	-- track (TextButton to sink clicks inside scrolling frames and guarantee input reception)
 	local bar = Instance.new("TextButton")
@@ -1603,6 +1605,7 @@ function CoreUI:AddDropdown(section: Frame, name: string, options: {string}, def
 	btn.ClipsDescendants = true
 	btn.Parent = row
 	UI.registerThemeElement(btn, "Container")
+	UI.registerThemeElement(btn, "Accent")
 
 	local btnStroke = Instance.new("UIStroke")
 	btnStroke.Color = UI.Theme.Border

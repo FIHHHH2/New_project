@@ -28,18 +28,18 @@ UI.Themes = {
 	},
 	Light = {
 		Name = "Light",
-		Background = Color3.fromRGB(242, 243, 246),
+		Background = Color3.fromRGB(244, 245, 248),
 		BackgroundTransparency = 0.85,
-		Border = Color3.fromRGB(12, 12, 16), -- True black outlines for light mode
-		BorderDim = Color3.fromRGB(130, 130, 140),
-		Accent = Color3.fromRGB(45, 155, 235), -- Light blue accent
-		AccentDark = Color3.fromRGB(25, 110, 185),
+		Border = Color3.fromRGB(20, 22, 28), -- True dark crisp borders for light mode
+		BorderDim = Color3.fromRGB(150, 155, 168),
+		Accent = Color3.fromRGB(20, 125, 225), -- High-contrast vibrant azure blue
+		AccentDark = Color3.fromRGB(14, 95, 180),
 		AccentText = Color3.fromRGB(255, 255, 255),
-		TextPrimary = Color3.fromRGB(15, 15, 20),
-		TextSecondary = Color3.fromRGB(75, 75, 85),
+		TextPrimary = Color3.fromRGB(15, 17, 24), -- Deep near-black for maximum readability
+		TextSecondary = Color3.fromRGB(65, 70, 82), -- Balanced readable secondary text
 		Container = Color3.fromRGB(255, 255, 255),
 		ContainerTransparency = 0.85,
-		ContainerDark = Color3.fromRGB(228, 230, 236),
+		ContainerDark = Color3.fromRGB(228, 231, 238),
 		ContainerDarkTransparency = 0.88
 	},
 	TranslucentDark = {
@@ -60,18 +60,18 @@ UI.Themes = {
 	},
 	TranslucentLight = {
 		Name = "Translucent Light",
-		Background = Color3.fromRGB(240, 242, 248),
+		Background = Color3.fromRGB(242, 244, 250),
 		BackgroundTransparency = 0.85,
-		Border = Color3.fromRGB(12, 12, 16), -- Black outlines
-		BorderDim = Color3.fromRGB(120, 120, 135),
-		Accent = Color3.fromRGB(45, 155, 235), -- Light blue accent
-		AccentDark = Color3.fromRGB(25, 110, 185),
+		Border = Color3.fromRGB(20, 22, 28), -- Black outlines
+		BorderDim = Color3.fromRGB(145, 150, 165),
+		Accent = Color3.fromRGB(20, 125, 225), -- High-contrast vibrant azure blue
+		AccentDark = Color3.fromRGB(14, 95, 180),
 		AccentText = Color3.fromRGB(255, 255, 255),
-		TextPrimary = Color3.fromRGB(12, 12, 16),
-		TextSecondary = Color3.fromRGB(70, 70, 80),
+		TextPrimary = Color3.fromRGB(12, 14, 20),
+		TextSecondary = Color3.fromRGB(60, 65, 78),
 		Container = Color3.fromRGB(255, 255, 255),
 		ContainerTransparency = 0.85,
-		ContainerDark = Color3.fromRGB(225, 228, 236),
+		ContainerDark = Color3.fromRGB(224, 228, 238),
 		ContainerDarkTransparency = 0.88
 	},
 	Adaptive = {
@@ -253,10 +253,14 @@ function UI.setTheme(themeName: string)
 						BackgroundColor3 = targetTheme.ContainerDark,
 						BackgroundTransparency = targetTheme.ContainerDarkTransparency
 					}):Play()
-				elseif pt == "Accent" and inst:IsA("GuiObject") then
-					TweenService:Create(inst, tweenInfo, {
-						BackgroundColor3 = targetTheme.Accent
-					}):Play()
+				elseif pt == "Accent" then
+					if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+						TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.Accent }):Play()
+					elseif inst:IsA("GuiObject") then
+						TweenService:Create(inst, tweenInfo, {
+							BackgroundColor3 = targetTheme.Accent
+						}):Play()
+					end
 				elseif pt == "Border" and inst:IsA("UIStroke") then
 					TweenService:Create(inst, tweenInfo, { Color = targetTheme.Border }):Play()
 				elseif pt == "BorderDim" and inst:IsA("UIStroke") then
@@ -274,7 +278,7 @@ function UI.setTheme(themeName: string)
 					if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
 						TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.TextSecondary }):Play()
 					end
-				elseif pt == "AccentText" and (inst:IsA("TextLabel") or inst:IsA("TextButton")) then
+				elseif pt == "AccentText" and (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox")) then
 					TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.AccentText }):Play()
 				elseif pt == "BorderDimText" and inst:IsA("TextLabel") then
 					TweenService:Create(inst, tweenInfo, { TextColor3 = targetTheme.BorderDim }):Play()
@@ -336,45 +340,102 @@ function UI.setTheme(themeName: string)
 					end
 				elseif inst:IsA("TextButton") then
 					local propMap = UI.RegisteredElements[inst]
+					local isTransparent = inst.BackgroundTransparency >= 0.95
 					if propMap and propMap["Accent"] then
-						inst.BackgroundColor3 = targetTheme.Accent
-						inst.TextColor3 = targetTheme.AccentText
-					elseif propMap and propMap["ContainerDark"] then
-						inst.BackgroundColor3 = targetTheme.ContainerDark
-						inst.BackgroundTransparency = targetTheme.ContainerDarkTransparency
-						if propMap["TextSecondary"] then
-							inst.TextColor3 = targetTheme.TextSecondary
+						if propMap["Container"] or propMap["ContainerDark"] or isTransparent then
+							inst.TextColor3 = targetTheme.Accent
+							if not isTransparent then
+								inst.BackgroundColor3 = if propMap["ContainerDark"] then targetTheme.ContainerDark else targetTheme.Container
+							end
 						else
-							inst.TextColor3 = targetTheme.TextPrimary
+							inst.BackgroundColor3 = targetTheme.Accent
+							inst.TextColor3 = targetTheme.AccentText
+						end
+					elseif propMap and propMap["ContainerDark"] then
+						if not isTransparent then
+							inst.BackgroundColor3 = targetTheme.ContainerDark
+							inst.BackgroundTransparency = targetTheme.ContainerDarkTransparency
+						end
+						if not inst:GetAttribute("KeepTextColor") then
+							if propMap["TextSecondary"] then
+								inst.TextColor3 = targetTheme.TextSecondary
+							elseif propMap["BorderDimText"] then
+								inst.TextColor3 = targetTheme.BorderDim
+							elseif propMap["AccentText"] then
+								inst.TextColor3 = targetTheme.AccentText
+							else
+								inst.TextColor3 = targetTheme.TextPrimary
+							end
+						end
+					elseif propMap and (propMap["Container"] or propMap["Background"]) then
+						if not isTransparent then
+							inst.BackgroundColor3 = targetTheme.Container
+							inst.BackgroundTransparency = targetTheme.ContainerTransparency
+						end
+						if not inst:GetAttribute("KeepTextColor") then
+							if propMap["TextSecondary"] then
+								inst.TextColor3 = targetTheme.TextSecondary
+							elseif propMap["BorderDimText"] then
+								inst.TextColor3 = targetTheme.BorderDim
+							elseif propMap["AccentText"] then
+								inst.TextColor3 = targetTheme.AccentText
+							else
+								inst.TextColor3 = targetTheme.TextPrimary
+							end
 						end
 					else
-						inst.BackgroundColor3 = targetTheme.Container
-						inst.BackgroundTransparency = targetTheme.ContainerTransparency
-						if propMap and propMap["TextSecondary"] then
-							inst.TextColor3 = targetTheme.TextSecondary
-						else
-							inst.TextColor3 = targetTheme.TextPrimary
+						if not isTransparent and (inst.Name == "ActionBtn" or string.find(inst.Name, "Btn") or string.find(inst.Name, "Button")) then
+							inst.BackgroundColor3 = targetTheme.Container
+							inst.BackgroundTransparency = targetTheme.ContainerTransparency
+						end
+						if not inst:GetAttribute("KeepTextColor") then
+							if propMap and propMap["BorderDimText"] then
+								inst.TextColor3 = targetTheme.BorderDim
+							elseif propMap and propMap["TextSecondary"] then
+								inst.TextColor3 = targetTheme.TextSecondary
+							elseif propMap and propMap["Accent"] then
+								inst.TextColor3 = targetTheme.Accent
+							elseif propMap and propMap["AccentText"] then
+								inst.TextColor3 = targetTheme.AccentText
+							else
+								inst.TextColor3 = targetTheme.TextPrimary
+							end
 						end
 					end
 				elseif inst:IsA("TextLabel") then
-					if inst:GetAttribute("KeepTextColor") or inst.Name == "HealthIndicator" then
+					if inst:GetAttribute("KeepTextColor") or inst.Name == "HealthIndicator" or inst.Name == "StackBadge" or inst.Name == "EquippedBadge" or inst.Name == "GhostBadge" then
 						continue
 					end
 					local propMap = UI.RegisteredElements[inst]
 					if propMap and propMap["AccentText"] then
 						inst.TextColor3 = targetTheme.AccentText
+					elseif propMap and propMap["Accent"] then
+						inst.TextColor3 = targetTheme.Accent
 					elseif propMap and propMap["TextSecondary"] then
 						inst.TextColor3 = targetTheme.TextSecondary
 					elseif propMap and propMap["BorderDimText"] then
 						inst.TextColor3 = targetTheme.BorderDim
+					elseif propMap and propMap["TextPrimary"] then
+						inst.TextColor3 = targetTheme.TextPrimary
 					else
 						inst.TextColor3 = targetTheme.TextPrimary
 					end
 				elseif inst:IsA("TextBox") then
-					inst.TextColor3 = targetTheme.TextPrimary
-					inst.PlaceholderColor3 = targetTheme.TextSecondary
-					inst.BackgroundColor3 = targetTheme.ContainerDark
-					inst.BackgroundTransparency = targetTheme.ContainerDarkTransparency
+					local propMap = UI.RegisteredElements[inst]
+					if not inst:GetAttribute("KeepTextColor") then
+						if propMap and propMap["Accent"] then
+							inst.TextColor3 = targetTheme.Accent
+						elseif propMap and propMap["TextSecondary"] then
+							inst.TextColor3 = targetTheme.TextSecondary
+						else
+							inst.TextColor3 = targetTheme.TextPrimary
+						end
+						inst.PlaceholderColor3 = targetTheme.TextSecondary
+					end
+					if inst.BackgroundTransparency < 0.95 then
+						inst.BackgroundColor3 = targetTheme.ContainerDark
+						inst.BackgroundTransparency = targetTheme.ContainerDarkTransparency
+					end
 				end
 			end
 		end

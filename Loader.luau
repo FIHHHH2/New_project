@@ -14048,6 +14048,13 @@ Modules["Core/MainUI.luau"] = function()
     			local saved = FeatureManager.saveConfig(targetName)
     			if saved then
     				selectedConfigName = targetName
+    				-- If no auto-load profile is chosen, auto-set this newly saved config as the default startup config
+    				local curAuto = FeatureManager.getAutoLoadConfig()
+    				if not curAuto.enabled or curAuto.configName == "" then
+    					FeatureManager.setAutoLoadConfig(true, targetName)
+    					autoLoadStatusLabel.Text = string.format("Default Startup Config: [%s]", targetName)
+    					autoLoadStatusLabel.TextColor3 = UI.Theme.Accent
+    				end
     				window:Notify("Configs", string.format("Created & saved '%s'", targetName), 3)
     				refreshProfilesList()
     			else
@@ -14064,6 +14071,13 @@ Modules["Core/MainUI.luau"] = function()
 
     			local saved = FeatureManager.saveConfig(targetName)
     			if saved then
+    				-- Keep autoload profile synchronized
+    				local curAuto = FeatureManager.getAutoLoadConfig()
+    				if not curAuto.enabled or curAuto.configName == "" or curAuto.configName == targetName then
+    					FeatureManager.setAutoLoadConfig(true, targetName)
+    					autoLoadStatusLabel.Text = string.format("Default Startup Config: [%s]", targetName)
+    					autoLoadStatusLabel.TextColor3 = UI.Theme.Accent
+    				end
     				window:Notify("Configs", string.format("Saved current settings to '%s'", targetName), 3)
     				refreshProfilesList()
     			else
@@ -14142,8 +14156,42 @@ Modules["Core/MainUI.luau"] = function()
     			window:Notify("Auto-Load", "Startup auto-load profile cleared", 2)
     		end)
 
-    		-- Initial scan of configs on startup (configs ignored on game join by default)
-    		task.spawn(refreshProfilesList)
+    		-- Initial scan of configs and automatic profile loading on startup
+    		task.spawn(function()
+    			refreshProfilesList()
+    			task.wait(0.6) -- Wait for all tabs, features, and sliders to finish registering
+
+    			local autoLoadData = FeatureManager.getAutoLoadConfig()
+    			local targetToLoad: string? = nil
+
+    			if autoLoadData.enabled and autoLoadData.configName ~= "" then
+    				targetToLoad = autoLoadData.configName
+    			else
+    				-- If no specific startup profile set, check if a profile named "default", "autoload", or any existing config is available
+    				local allConfigs = FeatureManager.listConfigs()
+    				for _, cfg in ipairs(allConfigs) do
+    					local lower = cfg:lower()
+    					if lower == "default" or lower == "autoload" or lower == "main" then
+    						targetToLoad = cfg
+    						break
+    					end
+    				end
+    				if not targetToLoad and #allConfigs == 1 then
+    					targetToLoad = allConfigs[1]
+    				end
+    			end
+
+    			if targetToLoad then
+    				local ok = FeatureManager.loadConfig(targetToLoad)
+    				if ok then
+    					selectedConfigName = targetToLoad
+    					refreshProfilesList()
+    					autoLoadStatusLabel.Text = string.format("Default Startup Config: [%s]", targetToLoad)
+    					autoLoadStatusLabel.TextColor3 = UI.Theme.Accent
+    					window:Notify("Configs", string.format("Auto-loaded profile: %s", targetToLoad), 3.5)
+    				end
+    			end
+    		end)
 
     		-- Ensure saved theme is applied and saved on leave
     		pcall(function()
@@ -14156,12 +14204,20 @@ Modules["Core/MainUI.luau"] = function()
     		pcall(function()
     			game:BindToClose(function()
     				UI.saveTheme(UI.CurrentTheme.Name)
+    				local active = FeatureManager.getActiveConfigName()
+    				if active and active ~= "" then
+    					FeatureManager.saveConfig(active)
+    				end
     			end)
     		end)
 
     		Players.PlayerRemoving:Connect(function(plr)
     			if plr == localPlayer then
     				UI.saveTheme(UI.CurrentTheme.Name)
+    				local active = FeatureManager.getActiveConfigName()
+    				if active and active ~= "" then
+    					FeatureManager.saveConfig(active)
+    				end
     			end
     		end)
 
@@ -20542,11 +20598,21 @@ Modules["Modules/MurderMystery2.luau"] = function()
     	if char then
     		local tool = char:FindFirstChild(toolName)
     		if tool and tool:IsA("Tool") then return tool end
+    		for _, item in ipairs(char:GetChildren()) do
+    			if item:IsA("Tool") and (item.Name == toolName or item.Name:find(toolName) or (toolName == "Knife" and item:FindFirstChild("KnifeClient")) or (toolName == "Gun" and item:FindFirstChild("GunClient"))) then
+    				return item
+    			end
+    		end
     	end
     	local backpack = player:FindFirstChild("Backpack")
     	if backpack then
     		local tool = backpack:FindFirstChild(toolName)
     		if tool and tool:IsA("Tool") then return tool end
+    		for _, item in ipairs(backpack:GetChildren()) do
+    			if item:IsA("Tool") and (item.Name == toolName or item.Name:find(toolName) or (toolName == "Knife" and item:FindFirstChild("KnifeClient")) or (toolName == "Gun" and item:FindFirstChild("GunClient"))) then
+    				return item
+    			end
+    		end
     	end
     	return nil
     end
@@ -20655,6 +20721,28 @@ Modules["Modules/MurderMystery2.luau"] = function()
     	end
     end
 
+    function MurderMystery2.setKillAura(enabled: boolean)
+    	MurderMystery2.KillAura = enabled
+    	if not enabled then
+    		removeKillBox()
+    	end
+    end
+
+    function MurderMystery2.setSilentAim(enabled: boolean)
+    	MurderMystery2.SilentAim = enabled
+    end
+
+    function MurderMystery2.setQuickShot(enabled: boolean)
+    	MurderMystery2.QuickShot = enabled
+    end
+
+    function MurderMystery2.setRoleESP(enabled: boolean)
+    	MurderMystery2.RoleESP = enabled
+    	if not enabled then
+    		clearESP()
+    	end
+    end
+
     -- ── 4. KillAura Execution Engine ──────────────────────────────────────
     local function attackTargetWithKnife(knife: Tool, targetChar: Model)
     	local targetHrp = targetChar:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -20664,20 +20752,51 @@ Modules["Modules/MurderMystery2.luau"] = function()
     	local handle = knife:FindFirstChild("Handle") :: BasePart?
     	if not handle then return end
 
-    	-- Activate knife swing
+    	pcall(function()
+    		handle.CanTouch = true
+    	end)
+
+    	-- Activate knife swing animation & client state
     	pcall(function() knife:Activate() end)
 
-    	-- Direct touch trigger via firetouchinterest if supported
-    	if type((getgenv and (getgenv() :: any).firetouchinterest) or firetouchinterest) == "function" then
-    		local fti = (getgenv and (getgenv() :: any).firetouchinterest) or firetouchinterest
-    		pcall(fti, targetHrp, handle, 0)
-    		pcall(fti, targetHrp, handle, 1)
+    	-- Target all valid hit parts (torso/head critical for MM2 damage registration)
+    	local partsToHit = {
+    		targetChar:FindFirstChild("UpperTorso"),
+    		targetChar:FindFirstChild("Torso"),
+    		targetChar:FindFirstChild("LowerTorso"),
+    		targetChar:FindFirstChild("Head"),
+    		targetHrp,
+    	}
+
+    	-- Trigger MM2 Events (KnifeStabbed & HandleTouched)
+    	local events = knife:FindFirstChild("Events")
+    	if events then
+    		local stab = events:FindFirstChild("KnifeStabbed")
+    		if stab and stab:IsA("RemoteEvent") then
+    			pcall(function() (stab :: RemoteEvent):FireServer() end)
+    		end
+
+    		local handleTouched = events:FindFirstChild("HandleTouched")
+    		if handleTouched and handleTouched:IsA("RemoteEvent") then
+    			for _, part in ipairs(partsToHit) do
+    				if part and part:IsA("BasePart") then
+    					pcall(function() (handleTouched :: RemoteEvent):FireServer(part) end)
+    				end
+    			end
+    		end
     	end
 
-    	-- Trigger remote slash/stab if present
-    	local stabRemote = knife:FindFirstChild("Stab") or knife:FindFirstChild("Slash")
-    	if stabRemote and stabRemote:IsA("RemoteEvent") then
-    		pcall(function() (stabRemote :: RemoteEvent):FireServer() end)
+    	-- Direct touch trigger via firetouchinterest on all valid hitboxes (both argument orders)
+    	local fti = (getgenv and (getgenv() :: any).firetouchinterest) or firetouchinterest
+    	if type(fti) == "function" then
+    		for _, part in ipairs(partsToHit) do
+    			if part and part:IsA("BasePart") then
+    				pcall(fti, part, handle, 0)
+    				pcall(fti, part, handle, 1)
+    				pcall(fti, handle, part, 0)
+    				pcall(fti, handle, part, 1)
+    			end
+    		end
     	end
 
     	-- Hitbox expansion touch simulation
@@ -20741,8 +20860,10 @@ Modules["Modules/MurderMystery2.luau"] = function()
     				end
 
     				if shouldTarget then
+    					local dist = (targetHrp.Position - hrp.Position).Magnitude
     					local relPos = boxCF:PointToObjectSpace(targetHrp.Position)
-    					if math.abs(relPos.X) <= halfSize and math.abs(relPos.Y) <= halfSize and math.abs(relPos.Z) <= halfSize then
+    					local inBox = math.abs(relPos.X) <= halfSize and math.abs(relPos.Y) <= (halfSize * 1.8) and math.abs(relPos.Z) <= halfSize
+    					if inBox or dist <= MurderMystery2.KillBoxSize then
     						attackTargetWithKnife(knife, targetChar)
     					end
     				end
@@ -20815,60 +20936,71 @@ Modules["Modules/MurderMystery2.luau"] = function()
     		end
     	end
 
-    	-- Trigger gun shoot remote directly with predicted position
-    	local shootRemote = gun:FindFirstChild("Shoot") or gun:FindFirstChildWhichIsA("RemoteEvent")
-    	if shootRemote and shootRemote:IsA("RemoteEvent") then
-    		pcall(function()
-    			shootRemote:FireServer(targetPos)
-    		end)
-    	end
-
-    	-- Also activate tool
+    	-- Activate tool; WeaponService hook supplies predicted target position cleanly
     	pcall(function()
     		gun:Activate()
     	end)
     end
 
-    local function installMetamethodHook()
+    local function installWeaponServiceHook()
     	if hookInstalled then return end
     	hookInstalled = true
 
-    	pcall(function()
-    		local g = (getgenv and getgenv()) or _G
-    		local hookfunction = g.hookfunction or hookfunc or replaceclosure
-    		local getrawmetatable = g.getrawmetatable or debug.getrawmetatable
-    		local setreadonly = g.setreadonly or make_writeable
+    	task.spawn(function()
+    		local rep = game:GetService("ReplicatedStorage")
+    		local clientServices = rep:WaitForChild("ClientServices", 10)
+    		if not clientServices then return end
+    		local wsMod = clientServices:WaitForChild("WeaponService", 10)
+    		if not wsMod then return end
 
-    		if type(getrawmetatable) == "function" and type(hookfunction) == "function" then
-    			local mt = getrawmetatable(game)
-    			local oldNamecall = mt.__namecall
-    			if setreadonly then setreadonly(mt, false) end
+    		local ws = require(wsMod)
+    		if not ws then return end
 
-    			mt.__namecall = function(self, ...)
-    				local method = getnamecallmethod()
-    				local args = {...}
+    		local oldGetMouseTargetCFrame = ws.GetMouseTargetCFrame
+    		local oldGetTargetPosition = ws.GetTargetPosition
 
-    				if MurderMystery2.SilentAim and tostring(method) == "FireServer" then
-    					local selfName = tostring(self)
-    					if selfName == "Shoot" or selfName == "ShootGun" or (self.Parent and self.Parent.Name == "Gun") then
-    						local _, _, predPos = getMurdererTarget()
-    						if predPos then
-    							-- Override first Vector3 argument with predicted Murderer position
-    							for i, arg in ipairs(args) do
-    								if typeof(arg) == "Vector3" then
-    									args[i] = predPos
-    									break
-    								end
-    							end
-    							return oldNamecall(self, unpack(args))
-    						end
-    					end
+    		local function customGetMouseTargetCFrame(...)
+    			if MurderMystery2.SilentAim then
+    				local _, _, predPos = getMurdererTarget()
+    				if predPos then
+    					return CFrame.new(predPos)
     				end
-
-    				return oldNamecall(self, ...)
     			end
+    			if oldGetMouseTargetCFrame then
+    				return oldGetMouseTargetCFrame(...)
+    			end
+    			return CFrame.new()
+    		end
 
-    			if setreadonly then setreadonly(mt, true) end
+    		local function customGetTargetPosition(...)
+    			if MurderMystery2.SilentAim then
+    				local _, _, predPos = getMurdererTarget()
+    				if predPos then
+    					return CFrame.new(predPos)
+    				end
+    			end
+    			if oldGetTargetPosition then
+    				return oldGetTargetPosition(...)
+    			end
+    			return CFrame.new()
+    		end
+
+    		local g = (getgenv and getgenv()) or _G
+    		local hookfunc = g.hookfunction or hookfunc or replaceclosure
+    		if type(hookfunc) == "function" and oldGetMouseTargetCFrame then
+    			pcall(function()
+    				oldGetMouseTargetCFrame = hookfunc(ws.GetMouseTargetCFrame, customGetMouseTargetCFrame)
+    			end)
+    			if oldGetTargetPosition then
+    				pcall(function()
+    					oldGetTargetPosition = hookfunc(ws.GetTargetPosition, customGetTargetPosition)
+    				end)
+    			end
+    		end
+
+    		ws.GetMouseTargetCFrame = customGetMouseTargetCFrame
+    		if ws.GetTargetPosition then
+    			ws.GetTargetPosition = customGetTargetPosition
     		end
     	end)
     end
@@ -21142,7 +21274,7 @@ Modules["Modules/MurderMystery2.luau"] = function()
     	if MurderMystery2.IsActive then return end
     	MurderMystery2.IsActive = true
 
-    	installMetamethodHook()
+    	installWeaponServiceHook()
 
     	-- Primary stepped combat & physics loop (KillAura already has tick throttle)
     	table.insert(connections, RunService.Stepped:Connect(function()

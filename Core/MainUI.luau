@@ -2897,6 +2897,13 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			local saved = FeatureManager.saveConfig(targetName)
 			if saved then
 				selectedConfigName = targetName
+				-- If no auto-load profile is chosen, auto-set this newly saved config as the default startup config
+				local curAuto = FeatureManager.getAutoLoadConfig()
+				if not curAuto.enabled or curAuto.configName == "" then
+					FeatureManager.setAutoLoadConfig(true, targetName)
+					autoLoadStatusLabel.Text = string.format("Default Startup Config: [%s]", targetName)
+					autoLoadStatusLabel.TextColor3 = UI.Theme.Accent
+				end
 				window:Notify("Configs", string.format("Created & saved '%s'", targetName), 3)
 				refreshProfilesList()
 			else
@@ -2913,6 +2920,13 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 
 			local saved = FeatureManager.saveConfig(targetName)
 			if saved then
+				-- Keep autoload profile synchronized
+				local curAuto = FeatureManager.getAutoLoadConfig()
+				if not curAuto.enabled or curAuto.configName == "" or curAuto.configName == targetName then
+					FeatureManager.setAutoLoadConfig(true, targetName)
+					autoLoadStatusLabel.Text = string.format("Default Startup Config: [%s]", targetName)
+					autoLoadStatusLabel.TextColor3 = UI.Theme.Accent
+				end
 				window:Notify("Configs", string.format("Saved current settings to '%s'", targetName), 3)
 				refreshProfilesList()
 			else
@@ -2991,8 +3005,42 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			window:Notify("Auto-Load", "Startup auto-load profile cleared", 2)
 		end)
 
-		-- Initial scan of configs on startup (configs ignored on game join by default)
-		task.spawn(refreshProfilesList)
+		-- Initial scan of configs and automatic profile loading on startup
+		task.spawn(function()
+			refreshProfilesList()
+			task.wait(0.6) -- Wait for all tabs, features, and sliders to finish registering
+
+			local autoLoadData = FeatureManager.getAutoLoadConfig()
+			local targetToLoad: string? = nil
+
+			if autoLoadData.enabled and autoLoadData.configName ~= "" then
+				targetToLoad = autoLoadData.configName
+			else
+				-- If no specific startup profile set, check if a profile named "default", "autoload", or any existing config is available
+				local allConfigs = FeatureManager.listConfigs()
+				for _, cfg in ipairs(allConfigs) do
+					local lower = cfg:lower()
+					if lower == "default" or lower == "autoload" or lower == "main" then
+						targetToLoad = cfg
+						break
+					end
+				end
+				if not targetToLoad and #allConfigs == 1 then
+					targetToLoad = allConfigs[1]
+				end
+			end
+
+			if targetToLoad then
+				local ok = FeatureManager.loadConfig(targetToLoad)
+				if ok then
+					selectedConfigName = targetToLoad
+					refreshProfilesList()
+					autoLoadStatusLabel.Text = string.format("Default Startup Config: [%s]", targetToLoad)
+					autoLoadStatusLabel.TextColor3 = UI.Theme.Accent
+					window:Notify("Configs", string.format("Auto-loaded profile: %s", targetToLoad), 3.5)
+				end
+			end
+		end)
 
 		-- Ensure saved theme is applied and saved on leave
 		pcall(function()
@@ -3005,12 +3053,20 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		pcall(function()
 			game:BindToClose(function()
 				UI.saveTheme(UI.CurrentTheme.Name)
+				local active = FeatureManager.getActiveConfigName()
+				if active and active ~= "" then
+					FeatureManager.saveConfig(active)
+				end
 			end)
 		end)
 
 		Players.PlayerRemoving:Connect(function(plr)
 			if plr == localPlayer then
 				UI.saveTheme(UI.CurrentTheme.Name)
+				local active = FeatureManager.getActiveConfigName()
+				if active and active ~= "" then
+					FeatureManager.saveConfig(active)
+				end
 			end
 		end)
 

@@ -29,10 +29,12 @@ import urllib.parse
 import re
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 import pystray
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageTk
+import tkinter as tk
+from tkinter import ttk, messagebox
 
 APP_NAME = "ModularMusicBridge"
-VERSION = "1.4.7"
+VERSION = "1.4.8"
 REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PORT = 8888
 VERSION_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/version.json"
@@ -199,7 +201,7 @@ def extract_palette(img_bytes: bytes):
     try:
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
         small = img.resize((40, 40))
-        pixels = list(small.getdata())
+        pixels = list(small.get_flattened_data()) if hasattr(small, "get_flattened_data") else list(small.getdata())
 
         best_accent = None
         best_score = -1.0
@@ -813,12 +815,113 @@ def trigger_media_command(cmd: str) -> bool:
             print(f"[MediaControl] Keybd fallback error: {ke}")
     return success
 
+# ── Configurable Global Hotkeys & Persistence ──────────────────────
+VK_NAMES = {
+    8: "Backspace", 9: "Tab", 13: "Enter", 19: "Pause", 20: "CapsLock",
+    27: "Escape", 32: "Space", 33: "PageUp", 34: "PageDown", 35: "End",
+    36: "Home", 37: "Left", 38: "Up", 39: "Right", 40: "Down",
+    44: "PrintScreen", 45: "Insert", 46: "Delete",
+    48: "0", 49: "1", 50: "2", 51: "3", 52: "4", 53: "5", 54: "6", 55: "7", 56: "8", 57: "9",
+    65: "A", 66: "B", 67: "C", 68: "D", 69: "E", 70: "F", 71: "G", 72: "H",
+    73: "I", 74: "J", 75: "K", 76: "L", 77: "M", 78: "N", 79: "O", 80: "P",
+    81: "Q", 82: "R", 83: "S", 84: "T", 85: "U", 86: "V", 87: "W", 88: "X",
+    89: "Y", 90: "Z",
+    96: "Num 0", 97: "Num 1", 98: "Num 2", 99: "Num 3", 100: "Num 4",
+    101: "Num 5", 102: "Num 6", 103: "Num 7", 104: "Num 8", 105: "Num 9",
+    106: "Num *", 107: "Num +", 109: "Num -", 110: "Num .", 111: "Num /",
+    112: "F1", 113: "F2", 114: "F3", 115: "F4", 116: "F5", 117: "F6",
+    118: "F7", 119: "F8", 120: "F9", 121: "F10", 122: "F11", 123: "F12",
+    176: "Media Next", 177: "Media Prev", 178: "Media Stop", 179: "Media Play/Pause",
+    186: ";", 187: "=", 188: ",", 189: "-", 190: ".", 191: "/", 192: "`",
+    219: "[", 220: "\\", 221: "]", 222: "'"
+}
+
+DEFAULT_CONFIG = {
+    "enable_global_hotkeys": True,
+    "enable_mouse_shortcuts": True,
+    "hotkeys": {
+        "skip": {
+            "name": "Ctrl + Alt + Right",
+            "vk": 39,
+            "ctrl": True,
+            "alt": True,
+            "shift": False,
+            "enabled": True
+        },
+        "prev": {
+            "name": "Ctrl + Alt + Left",
+            "vk": 37,
+            "ctrl": True,
+            "alt": True,
+            "shift": False,
+            "enabled": True
+        },
+        "toggle": {
+            "name": "Ctrl + Alt + Space",
+            "vk": 32,
+            "ctrl": True,
+            "alt": True,
+            "shift": False,
+            "enabled": True
+        }
+    }
+}
+
+def format_hotkey_name(ctrl: bool, alt: bool, shift: bool, vk: int) -> str:
+    parts = []
+    if ctrl: parts.append("Ctrl")
+    if alt: parts.append("Alt")
+    if shift: parts.append("Shift")
+    key_name = VK_NAMES.get(vk, chr(vk) if 32 <= vk <= 126 else f"Key_{vk}")
+    parts.append(key_name)
+    return " + ".join(parts)
+
+def get_config_path() -> str:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    primary = os.path.join(script_dir, "bridge_config.json")
+    try:
+        if os.path.exists(primary):
+            return primary
+        with open(primary, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_CONFIG, f, indent=2)
+        return primary
+    except Exception:
+        return os.path.join(os.path.expanduser("~"), ".musicbridge_config.json")
+
+CONFIG_PATH = get_config_path()
+bridge_config = json.loads(json.dumps(DEFAULT_CONFIG))
+
+def load_config():
+    global bridge_config
+    if os.path.exists(CONFIG_PATH) and os.path.getsize(CONFIG_PATH) > 2:
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+                merged = json.loads(json.dumps(DEFAULT_CONFIG))
+                merged.update(saved)
+                if "hotkeys" in saved and isinstance(saved["hotkeys"], dict):
+                    for hk, hkv in DEFAULT_CONFIG["hotkeys"].items():
+                        if hk in saved["hotkeys"] and isinstance(saved["hotkeys"][hk], dict):
+                            merged["hotkeys"][hk].update(saved["hotkeys"][hk])
+                bridge_config = merged
+                return
+        except Exception as e:
+            print(f"[Config] Error loading config: {e}")
+    bridge_config = json.loads(json.dumps(DEFAULT_CONFIG))
+    save_config()
+
+def save_config():
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(bridge_config, f, indent=2)
+    except Exception as e:
+        print(f"[Config] Error saving config: {e}")
+
+load_config()
+
 def setup_global_hotkeys():
-    """Listens for global Windows shortcuts:
-    - Ctrl + Alt + Left Click   -> Skip Song
-    - Ctrl + Alt + Right Click  -> Replay / Go Back
-    - Ctrl + Alt + Middle Click -> Play / Pause
-    - Ctrl + Alt + Space        -> Play / Pause
+    """Listens for global Windows shortcuts dynamically configured in bridge_config.json.
+    Supports keyboard combinations (Ctrl, Alt, Shift + any key) and mouse click gestures.
     """
     hook_mouse_id = None
     hook_kbd_id = None
@@ -842,7 +945,9 @@ def setup_global_hotkeys():
         VK_MENU = 0x12  # Alt
         VK_LMENU = 0xA4
         VK_RMENU = 0xA5
-        VK_SPACE = 0x20
+        VK_SHIFT = 0x10
+        VK_LSHIFT = 0xA0
+        VK_RSHIFT = 0xA1
 
         class KBDLLHOOKSTRUCT(ctypes.Structure):
             _fields_ = [
@@ -861,31 +966,65 @@ def setup_global_hotkeys():
         def is_alt_down():
             return (user32.GetAsyncKeyState(VK_MENU) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_LMENU) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_RMENU) & 0x8000 != 0)
 
+        def is_shift_down():
+            return (user32.GetAsyncKeyState(VK_SHIFT) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_LSHIFT) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_RSHIFT) & 0x8000 != 0)
+
+        last_hotkey_tick = {}
+
+        def check_debounce(action: str, min_delay: float = 0.35) -> bool:
+            now = time.time()
+            if (now - last_hotkey_tick.get(action, 0.0)) < min_delay:
+                return False
+            last_hotkey_tick[action] = now
+            return True
+
         def low_level_mouse_proc(nCode, wParam, lParam):
             if nCode >= 0:
-                if is_ctrl_down() and is_alt_down():
-                    if wParam == WM_LBUTTONDOWN:
-                        print("[Hotkey] Ctrl + Alt + Left Click -> Skip Song")
-                        threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
-                        return 1
-                    elif wParam == WM_RBUTTONDOWN:
-                        print("[Hotkey] Ctrl + Alt + Right Click -> Replay / Go Back")
-                        threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
-                        return 1
-                    elif wParam == WM_MBUTTONDOWN:
-                        print("[Hotkey] Ctrl + Alt + Middle Click -> Play / Pause")
-                        threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
-                        return 1
+                if bridge_config.get("enable_mouse_shortcuts", True):
+                    if is_ctrl_down() and is_alt_down():
+                        if wParam == WM_LBUTTONDOWN:
+                            if check_debounce("skip"):
+                                print("[Hotkey] Mouse Gesture: Ctrl + Alt + Left Click -> Skip Song")
+                                threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
+                            return 1
+                        elif wParam == WM_RBUTTONDOWN:
+                            if check_debounce("prev"):
+                                print("[Hotkey] Mouse Gesture: Ctrl + Alt + Right Click -> Replay / Go Back")
+                                threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
+                            return 1
+                        elif wParam == WM_MBUTTONDOWN:
+                            if check_debounce("toggle"):
+                                print("[Hotkey] Mouse Gesture: Ctrl + Alt + Middle Click -> Play / Pause")
+                                threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
+                            return 1
             return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
         def low_level_kbd_proc(nCode, wParam, lParam):
             if nCode >= 0 and wParam in (WM_KEYDOWN, WM_SYSKEYDOWN):
-                if is_ctrl_down() and is_alt_down():
+                if bridge_config.get("enable_global_hotkeys", True):
                     kb_struct = KBDLLHOOKSTRUCT.from_address(lParam)
-                    if kb_struct.vkCode == VK_SPACE:
-                        print("[Hotkey] Ctrl + Alt + Space -> Play / Pause")
-                        threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
-                        return 1
+                    vk = kb_struct.vkCode
+
+                    # Skip standalone modifier key presses
+                    if vk not in (VK_CONTROL, VK_LCONTROL, VK_RCONTROL, VK_MENU, VK_LMENU, VK_RMENU, VK_SHIFT, VK_LSHIFT, VK_RSHIFT, 0x5B, 0x5C):
+                        c_down = is_ctrl_down()
+                        a_down = is_alt_down()
+                        s_down = is_shift_down()
+
+                        hotkeys = bridge_config.get("hotkeys", {})
+                        for action in ("skip", "prev", "toggle"):
+                            cfg = hotkeys.get(action)
+                            if not cfg or not cfg.get("enabled", True):
+                                continue
+                            if cfg.get("vk") == vk:
+                                req_c = bool(cfg.get("ctrl", False))
+                                req_a = bool(cfg.get("alt", False))
+                                req_s = bool(cfg.get("shift", False))
+                                if (c_down == req_c) and (a_down == req_a) and (s_down == req_s):
+                                    if check_debounce(action):
+                                        print(f"[Hotkey] Triggered configured shortcut for '{action}': {cfg.get('name')}")
+                                        threading.Thread(target=lambda a=action: trigger_media_command(a), daemon=True).start()
+                                    return 1
             return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
         hook_mouse_cb = HOOKPROC(low_level_mouse_proc)
@@ -894,11 +1033,12 @@ def setup_global_hotkeys():
         hook_kbd_cb = HOOKPROC(low_level_kbd_proc)
         hook_kbd_id = user32.SetWindowsHookExW(WH_KEYBOARD_LL, hook_kbd_cb, kernel32.GetModuleHandleW(None), 0)
 
-        print("[Shortcuts] Universal Windows Hotkeys Active:")
-        print("  - Ctrl + Alt + Left Click   -> Skip Song")
-        print("  - Ctrl + Alt + Right Click  -> Replay / Go Back")
-        print("  - Ctrl + Alt + Middle Click -> Play / Pause")
-        print("  - Ctrl + Alt + Space        -> Play / Pause")
+        print(f"[Shortcuts] Dynamic Windows Hotkeys Active (Config: {CONFIG_PATH}):")
+        hk = bridge_config.get("hotkeys", {})
+        print(f"  - Skip Song:      {hk.get('skip', {}).get('name', 'None')}")
+        print(f"  - Previous Song:  {hk.get('prev', {}).get('name', 'None')}")
+        print(f"  - Play / Pause:   {hk.get('toggle', {}).get('name', 'None')}")
+        print("  - Mouse Gestures: Ctrl + Alt + Left/Right/Middle Click (Enabled: %s)" % bridge_config.get("enable_mouse_shortcuts", True))
 
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), 0, 0, 0) != 0:
@@ -965,11 +1105,31 @@ class BridgeHandler(BaseHTTPRequestHandler):
         elif path.startswith("/prev"):
             trigger_media_command("prev")
             self._send_response_data("application/json", b'{"status":"previous"}')
+        elif path.startswith("/config"):
+            data = json.dumps(bridge_config).encode("utf-8")
+            self._send_response_data("application/json", data)
         elif path.startswith("/update"):
             threading.Thread(target=lambda: check_for_updates(auto=False), daemon=True).start()
             self._send_response_data("application/json", b'{"status":"checking_updates"}')
         else:
             self._send_response_data("application/json", b'{"status":"ok"}')
+
+    def do_POST(self):
+        path = self.path.lower()
+        if path.startswith("/config"):
+            try:
+                content_len = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_len)
+                new_cfg = json.loads(body.decode("utf-8"))
+                if isinstance(new_cfg, dict):
+                    bridge_config.update(new_cfg)
+                    save_config()
+                    self._send_response_data("application/json", b'{"status":"saved"}')
+                    return
+            except Exception as e:
+                self._send_response_data("application/json", json.dumps({"error": str(e)}).encode("utf-8"), status=400)
+                return
+        self._send_response_data("application/json", b'{"status":"unknown_post"}')
 
 def run_http_server():
     server = ThreadingHTTPServer(("127.0.0.1", PORT), BridgeHandler)
@@ -1077,6 +1237,586 @@ def run_update_loop():
         time.sleep(45)  # Check every 45 seconds for active development & instant release sync
         check_for_updates(auto=True)
 
+# ── Standalone Desktop GUI & Keybind Configuration ────────────────
+def open_keybind_recorder(parent, action_key: str, action_label: str, on_saved_cb):
+    """Interactive modal dialog that captures key combinations (modifiers + key) and binds them."""
+    dialog = tk.Toplevel(parent)
+    dialog.title(f"Configure Keybind — {action_label}")
+    dialog.geometry("460x240")
+    dialog.resizable(False, False)
+    dialog.configure(bg="#14141c")
+    dialog.transient(parent)
+    dialog.grab_set()
+
+    # Center dialog on parent window
+    parent.update_idletasks()
+    px = parent.winfo_x()
+    py = parent.winfo_y()
+    pw = parent.winfo_width()
+    ph = parent.winfo_height()
+    dx = px + max(0, (pw - 460) // 2)
+    dy = py + max(0, (ph - 240) // 2)
+    dialog.geometry(f"+{dx}+{dy}")
+
+    t_lbl = tk.Label(
+        dialog,
+        text=f"Set Keybind: {action_label}",
+        font=("Segoe UI", 12, "bold"),
+        bg="#14141c",
+        fg="#ffffff"
+    )
+    t_lbl.pack(pady=(18, 4))
+
+    hint_lbl = tk.Label(
+        dialog,
+        text="Press any key combination on your keyboard (e.g. Ctrl+Alt+Right, F9, Alt+N)\nPress standalone Escape to cancel.",
+        font=("Segoe UI", 9),
+        bg="#14141c",
+        fg="#888898",
+        justify="center"
+    )
+    hint_lbl.pack(pady=(0, 14))
+
+    badge_frame = tk.Frame(dialog, bg="#1c1c28", highlightbackground="#37aff5", highlightthickness=1, padx=16, pady=10)
+    badge_frame.pack(fill="x", padx=40, pady=(0, 16))
+
+    status_badge = tk.Label(
+        badge_frame,
+        text="[ Listening... Press any key combination ]",
+        font=("Consolas", 11, "bold"),
+        bg="#1c1c28",
+        fg="#37aff5"
+    )
+    status_badge.pack()
+
+    recorded = {"done": False}
+
+    def on_dialog_key(event):
+        if recorded["done"]:
+            return
+
+        vk = event.keycode
+        user32 = ctypes.windll.user32
+        c_down = (user32.GetAsyncKeyState(0x11) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA2) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA3) & 0x8000 != 0)
+        a_down = (user32.GetAsyncKeyState(0x12) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA4) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA5) & 0x8000 != 0)
+        s_down = (user32.GetAsyncKeyState(0x10) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA0) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA1) & 0x8000 != 0)
+
+        # Cancel on standalone Escape
+        if vk == 27 and not c_down and not a_down and not s_down:
+            dialog.destroy()
+            return
+
+        # Pure modifier keys: update preview
+        if vk in (16, 17, 18, 160, 161, 162, 163, 164, 165, 91, 92):
+            mod_names = []
+            if c_down: mod_names.append("Ctrl")
+            if a_down: mod_names.append("Alt")
+            if s_down: mod_names.append("Shift")
+            preview = (" + ".join(mod_names) + " + ...") if mod_names else "[ Listening... Press any key combination ]"
+            status_badge.config(text=preview, fg="#37aff5")
+            return
+
+        combo_name = format_hotkey_name(c_down, a_down, s_down, vk)
+        bridge_config["hotkeys"][action_key] = {
+            "name": combo_name,
+            "vk": vk,
+            "ctrl": c_down,
+            "alt": a_down,
+            "shift": s_down,
+            "enabled": True
+        }
+        save_config()
+        recorded["done"] = True
+        status_badge.config(text=f"✓ Bound: {combo_name}", fg="#10b981")
+        badge_frame.config(highlightbackground="#10b981")
+        if on_saved_cb:
+            on_saved_cb(combo_name)
+        dialog.after(380, dialog.destroy)
+
+    dialog.bind("<KeyPress>", on_dialog_key)
+
+    btn_row = tk.Frame(dialog, bg="#14141c")
+    btn_row.pack(fill="x", padx=40)
+
+    def on_disable():
+        bridge_config["hotkeys"][action_key]["enabled"] = False
+        bridge_config["hotkeys"][action_key]["name"] = "Disabled"
+        save_config()
+        if on_saved_cb:
+            on_saved_cb("Disabled")
+        dialog.destroy()
+
+    dis_btn = tk.Button(
+        btn_row,
+        text="Disable Shortcut",
+        font=("Segoe UI", 9),
+        bg="#22222e",
+        fg="#ef4444",
+        activebackground="#2e2e3e",
+        activeforeground="#ef4444",
+        relief="flat",
+        bd=0,
+        padx=12,
+        pady=5,
+        command=on_disable
+    )
+    dis_btn.pack(side="left")
+
+    cancel_btn = tk.Button(
+        btn_row,
+        text="Cancel",
+        font=("Segoe UI", 9),
+        bg="#22222e",
+        fg="#ffffff",
+        activebackground="#2e2e3e",
+        activeforeground="#ffffff",
+        relief="flat",
+        bd=0,
+        padx=16,
+        pady=5,
+        command=dialog.destroy
+    )
+    cancel_btn.pack(side="right")
+
+class MusicBridgeApp:
+    def __init__(self, root: tk.Tk, on_quit_callback):
+        self.root = root
+        self.on_quit_callback = on_quit_callback
+
+        self.root.title(f"Modular MusicBridge — Standalone Controller (v{VERSION})")
+        self.root.geometry("540x660")
+        self.root.resizable(False, False)
+        self.root.configure(bg="#111116")
+
+        # Windows taskbar grouping
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("vxmpingz.musicbridge.app")
+        except Exception:
+            pass
+
+        self.icon_photo = None
+        try:
+            tray_img = create_tray_icon()
+            self.icon_photo = ImageTk.PhotoImage(tray_img)
+            self.root.iconphoto(False, self.icon_photo)
+        except Exception:
+            pass
+
+        self.root.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
+
+        self.cached_cover_ver = -1
+        self.current_cover_tk = None
+
+        self.build_ui()
+        self.update_tick()
+
+    def build_ui(self):
+        container = tk.Frame(self.root, bg="#111116", padx=16, pady=16)
+        container.pack(fill="both", expand=True)
+
+        # ── Header ──────────────────────────────────────────────────
+        header = tk.Frame(container, bg="#111116")
+        header.pack(fill="x", pady=(0, 14))
+
+        title_box = tk.Frame(header, bg="#111116")
+        title_box.pack(side="left")
+
+        app_title = tk.Label(
+            title_box,
+            text="✦ Modular MusicBridge",
+            font=("Segoe UI", 13, "bold"),
+            bg="#111116",
+            fg="#ffffff"
+        )
+        app_title.pack(side="left")
+
+        ver_pill = tk.Label(
+            title_box,
+            text=f"v{VERSION}",
+            font=("Segoe UI", 8, "bold"),
+            bg="#18283a",
+            fg="#37aff5",
+            padx=6,
+            pady=2
+        )
+        ver_pill.pack(side="left", padx=(8, 0))
+
+        status_pill = tk.Label(
+            header,
+            text=f"● Port {PORT} Active",
+            font=("Segoe UI", 9, "bold"),
+            bg="#122c1e",
+            fg="#10b981",
+            padx=8,
+            pady=3
+        )
+        status_pill.pack(side="right")
+
+        sub_desc = tk.Label(
+            container,
+            text="Universal Windows Media Controller, Sub-Second Synced Lyrics & Global Hotkeys",
+            font=("Segoe UI", 8),
+            bg="#111116",
+            fg="#707082"
+        )
+        sub_desc.pack(anchor="w", pady=(0, 12))
+
+        # ── Card 1: Now Playing Live Monitor ────────────────────────
+        card_media = tk.Frame(container, bg="#181822", highlightbackground="#282836", highlightthickness=1, padx=12, pady=12)
+        card_media.pack(fill="x", pady=(0, 12))
+
+        media_top = tk.Frame(card_media, bg="#181822")
+        media_top.pack(fill="x")
+
+        # Cover Thumbnail
+        self.cover_canvas = tk.Canvas(media_top, width=54, height=54, bg="#14141c", highlightthickness=1, highlightbackground="#282836")
+        self.cover_canvas.pack(side="left", padx=(0, 12))
+
+        # Track Meta
+        meta_box = tk.Frame(media_top, bg="#181822")
+        meta_box.pack(side="left", fill="x", expand=True)
+
+        self.title_lbl = tk.Label(
+            meta_box,
+            text="No Media Playing",
+            font=("Segoe UI", 10, "bold"),
+            bg="#181822",
+            fg="#ffffff",
+            anchor="w"
+        )
+        self.title_lbl.pack(fill="x")
+
+        self.artist_lbl = tk.Label(
+            meta_box,
+            text="Waiting for Spotify, YouTube, SoundCloud, or Apple Music...",
+            font=("Segoe UI", 8),
+            bg="#181822",
+            fg="#888898",
+            anchor="w"
+        )
+        self.artist_lbl.pack(fill="x", pady=(2, 0))
+
+        # Progress Bar & Time
+        self.prog_canvas = tk.Canvas(card_media, height=4, bg="#242432", highlightthickness=0)
+        self.prog_canvas.pack(fill="x", pady=(10, 4))
+        self.prog_bar = self.prog_canvas.create_rectangle(0, 0, 0, 4, fill="#37aff5", width=0)
+
+        time_row = tk.Frame(card_media, bg="#181822")
+        time_row.pack(fill="x", pady=(0, 8))
+
+        self.time_lbl = tk.Label(time_row, text="0:00 / 0:00", font=("Consolas", 8), bg="#181822", fg="#78788a")
+        self.time_lbl.pack(side="left")
+
+        # Playback Control Buttons
+        ctrl_row = tk.Frame(card_media, bg="#181822")
+        ctrl_row.pack(fill="x")
+
+        def make_btn(parent, text, cmd, is_accent=False):
+            b = tk.Button(
+                parent,
+                text=text,
+                font=("Segoe UI", 9, "bold" if is_accent else "normal"),
+                bg="#37aff5" if is_accent else "#22222e",
+                fg="#000000" if is_accent else "#ffffff",
+                activebackground="#60c4ff" if is_accent else "#2f2f40",
+                activeforeground="#000000" if is_accent else "#ffffff",
+                relief="flat",
+                bd=0,
+                padx=14,
+                pady=5,
+                command=cmd
+            )
+            return b
+
+        self.btn_prev = make_btn(ctrl_row, "⏮ Prev", lambda: trigger_media_command("prev"))
+        self.btn_prev.pack(side="left", padx=(0, 6))
+
+        self.btn_play = make_btn(ctrl_row, "▶ Play / Pause", lambda: trigger_media_command("toggle"), is_accent=True)
+        self.btn_play.pack(side="left", padx=(0, 6))
+
+        self.btn_skip = make_btn(ctrl_row, "⏭ Skip", lambda: trigger_media_command("skip"))
+        self.btn_skip.pack(side="left")
+
+        # ── Card 2: Configurable Global Shortcuts ────────────────────
+        card_hotkeys = tk.Frame(container, bg="#181822", highlightbackground="#282836", highlightthickness=1, padx=12, pady=12)
+        card_hotkeys.pack(fill="x", pady=(0, 12))
+
+        hk_header = tk.Frame(card_hotkeys, bg="#181822")
+        hk_header.pack(fill="x", pady=(0, 6))
+
+        tk.Label(
+            hk_header,
+            text="Global Media Shortcuts",
+            font=("Segoe UI", 10, "bold"),
+            bg="#181822",
+            fg="#ffffff"
+        ).pack(side="left")
+
+        tk.Label(
+            card_hotkeys,
+            text="Customize hotkeys to control playback from anywhere without switching tabs.",
+            font=("Segoe UI", 8),
+            bg="#181822",
+            fg="#888898"
+        ).pack(anchor="w", pady=(0, 10))
+
+        # Hotkey Rows: Skip, Prev, Toggle
+        self.badge_labels = {}
+
+        def build_hotkey_row(action_key: str, action_title: str):
+            row = tk.Frame(card_hotkeys, bg="#181822")
+            row.pack(fill="x", pady=4)
+
+            tk.Label(
+                row,
+                text=action_title,
+                font=("Segoe UI", 9),
+                bg="#181822",
+                fg="#d0d0dc",
+                width=16,
+                anchor="w"
+            ).pack(side="left")
+
+            badge_box = tk.Frame(row, bg="#1e2432", highlightbackground="#2d3d52", highlightthickness=1, padx=8, pady=3)
+            badge_box.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+            cfg = bridge_config.get("hotkeys", {}).get(action_key, {})
+            init_name = cfg.get("name", "Not Set")
+
+            badge_lbl = tk.Label(
+                badge_box,
+                text=init_name,
+                font=("Consolas", 9, "bold"),
+                bg="#1e2432",
+                fg="#37aff5"
+            )
+            badge_lbl.pack()
+            self.badge_labels[action_key] = badge_lbl
+
+            def on_saved(new_name):
+                badge_lbl.config(text=new_name)
+
+            set_btn = tk.Button(
+                row,
+                text="Change",
+                font=("Segoe UI", 8, "bold"),
+                bg="#262638",
+                fg="#ffffff",
+                activebackground="#36364e",
+                activeforeground="#ffffff",
+                relief="flat",
+                bd=0,
+                padx=10,
+                pady=3,
+                command=lambda: open_keybind_recorder(self.root, action_key, action_title, on_saved)
+            )
+            set_btn.pack(side="left", padx=(0, 4))
+
+            def on_reset():
+                def_cfg = DEFAULT_CONFIG["hotkeys"].get(action_key, {})
+                bridge_config["hotkeys"][action_key] = json.loads(json.dumps(def_cfg))
+                save_config()
+                badge_lbl.config(text=def_cfg.get("name", "Default"))
+
+            rst_btn = tk.Button(
+                row,
+                text="Reset",
+                font=("Segoe UI", 8),
+                bg="#1e1e28",
+                fg="#787888",
+                activebackground="#2a2a38",
+                activeforeground="#ffffff",
+                relief="flat",
+                bd=0,
+                padx=8,
+                pady=3,
+                command=on_reset
+            )
+            rst_btn.pack(side="left")
+
+        build_hotkey_row("skip", "Skip Track")
+        build_hotkey_row("prev", "Previous Track")
+        build_hotkey_row("toggle", "Play / Pause")
+
+        # Toggles for Keyboard & Mouse shortcuts
+        toggles_frame = tk.Frame(card_hotkeys, bg="#181822")
+        toggles_frame.pack(fill="x", pady=(10, 0))
+
+        self.kbd_toggle_var = tk.BooleanVar(value=bridge_config.get("enable_global_hotkeys", True))
+        def on_toggle_kbd():
+            bridge_config["enable_global_hotkeys"] = self.kbd_toggle_var.get()
+            save_config()
+
+        chk_kbd = tk.Checkbutton(
+            toggles_frame,
+            text="Enable Global Keyboard Hotkeys",
+            variable=self.kbd_toggle_var,
+            font=("Segoe UI", 9),
+            bg="#181822",
+            fg="#ffffff",
+            activebackground="#181822",
+            activeforeground="#ffffff",
+            selectcolor="#22222e",
+            command=on_toggle_kbd
+        )
+        chk_kbd.pack(anchor="w")
+
+        self.mouse_toggle_var = tk.BooleanVar(value=bridge_config.get("enable_mouse_shortcuts", True))
+        def on_toggle_mouse():
+            bridge_config["enable_mouse_shortcuts"] = self.mouse_toggle_var.get()
+            save_config()
+
+        chk_mouse = tk.Checkbutton(
+            toggles_frame,
+            text="Enable Mouse Gestures (Ctrl + Alt + Left/Right/Middle Click)",
+            variable=self.mouse_toggle_var,
+            font=("Segoe UI", 9),
+            bg="#181822",
+            fg="#ffffff",
+            activebackground="#181822",
+            activeforeground="#ffffff",
+            selectcolor="#22222e",
+            command=on_toggle_mouse
+        )
+        chk_mouse.pack(anchor="w")
+
+        # ── Card 3: System & Integration Options ─────────────────────
+        card_sys = tk.Frame(container, bg="#181822", highlightbackground="#282836", highlightthickness=1, padx=12, pady=10)
+        card_sys.pack(fill="x")
+
+        self.startup_var = tk.BooleanVar(value=is_startup_enabled())
+        def on_toggle_startup():
+            set_startup(self.startup_var.get())
+
+        chk_start = tk.Checkbutton(
+            card_sys,
+            text="Launch MusicBridge on Windows Startup",
+            variable=self.startup_var,
+            font=("Segoe UI", 9),
+            bg="#181822",
+            fg="#ffffff",
+            activebackground="#181822",
+            activeforeground="#ffffff",
+            selectcolor="#22222e",
+            command=on_toggle_startup
+        )
+        chk_start.pack(side="left")
+
+        action_row = tk.Frame(container, bg="#111116")
+        action_row.pack(fill="x", pady=(12, 0))
+
+        btn_update = tk.Button(
+            action_row,
+            text="Check for Updates",
+            font=("Segoe UI", 8),
+            bg="#22222e",
+            fg="#c0c0d0",
+            activebackground="#2e2e3e",
+            activeforeground="#ffffff",
+            relief="flat",
+            bd=0,
+            padx=10,
+            pady=4,
+            command=lambda: threading.Thread(target=lambda: check_for_updates(auto=False), daemon=True).start()
+        )
+        btn_update.pack(side="left")
+
+        btn_tray = tk.Button(
+            action_row,
+            text="Minimize to Tray",
+            font=("Segoe UI", 8),
+            bg="#22222e",
+            fg="#c0c0d0",
+            activebackground="#2e2e3e",
+            activeforeground="#ffffff",
+            relief="flat",
+            bd=0,
+            padx=10,
+            pady=4,
+            command=self.hide_to_tray
+        )
+        btn_tray.pack(side="left", padx=8)
+
+        btn_exit = tk.Button(
+            action_row,
+            text="Exit Bridge",
+            font=("Segoe UI", 8),
+            bg="#2a1818",
+            fg="#ef4444",
+            activebackground="#3a2020",
+            activeforeground="#ef4444",
+            relief="flat",
+            bd=0,
+            padx=10,
+            pady=4,
+            command=self.on_quit_callback
+        )
+        btn_exit.pack(side="right")
+
+    def hide_to_tray(self):
+        self.root.withdraw()
+
+    def show_window(self):
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+    def update_tick(self):
+        try:
+            # Update Track Titles
+            t = current_media.get("title", "No Media Playing")
+            a = current_media.get("artist", "")
+            if t == "No Song Playing" or not current_media.get("isPlaying"):
+                if t == "No Song Playing":
+                    self.title_lbl.config(text="No Media Playing")
+                    self.artist_lbl.config(text="Waiting for Media...")
+                else:
+                    self.title_lbl.config(text=f"{t} (Paused)")
+                    self.artist_lbl.config(text=a)
+            else:
+                self.title_lbl.config(text=t)
+                self.artist_lbl.config(text=a)
+
+            # Update Play/Pause Button Label
+            is_playing = current_media.get("isPlaying", False)
+            self.btn_play.config(text="❚❚ Pause" if is_playing else "▶ Play")
+
+            # Update Progress Bar & Time
+            pos = float(current_media.get("position", 0.0))
+            dur = float(current_media.get("duration", 0.0))
+            if dur > 0:
+                ratio = max(0.0, min(pos / dur, 1.0))
+                cw = self.prog_canvas.winfo_width()
+                if cw > 1:
+                    self.prog_canvas.coords(self.prog_bar, 0, 0, int(cw * ratio), 4)
+                p_min, p_sec = int(pos // 60), int(pos % 60)
+                d_min, d_sec = int(dur // 60), int(dur % 60)
+                self.time_lbl.config(text=f"{p_min}:{p_sec:02d} / {d_min}:{d_sec:02d}")
+            else:
+                self.prog_canvas.coords(self.prog_bar, 0, 0, 0, 4)
+                self.time_lbl.config(text="0:00 / 0:00")
+
+            # Update Cover Art if version changed
+            c_ver = current_media.get("coverVersion", 0)
+            if c_ver != self.cached_cover_ver:
+                self.cached_cover_ver = c_ver
+                if current_cover_bytes and len(current_cover_bytes) > 100:
+                    try:
+                        pil_img = Image.open(io.BytesIO(current_cover_bytes)).convert("RGBA")
+                        pil_img = pil_img.resize((54, 54), Image.Resampling.LANCZOS)
+                        self.current_cover_tk = ImageTk.PhotoImage(pil_img)
+                        self.cover_canvas.delete("all")
+                        self.cover_canvas.create_image(27, 27, image=self.current_cover_tk)
+                    except Exception:
+                        pass
+                else:
+                    self.cover_canvas.delete("all")
+                    self.cover_canvas.create_text(27, 27, text="♫", fill="#37aff5", font=("Segoe UI", 16, "bold"))
+        except Exception:
+            pass
+
+        self.root.after(400, self.update_tick)
+
 # ── System Tray Icon & Menu ────────────────────────────────────────
 def create_tray_icon():
     img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
@@ -1101,7 +1841,7 @@ def main():
         check_for_updates(auto=False)
         sys.exit(0)
 
-    # Ensure startup registration is always active by default
+    # Ensure startup registration is active by default
     try:
         set_startup(True)
     except Exception as se:
@@ -1110,6 +1850,7 @@ def main():
     # Initial update check on startup
     threading.Thread(target=lambda: check_for_updates(auto=True), daemon=True).start()
 
+    # Background service threads
     t1 = threading.Thread(target=run_http_server, daemon=True)
     t1.start()
 
@@ -1125,9 +1866,27 @@ def main():
     t5 = threading.Thread(target=setup_global_hotkeys, daemon=True)
     t5.start()
 
-    def toggle_startup(icon, item):
-        new_val = not is_startup_enabled()
-        set_startup(new_val)
+    # Initialize Tkinter Standalone GUI
+    root = tk.Tk()
+
+    tray_icon_holder = [None]
+
+    def cleanup_and_exit():
+        try:
+            if tray_icon_holder[0]:
+                tray_icon_holder[0].stop()
+        except Exception:
+            pass
+        try:
+            root.destroy()
+        except Exception:
+            pass
+        os._exit(0)
+
+    app = MusicBridgeApp(root, cleanup_and_exit)
+
+    def on_tray_open(icon, item):
+        root.after(0, app.show_window)
 
     def on_toggle_play(icon, item):
         trigger_media_command("toggle")
@@ -1141,30 +1900,40 @@ def main():
     def on_check_updates(icon, item):
         threading.Thread(target=lambda: check_for_updates(auto=False), daemon=True).start()
 
-    def on_exit(icon, item):
-        icon.stop()
-        os._exit(0)
+    def toggle_startup(icon, item):
+        new_val = not is_startup_enabled()
+        set_startup(new_val)
 
     menu = pystray.Menu(
         pystray.MenuItem(f"Modular MusicBridge v{VERSION} (Port {PORT})", None, enabled=False),
-        pystray.MenuItem("Play / Pause (Ctrl + Alt + Middle Click / Space)", on_toggle_play),
-        pystray.MenuItem("Next Track / Skip (Ctrl + Alt + Left Click)", on_skip),
-        pystray.MenuItem("Previous Track (Ctrl + Alt + Right Click)", on_prev),
+        pystray.MenuItem("Open MusicBridge App", on_tray_open, default=True),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("Play / Pause", on_toggle_play),
+        pystray.MenuItem("Next Track / Skip", on_skip),
+        pystray.MenuItem("Previous Track", on_prev),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Check for Updates", on_check_updates),
         pystray.MenuItem("Run on Startup", toggle_startup, checked=lambda item: is_startup_enabled()),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Exit", on_exit)
+        pystray.MenuItem("Exit", lambda icon, item: cleanup_and_exit())
     )
 
-    icon = pystray.Icon(
+    tray_icon = pystray.Icon(
         name="ModularMusicBridge",
         icon=create_tray_icon(),
-        title=f"Modular MusicBridge v{VERSION} (Ctrl+Alt+Click Shortcuts Active)",
+        title=f"Modular MusicBridge v{VERSION} (Active)",
         menu=menu
     )
+    tray_icon_holder[0] = tray_icon
+    tray_icon.run_detached()
 
-    icon.run()
+    # If launched with --tray or --background, start minimized
+    if "--tray" in sys.argv or "--background" in sys.argv:
+        root.withdraw()
+    else:
+        root.deiconify()
+
+    root.mainloop()
 
 if __name__ == "__main__":
     main()

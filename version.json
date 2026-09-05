@@ -1,7 +1,7 @@
 {
-  "version": "1.4.7",
+  "version": "1.4.8",
   "name": "Project Fih MusicBridge",
-  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.7",
+  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.8",
   "download_url": "https://github.com/FIHHHH2/New_project/raw/main/dist/MusicBridge.exe",
-  "changelog": "Sub-second word-level timestamp syncing with inline enhanced LRC support and real-time word-by-word animated karaoke in Roblox UI."
+  "changelog": "Standalone desktop application with live playback monitor, customizable global hotkeys for skip/prev/pause, and real-time tray integration."
 }

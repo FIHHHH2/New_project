@@ -1,0 +1,30 @@
+{
+  "enable_global_hotkeys": true,
+  "enable_mouse_shortcuts": true,
+  "hotkeys": {
+    "skip": {
+      "name": "Ctrl + Alt + Right",
+      "vk": 39,
+      "ctrl": true,
+      "alt": true,
+      "shift": false,
+      "enabled": true
+    },
+    "prev": {
+      "name": "Ctrl + Alt + Left",
+      "vk": 37,
+      "ctrl": true,
+      "alt": true,
+      "shift": false,
+      "enabled": true
+    },
+    "toggle": {
+      "name": "Ctrl + Alt + Space",
+      "vk": 32,
+      "ctrl": true,
+      "alt": true,
+      "shift": false,
+      "enabled": true
+    }
+  }
+}

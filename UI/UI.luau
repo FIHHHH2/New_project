@@ -431,7 +431,7 @@ function UI.createWindow(titleText: string)
 	uiScale.Scale = 1.0
 	uiScale.Parent = mainFrame
 
-	-- ── Top Bar (Segmented: [Version] [Title               — X]) ──────
+	-- ── Top Bar (Segmented: [Version] [Tabs: Main Combat Visuals ...] [Title Controls — X]) ──
 	local topbar = Instance.new("Frame")
 	topbar.Name = "TopBar"
 	topbar.Size = UDim2.new(1, -16, 0, 26)
@@ -440,10 +440,10 @@ function UI.createWindow(titleText: string)
 	topbar.BorderSizePixel = 0
 	topbar.Parent = mainFrame
 
-	-- [ Version ] Box on Left (Aligned with Sidebar)
+	-- [ Version ] Box on Left
 	local versionBox = Instance.new("Frame")
 	versionBox.Name = "VersionBox"
-	versionBox.Size = UDim2.new(0, 110, 1, 0)
+	versionBox.Size = UDim2.new(0, 60, 1, 0)
 	versionBox.Position = UDim2.new(0, 0, 0, 0)
 	versionBox.BackgroundColor3 = UI.Theme.Container
 	versionBox.BackgroundTransparency = UI.Theme.ContainerTransparency
@@ -453,7 +453,7 @@ function UI.createWindow(titleText: string)
 
 	local versionStroke = Instance.new("UIStroke")
 	versionStroke.Color = UI.Theme.Border
-	versionStroke.Thickness = 1.2
+	versionStroke.Thickness = 1.0
 	versionStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	versionStroke.Parent = versionBox
 	UI.registerThemeElement(versionStroke, "Border")
@@ -462,18 +462,38 @@ function UI.createWindow(titleText: string)
 	versionLabel.Name = "VersionLabel"
 	versionLabel.Size = UDim2.new(1, 0, 1, 0)
 	versionLabel.BackgroundTransparency = 1
-	versionLabel.Text = "Version"
+	versionLabel.Text = "v1.4.5"
 	versionLabel.TextColor3 = UI.Theme.TextPrimary
 	versionLabel.Font = UI.Fonts.Header
 	versionLabel.TextSize = 11
 	versionLabel.Parent = versionBox
 	UI.registerThemeElement(versionLabel, "TextPrimary")
 
-	-- [ Title ] Header Box on Right
+	-- [ Tabs Container ] in Top Bar Area
+	local sidebar = Instance.new("ScrollingFrame")
+	sidebar.Name = "Sidebar"
+	sidebar.Size = UDim2.new(1, -260, 1, 0)
+	sidebar.Position = UDim2.new(0, 66, 0, 0)
+	sidebar.BackgroundTransparency = 1
+	sidebar.BorderSizePixel = 0
+	sidebar.ScrollBarThickness = 0
+	sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
+	sidebar.AutomaticCanvasSize = Enum.AutomaticSize.X
+	sidebar.ClipsDescendants = true
+	sidebar.Parent = topbar
+
+	local sideList = Instance.new("UIListLayout")
+	sideList.Padding = UDim.new(0, 4)
+	sideList.SortOrder = Enum.SortOrder.LayoutOrder
+	sideList.FillDirection = Enum.FillDirection.Horizontal
+	sideList.VerticalAlignment = Enum.VerticalAlignment.Center
+	sideList.Parent = sidebar
+
+	-- [ Title & Controls ] Box on Right
 	local titleBox = Instance.new("Frame")
 	titleBox.Name = "TitleBox"
-	titleBox.Size = UDim2.new(1, -118, 1, 0)
-	titleBox.Position = UDim2.new(0, 118, 0, 0)
+	titleBox.Size = UDim2.new(0, 188, 1, 0)
+	titleBox.Position = UDim2.new(1, -188, 0, 0)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
@@ -482,15 +502,15 @@ function UI.createWindow(titleText: string)
 
 	local titleStroke = Instance.new("UIStroke")
 	titleStroke.Color = UI.Theme.Border
-	titleStroke.Thickness = 1.2
+	titleStroke.Thickness = 1.0
 	titleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	titleStroke.Parent = titleBox
 	UI.registerThemeElement(titleStroke, "Border")
 
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Name = "TitleLabel"
-	titleLabel.Size = UDim2.new(1, -70, 1, 0)
-	titleLabel.Position = UDim2.new(0, 8, 0, 0)
+	titleLabel.Size = UDim2.new(1, -54, 1, 0)
+	titleLabel.Position = UDim2.new(0, 6, 0, 0)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = titleText
 	titleLabel.TextColor3 = UI.Theme.TextPrimary
@@ -504,8 +524,8 @@ function UI.createWindow(titleText: string)
 	-- Minimize button [ — ]
 	local minButton = Instance.new("TextButton")
 	minButton.Name = "MinButton"
-	minButton.Size = UDim2.new(0, 24, 1, -4)
-	minButton.Position = UDim2.new(1, -54, 0, 2)
+	minButton.Size = UDim2.new(0, 22, 1, -4)
+	minButton.Position = UDim2.new(1, -48, 0, 2)
 	minButton.BackgroundColor3 = UI.Theme.ContainerDark
 	minButton.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	minButton.BorderSizePixel = 0
@@ -528,7 +548,7 @@ function UI.createWindow(titleText: string)
 	local closeButton = Instance.new("TextButton")
 	closeButton.Name = "CloseButton"
 	closeButton.Size = UDim2.new(0, 22, 1, -4)
-	closeButton.Position = UDim2.new(1, -26, 0, 2)
+	closeButton.Position = UDim2.new(1, -24, 0, 2)
 	closeButton.BackgroundColor3 = UI.Theme.ContainerDark
 	closeButton.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	closeButton.BorderSizePixel = 0
@@ -547,67 +567,15 @@ function UI.createWindow(titleText: string)
 	closeStroke.Parent = closeButton
 	UI.registerThemeElement(closeStroke, "Border")
 
-	-- ── Body Frame (Middle Area) ──────────────────────────────────────
+	-- ── Body Frame (Full Width Content Area) ──────────────────────────
 	local bodyFrame = Instance.new("Frame")
 	bodyFrame.Name = "BodyFrame"
-	bodyFrame.Size = UDim2.new(1, -16, 1, -74)
+	bodyFrame.Size = UDim2.new(1, -16, 1, -72)
 	bodyFrame.Position = UDim2.new(0, 8, 0, 40)
 	bodyFrame.BackgroundTransparency = 1
 	bodyFrame.BorderSizePixel = 0
+	bodyFrame.ClipsDescendants = false
 	bodyFrame.Parent = mainFrame
-
-	-- Left Sidebar Frame
-	local sidebarFrame = Instance.new("Frame")
-	sidebarFrame.Name = "SidebarFrame"
-	sidebarFrame.Size = UDim2.new(0, 110, 1, 0)
-	sidebarFrame.Position = UDim2.new(0, 0, 0, 0)
-	sidebarFrame.BackgroundColor3 = UI.Theme.ContainerDark
-	sidebarFrame.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
-	sidebarFrame.BorderSizePixel = 0
-	sidebarFrame.Parent = bodyFrame
-	UI.registerThemeElement(sidebarFrame, "ContainerDark")
-
-	local sidebarStroke = Instance.new("UIStroke")
-	sidebarStroke.Color = UI.Theme.Border
-	sidebarStroke.Thickness = 1.2
-	sidebarStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	sidebarStroke.Parent = sidebarFrame
-	UI.registerThemeElement(sidebarStroke, "Border")
-
-	local sidebar = Instance.new("ScrollingFrame")
-	sidebar.Name = "Sidebar"
-	sidebar.Size = UDim2.new(1, 0, 1, 0)
-	sidebar.Position = UDim2.new(0, 0, 0, 0)
-	sidebar.BackgroundTransparency = 1
-	sidebar.BorderSizePixel = 0
-	sidebar.ScrollBarThickness = 0
-	sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
-	sidebar.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	sidebar.ClipsDescendants = false
-	sidebar.Parent = sidebarFrame
-
-	local sidePad = Instance.new("UIPadding")
-	sidePad.PaddingLeft = UDim.new(0, 6)
-	sidePad.PaddingRight = UDim.new(0, 6)
-	sidePad.PaddingTop = UDim.new(0, 6)
-	sidePad.PaddingBottom = UDim.new(0, 6)
-	sidePad.Parent = sidebar
-
-	local sideList = Instance.new("UIListLayout")
-	sideList.Padding = UDim.new(0, 6)
-	sideList.SortOrder = Enum.SortOrder.LayoutOrder
-	sideList.VerticalAlignment = Enum.VerticalAlignment.Bottom
-	sideList.Parent = sidebar
-
-	-- Right Content Area
-	local rightMain = Instance.new("Frame")
-	rightMain.Name = "RightMain"
-	rightMain.Size = UDim2.new(1, -118, 1, 0)
-	rightMain.Position = UDim2.new(0, 118, 0, 0)
-	rightMain.BackgroundTransparency = 1
-	rightMain.BorderSizePixel = 0
-	rightMain.ClipsDescendants = false
-	rightMain.Parent = bodyFrame
 
 	local contentContainer = Instance.new("Frame")
 	contentContainer.Name = "ContentContainer"
@@ -616,7 +584,7 @@ function UI.createWindow(titleText: string)
 	contentContainer.BackgroundTransparency = 1
 	contentContainer.BorderSizePixel = 0
 	contentContainer.ClipsDescendants = false
-	contentContainer.Parent = rightMain
+	contentContainer.Parent = bodyFrame
 
 	-- ── Footer Bar (Segmented: [Status / Info Bar] [Settings] [Themes]) ─
 	local footerBar = Instance.new("Frame")

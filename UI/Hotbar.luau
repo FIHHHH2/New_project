@@ -275,11 +275,16 @@ function Hotbar.new(): HotbarWidget
 	ghostLabel.Parent = dragGhost
 
 	-- ── 1. Hotbar HUD Container ───────────────────────────────────────
-	local totalSlotsCount = NUM_SLOTS + 1
-	local totalWidth = (totalSlotsCount * SLOT_SIZE) + ((totalSlotsCount - 1) * SLOT_GAP) + 12
+	local function computeToolbarWidth(boxCount: number): number
+		local count = math.max(1, boxCount)
+		return (count * SLOT_SIZE) + ((count - 1) * SLOT_GAP) + 12
+	end
+
+	local initialBoxCount = 1
+	local initialWidth = computeToolbarWidth(initialBoxCount)
 	local hotbarFrame = Instance.new("Frame")
 	hotbarFrame.Name = "HotbarFrame"
-	hotbarFrame.Size = UDim2.new(0, totalWidth, 0, SLOT_SIZE + 10)
+	hotbarFrame.Size = UDim2.new(0, initialWidth, 0, SLOT_SIZE + 10)
 	hotbarFrame.AnchorPoint = Vector2.new(0.5, 1)
 	hotbarFrame.Position = UDim2.new(0.5, 0, 1, -16)
 	hotbarFrame.BackgroundColor3 = UI.Theme.Background
@@ -308,7 +313,7 @@ function Hotbar.new(): HotbarWidget
 	-- Sits slightly above the hotbar like an XP bar with centered HP text
 	local healthBarContainer = Instance.new("Frame")
 	healthBarContainer.Name = "ToolbarHealthBar"
-	healthBarContainer.Size = UDim2.new(0, totalWidth, 0, 14)
+	healthBarContainer.Size = UDim2.new(0, initialWidth, 0, 14)
 	healthBarContainer.AnchorPoint = Vector2.new(0.5, 1)
 	healthBarContainer.Position = UDim2.new(0.5, 0, 1, -(SLOT_SIZE + 10 + 16 + 10))
 	healthBarContainer.BackgroundColor3 = Color3.fromRGB(15, 22, 18)
@@ -567,6 +572,7 @@ function Hotbar.new(): HotbarWidget
 	local function updateSlotHighlightsOnly()
 		for slotNum = 1, NUM_SLOTS do
 			local slotBtn = slotFrames[slotNum]
+			if not slotBtn or not slotBtn.Visible then continue end
 			local tool = assignedSlots[slotNum]
 			local stroke = slotBtn:FindFirstChildWhichIsA("UIStroke")
 			local nameLabel = slotBtn:FindFirstChild("ToolName") :: TextLabel?
@@ -672,8 +678,36 @@ function Hotbar.new(): HotbarWidget
 
 		compactSlots()
 
+		-- Count how many valid tools are currently assigned
+		local activeCount = 0
+		for i = 1, NUM_SLOTS do
+			if assignedSlots[i] and validToolSet[assignedSlots[i]] then
+				activeCount += 1
+			end
+		end
+
+		-- If there isn't any objects, have just one box; otherwise size to active tool count
+		local displaySlots = if activeCount == 0 then 1 else math.min(NUM_SLOTS, activeCount)
+		local newWidth = computeToolbarWidth(displaySlots)
+
+		-- Smoothly resize both the toolbar HUD and the health bar container
+		TweenService:Create(hotbarFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, newWidth, 0, SLOT_SIZE + 10)
+		}):Play()
+
+		TweenService:Create(healthBarContainer, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, newWidth, 0, 14)
+		}):Play()
+
 		for slotNum = 1, NUM_SLOTS do
 			local slotBtn = slotFrames[slotNum]
+			local isVisible = (slotNum <= displaySlots)
+			slotBtn.Visible = isVisible
+
+			if not isVisible then
+				continue
+			end
+
 			local tool = assignedSlots[slotNum]
 			local stroke = slotBtn:FindFirstChildWhichIsA("UIStroke")
 			local nameLabel = slotBtn:FindFirstChild("ToolName") :: TextLabel?
@@ -961,7 +995,7 @@ function Hotbar.new(): HotbarWidget
 		-- 1. Exact hit test on individual slot buttons
 		for slotIdx = 1, NUM_SLOTS do
 			local slotFrame = slotFrames[slotIdx]
-			if slotFrame and isPointInsideGui(mousePos, slotFrame) then
+			if slotFrame and slotFrame.Visible and isPointInsideGui(mousePos, slotFrame) then
 				return slotIdx
 			end
 		end
@@ -975,7 +1009,7 @@ function Hotbar.new(): HotbarWidget
 			local minDist = math.huge
 			for slotIdx = 1, NUM_SLOTS do
 				local slotFrame = slotFrames[slotIdx]
-				if slotFrame then
+				if slotFrame and slotFrame.Visible then
 					local center = slotFrame.AbsolutePosition + slotFrame.AbsoluteSize / 2
 					local dist = math.abs(mousePos.X - center.X)
 					if dist < minDist then
@@ -1117,6 +1151,8 @@ function Hotbar.new(): HotbarWidget
 		end
 	end))
 
+	local toggleBackpack: () -> ()
+
 	-- ── 8. Create Slots in Hotbar HUD ─────────────────────────────────
 	for i = 1, NUM_SLOTS do
 		local slotBtn = Instance.new("TextButton")
@@ -1143,24 +1179,25 @@ function Hotbar.new(): HotbarWidget
 		slotScale.Scale = 1.0
 		slotScale.Parent = slotBtn
 
-		local numLabel = Instance.new("TextLabel")
-		numLabel.Name = "SlotNum"
-		numLabel.Size = UDim2.new(0, 14, 0, 12)
-		numLabel.Position = UDim2.new(0, 2, 0, 2)
-		numLabel.BackgroundTransparency = 1
-		numLabel.Text = tostring(i % 10)
-		numLabel.TextColor3 = UI.Theme.TextSecondary
-		numLabel.Font = UI.Fonts.Mono
-		numLabel.TextSize = 9
-		numLabel.TextXAlignment = Enum.TextXAlignment.Left
-		numLabel.ZIndex = 10
-		numLabel.Parent = slotBtn
-		UI.registerThemeElement(numLabel, "TextSecondary")
+		-- Number Indicator (1-0) in Top-Left Corner
+		local keyLabel = Instance.new("TextLabel")
+		keyLabel.Name = "KeyLabel"
+		keyLabel.Size = UDim2.new(0, 14, 0, 12)
+		keyLabel.Position = UDim2.new(0, 2, 0, 2)
+		keyLabel.BackgroundTransparency = 1
+		keyLabel.Text = if i == 10 then "0" else tostring(i)
+		keyLabel.TextColor3 = UI.Theme.TextSecondary
+		keyLabel.Font = UI.Fonts.Header
+		keyLabel.TextSize = 9
+		keyLabel.ZIndex = 10
+		keyLabel.Parent = slotBtn
+		UI.registerThemeElement(keyLabel, "TextSecondary")
 
+		-- Tool Name Label at Bottom of Slot
 		local nameLabel = Instance.new("TextLabel")
 		nameLabel.Name = "ToolName"
 		nameLabel.Size = UDim2.new(1, -4, 0, 12)
-		nameLabel.Position = UDim2.new(0, 2, 1, -14)
+		nameLabel.Position = UDim2.new(0, 2, 1, -13)
 		nameLabel.BackgroundTransparency = 1
 		nameLabel.Text = ""
 		nameLabel.TextColor3 = UI.Theme.TextPrimary
@@ -1201,6 +1238,9 @@ function Hotbar.new(): HotbarWidget
 				if tool then
 					Animations.buttonClickPop(slotBtn)
 					equipOrToggleTool(tool)
+				else
+					Animations.buttonClickPop(slotBtn)
+					if toggleBackpack then toggleBackpack() end
 				end
 			end
 		end))
@@ -1211,7 +1251,7 @@ function Hotbar.new(): HotbarWidget
 	local isHotbarEnabled = true
 
 	-- ── 9. Dedicated Hamburger [ ≡ INV ] Button on Toolbar ────────────
-	local function toggleBackpack()
+	toggleBackpack = function()
 		if not isHotbarEnabled then return end
 		isBackpackOpen = not isBackpackOpen
 		bpWindow.Visible = isBackpackOpen
@@ -1234,6 +1274,7 @@ function Hotbar.new(): HotbarWidget
 	invBtn.AutoButtonColor = false
 	invBtn.ClipsDescendants = true
 	invBtn.LayoutOrder = 11
+	invBtn.Visible = false
 	invBtn.Parent = hotbarFrame
 	UI.registerThemeElement(invBtn, "ContainerDark")
 	Animations.buttonHoverPush(invBtn)

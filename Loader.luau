@@ -5424,62 +5424,15 @@ Modules["UI/MusicTracker.luau"] = function()
     	local lastSoundScanClock = 0
     	local cachedLoudestSound: Sound? = nil
 
-    	-- ── Heartbeat Synchronizer & In-Game Sound Scanner ───────────────
+    	-- ── Heartbeat Synchronizer (Only Provider Audio Drives Visualizer) ────
     	RunService.Heartbeat:Connect(function()
     		if not widget.Visible or not screenGui.Enabled then return end
 
-    		-- In-Game Sound Tracking (Throttled to eliminate Workspace:GetDescendants lag spikes)
+    		-- When no external provider bridge is connected, keep visualizer flat and silent
     		if not hasExternalBridge then
-    			local now = os.clock()
-    			if (now - lastSoundScanClock > 1.5) or (cachedLoudestSound and not cachedLoudestSound.IsPlaying) then
-    				lastSoundScanClock = now
-    				local loudestSound: Sound? = nil
-    				local maxLoudness = 0
-
-    				for _, s in ipairs(SoundService:GetDescendants()) do
-    					if s:IsA("Sound") and s.IsPlaying and s.TimeLength > 5 then
-    						if s.PlaybackLoudness > maxLoudness then
-    							maxLoudness = s.PlaybackLoudness
-    							loudestSound = s
-    						end
-    					end
-    				end
-    				if not loudestSound then
-    					for _, s in ipairs(Workspace:GetDescendants()) do
-    						if s:IsA("Sound") and s.IsPlaying and s.TimeLength > 5 then
-    							if s.PlaybackLoudness > maxLoudness then
-    								maxLoudness = s.PlaybackLoudness
-    								loudestSound = s
-    							end
-    						end
-    					end
-    				end
-    				cachedLoudestSound = loudestSound
-    			end
-
-    			local loudestSound = cachedLoudestSound
-    			if loudestSound and loudestSound.IsPlaying then
-    				activeGameSound = loudestSound
-    				isPlaying = true
-    				playBtn.Text = "❚❚"
-    				currentAudioPeak = math.clamp((loudestSound.PlaybackLoudness - 40) / 480, 0.0, 1.0)
-
-    				local sName = loudestSound.Name
-    				if sName ~= lastSongTitle and sName ~= "" then
-    					lastSongTitle = sName
-    					songTitleLabel.Text = sName .. " (In-Game Audio)"
-    					fetchLyricsForTrack(sName, "")
-    				end
-
-    				local curSec = math.floor(loudestSound.TimePosition)
-    				local totSec = math.floor(loudestSound.TimeLength)
-    				local ratio = if totSec > 0 then math.clamp(curSec / totSec, 0, 1) else 0
-    				seekFill.Size = UDim2.new(ratio, 0, 1, 0)
-    				timeLabel.Text = string.format("%d:%02d / %d:%02d", math.floor(curSec / 60), curSec % 60, math.floor(totSec / 60), totSec % 60)
-    				updateActiveLyricFromTime(loudestSound.TimePosition * 1000)
-    			elseif not hasExternalBridge and not isPlaying then
-    				currentAudioPeak = 0.0
-    			end
+    			currentAudioPeak = 0.0
+    			isPlaying = false
+    			playBtn.Text = "▶"
     		end
 
     		-- External Bridge Lyrics Progression
@@ -6059,11 +6012,16 @@ Modules["UI/Hotbar.luau"] = function()
     	ghostLabel.Parent = dragGhost
 
     	-- ── 1. Hotbar HUD Container ───────────────────────────────────────
-    	local totalSlotsCount = NUM_SLOTS + 1
-    	local totalWidth = (totalSlotsCount * SLOT_SIZE) + ((totalSlotsCount - 1) * SLOT_GAP) + 12
+    	local function computeToolbarWidth(boxCount: number): number
+    		local count = math.max(1, boxCount)
+    		return (count * SLOT_SIZE) + ((count - 1) * SLOT_GAP) + 12
+    	end
+
+    	local initialBoxCount = 1
+    	local initialWidth = computeToolbarWidth(initialBoxCount)
     	local hotbarFrame = Instance.new("Frame")
     	hotbarFrame.Name = "HotbarFrame"
-    	hotbarFrame.Size = UDim2.new(0, totalWidth, 0, SLOT_SIZE + 10)
+    	hotbarFrame.Size = UDim2.new(0, initialWidth, 0, SLOT_SIZE + 10)
     	hotbarFrame.AnchorPoint = Vector2.new(0.5, 1)
     	hotbarFrame.Position = UDim2.new(0.5, 0, 1, -16)
     	hotbarFrame.BackgroundColor3 = UI.Theme.Background
@@ -6092,7 +6050,7 @@ Modules["UI/Hotbar.luau"] = function()
     	-- Sits slightly above the hotbar like an XP bar with centered HP text
     	local healthBarContainer = Instance.new("Frame")
     	healthBarContainer.Name = "ToolbarHealthBar"
-    	healthBarContainer.Size = UDim2.new(0, totalWidth, 0, 14)
+    	healthBarContainer.Size = UDim2.new(0, initialWidth, 0, 14)
     	healthBarContainer.AnchorPoint = Vector2.new(0.5, 1)
     	healthBarContainer.Position = UDim2.new(0.5, 0, 1, -(SLOT_SIZE + 10 + 16 + 10))
     	healthBarContainer.BackgroundColor3 = Color3.fromRGB(15, 22, 18)
@@ -6351,6 +6309,7 @@ Modules["UI/Hotbar.luau"] = function()
     	local function updateSlotHighlightsOnly()
     		for slotNum = 1, NUM_SLOTS do
     			local slotBtn = slotFrames[slotNum]
+    			if not slotBtn or not slotBtn.Visible then continue end
     			local tool = assignedSlots[slotNum]
     			local stroke = slotBtn:FindFirstChildWhichIsA("UIStroke")
     			local nameLabel = slotBtn:FindFirstChild("ToolName") :: TextLabel?
@@ -6456,8 +6415,36 @@ Modules["UI/Hotbar.luau"] = function()
 
     		compactSlots()
 
+    		-- Count how many valid tools are currently assigned
+    		local activeCount = 0
+    		for i = 1, NUM_SLOTS do
+    			if assignedSlots[i] and validToolSet[assignedSlots[i]] then
+    				activeCount += 1
+    			end
+    		end
+
+    		-- If there isn't any objects, have just one box; otherwise size to active tool count
+    		local displaySlots = if activeCount == 0 then 1 else math.min(NUM_SLOTS, activeCount)
+    		local newWidth = computeToolbarWidth(displaySlots)
+
+    		-- Smoothly resize both the toolbar HUD and the health bar container
+    		TweenService:Create(hotbarFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    			Size = UDim2.new(0, newWidth, 0, SLOT_SIZE + 10)
+    		}):Play()
+
+    		TweenService:Create(healthBarContainer, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    			Size = UDim2.new(0, newWidth, 0, 14)
+    		}):Play()
+
     		for slotNum = 1, NUM_SLOTS do
     			local slotBtn = slotFrames[slotNum]
+    			local isVisible = (slotNum <= displaySlots)
+    			slotBtn.Visible = isVisible
+
+    			if not isVisible then
+    				continue
+    			end
+
     			local tool = assignedSlots[slotNum]
     			local stroke = slotBtn:FindFirstChildWhichIsA("UIStroke")
     			local nameLabel = slotBtn:FindFirstChild("ToolName") :: TextLabel?
@@ -6745,7 +6732,7 @@ Modules["UI/Hotbar.luau"] = function()
     		-- 1. Exact hit test on individual slot buttons
     		for slotIdx = 1, NUM_SLOTS do
     			local slotFrame = slotFrames[slotIdx]
-    			if slotFrame and isPointInsideGui(mousePos, slotFrame) then
+    			if slotFrame and slotFrame.Visible and isPointInsideGui(mousePos, slotFrame) then
     				return slotIdx
     			end
     		end
@@ -6759,7 +6746,7 @@ Modules["UI/Hotbar.luau"] = function()
     			local minDist = math.huge
     			for slotIdx = 1, NUM_SLOTS do
     				local slotFrame = slotFrames[slotIdx]
-    				if slotFrame then
+    				if slotFrame and slotFrame.Visible then
     					local center = slotFrame.AbsolutePosition + slotFrame.AbsoluteSize / 2
     					local dist = math.abs(mousePos.X - center.X)
     					if dist < minDist then
@@ -6901,6 +6888,8 @@ Modules["UI/Hotbar.luau"] = function()
     		end
     	end))
 
+    	local toggleBackpack: () -> ()
+
     	-- ── 8. Create Slots in Hotbar HUD ─────────────────────────────────
     	for i = 1, NUM_SLOTS do
     		local slotBtn = Instance.new("TextButton")
@@ -6927,24 +6916,25 @@ Modules["UI/Hotbar.luau"] = function()
     		slotScale.Scale = 1.0
     		slotScale.Parent = slotBtn
 
-    		local numLabel = Instance.new("TextLabel")
-    		numLabel.Name = "SlotNum"
-    		numLabel.Size = UDim2.new(0, 14, 0, 12)
-    		numLabel.Position = UDim2.new(0, 2, 0, 2)
-    		numLabel.BackgroundTransparency = 1
-    		numLabel.Text = tostring(i % 10)
-    		numLabel.TextColor3 = UI.Theme.TextSecondary
-    		numLabel.Font = UI.Fonts.Mono
-    		numLabel.TextSize = 9
-    		numLabel.TextXAlignment = Enum.TextXAlignment.Left
-    		numLabel.ZIndex = 10
-    		numLabel.Parent = slotBtn
-    		UI.registerThemeElement(numLabel, "TextSecondary")
+    		-- Number Indicator (1-0) in Top-Left Corner
+    		local keyLabel = Instance.new("TextLabel")
+    		keyLabel.Name = "KeyLabel"
+    		keyLabel.Size = UDim2.new(0, 14, 0, 12)
+    		keyLabel.Position = UDim2.new(0, 2, 0, 2)
+    		keyLabel.BackgroundTransparency = 1
+    		keyLabel.Text = if i == 10 then "0" else tostring(i)
+    		keyLabel.TextColor3 = UI.Theme.TextSecondary
+    		keyLabel.Font = UI.Fonts.Header
+    		keyLabel.TextSize = 9
+    		keyLabel.ZIndex = 10
+    		keyLabel.Parent = slotBtn
+    		UI.registerThemeElement(keyLabel, "TextSecondary")
 
+    		-- Tool Name Label at Bottom of Slot
     		local nameLabel = Instance.new("TextLabel")
     		nameLabel.Name = "ToolName"
     		nameLabel.Size = UDim2.new(1, -4, 0, 12)
-    		nameLabel.Position = UDim2.new(0, 2, 1, -14)
+    		nameLabel.Position = UDim2.new(0, 2, 1, -13)
     		nameLabel.BackgroundTransparency = 1
     		nameLabel.Text = ""
     		nameLabel.TextColor3 = UI.Theme.TextPrimary
@@ -6985,6 +6975,9 @@ Modules["UI/Hotbar.luau"] = function()
     				if tool then
     					Animations.buttonClickPop(slotBtn)
     					equipOrToggleTool(tool)
+    				else
+    					Animations.buttonClickPop(slotBtn)
+    					if toggleBackpack then toggleBackpack() end
     				end
     			end
     		end))
@@ -6995,7 +6988,7 @@ Modules["UI/Hotbar.luau"] = function()
     	local isHotbarEnabled = true
 
     	-- ── 9. Dedicated Hamburger [ ≡ INV ] Button on Toolbar ────────────
-    	local function toggleBackpack()
+    	toggleBackpack = function()
     		if not isHotbarEnabled then return end
     		isBackpackOpen = not isBackpackOpen
     		bpWindow.Visible = isBackpackOpen
@@ -7018,6 +7011,7 @@ Modules["UI/Hotbar.luau"] = function()
     	invBtn.AutoButtonColor = false
     	invBtn.ClipsDescendants = true
     	invBtn.LayoutOrder = 11
+    	invBtn.Visible = false
     	invBtn.Parent = hotbarFrame
     	UI.registerThemeElement(invBtn, "ContainerDark")
     	Animations.buttonHoverPush(invBtn)
@@ -21791,6 +21785,14 @@ local function purgeBlackoutScreens()
 	end)
 end
 
+local startupDisabledGuis: {[ScreenGui]: boolean} = {}
+
+local function recordGuiStartupState(gui: ScreenGui)
+	if startupDisabledGuis[gui] == nil then
+		startupDisabledGuis[gui] = (gui.Enabled == false)
+	end
+end
+
 local function hidePlayerGameGuis(hide: boolean)
 	isGameGuisHidden = hide
 	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
@@ -21801,8 +21803,17 @@ local function hidePlayerGameGuis(hide: boolean)
 			if cName:find("elevator") or cName:find("blackout") or cName:find("fade") or cName:find("transition") then
 				pcall(function() child:Destroy() end)
 			else
-				child.Enabled = not hide
-				if not hide then
+				recordGuiStartupState(child)
+				if hide then
+					child.Enabled = false
+				else
+					-- When enabling custom GUIs, keep GUIs hidden that were disabled on startup
+					if startupDisabledGuis[child] == true then
+						child.Enabled = false
+					else
+						child.Enabled = true
+					end
+
 					for _, desc in ipairs(child:GetDescendants()) do
 						if isBlackoutObject(desc) then
 							if desc:IsA("Frame") then
@@ -21822,17 +21833,24 @@ end
 
 task.spawn(disableCoreGuis)
 task.spawn(purgeBlackoutScreens)
-task.spawn(function()
-	hidePlayerGameGuis(false)
-end)
 
 task.spawn(function()
 	local pgui = localPlayer:WaitForChild("PlayerGui", 10)
 	if pgui then
+		for _, child in ipairs(pgui:GetChildren()) do
+			if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") and not string.find(child.Name, "ProjectFih") then
+				recordGuiStartupState(child)
+			end
+		end
+
 		pgui.ChildAdded:Connect(function(child)
 			if isBlackoutObject(child) or child.Name:lower():find("elevator") or child.Name:lower():find("transition") then
 				task.defer(function() pcall(function() child:Destroy() end) end)
-			elseif child:IsA("ScreenGui") and not isGameGuisHidden then
+			elseif child:IsA("ScreenGui") then
+				recordGuiStartupState(child)
+				if isGameGuisHidden or startupDisabledGuis[child] == true then
+					child.Enabled = false
+				end
 				task.defer(function()
 					for _, desc in ipairs(child:GetDescendants()) do
 						if isBlackoutObject(desc) then

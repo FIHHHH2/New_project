@@ -221,6 +221,14 @@ local function purgeBlackoutScreens()
 	end)
 end
 
+local startupDisabledGuis: {[ScreenGui]: boolean} = {}
+
+local function recordGuiStartupState(gui: ScreenGui)
+	if startupDisabledGuis[gui] == nil then
+		startupDisabledGuis[gui] = (gui.Enabled == false)
+	end
+end
+
 local function hidePlayerGameGuis(hide: boolean)
 	isGameGuisHidden = hide
 	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
@@ -231,8 +239,17 @@ local function hidePlayerGameGuis(hide: boolean)
 			if cName:find("elevator") or cName:find("blackout") or cName:find("fade") or cName:find("transition") then
 				pcall(function() child:Destroy() end)
 			else
-				child.Enabled = not hide
-				if not hide then
+				recordGuiStartupState(child)
+				if hide then
+					child.Enabled = false
+				else
+					-- When enabling custom GUIs, keep GUIs hidden that were disabled on startup
+					if startupDisabledGuis[child] == true then
+						child.Enabled = false
+					else
+						child.Enabled = true
+					end
+
 					for _, desc in ipairs(child:GetDescendants()) do
 						if isBlackoutObject(desc) then
 							if desc:IsA("Frame") then
@@ -252,17 +269,24 @@ end
 
 task.spawn(disableCoreGuis)
 task.spawn(purgeBlackoutScreens)
-task.spawn(function()
-	hidePlayerGameGuis(false)
-end)
 
 task.spawn(function()
 	local pgui = localPlayer:WaitForChild("PlayerGui", 10)
 	if pgui then
+		for _, child in ipairs(pgui:GetChildren()) do
+			if child:IsA("ScreenGui") and not string.find(child.Name, "Modular") and not string.find(child.Name, "ProjectFih") then
+				recordGuiStartupState(child)
+			end
+		end
+
 		pgui.ChildAdded:Connect(function(child)
 			if isBlackoutObject(child) or child.Name:lower():find("elevator") or child.Name:lower():find("transition") then
 				task.defer(function() pcall(function() child:Destroy() end) end)
-			elseif child:IsA("ScreenGui") and not isGameGuisHidden then
+			elseif child:IsA("ScreenGui") then
+				recordGuiStartupState(child)
+				if isGameGuisHidden or startupDisabledGuis[child] == true then
+					child.Enabled = false
+				end
 				task.defer(function()
 					for _, desc in ipairs(child:GetDescendants()) do
 						if isBlackoutObject(desc) then

@@ -1030,62 +1030,15 @@ function MusicTracker.new()
 	local lastSoundScanClock = 0
 	local cachedLoudestSound: Sound? = nil
 
-	-- ── Heartbeat Synchronizer & In-Game Sound Scanner ───────────────
+	-- ── Heartbeat Synchronizer (Only Provider Audio Drives Visualizer) ────
 	RunService.Heartbeat:Connect(function()
 		if not widget.Visible or not screenGui.Enabled then return end
 
-		-- In-Game Sound Tracking (Throttled to eliminate Workspace:GetDescendants lag spikes)
+		-- When no external provider bridge is connected, keep visualizer flat and silent
 		if not hasExternalBridge then
-			local now = os.clock()
-			if (now - lastSoundScanClock > 1.5) or (cachedLoudestSound and not cachedLoudestSound.IsPlaying) then
-				lastSoundScanClock = now
-				local loudestSound: Sound? = nil
-				local maxLoudness = 0
-
-				for _, s in ipairs(SoundService:GetDescendants()) do
-					if s:IsA("Sound") and s.IsPlaying and s.TimeLength > 5 then
-						if s.PlaybackLoudness > maxLoudness then
-							maxLoudness = s.PlaybackLoudness
-							loudestSound = s
-						end
-					end
-				end
-				if not loudestSound then
-					for _, s in ipairs(Workspace:GetDescendants()) do
-						if s:IsA("Sound") and s.IsPlaying and s.TimeLength > 5 then
-							if s.PlaybackLoudness > maxLoudness then
-								maxLoudness = s.PlaybackLoudness
-								loudestSound = s
-							end
-						end
-					end
-				end
-				cachedLoudestSound = loudestSound
-			end
-
-			local loudestSound = cachedLoudestSound
-			if loudestSound and loudestSound.IsPlaying then
-				activeGameSound = loudestSound
-				isPlaying = true
-				playBtn.Text = "❚❚"
-				currentAudioPeak = math.clamp((loudestSound.PlaybackLoudness - 40) / 480, 0.0, 1.0)
-
-				local sName = loudestSound.Name
-				if sName ~= lastSongTitle and sName ~= "" then
-					lastSongTitle = sName
-					songTitleLabel.Text = sName .. " (In-Game Audio)"
-					fetchLyricsForTrack(sName, "")
-				end
-
-				local curSec = math.floor(loudestSound.TimePosition)
-				local totSec = math.floor(loudestSound.TimeLength)
-				local ratio = if totSec > 0 then math.clamp(curSec / totSec, 0, 1) else 0
-				seekFill.Size = UDim2.new(ratio, 0, 1, 0)
-				timeLabel.Text = string.format("%d:%02d / %d:%02d", math.floor(curSec / 60), curSec % 60, math.floor(totSec / 60), totSec % 60)
-				updateActiveLyricFromTime(loudestSound.TimePosition * 1000)
-			elseif not hasExternalBridge and not isPlaying then
-				currentAudioPeak = 0.0
-			end
+			currentAudioPeak = 0.0
+			isPlaying = false
+			playBtn.Text = "▶"
 		end
 
 		-- External Bridge Lyrics Progression

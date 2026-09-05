@@ -109,7 +109,6 @@ def get_media_peak() -> float:
         from pycaw.pycaw import AudioUtilities, IAudioMeterInformation
         sessions = AudioUtilities.GetAllSessions()
         media_peak = 0.0
-        fallback_peak = 0.0
 
         for s in sessions:
             if not s.Process:
@@ -122,46 +121,39 @@ def get_media_peak() -> float:
             if pname in EXCLUDE_PROCS:
                 continue
 
-            if s._ctl:
-                try:
-                    meter = s._ctl.QueryInterface(IAudioMeterInformation)
-                    peak = float(meter.GetPeakValue())
-                    if pname in MEDIA_PROCS:
-                        media_peak = max(media_peak, peak)
-                    else:
-                        fallback_peak = max(fallback_peak, peak)
-                except Exception:
-                    pass
+            # Only meter verified media provider processes (e.g. Spotify, Apple Music, browsers playing media)
+            if pname in MEDIA_PROCS:
+                if s._ctl:
+                    try:
+                        meter = s._ctl.QueryInterface(IAudioMeterInformation)
+                        peak = float(meter.GetPeakValue())
+                        if peak > media_peak:
+                            media_peak = peak
+                    except Exception:
+                        pass
 
         if media_peak > 0.001:
             return media_peak
-        if fallback_peak > 0.001:
-            return fallback_peak
-
-        # Fallback to master device endpoint meter if per-process returned near zero
-        mm = get_master_meter()
-        if mm:
-            try:
-                mp = float(mm.GetPeakValue())
-                if mp > 0.001:
-                    return mp
-            except Exception:
-                pass
         return 0.0
     except Exception:
         return 0.0
 
 def update_audio_spectrum():
     global smoothed_peak, max_recent_peak, band_energy, phase
+
+    # If media is not active or not playing, drop visualizer cleanly to baseline
+    if not current_media.get("isPlaying", False):
+        smoothed_peak = max(0.0, smoothed_peak * 0.65)
+        current_media["audioPeak"] = round(smoothed_peak, 3)
+        band_energy = [max(0.04, b * 0.70) for b in band_energy]
+        current_media["spectrum"] = [round(b, 3) for b in band_energy]
+        return
+
     peak = get_media_peak()
 
     # Noise gate: ignore low-level background noise
     if peak < 0.010:
         peak = 0.0
-
-    # If media is outputting real sound, mark media active
-    if peak > 0.012:
-        current_media["isPlaying"] = True
 
     # Dynamic Automatic Gain Control (Floor 0.05, faster decay so peaks don't desensitize quiet parts)
     if peak > max_recent_peak:

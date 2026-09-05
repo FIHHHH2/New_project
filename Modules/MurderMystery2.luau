@@ -624,6 +624,68 @@ local function runRadarStep()
 	end
 end
 
+-- ── 8.5 Coin Farming Automation ─────────────────────────────────────
+local coinFarmThread: thread? = nil
+
+local function getNearestCoin(): BasePart?
+	local char = LocalPlayer.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return nil end
+
+	local bestCoin: BasePart? = nil
+	local bestDist = math.huge
+
+	for _, obj in ipairs(Workspace:GetDescendants()) do
+		if obj:IsA("BasePart") then
+			local n = obj.Name:lower()
+			if n == "coin_server" or n == "coin" or n:find("coin") then
+				if obj:FindFirstChildWhichIsA("TouchTransmitter") or obj:FindFirstChild("CoinVisual") or obj.Name == "Coin_Server" then
+					local d = (obj.Position - hrp.Position).Magnitude
+					if d < bestDist then
+						bestDist = d
+						bestCoin = obj
+					end
+				end
+			end
+		end
+	end
+
+	return bestCoin
+end
+
+function MurderMystery2.setCoinFarm(enabled: boolean)
+	MurderMystery2.CoinFarm = enabled
+	if enabled then
+		if coinFarmThread then task.cancel(coinFarmThread) end
+		coinFarmThread = task.spawn(function()
+			while MurderMystery2.CoinFarm do
+				task.wait(0.1)
+				local char = LocalPlayer.Character
+				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if hrp then
+					local coin = getNearestCoin()
+					if coin and coin.Parent then
+						pcall(function()
+							hrp.CFrame = coin.CFrame
+							local touch = (firetouchinterest :: any)
+							if touch then
+								touch(hrp, coin, 0)
+								touch(hrp, coin, 1)
+							end
+						end)
+						task.wait(math.clamp(30 / (MurderMystery2.CoinFarmSpeed or 26), 0.15, 1.2))
+					end
+				end
+			end
+		end)
+	else
+		if coinFarmThread then
+			task.cancel(coinFarmThread)
+			coinFarmThread = nil
+		end
+	end
+end
+
 -- ── 9. Lifecycle & Main Loop Initialization ───────────────────────────
 function MurderMystery2.Init()
 	if MurderMystery2.IsActive then return end
@@ -674,6 +736,7 @@ function MurderMystery2.Destroy()
 	MurderMystery2.KillAura = false
 	MurderMystery2.RoleESP = false
 	MurderMystery2.SilentAim = false
+	MurderMystery2.setCoinFarm(false)
 
 	for _, conn in ipairs(connections) do
 		pcall(function() conn:Disconnect() end)

@@ -2,7 +2,7 @@
 -- Core/MainUI.luau
 -- Tab UI, sections, toggles, game-module layouts.
 -- Split from Main.luau to avoid Lua local register overflow (>200 locals).
-return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, emotesWidget, sharedEnv)
+return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, sharedEnv)
 	local require          = _requireFn
 	local cachedCharacterParts   = (sharedEnv and sharedEnv.cachedCharacterParts) or {}
 	local disableRobloxTopBarApp = (sharedEnv and sharedEnv.disableRobloxTopBarApp) or function() end
@@ -37,7 +37,6 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	local Notification     = require("UI/Notification.luau")
 	local MusicTracker     = require("UI/MusicTracker.luau")
 	local Animations       = require("UI/Animations.luau")
-	local emotesWidget     = emotesWidget
 
 	local function getGameTabName(): string
 		local placeId = game.PlaceId
@@ -369,130 +368,23 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		end)
 
 		local universalAntiFlingConn: RBXScriptConnection? = nil
-		local universalAntiFlingHeartbeatConn: RBXScriptConnection? = nil
-		local isUniversalAntiFlingAnchoring = false
-		local lastDefuseCheck = 0
-		local heavyPhysicalProps = PhysicalProperties.new(100, 1.0, 0, 100, 100)
 
-		local function applyUniversalHeavyProps(char: Model, enable: boolean)
-			for _, part in ipairs(char:GetDescendants()) do
-				if part:IsA("BasePart") then
-					pcall(function()
-						if enable then
-							part.CustomPhysicalProperties = heavyPhysicalProps
-						else
-							part.CustomPhysicalProperties = nil
-						end
-					end)
-				end
-			end
-		end
-
-		window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Inertia Hardening & Impulse Nullification)", false, nil, function(enabled)
+		window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Disable Player Collisions)", false, nil, function(enabled)
 			if enabled then
-				local char = localPlayer.Character
-				if char then applyUniversalHeavyProps(char, true) end
-
-				if char then
-					local hum = char:FindFirstChildOfClass("Humanoid")
-					if hum then
-						pcall(function()
-							hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-							hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-							hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
-						end)
-					end
-				end
-
-				-- Pre-physics Stepped pass
 				universalAntiFlingConn = RunService.Stepped:Connect(function()
-					local curChar = localPlayer.Character
-					local hrp  = curChar and curChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-					local hum  = curChar and curChar:FindFirstChildOfClass("Humanoid")
-					if not (curChar and hrp and hum and hum.Health > 0) then return end
-
-					local flingOn = isFlingModeActive
-
-					if not flingOn then
-						if hum.Sit then hum.Sit = false end
-						local state = hum:GetState()
-						if state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.FallingDown then
-							hum:ChangeState(Enum.HumanoidStateType.Running)
-						end
+					local myChar = localPlayer.Character
+					local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+					if hum and hum.Sit then
+						hum.Sit = false
 					end
 
-					local linVel = hrp.AssemblyLinearVelocity
-					local angVel = hrp.AssemblyAngularVelocity
-
-					if not flingOn and angVel.Magnitude > 15 then
-						hrp.AssemblyAngularVelocity = Vector3.zero
-					end
-
-					local horizSpeed = math.sqrt(linVel.X * linVel.X + linVel.Z * linVel.Z)
-					if not flingOn and horizSpeed > 60 then
-						hrp.AssemblyLinearVelocity = Vector3.new(
-							math.clamp(linVel.X, -28, 28),
-							linVel.Y,
-							math.clamp(linVel.Z, -28, 28)
-						)
-					end
-
-					-- Proximity defuser for high-torque flingers nearby (within 15 studs, checked at 20Hz)
-					local now = tick()
-					if not flingOn and (now - lastDefuseCheck >= 0.05) then
-						lastDefuseCheck = now
-						local myPos = hrp.Position
-						for _, plr in ipairs(Players:GetPlayers()) do
-							if plr ~= localPlayer and plr.Character then
-								local oppHrp = plr.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-								if oppHrp and (oppHrp.Position - myPos).Magnitude < 15 then
-									for _, p in ipairs(plr.Character:GetChildren()) do
-										if p:IsA("BasePart") and (p.AssemblyAngularVelocity.Magnitude > 30 or p.AssemblyLinearVelocity.Magnitude > 80) then
-											p.AssemblyAngularVelocity = Vector3.zero
-											p.AssemblyLinearVelocity = Vector3.zero
-										end
-									end
+					for _, plr in ipairs(Players:GetPlayers()) do
+						if plr ~= localPlayer and plr.Character then
+							for _, part in ipairs(plr.Character:GetDescendants()) do
+								if part:IsA("BasePart") and part.CanCollide then
+									part.CanCollide = false
 								end
 							end
-						end
-					end
-				end)
-
-				-- Post-physics Heartbeat pass
-				universalAntiFlingHeartbeatConn = RunService.Heartbeat:Connect(function()
-					local curChar = localPlayer.Character
-					local hrp  = curChar and curChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-					local hum  = curChar and curChar:FindFirstChildOfClass("Humanoid")
-					if not (curChar and hrp and hum and hum.Health > 0) then return end
-
-					local flingOn = isFlingModeActive
-					if flingOn then return end
-
-					local linVel = hrp.AssemblyLinearVelocity
-					local angVel = hrp.AssemblyAngularVelocity
-					local horizSpeed = math.sqrt(linVel.X * linVel.X + linVel.Z * linVel.Z)
-
-					local isSpike = (horizSpeed > 65) or (linVel.Y > 85) or (linVel.Y < -150) or (linVel.Magnitude > 100) or (angVel.Magnitude > 25)
-					if isSpike then
-						hrp.AssemblyLinearVelocity = Vector3.new(
-							math.clamp(linVel.X, -25, 25),
-							math.clamp(linVel.Y, -45, 30),
-							math.clamp(linVel.Z, -25, 25)
-						)
-						hrp.AssemblyAngularVelocity = Vector3.zero
-
-						if not isUniversalAntiFlingAnchoring then
-							isUniversalAntiFlingAnchoring = true
-							task.spawn(function()
-								if hrp and hrp.Parent then
-									hrp.Anchored = true
-									RunService.Heartbeat:Wait()
-									if hrp and hrp.Parent then
-										hrp.Anchored = false
-									end
-								end
-								isUniversalAntiFlingAnchoring = false
-							end)
 						end
 					end
 				end)
@@ -500,22 +392,6 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				if universalAntiFlingConn then
 					universalAntiFlingConn:Disconnect()
 					universalAntiFlingConn = nil
-				end
-				if universalAntiFlingHeartbeatConn then
-					universalAntiFlingHeartbeatConn:Disconnect()
-					universalAntiFlingHeartbeatConn = nil
-				end
-				local char = localPlayer.Character
-				if char then
-					applyUniversalHeavyProps(char, false)
-					local hum = char:FindFirstChildOfClass("Humanoid")
-					if hum then
-						pcall(function()
-							hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-							hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
-							hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, true)
-						end)
-					end
 				end
 			end
 		end)
@@ -1153,26 +1029,6 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 
 		window:AddButton(toolSection, "Give Click Teleport Tool", function()
 			PlayerUtilities.GiveClickTeleportTool()
-		end)
-
-		-- Emotes & Custom Animations
-		local emotesSection = window:AddSection(utilRightCol, "Emotes & Custom Animations")
-
-		window:AddButton(emotesSection, "Open Emotes GUI", function()
-			if emotesWidget then emotesWidget:Open() end
-		end)
-
-		window:AddToggle(emotesSection, "show_emotes_hud", "Show Emotes HUD Widget", true, nil, function(enabled)
-			if emotesWidget and emotesWidget.SetVisible then
-				emotesWidget.SetVisible(enabled)
-			end
-		end)
-
-		window:AddButton(emotesSection, "Stop Playing Emote", function()
-			if emotesWidget and emotesWidget.StopEmote then
-				emotesWidget.StopEmote()
-			end
-			window:Notify("Emotes", "Stopped active animation track", 2)
 		end)
 
 	end
@@ -2170,6 +2026,29 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 					window:Notify("MM2", "Sheriff not found or dead", 2)
 				end
 			end)
+
+			window:AddButton(farmSection, "Warp to Lobby", function()
+				local char = localPlayer.Character
+				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if hrp then
+					hrp.CFrame = CFrame.new(-108, 140, -12)
+					window:Notify("MM2", "Warped to Lobby", 2)
+				end
+			end)
+
+			local coinSection = window:AddSection(utilRightCol, "Coin Farming Automation")
+
+			window:AddToggle(coinSection, "mm2_coin_farm", "Auto Coin Farm (Collect Coins)", false, nil, function(val)
+				MurderMystery2.setCoinFarm(val)
+			end)
+
+			window:AddSlider(coinSection, "Coin Farm Speed", 16, 60, 26, function(val)
+				MurderMystery2.CoinFarmSpeed = val
+			end)
+
+			window:AddSlider(coinSection, "Threat Radar Threshold (studs)", 15, 100, 40, function(val)
+				MurderMystery2.RadarThreshold = val
+			end)
 		end
 
 	end
@@ -2338,12 +2217,6 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			FeatureManager.setFeatureState("hud_leaderstats", enabled)
 			leaderstatsWidget.IsEnabled = enabled
 			leaderstatsWidget.SetVisible(enabled)
-
-			FeatureManager.setFeatureState("hud_emotes", enabled)
-			if emotesWidget then
-				emotesWidget.IsEnabled = enabled
-				emotesWidget.SetVisible(enabled)
-			end
 
 			FeatureManager.setFeatureState("hud_healthbar", enabled)
 			if hotbarWidget and (hotbarWidget :: any).ToolbarHealthBar then

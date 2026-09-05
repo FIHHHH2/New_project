@@ -35,7 +35,6 @@ local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
 local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
 local HealthWidget = require("UI/HealthWidget.luau")
-local EmotesWidget = require("UI/EmotesWidget.luau")
 
 pcall(function() MurderMystery2.Init() end)
 
@@ -335,7 +334,6 @@ local musicTrackerWidget = MusicTracker.new()
 local hotbarWidget = Hotbar.new()
 local leaderstatsWidget = LeaderstatsWidget.new()
 local healthWidget = HealthWidget.new()
-local emotesWidget = EmotesWidget.new()
 
 -- Standalone Leaderstats HUD integrated directly into PlayerList inspection profile
 if leaderstatsWidget and typeof(leaderstatsWidget.Close) == "function" then
@@ -375,4 +373,4 @@ local sharedEnv = {
 	purgeBlackoutScreens = purgeBlackoutScreens,
 }
 
-require("Core/MainUI.luau")(require, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, emotesWidget, sharedEnv)
+require("Core/MainUI.luau")(require, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, sharedEnv)

@@ -584,11 +584,6 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 	subPagesContainer.ClipsDescendants = true
 	subPagesContainer.Parent = parentPage
 
-	local subPagesLayout = Instance.new("UIListLayout")
-	subPagesLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	subPagesLayout.Padding = UDim.new(0, 0)
-	subPagesLayout.Parent = subPagesContainer
-
 	local subTabs = {
 		Bar = subTabBar,
 		Container = subPagesContainer,
@@ -619,6 +614,7 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 		btn.TextSize = if numTabs >= 4 then 10 else 11
 		btn.TextTruncate = Enum.TextTruncate.None
 		btn.TextWrapped = false
+		btn.AutoButtonColor = false
 		btn.LayoutOrder = idx
 		btn.Parent = subTabBar
 
@@ -642,17 +638,13 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 		local page = Instance.new("Frame")
 		page.Name = name .. "SubPage"
 		page.Size = UDim2.new(1, 0, 1, 0)
+		page.Position = UDim2.new(0, 0, 0, 0)
 		page.BackgroundTransparency = 1
 		page.BorderSizePixel = 0
 		page.Visible = (idx == 1)
 		page.ClipsDescendants = true
 		page.LayoutOrder = idx
 		page.Parent = subPagesContainer
-
-		local pageLayout = Instance.new("UIListLayout")
-		pageLayout.Padding = UDim.new(0, 6)
-		pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
-		pageLayout.Parent = page
 
 		local subTabObj = {
 			Name = name,
@@ -664,30 +656,24 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 			Index = idx
 		}
 
-		-- Hover & click effects with micro-squash and border glow
-		Animations.attachMicroSquash(
-			btn,
-			btnStroke,
-			function()
-				return if subTabs.ActiveSubTab == subTabObj then UI.Theme.Accent else UI.Theme.Container
-			end,
-			function()
-				return if subTabs.ActiveSubTab == subTabObj then UI.Theme.Accent else UI.Theme.ContainerDark
-			end,
-			function()
-				return UI.Theme.Accent
-			end,
-			function()
-				return if subTabs.ActiveSubTab == subTabObj then UI.Theme.Border else UI.Theme.BorderDim
-			end,
-			function()
-				return UI.Theme.Border
+		btn.MouseEnter:Connect(function()
+			if subTabs.ActiveSubTab ~= subTabObj then
+				TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark, TextColor3 = UI.Theme.TextPrimary }):Play()
+				if btnStroke then TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 1.4 }):Play() end
 			end
-		)
-
-		btn.MouseButton1Click:Connect(function()
-			subTabs:Select(name)
 		end)
+		btn.MouseLeave:Connect(function()
+			if subTabs.ActiveSubTab ~= subTabObj then
+				TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container, TextColor3 = UI.Theme.TextSecondary }):Play()
+				if btnStroke then TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 1.0 }):Play() end
+			end
+		end)
+
+		local function onTrigger()
+			subTabs:Select(subTabObj)
+		end
+		btn.Activated:Connect(onTrigger)
+		btn.MouseButton1Click:Connect(onTrigger)
 
 		subTabs[name] = subTabObj
 		subTabs[idx] = subTabObj
@@ -739,12 +725,9 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 			if targetObj.Gradient then targetObj.Gradient.Enabled = true end
 		end
 
-		-- Activate New SubTab Page with smooth subtle slide
+		-- Activate New SubTab Page directly
+		targetObj.Page.Position = UDim2.new(0, 0, 0, 0)
 		targetObj.Page.Visible = true
-		targetObj.Page.Position = UDim2.new(0, 6, 0, 0)
-		TweenService:Create(targetObj.Page, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Position = UDim2.new(0, 0, 0, 0)
-		}):Play()
 
 		if subTabs.OnTabChanged then
 			pcall(subTabs.OnTabChanged, targetObj.Name, oldSubTab and oldSubTab.Name)

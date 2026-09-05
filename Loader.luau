@@ -6462,15 +6462,15 @@ Modules["UI/Hotbar.luau"] = function()
     	bpGridLayout.Parent = bpGridScroll
 
     	-- ── 3. State Management & Tool Gathering ──────────────────────────
-    	local assignedSlots: {[number]: Tool} = {}
+    	local assignedSlotNames: {[number]: string} = {}
     	local slotFrames: {[number]: TextButton} = {}
     	local slotCaches: {[number]: ToolViewportCache} = {}
-    	local backpackCards: {[Tool]: TextButton} = {}
-    	local backpackCaches: {[Tool]: ToolViewportCache} = {}
+    	local backpackCards: {[string]: TextButton} = {}
+    	local backpackCaches: {[string]: ToolViewportCache} = {}
     	local isBackpackOpen = false
     	local filterQuery = ""
 
-    	local draggingTool: Tool? = nil
+    	local draggingItemName: string? = nil
     	local draggingFromSlot: number? = nil
     	local dragStartPos = Vector2.zero
     	local isDraggingActive = false
@@ -6499,6 +6499,51 @@ Modules["UI/Hotbar.luau"] = function()
     		return tools
     	end
 
+    	local function getItemStack(name: string): {Tool}
+    		local stack: {Tool} = {}
+    		local char = LocalPlayer.Character
+    		if char then
+    			for _, item in ipairs(char:GetChildren()) do
+    				if item:IsA("Tool") and item.Name == name then
+    					table.insert(stack, item)
+    				end
+    			end
+    		end
+    		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    		if bp then
+    			for _, item in ipairs(bp:GetChildren()) do
+    				if item:IsA("Tool") and item.Name == name then
+    					table.insert(stack, item)
+    				end
+    			end
+    		end
+    		return stack
+    	end
+
+    	local function getUniqueInventoryNames(): {string}
+    		local names: {string} = {}
+    		local seen: {[string]: boolean} = {}
+    		local char = LocalPlayer.Character
+    		if char then
+    			for _, item in ipairs(char:GetChildren()) do
+    				if item:IsA("Tool") and not seen[item.Name] then
+    					seen[item.Name] = true
+    					table.insert(names, item.Name)
+    				end
+    			end
+    		end
+    		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    		if bp then
+    			for _, item in ipairs(bp:GetChildren()) do
+    				if item:IsA("Tool") and not seen[item.Name] then
+    					seen[item.Name] = true
+    					table.insert(names, item.Name)
+    				end
+    			end
+    		end
+    		return names
+    	end
+
     	local function isToolEquipped(tool: Tool): boolean
     		local char = LocalPlayer.Character
     		return char ~= nil and (tool.Parent == char or char:FindFirstChild(tool.Name) == tool)
@@ -6510,18 +6555,39 @@ Modules["UI/Hotbar.luau"] = function()
     		for slotNum = 1, NUM_SLOTS do
     			local slotBtn = slotFrames[slotNum]
     			if not slotBtn or not slotBtn.Visible then continue end
-    			local tool = assignedSlots[slotNum]
+    			local name = assignedSlotNames[slotNum]
     			local stroke = slotBtn:FindFirstChildWhichIsA("UIStroke")
     			local nameLabel = slotBtn:FindFirstChild("ToolName") :: TextLabel?
+    			local stackBadge = slotBtn:FindFirstChild("StackBadge") :: TextLabel?
 
-    			if tool and tool.Parent then
-    				local equipped = isToolEquipped(tool)
+    			if name and name ~= "" then
+    				local stack = getItemStack(name)
+    				local count = #stack
+    				local anyEquipped = false
+    				for _, t in ipairs(stack) do
+    					if isToolEquipped(t) then
+    						anyEquipped = true
+    						break
+    					end
+    				end
+
     				if nameLabel then
-    					nameLabel.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+    					nameLabel.Text = name
+    					nameLabel.TextColor3 = if anyEquipped then UI.Theme.AccentText else UI.Theme.TextPrimary
     					nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
     					nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
     				end
-    				if equipped then
+
+    				if stackBadge then
+    					if count > 1 then
+    						stackBadge.Text = "x" .. tostring(count)
+    						stackBadge.Visible = true
+    					else
+    						stackBadge.Visible = false
+    					end
+    				end
+
+    				if anyEquipped then
     					slotBtn.BackgroundColor3 = UI.Theme.Accent
     					slotBtn.BackgroundTransparency = 0.15
     					if stroke then
@@ -6537,6 +6603,8 @@ Modules["UI/Hotbar.luau"] = function()
     					end
     				end
     			else
+    				if stackBadge then stackBadge.Visible = false end
+    				if nameLabel then nameLabel.Text = "" end
     				slotBtn.BackgroundColor3 = if isLight then Color3.fromRGB(215, 218, 226) else UI.Theme.ContainerDark
     				slotBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
     				if stroke then
@@ -6547,68 +6615,70 @@ Modules["UI/Hotbar.luau"] = function()
     		end
 
     		if isBackpackOpen then
-    			for tool, card in pairs(backpackCards) do
-    				if tool and tool.Parent and card and card.Parent then
-    					local equipped = isToolEquipped(tool)
-    					card.BackgroundColor3 = if equipped then UI.Theme.Accent else UI.Theme.ContainerDark
-    					card.BackgroundTransparency = if equipped then 0.15 else UI.Theme.ContainerDarkTransparency
+    			for itemName, card in pairs(backpackCards) do
+    				if card and card.Parent then
+    					local stack = getItemStack(itemName)
+    					local count = #stack
+    					local anyEquipped = false
+    					for _, t in ipairs(stack) do
+    						if isToolEquipped(t) then
+    							anyEquipped = true
+    							break
+    						end
+    					end
+
+    					card.BackgroundColor3 = if anyEquipped then UI.Theme.Accent else UI.Theme.ContainerDark
+    					card.BackgroundTransparency = if anyEquipped then 0.15 else UI.Theme.ContainerDarkTransparency
     					local badge = card:FindFirstChild("EquippedBadge") :: TextLabel?
-    					if badge then badge.Text = if equipped then "EQUIPPED" else "" end
+    					if badge then badge.Text = if anyEquipped then "EQUIPPED" else "" end
+
+    					local stackBadge = card:FindFirstChild("StackBadge") :: TextLabel?
+    					if stackBadge then
+    						if count > 1 then
+    							stackBadge.Text = "x" .. tostring(count)
+    							stackBadge.Visible = true
+    						else
+    							stackBadge.Visible = false
+    						end
+    					end
     				end
     			end
     		end
     	end
 
-    	-- Auto-compact assigned slots to shift tools up so no gaps exist (1, 2, 3, 4 contiguous)
-    	local function compactSlots()
-    		local packed: {Tool} = {}
-    		for i = 1, NUM_SLOTS do
-    			local t = assignedSlots[i]
-    			if t and t.Parent then
-    				table.insert(packed, t)
-    			end
-    			assignedSlots[i] = nil
-    		end
-    		for i, t in ipairs(packed) do
-    			if i <= NUM_SLOTS then
-    				assignedSlots[i] = t
-    			end
-    		end
-    	end
-
-    	-- ── 5. Full Hotbar Viewport Render Function (Only Runs on Inventory Change) ──
+    	-- Auto-compact assigned slots to shift items up so no gaps exist (1, 2, 3, 4 contiguous)
+    	local function compa	-- ── 5. Full Hotbar Viewport Render Function (Only Runs on Inventory Change) ──
     	local function updateHotbarVisuals()
-    		local allTools = getAllTools()
-    		local validToolSet: {[Tool]: boolean} = {}
-    		for _, t in ipairs(allTools) do
-    			validToolSet[t] = true
+    		local uniqueNames = getUniqueInventoryNames()
+    		local validNameSet: {[string]: boolean} = {}
+    		for _, name in ipairs(uniqueNames) do
+    			validNameSet[name] = true
     		end
 
-    		-- Purge any slot whose tool is not in current valid inventory
+    		-- Purge any slot whose item is not in current valid inventory
     		for i = 1, NUM_SLOTS do
-    			local currentTool = assignedSlots[i]
-    			if currentTool and not validToolSet[currentTool] then
-    				assignedSlots[i] = nil
+    			local currentName = assignedSlotNames[i]
+    			if currentName and not validNameSet[currentName] then
+    				assignedSlotNames[i] = nil
     				cleanViewport(slotFrames[i])
     			end
     		end
 
-    		-- Auto-compact to shift subsequent slots up (e.g. if slot 1 is empty, move slot 2, 3, 4 up)
     		compactSlots()
 
-    		-- Auto-assign unassigned tools to first available slots
-    		for _, tool in ipairs(allTools) do
+    		-- Auto-assign unassigned unique items to first available slots
+    		for _, name in ipairs(uniqueNames) do
     			local alreadyAssigned = false
     			for i = 1, NUM_SLOTS do
-    				if assignedSlots[i] == tool then
+    				if assignedSlotNames[i] == name then
     					alreadyAssigned = true
     					break
     				end
     			end
     			if not alreadyAssigned then
     				for i = 1, NUM_SLOTS do
-    					if not assignedSlots[i] then
-    						assignedSlots[i] = tool
+    					if not assignedSlotNames[i] then
+    						assignedSlotNames[i] = name
     						break
     					end
     				end
@@ -6617,10 +6687,10 @@ Modules["UI/Hotbar.luau"] = function()
 
     		compactSlots()
 
-    		-- Count how many valid tools are currently assigned
+    		-- Count how many valid unique items are currently assigned
     		local activeCount = 0
     		for i = 1, NUM_SLOTS do
-    			if assignedSlots[i] and validToolSet[assignedSlots[i]] then
+    			if assignedSlotNames[i] and validNameSet[assignedSlotNames[i]] then
     				activeCount += 1
     			end
     		end
@@ -6647,22 +6717,43 @@ Modules["UI/Hotbar.luau"] = function()
     				continue
     			end
 
-    			local tool = assignedSlots[slotNum]
+    			local name = assignedSlotNames[slotNum]
     			local stroke = slotBtn:FindFirstChildWhichIsA("UIStroke")
     			local nameLabel = slotBtn:FindFirstChild("ToolName") :: TextLabel?
+    			local stackBadge = slotBtn:FindFirstChild("StackBadge") :: TextLabel?
 
-    			if tool and validToolSet[tool] then
-    				renderToolViewportCached(slotBtn, tool, slotNum, slotCaches)
+    			if name and validNameSet[name] then
+    				local stack = getItemStack(name)
+    				local count = #stack
+    				local repTool = stack[1]
+    				local anyEquipped = false
+    				for _, t in ipairs(stack) do
+    					if isToolEquipped(t) then
+    						repTool = t
+    						anyEquipped = true
+    						break
+    					end
+    				end
+
+    				renderToolViewportCached(slotBtn, repTool, slotNum, slotCaches)
     				local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
-    				local equipped = isToolEquipped(tool)
     				if nameLabel then
-    					nameLabel.Text = tool.Name
-    					nameLabel.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+    					nameLabel.Text = name
+    					nameLabel.TextColor3 = if anyEquipped then UI.Theme.AccentText else UI.Theme.TextPrimary
     					nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
     					nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
     				end
 
-    				if equipped then
+    				if stackBadge then
+    					if count > 1 then
+    						stackBadge.Text = "x" .. tostring(count)
+    						stackBadge.Visible = true
+    					else
+    						stackBadge.Visible = false
+    					end
+    				end
+
+    				if anyEquipped then
     					slotBtn.BackgroundColor3 = UI.Theme.Accent
     					slotBtn.BackgroundTransparency = 0.15
     					if stroke then
@@ -6679,9 +6770,10 @@ Modules["UI/Hotbar.luau"] = function()
     				end
     			else
     				local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
-    				assignedSlots[slotNum] = nil
+    				assignedSlotNames[slotNum] = nil
     				cleanViewport(slotBtn)
     				if nameLabel then nameLabel.Text = "" end
+    				if stackBadge then stackBadge.Visible = false end
     				slotBtn.BackgroundColor3 = if isLight then Color3.fromRGB(215, 218, 226) else UI.Theme.ContainerDark
     				slotBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
     				if stroke then
@@ -6695,74 +6787,94 @@ Modules["UI/Hotbar.luau"] = function()
     	-- ── 6. Render Backpack Grid Items Function ────────────────────────
     	local function updateBackpackGrid()
     		if not isBackpackOpen then return end
-    		local allTools = getAllTools()
-    		local activeToolSet: {[Tool]: boolean} = {}
+    		local uniqueNames = getUniqueInventoryNames()
+    		local activeNameSet: {[string]: boolean} = {}
 
-    		for _, tool in ipairs(allTools) do
-    			activeToolSet[tool] = true
-    			local matchesFilter = (filterQuery == "" or tool.Name:lower():find(filterQuery:lower(), 1, true) ~= nil)
+    		for _, name in ipairs(uniqueNames) do
+    			activeNameSet[name] = true
+    			local matchesFilter = (filterQuery == "" or name:lower():find(filterQuery:lower(), 1, true) ~= nil)
 
-    			local existingCard = backpackCards[tool]
+    			local existingCard = backpackCards[name]
     			if not matchesFilter then
     				if existingCard then
     					cleanViewport(existingCard)
     					UI.unregisterThemeElement(existingCard)
     					existingCard:Destroy()
-    					backpackCards[tool] = nil
-    					backpackCaches[tool] = nil
+    					backpackCards[name] = nil
+    					backpackCaches[name] = nil
     				end
     				continue
     			end
 
-    			local equipped = isToolEquipped(tool)
+    			local stack = getItemStack(name)
+    			local count = #stack
+    			local repTool = stack[1]
+    			local anyEquipped = false
+    			for _, t in ipairs(stack) do
+    				if isToolEquipped(t) then
+    					repTool = t
+    					anyEquipped = true
+    					break
+    				end
+    			end
 
     			if existingCard and existingCard.Parent == bpGridScroll then
-    				existingCard.BackgroundColor3 = UI.Theme.ContainerDark
-    				existingCard.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+    				existingCard.BackgroundColor3 = if anyEquipped then UI.Theme.Accent else UI.Theme.ContainerDark
+    				existingCard.BackgroundTransparency = if anyEquipped then 0.15 else UI.Theme.ContainerDarkTransparency
 
     				local itemStroke = existingCard:FindFirstChildWhichIsA("UIStroke")
     				if itemStroke then
-    					itemStroke.Color = if equipped then UI.Theme.Accent else UI.Theme.BorderDim
-    					itemStroke.Thickness = if equipped then 2.5 else 1.0
+    					itemStroke.Color = if anyEquipped then UI.Theme.Accent else UI.Theme.BorderDim
+    					itemStroke.Thickness = if anyEquipped then 2.5 else 1.0
     				end
 
     				local tName = existingCard:FindFirstChild("ToolLabel") :: TextLabel?
     				if tName then
-    					tName.Text = tool.Name
-    					tName.TextColor3 = if equipped then UI.Theme.Accent else UI.Theme.TextPrimary
+    					tName.Text = name
+    					tName.TextColor3 = if anyEquipped then UI.Theme.AccentText else UI.Theme.TextPrimary
     				end
 
     				local badge = existingCard:FindFirstChild("EquippedBadge") :: TextLabel?
     				if badge then
-    					badge.Text = if equipped then "EQUIPPED" else ""
+    					badge.Text = if anyEquipped then "EQUIPPED" else ""
     				end
 
-    				renderToolViewportCached(existingCard, tool, tool, backpackCaches)
+    				local sBadge = existingCard:FindFirstChild("StackBadge") :: TextLabel?
+    				if sBadge then
+    					if count > 1 then
+    						sBadge.Text = "x" .. tostring(count)
+    						sBadge.Visible = true
+    					else
+    						sBadge.Visible = false
+    					end
+    				end
+
+    				renderToolViewportCached(existingCard, repTool, name, backpackCaches)
     			else
     				if existingCard then
     					cleanViewport(existingCard)
     					UI.unregisterThemeElement(existingCard)
     					existingCard:Destroy()
-    					backpackCards[tool] = nil
-    					backpackCaches[tool] = nil
+    					backpackCards[name] = nil
+    					backpackCaches[name] = nil
     				end
 
     				local itemCard = Instance.new("TextButton")
-    				itemCard.Name = "Item_" .. tool.Name
+    				itemCard.Name = "Item_" .. name
     				itemCard.Size = UDim2.new(0, 84, 0, 74)
-    				itemCard.BackgroundColor3 = UI.Theme.ContainerDark
-    				itemCard.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+    				itemCard.BackgroundColor3 = if anyEquipped then UI.Theme.Accent else UI.Theme.ContainerDark
+    				itemCard.BackgroundTransparency = if anyEquipped then 0.15 else UI.Theme.ContainerDarkTransparency
     				itemCard.BorderSizePixel = 0
     				itemCard.Text = ""
     				itemCard.AutoButtonColor = false
     				itemCard.ClipsDescendants = true
     				itemCard.Parent = bpGridScroll
-    				UI.registerThemeElement(itemCard, if equipped then "Accent" else "ContainerDark")
+    				UI.registerThemeElement(itemCard, if anyEquipped then "Accent" else "ContainerDark")
     				Animations.buttonHoverPush(itemCard)
 
     				local itemStroke = Instance.new("UIStroke")
-    				itemStroke.Color = if equipped then UI.Theme.Accent else UI.Theme.BorderDim
-    				itemStroke.Thickness = if equipped then 2.5 else 1.0
+    				itemStroke.Color = if anyEquipped then UI.Theme.Accent else UI.Theme.BorderDim
+    				itemStroke.Thickness = if anyEquipped then 2.5 else 1.0
     				itemStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     				itemStroke.Parent = itemCard
     				UI.registerThemeElement(itemStroke, "BorderDim")
@@ -6772,8 +6884,8 @@ Modules["UI/Hotbar.luau"] = function()
     				tLabel.Size = UDim2.new(1, -6, 0, 16)
     				tLabel.Position = UDim2.new(0, 3, 1, -18)
     				tLabel.BackgroundTransparency = 1
-    				tLabel.Text = tool.Name
-    				tLabel.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+    				tLabel.Text = name
+    				tLabel.TextColor3 = if anyEquipped then UI.Theme.AccentText else UI.Theme.TextPrimary
     				tLabel.Font = UI.Fonts.Header
     				tLabel.TextSize = 9
     				tLabel.TextTruncate = Enum.TextTruncate.AtEnd
@@ -6786,7 +6898,7 @@ Modules["UI/Hotbar.luau"] = function()
     				eqBadge.Size = UDim2.new(1, -6, 0, 12)
     				eqBadge.Position = UDim2.new(0, 3, 0, 2)
     				eqBadge.BackgroundTransparency = 1
-    				eqBadge.Text = if equipped then "EQUIPPED" else ""
+    				eqBadge.Text = if anyEquipped then "EQUIPPED" else ""
     				eqBadge.TextColor3 = UI.Theme.AccentText
     				eqBadge.Font = UI.Fonts.Mono
     				eqBadge.TextSize = 8
@@ -6794,7 +6906,26 @@ Modules["UI/Hotbar.luau"] = function()
     				eqBadge.Parent = itemCard
     				UI.registerThemeElement(eqBadge, "AccentText")
 
-    				renderToolViewportCached(itemCard, tool, tool, backpackCaches)
+    				local cardStackBadge = Instance.new("TextLabel")
+    				cardStackBadge.Name = "StackBadge"
+    				cardStackBadge.Size = UDim2.new(0, 20, 0, 13)
+    				cardStackBadge.Position = UDim2.new(1, -2, 0, 2)
+    				cardStackBadge.AnchorPoint = Vector2.new(1, 0)
+    				cardStackBadge.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    				cardStackBadge.BackgroundTransparency = 0.25
+    				cardStackBadge.Text = if count > 1 then "x" .. tostring(count) else ""
+    				cardStackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+    				cardStackBadge.Font = UI.Fonts.Header
+    				cardStackBadge.TextSize = 9
+    				cardStackBadge.Visible = (count > 1)
+    				cardStackBadge.ZIndex = 6
+    				cardStackBadge.Parent = itemCard
+
+    				local badgeCorner = Instance.new("UICorner")
+    				badgeCorner.CornerRadius = UDim.new(0, 3)
+    				badgeCorner.Parent = cardStackBadge
+
+    				renderToolViewportCached(itemCard, repTool, name, backpackCaches)
 
     				local cardPressPos = Vector2.zero
     				itemCard.InputBegan:Connect(function(input)
@@ -6808,7 +6939,7 @@ Modules["UI/Hotbar.luau"] = function()
     						if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and not isDraggingActive then
     							local curPos = UserInputService:GetMouseLocation()
     							if (curPos - cardPressPos).Magnitude > 14 then
-    								startDragging(tool, nil, curPos)
+    								startDragging(name, nil, curPos)
     							end
     						end
     					end
@@ -6817,21 +6948,34 @@ Modules["UI/Hotbar.luau"] = function()
     				itemCard.MouseButton1Click:Connect(function()
     					if not justFinishedDrag and not isDraggingActive then
     						Animations.buttonClickPop(itemCard)
-    						equipOrToggleTool(tool)
+    						local curStack = getItemStack(name)
+    						if #curStack > 0 then
+    							local anyEq = false
+    							for _, t in ipairs(curStack) do
+    								if isToolEquipped(t) then anyEq = true break end
+    							end
+    							if anyEq then
+    								local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    								if hum then hum:UnequipTools() end
+    							else
+    								equipOrToggleTool(curStack[1])
+    							end
+    							updateSlotHighlightsOnly()
+    						end
     					end
     				end)
 
-    				backpackCards[tool] = itemCard
+    				backpackCards[name] = itemCard
     			end
     		end
 
-    		for oldTool, oldCard in pairs(backpackCards) do
-    			if not activeToolSet[oldTool] then
+    		for oldName, oldCard in pairs(backpackCards) do
+    			if not activeNameSet[oldName] then
     				cleanViewport(oldCard)
     				UI.unregisterThemeElement(oldCard)
     				oldCard:Destroy()
-    				backpackCards[oldTool] = nil
-    				backpackCaches[oldTool] = nil
+    				backpackCards[oldName] = nil
+    				backpackCaches[oldName] = nil
     			end
     		end
     	end
@@ -6867,13 +7011,9 @@ Modules["UI/Hotbar.luau"] = function()
     					tool.Parent = bp
     				end
     			else
-    				-- Unequip any other tool currently in Character into Backpack
-    				for _, c in ipairs(char:GetChildren()) do
-    					if c:IsA("Tool") and c ~= tool and bp then
-    						c.Parent = bp
-    					end
-    				end
-    				-- Equip target tool cleanly: try native humanoid equip first, fallback to direct parenting
+    				-- Unequip currently equipped tools first
+    				hum:UnequipTools()
+    				-- Equip target tool cleanly
     				hum:EquipTool(tool)
     				if tool.Parent ~= char then
     					tool.Parent = char
@@ -6898,40 +7038,59 @@ Modules["UI/Hotbar.luau"] = function()
     		updateSlotHighlightsOnly()
     	end)
 
-    	-- ── Drop Item Function ───────────────────────────────────────────
-    	local function dropTool(tool: Tool)
+    	-- ── Drop Single Item from Stack Function (Drops One by One) ──────
+    	local function dropOneItem(itemName: string)
+    		local stack = getItemStack(itemName)
+    		if #stack == 0 then return end
+
+    		-- Pick an unequipped tool to drop first, or the equipped one if only 1 left
+    		local targetTool: Tool = stack[#stack]
+    		for i = #stack, 1, -1 do
+    			if not isToolEquipped(stack[i]) then
+    				targetTool = stack[i]
+    				break
+    			end
+    		end
+
     		local char = LocalPlayer.Character
     		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
     		local hum = char and char:FindFirstChildOfClass("Humanoid")
 
     		pcall(function()
-    			if isToolEquipped(tool) and hum then
+    			if isToolEquipped(targetTool) and hum then
     				hum:UnequipTools()
     			end
     			if hrp then
-    				tool.Parent = Workspace
-    				local handle = tool:FindFirstChild("Handle") :: BasePart? or tool:FindFirstChildWhichIsA("BasePart")
+    				targetTool.Parent = Workspace
+    				local handle = targetTool:FindFirstChild("Handle") :: BasePart? or targetTool:FindFirstChildWhichIsA("BasePart")
     				if handle then
     					handle.CFrame = hrp.CFrame * CFrame.new(0, 0, -3)
     				end
     			else
-    				tool.Parent = Workspace
+    				targetTool.Parent = Workspace
     			end
     		end)
 
-    		for i = 1, NUM_SLOTS do
-    			if assignedSlots[i] == tool then
-    				assignedSlots[i] = nil
+    		local remaining = #getItemStack(itemName)
+    		if remaining == 0 then
+    			for i = 1, NUM_SLOTS do
+    				if assignedSlotNames[i] == itemName then
+    					assignedSlotNames[i] = nil
+    				end
     			end
+    			compactSlots()
     		end
-    		compactSlots()
 
     		updateHotbarVisuals()
     		if isBackpackOpen then updateBackpackGrid() end
 
     		pcall(function()
     			local Notification = require("UI/Notification.luau")
-    			Notification.new("Inventory", string.format("Dropped '%s'", tool.Name), 2)
+    			if remaining > 0 then
+    				Notification.new("Inventory", string.format("Dropped 1x '%s' (%d remaining)", itemName, remaining), 1.5)
+    			else
+    				Notification.new("Inventory", string.format("Dropped '%s'", itemName), 1.5)
+    			end
     		end)
     	end
 
@@ -6951,7 +7110,7 @@ Modules["UI/Hotbar.luau"] = function()
     			end
     		end
 
-    		-- 2. Magnetic snap if released anywhere along the toolbar HUD (generous Y +/- 40px and X +/- 20px tolerance)
+    		-- 2. Magnetic snap if released anywhere along the toolbar HUD
     		local hPos = hotbarFrame.AbsolutePosition
     		local hSize = hotbarFrame.AbsoluteSize
     		if mousePos.Y >= (hPos.Y - 45) and mousePos.Y <= (hPos.Y + hSize.Y + 45) and
@@ -6975,14 +7134,14 @@ Modules["UI/Hotbar.luau"] = function()
     		return nil
     	end
 
-    	local function startDragging(tool: Tool, fromSlot: number?, startMouse: Vector2)
-    		draggingTool = tool
+    	local function startDragging(itemName: string, fromSlot: number?, startMouse: Vector2)
+    		draggingItemName = itemName
     		draggingFromSlot = fromSlot
     		dragStartPos = startMouse
     		isDraggingActive = true
 
     		dragGhost.Position = UDim2.new(0, startMouse.X - 26, 0, startMouse.Y - 26)
-    		ghostLabel.Text = tool.Name
+    		ghostLabel.Text = itemName
     		dragGhost.Visible = true
 
     		if fromSlot and slotFrames[fromSlot] then
@@ -6991,12 +7150,12 @@ Modules["UI/Hotbar.luau"] = function()
     	end
 
     	local function finishDragging(endMouse: Vector2)
-    		if not isDraggingActive or not draggingTool then return end
-    		local tool = draggingTool
+    		if not isDraggingActive or not draggingItemName then return end
+    		local itemName = draggingItemName
     		local fromSlot = draggingFromSlot
 
     		dragGhost.Visible = false
-    		draggingTool = nil
+    		draggingItemName = nil
     		draggingFromSlot = nil
     		isDraggingActive = false
     		justFinishedDrag = true
@@ -7009,28 +7168,28 @@ Modules["UI/Hotbar.luau"] = function()
     			slotFrames[fromSlot].BackgroundTransparency = UI.Theme.ContainerTransparency
     		end
 
-    		-- 1. Check if dropped over or near any Hotbar Slot (Move / Swap Object in Toolbar)
+    		-- 1. Check if dropped over or near any Hotbar Slot (Move / Swap Stack in Toolbar)
     		local targetSlot = findSlotUnderOrNearMouse(endMouse)
 
     		if targetSlot then
     			if fromSlot then
     				if fromSlot ~= targetSlot then
-    					local oldTargetTool = assignedSlots[targetSlot]
-    					assignedSlots[targetSlot] = tool
-    					assignedSlots[fromSlot] = oldTargetTool
+    					local oldTargetName = assignedSlotNames[targetSlot]
+    					assignedSlotNames[targetSlot] = itemName
+    					assignedSlotNames[fromSlot] = oldTargetName
 
     					pcall(function()
     						local Notification = require("UI/Notification.luau")
-    						Notification.new("Toolbar", string.format("Moved '%s' to Slot %d", tool.Name, targetSlot % 10), 1.5)
+    						Notification.new("Toolbar", string.format("Moved '%s' to Slot %d", itemName, targetSlot % 10), 1.5)
     					end)
     				end
     			else
     				-- Dragged from Backpack Grid onto Toolbar Slot
-    				local oldTargetTool = assignedSlots[targetSlot]
-    				assignedSlots[targetSlot] = tool
+    				local oldTargetName = assignedSlotNames[targetSlot]
+    				assignedSlotNames[targetSlot] = itemName
     				pcall(function()
     					local Notification = require("UI/Notification.luau")
-    					Notification.new("Toolbar", string.format("Assigned '%s' to Slot %d", tool.Name, targetSlot % 10), 1.5)
+    					Notification.new("Toolbar", string.format("Assigned '%s' to Slot %d", itemName, targetSlot % 10), 1.5)
     				end)
     			end
     			Animations.popScale(slotFrames[targetSlot], 0.88, 1.12, 1.0, 0.2)
@@ -7042,11 +7201,11 @@ Modules["UI/Hotbar.luau"] = function()
     		-- 2. Check if dropped over Backpack Grid (Unassign from Toolbar)
     		if bpWindow.Visible and isPointInsideGui(endMouse, bpGridScroll) then
     			if fromSlot then
-    				assignedSlots[fromSlot] = nil
+    				assignedSlotNames[fromSlot] = nil
     				compactSlots()
     				pcall(function()
     					local Notification = require("UI/Notification.luau")
-    					Notification.new("Toolbar", string.format("Removed '%s' from Slot %d", tool.Name, fromSlot % 10), 1.5)
+    					Notification.new("Toolbar", string.format("Removed '%s' from Slot %d", itemName, fromSlot % 10), 1.5)
     				end)
     				updateHotbarVisuals()
     				updateBackpackGrid()
@@ -7054,7 +7213,7 @@ Modules["UI/Hotbar.luau"] = function()
     			return
     		end
 
-    		-- 3. Dropped OUTSIDE the entire toolbar region -> Drop Tool into 3D world!
+    		-- 3. Dropped OUTSIDE the entire toolbar region -> Drop One Item from Stack into 3D world!
     		local hPos = hotbarFrame.AbsolutePosition
     		local hSize = hotbarFrame.AbsoluteSize
     		local isNearHotbar = endMouse.Y >= (hPos.Y - 60) and endMouse.Y <= (hPos.Y + hSize.Y + 60) and
@@ -7062,8 +7221,8 @@ Modules["UI/Hotbar.luau"] = function()
     		local inBackpack = bpWindow.Visible and isPointInsideGui(endMouse, bpWindow)
 
     		if not isNearHotbar and not inBackpack then
-    			-- Dragged far out into the 3D world: drop the tool!
-    			dropTool(tool)
+    			-- Dragged far out into the 3D world: drop one item from the stack!
+    			dropOneItem(itemName)
     		else
     			-- Released slightly off-target near toolbar: safely snap back without dropping
     			updateHotbarVisuals()
@@ -7085,10 +7244,14 @@ Modules["UI/Hotbar.luau"] = function()
     						slotFrame.BackgroundTransparency = 0.3
     						if stroke then stroke.Color = Color3.fromRGB(80, 255, 140) end
     					else
-    						local tool = assignedSlots[slotIdx]
-    						local equipped = tool and isToolEquipped(tool)
-    						slotFrame.BackgroundColor3 = if equipped then UI.Theme.Accent else (if tool then UI.Theme.Container else UI.Theme.ContainerDark)
-    						slotFrame.BackgroundTransparency = if equipped then 0.2 else (if tool then UI.Theme.ContainerTransparency else UI.Theme.ContainerDarkTransparency)
+    						local name = assignedSlotNames[slotIdx]
+    						local stack = if name and name ~= "" then getItemStack(name) else {}
+    						local equipped = false
+    						for _, t in ipairs(stack) do
+    							if isToolEquipped(t) then equipped = true break end
+    						end
+    						slotFrame.BackgroundColor3 = if equipped then UI.Theme.Accent else (if #stack > 0 then UI.Theme.Container else UI.Theme.ContainerDark)
+    						slotFrame.BackgroundTransparency = if equipped then 0.2 else (if #stack > 0 then UI.Theme.ContainerTransparency else UI.Theme.ContainerDarkTransparency)
     						if stroke then stroke.Color = if equipped then UI.Theme.Border else UI.Theme.BorderDim end
     					end
     				end
@@ -7144,6 +7307,26 @@ Modules["UI/Hotbar.luau"] = function()
     		keyLabel.Parent = slotBtn
     		UI.registerThemeElement(keyLabel, "TextSecondary")
 
+    		-- Stack Count Badge (e.g. "x5") in Top-Right Corner
+    		local stackBadge = Instance.new("TextLabel")
+    		stackBadge.Name = "StackBadge"
+    		stackBadge.Size = UDim2.new(0, 20, 0, 13)
+    		stackBadge.Position = UDim2.new(1, -2, 0, 2)
+    		stackBadge.AnchorPoint = Vector2.new(1, 0)
+    		stackBadge.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    		stackBadge.BackgroundTransparency = 0.25
+    		stackBadge.Text = ""
+    		stackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+    		stackBadge.Font = UI.Fonts.Header
+    		stackBadge.TextSize = 9
+    		stackBadge.Visible = false
+    		stackBadge.ZIndex = 12
+    		stackBadge.Parent = slotBtn
+
+    		local badgeCorner = Instance.new("UICorner")
+    		badgeCorner.CornerRadius = UDim.new(0, 3)
+    		badgeCorner.Parent = stackBadge
+
     		-- Tool Name Label at Bottom of Slot
     		local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
     		local nameLabel = Instance.new("TextLabel")
@@ -7175,11 +7358,11 @@ Modules["UI/Hotbar.luau"] = function()
     		table.insert(activeConnections, slotBtn.InputChanged:Connect(function(input)
     			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
     				if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and not isDraggingActive then
-    					local curTool = assignedSlots[i]
-    					if curTool then
+    					local curName = assignedSlotNames[i]
+    					if curName and curName ~= "" and #getItemStack(curName) > 0 then
     						local curPos = UserInputService:GetMouseLocation()
     						if (curPos - slotPressPos).Magnitude > 14 then
-    							startDragging(curTool, i, curPos)
+    							startDragging(curName, i, curPos)
     						end
     					end
     				end
@@ -7192,13 +7375,8 @@ Modules["UI/Hotbar.luau"] = function()
     			if (now - lastClickTick) < 0.08 then return end
     			lastClickTick = now
     			if not justFinishedDrag and not isDraggingActive then
-    				local tool = assignedSlots[i]
-    				if not tool or not tool.Parent then
-    					local allTools = getAllTools()
-    					tool = allTools[i]
-    					if tool then assignedSlots[i] = tool end
-    				end
-    				if tool and tool.Parent then
+    				local name = assignedSlotNames[i]
+    				if name and name ~= "" and #getItemStack(name) > 0 then
     					executeSlotToggle(i)
     				else
     					Animations.buttonClickPop(slotBtn)
@@ -7207,7 +7385,6 @@ Modules["UI/Hotbar.luau"] = function()
     			end
     		end
     		table.insert(activeConnections, slotBtn.MouseButton1Click:Connect(onSlotTriggered))
-    		table.insert(activeConnections, slotBtn.Activated:Connect(onSlotTriggered))
 
     		slotFrames[i] = slotBtn
     	end
@@ -7307,37 +7484,63 @@ Modules["UI/Hotbar.luau"] = function()
     	end))
 
     	executeSlotToggle = function(slotNum: number)
-    		local tool = assignedSlots[slotNum]
-    		if not tool or not tool.Parent then
-    			local allTools = getAllTools()
-    			-- Find first valid tool that isn't already assigned to a different slot
-    			for _, t in ipairs(allTools) do
-    				local alreadyAssignedElsewhere = false
+    		local name = assignedSlotNames[slotNum]
+    		if not name or name == "" then
+    			local uniqueNames = getUniqueInventoryNames()
+    			for _, n in ipairs(uniqueNames) do
+    				local alreadyAssigned = false
     				for s = 1, NUM_SLOTS do
-    					if s ~= slotNum and assignedSlots[s] == t then
-    						alreadyAssignedElsewhere = true
+    					if s ~= slotNum and assignedSlotNames[s] == n then
+    						alreadyAssigned = true
     						break
     					end
     				end
-    				if not alreadyAssignedElsewhere then
-    					tool = t
-    					assignedSlots[slotNum] = t
+    				if not alreadyAssigned then
+    					name = n
+    					assignedSlotNames[slotNum] = n
     					break
     				end
     			end
     		end
 
-    		local btn = slotFrames[slotNum]
-    		if btn then Animations.buttonClickPop(btn) end
-
-    		if tool and tool.Parent then
-    			equipOrToggleTool(tool)
-    		else
+    		if not name or name == "" then
     			local char = LocalPlayer.Character
     			local hum = char and char:FindFirstChildOfClass("Humanoid")
     			if hum then hum:UnequipTools() end
     			updateSlotHighlightsOnly()
+    			return
     		end
+
+    		local stack = getItemStack(name)
+    		if #stack == 0 then
+    			assignedSlotNames[slotNum] = nil
+    			compactSlots()
+    			updateHotbarVisuals()
+    			return
+    		end
+
+    		local btn = slotFrames[slotNum]
+    		if btn then Animations.buttonClickPop(btn) end
+
+    		-- Check if any tool in this stack is currently equipped
+    		local equippedTool: Tool? = nil
+    		for _, t in ipairs(stack) do
+    			if isToolEquipped(t) then
+    				equippedTool = t
+    				break
+    			end
+    		end
+
+    		if equippedTool then
+    			-- Already equipped: unequip it
+    			local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    			if hum then hum:UnequipTools() end
+    		else
+    			-- Not equipped: equip the first available tool in the stack
+    			equipOrToggleTool(stack[1])
+    		end
+
+    		updateSlotHighlightsOnly()
     	end
 
     	local KEY_TO_SLOT: {[Enum.KeyCode]: number} = {
@@ -7421,19 +7624,7 @@ Modules["UI/Hotbar.luau"] = function()
     		if boundTools[tool] then return end
     		boundTools[tool] = true
     		table.insert(activeConnections, tool:GetPropertyChangedSignal("Name"):Connect(function()
-    			for slotNum = 1, NUM_SLOTS do
-    				if assignedSlots[slotNum] == tool then
-    					local slotBtn = slotFrames[slotNum]
-    					local nameLabel = slotBtn and slotBtn:FindFirstChild("ToolName") :: TextLabel?
-    					if nameLabel then nameLabel.Text = tool.Name end
-    					break
-    				end
-    			end
-    			if isBackpackOpen then
-    				local card = backpackCards[tool]
-    				local tName = card and card:FindFirstChild("ToolLabel") :: TextLabel?
-    				if tName then tName.Text = tool.Name end
-    			end
+    			queueInventoryRefresh()
     		end))
     	end
 
@@ -7442,20 +7633,19 @@ Modules["UI/Hotbar.luau"] = function()
     		local tool = child :: Tool
     		hookToolNameChange(tool)
 
-    		-- Check if tool is already assigned to a toolbar slot
+    		local name = tool.Name
     		local alreadyAssigned = false
     		for i = 1, NUM_SLOTS do
-    			if assignedSlots[i] == tool then
+    			if assignedSlotNames[i] == name then
     				alreadyAssigned = true
     				break
     			end
     		end
 
     		if not alreadyAssigned then
-    			-- Assign to first available empty slot
     			for i = 1, NUM_SLOTS do
-    				if not assignedSlots[i] then
-    					assignedSlots[i] = tool
+    				if not assignedSlotNames[i] then
+    					assignedSlotNames[i] = name
     					break
     				end
     			end
@@ -7472,20 +7662,18 @@ Modules["UI/Hotbar.luau"] = function()
     	local function onToolRemoved(child: Instance)
     		if not child:IsA("Tool") then return end
     		local tool = child :: Tool
+    		local name = tool.Name
 
-    		-- Wait a frame to see if tool was simply equipped (moved from Backpack to Character) or genuinely removed
     		task.defer(function()
-    			local char = LocalPlayer.Character
-    			local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-    			local stillInInventory = (char and tool.Parent == char) or (bp and tool.Parent == bp)
-
-    			if not stillInInventory then
+    			local remainingStack = getItemStack(name)
+    			if #remainingStack == 0 then
     				boundTools[tool] = nil
     				for i = 1, NUM_SLOTS do
-    					if assignedSlots[i] == tool then
-    						assignedSlots[i] = nil
+    					if assignedSlotNames[i] == name then
+    						assignedSlotNames[i] = nil
     					end
     				end
+    				compactSlots()
     				updateHotbarVisuals()
     				if isBackpackOpen then updateBackpackGrid() end
     			else
@@ -7496,45 +7684,49 @@ Modules["UI/Hotbar.luau"] = function()
 
     	-- ── 11. Multi-Stage Death & Respawn Inventory Reconciler ──────────
     	local function reconcileFullInventory()
-    		local char = LocalPlayer.Character
-    		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    		local uniqueNames = getUniqueInventoryNames()
+    		local validNameSet: {[string]: boolean} = {}
+    		for _, name in ipairs(uniqueNames) do
+    			validNameSet[name] = true
+    		end
 
-    		-- 1. Purge destroyed, unparented, or orphaned dead tools
+    		-- 1. Purge slots whose item name no longer exists
     		for i = 1, NUM_SLOTS do
-    			local t = assignedSlots[i]
-    			if t and (not t.Parent or not t:IsDescendantOf(game) or (t.Parent ~= char and t.Parent ~= bp)) then
-    				assignedSlots[i] = nil
+    			local name = assignedSlotNames[i]
+    			if name and not validNameSet[name] then
+    				assignedSlotNames[i] = nil
     			end
     		end
 
+    		compactSlots()
+
     		-- 2. Clear invalid cache entries
     		for k, c in pairs(slotCaches) do
-    			if not c.Tool or not c.Tool.Parent or not c.Tool:IsDescendantOf(game) or (c.Tool.Parent ~= char and c.Tool.Parent ~= bp) then
+    			if not c.Tool or not c.Tool.Parent or not c.Tool:IsDescendantOf(game) then
     				slotCaches[k] = nil
     			end
     		end
 
-    		-- 3. Scan all valid tools in new character & backpack
-    		local allTools = getAllTools()
-    		for _, tool in ipairs(allTools) do
-    			hookToolNameChange(tool)
+    		-- 3. Auto-assign any unassigned unique items
+    		for _, name in ipairs(uniqueNames) do
     			local alreadyAssigned = false
     			for i = 1, NUM_SLOTS do
-    				if assignedSlots[i] == tool then
+    				if assignedSlotNames[i] == name then
     					alreadyAssigned = true
     					break
     				end
     			end
     			if not alreadyAssigned then
     				for i = 1, NUM_SLOTS do
-    					if not assignedSlots[i] then
-    						assignedSlots[i] = tool
+    					if not assignedSlotNames[i] then
+    						assignedSlotNames[i] = name
     						break
     					end
     				end
     			end
     		end
 
+    		compactSlots()
     		updateHotbarVisuals()
     		if isBackpackOpen then
     			updateBackpackGrid()
@@ -7545,13 +7737,6 @@ Modules["UI/Hotbar.luau"] = function()
     		local hum = char:WaitForChild("Humanoid", 4) :: Humanoid?
     		if hum then
     			table.insert(activeConnections, hum.Died:Connect(function()
-    				-- Immediately unequip and purge character tools upon death
-    				for i = 1, NUM_SLOTS do
-    					local t = assignedSlots[i]
-    					if t and t.Parent == char then
-    						assignedSlots[i] = nil
-    					end
-    				end
     				updateSlotHighlightsOnly()
     			end))
     		end

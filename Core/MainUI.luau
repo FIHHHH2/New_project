@@ -297,8 +297,15 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end
 
-		RunService.RenderStepped:Connect(enforcePersistentStats)
-		RunService.Heartbeat:Connect(enforcePersistentStats)
+		local lastStatsCheck = 0
+		RunService.Heartbeat:Connect(function()
+			if activeSpeedLock == nil and activeJumpLock == nil and activeHipHeightLock == nil then return end
+			local now = tick()
+			if now - lastStatsCheck >= 0.066 then
+				lastStatsCheck = now
+				enforcePersistentStats()
+			end
+		end)
 		localPlayer.CharacterAdded:Connect(function()
 			task.wait(0.12)
 			enforcePersistentStats()
@@ -364,6 +371,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		local universalAntiFlingConn: RBXScriptConnection? = nil
 		local universalAntiFlingHeartbeatConn: RBXScriptConnection? = nil
 		local isUniversalAntiFlingAnchoring = false
+		local lastDefuseCheck = 0
 		local heavyPhysicalProps = PhysicalProperties.new(100, 1.0, 0, 100, 100)
 
 		local function applyUniversalHeavyProps(char: Model, enable: boolean)
@@ -429,8 +437,10 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 						)
 					end
 
-					-- Proximity defuser for high-torque flingers nearby (within 15 studs)
-					if not flingOn then
+					-- Proximity defuser for high-torque flingers nearby (within 15 studs, checked at 20Hz)
+					local now = tick()
+					if not flingOn and (now - lastDefuseCheck >= 0.05) then
+						lastDefuseCheck = now
 						local myPos = hrp.Position
 						for _, plr in ipairs(Players:GetPlayers()) do
 							if plr ~= localPlayer and plr.Character then
@@ -438,10 +448,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 								if oppHrp and (oppHrp.Position - myPos).Magnitude < 15 then
 									for _, p in ipairs(plr.Character:GetChildren()) do
 										if p:IsA("BasePart") and (p.AssemblyAngularVelocity.Magnitude > 30 or p.AssemblyLinearVelocity.Magnitude > 80) then
-											pcall(function()
-												p.AssemblyAngularVelocity = Vector3.zero
-												p.AssemblyLinearVelocity = Vector3.zero
-											end)
+											p.AssemblyAngularVelocity = Vector3.zero
+											p.AssemblyLinearVelocity = Vector3.zero
 										end
 									end
 								end

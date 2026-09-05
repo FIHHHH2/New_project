@@ -171,16 +171,19 @@ function DisasterSurvival.init(notifyCallback: ((string)->())?)
         hookDisasterTag(char, notifyCallback)
     end)
 
-    -- Continuously auto-dismiss stuck NDS elevator transition blackout frames
-    RunService.RenderStepped:Connect(function()
-        local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-        if pgui then
-            local et = pgui:FindFirstChild("Elevator Transition")
-            if et and et:IsA("ScreenGui") and et.Enabled then
-                local frame = et:FindFirstChild("Frame")
-                if frame and frame:IsA("Frame") and frame.BackgroundTransparency < 0.5 then
-                    frame.BackgroundTransparency = 1
-                    et.Enabled = false
+    -- Auto-dismiss stuck NDS elevator transition blackout frames (polled efficiently every 0.3s)
+    task.spawn(function()
+        while true do
+            task.wait(0.3)
+            local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            if pgui then
+                local et = pgui:FindFirstChild("Elevator Transition")
+                if et and et:IsA("ScreenGui") and et.Enabled then
+                    local frame = et:FindFirstChild("Frame")
+                    if frame and frame:IsA("Frame") and frame.BackgroundTransparency < 0.5 then
+                        frame.BackgroundTransparency = 1
+                        et.Enabled = false
+                    end
                 end
             end
         end
@@ -332,13 +335,15 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
                         if isFlinging then
                             -- Flinger detected: disable their collisions
                             for _, p in ipairs(parts) do
-                                pcall(function() p.CanCollide = false end)
+                                if p.CanCollide then
+                                    p.CanCollide = false
+                                end
                             end
                         else
                             -- Normal player: leave them be (restore normal collisions on torso/head/root)
                             for _, p in ipairs(parts) do
-                                if p.Name == "HumanoidRootPart" or p.Name == "Torso" or p.Name == "UpperTorso" or p.Name == "LowerTorso" or p.Name == "Head" then
-                                    pcall(function() p.CanCollide = true end)
+                                if (p.Name == "HumanoidRootPart" or p.Name == "Torso" or p.Name == "UpperTorso" or p.Name == "LowerTorso" or p.Name == "Head") and not p.CanCollide then
+                                    p.CanCollide = true
                                 end
                             end
                         end

@@ -11922,8 +11922,15 @@ Modules["Core/MainUI.luau"] = function()
     			end
     		end
 
-    		RunService.RenderStepped:Connect(enforcePersistentStats)
-    		RunService.Heartbeat:Connect(enforcePersistentStats)
+    		local lastStatsCheck = 0
+    		RunService.Heartbeat:Connect(function()
+    			if activeSpeedLock == nil and activeJumpLock == nil and activeHipHeightLock == nil then return end
+    			local now = tick()
+    			if now - lastStatsCheck >= 0.066 then
+    				lastStatsCheck = now
+    				enforcePersistentStats()
+    			end
+    		end)
     		localPlayer.CharacterAdded:Connect(function()
     			task.wait(0.12)
     			enforcePersistentStats()
@@ -11989,6 +11996,7 @@ Modules["Core/MainUI.luau"] = function()
     		local universalAntiFlingConn: RBXScriptConnection? = nil
     		local universalAntiFlingHeartbeatConn: RBXScriptConnection? = nil
     		local isUniversalAntiFlingAnchoring = false
+    		local lastDefuseCheck = 0
     		local heavyPhysicalProps = PhysicalProperties.new(100, 1.0, 0, 100, 100)
 
     		local function applyUniversalHeavyProps(char: Model, enable: boolean)
@@ -12054,8 +12062,10 @@ Modules["Core/MainUI.luau"] = function()
     						)
     					end
 
-    					-- Proximity defuser for high-torque flingers nearby (within 15 studs)
-    					if not flingOn then
+    					-- Proximity defuser for high-torque flingers nearby (within 15 studs, checked at 20Hz)
+    					local now = tick()
+    					if not flingOn and (now - lastDefuseCheck >= 0.05) then
+    						lastDefuseCheck = now
     						local myPos = hrp.Position
     						for _, plr in ipairs(Players:GetPlayers()) do
     							if plr ~= localPlayer and plr.Character then
@@ -12063,10 +12073,8 @@ Modules["Core/MainUI.luau"] = function()
     								if oppHrp and (oppHrp.Position - myPos).Magnitude < 15 then
     									for _, p in ipairs(plr.Character:GetChildren()) do
     										if p:IsA("BasePart") and (p.AssemblyAngularVelocity.Magnitude > 30 or p.AssemblyLinearVelocity.Magnitude > 80) then
-    											pcall(function()
-    												p.AssemblyAngularVelocity = Vector3.zero
-    												p.AssemblyLinearVelocity = Vector3.zero
-    											end)
+    											p.AssemblyAngularVelocity = Vector3.zero
+    											p.AssemblyLinearVelocity = Vector3.zero
     										end
     									end
     								end
@@ -16328,15 +16336,14 @@ Modules["Modules/Combat.luau"] = function()
     	end
     end
 
-    RunService.RenderStepped:Connect(function()
-    	if Combat.ExpandHitboxes then
-    		updateHitboxes()
-    	end
-    end)
-
+    local lastHitboxUpdate = 0
     RunService.Heartbeat:Connect(function()
     	if Combat.ExpandHitboxes then
-    		updateHitboxes()
+    		local now = tick()
+    		if now - lastHitboxUpdate >= 0.1 then
+    			lastHitboxUpdate = now
+    			updateHitboxes()
+    		end
     	end
     end)
 
@@ -16531,16 +16538,19 @@ Modules["Modules/DisasterSurvival.luau"] = function()
             hookDisasterTag(char, notifyCallback)
         end)
 
-        -- Continuously auto-dismiss stuck NDS elevator transition blackout frames
-        RunService.RenderStepped:Connect(function()
-            local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-            if pgui then
-                local et = pgui:FindFirstChild("Elevator Transition")
-                if et and et:IsA("ScreenGui") and et.Enabled then
-                    local frame = et:FindFirstChild("Frame")
-                    if frame and frame:IsA("Frame") and frame.BackgroundTransparency < 0.5 then
-                        frame.BackgroundTransparency = 1
-                        et.Enabled = false
+        -- Auto-dismiss stuck NDS elevator transition blackout frames (polled efficiently every 0.3s)
+        task.spawn(function()
+            while true do
+                task.wait(0.3)
+                local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+                if pgui then
+                    local et = pgui:FindFirstChild("Elevator Transition")
+                    if et and et:IsA("ScreenGui") and et.Enabled then
+                        local frame = et:FindFirstChild("Frame")
+                        if frame and frame:IsA("Frame") and frame.BackgroundTransparency < 0.5 then
+                            frame.BackgroundTransparency = 1
+                            et.Enabled = false
+                        end
                     end
                 end
             end
@@ -16692,13 +16702,15 @@ Modules["Modules/DisasterSurvival.luau"] = function()
                             if isFlinging then
                                 -- Flinger detected: disable their collisions
                                 for _, p in ipairs(parts) do
-                                    pcall(function() p.CanCollide = false end)
+                                    if p.CanCollide then
+                                        p.CanCollide = false
+                                    end
                                 end
                             else
                                 -- Normal player: leave them be (restore normal collisions on torso/head/root)
                                 for _, p in ipairs(parts) do
-                                    if p.Name == "HumanoidRootPart" or p.Name == "Torso" or p.Name == "UpperTorso" or p.Name == "LowerTorso" or p.Name == "Head" then
-                                        pcall(function() p.CanCollide = true end)
+                                    if (p.Name == "HumanoidRootPart" or p.Name == "Torso" or p.Name == "UpperTorso" or p.Name == "LowerTorso" or p.Name == "Head") and not p.CanCollide then
+                                        p.CanCollide = true
                                     end
                                 end
                             end
@@ -21767,21 +21779,31 @@ Modules["Modules/MurderMystery2.luau"] = function()
 
     	installMetamethodHook()
 
-    	-- Primary stepped combat & physics loop
+    	-- Primary stepped combat & physics loop (KillAura already has tick throttle)
     	table.insert(connections, RunService.Stepped:Connect(function()
     		pcall(runKillAuraStep)
     		pcall(runAutoGrabStep)
     	end))
 
-    	-- Heartbeat role & radar loop
+    	-- Heartbeat role & radar loop (throttled to 10Hz to save CPU cycles)
+    	local lastRoleUpdate = 0
     	table.insert(connections, RunService.Heartbeat:Connect(function()
-    		pcall(MurderMystery2.updateRoles)
-    		pcall(runRadarStep)
+    		local now = tick()
+    		if now - lastRoleUpdate >= 0.1 then
+    			lastRoleUpdate = now
+    			pcall(MurderMystery2.updateRoles)
+    			pcall(runRadarStep)
+    		end
     	end))
 
-    	-- RenderStepped ESP loop
+    	-- RenderStepped ESP loop (throttled to 20Hz - billboard/highlight properties do not need 60Hz re-assignment)
+    	local lastEspUpdate = 0
     	table.insert(connections, RunService.RenderStepped:Connect(function()
-    		pcall(runESPStep)
+    		local now = tick()
+    		if now - lastEspUpdate >= 0.05 then
+    			lastEspUpdate = now
+    			pcall(runESPStep)
+    		end
     	end))
 
     	-- User input for QuickShot keybind (default: Q or middle click)
@@ -22507,17 +22529,20 @@ task.spawn(function()
 	end
 end)
 
-RunService.RenderStepped:Connect(function()
-	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
-	if pgui then
-		local et = pgui:FindFirstChild("Elevator Transition")
-		if et then pcall(function() et:Destroy() end) end
-		if not isGameGuisHidden then
-			for _, g in ipairs(pgui:GetChildren()) do
-				if g:IsA("ScreenGui") and not string.find(g.Name, "Modular") and not string.find(g.Name, "ProjectFih") then
-					local gn = g.Name:lower()
-					if gn:find("elevator") or gn:find("blackout") or gn:find("fade") or gn:find("transition") then
-						pcall(function() g:Destroy() end)
+task.spawn(function()
+	while true do
+		task.wait(0.35)
+		local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
+		if pgui then
+			local et = pgui:FindFirstChild("Elevator Transition")
+			if et then pcall(function() et:Destroy() end) end
+			if not isGameGuisHidden then
+				for _, g in ipairs(pgui:GetChildren()) do
+					if g:IsA("ScreenGui") and not string.find(g.Name, "Modular") and not string.find(g.Name, "ProjectFih") then
+						local gn = g.Name:lower()
+						if gn:find("elevator") or gn:find("blackout") or gn:find("fade") or gn:find("transition") then
+							pcall(function() g:Destroy() end)
+						end
 					end
 				end
 			end

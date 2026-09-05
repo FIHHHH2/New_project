@@ -604,15 +604,14 @@ local function updateHitboxes()
 	end
 end
 
-RunService.RenderStepped:Connect(function()
-	if Combat.ExpandHitboxes then
-		updateHitboxes()
-	end
-end)
-
+local lastHitboxUpdate = 0
 RunService.Heartbeat:Connect(function()
 	if Combat.ExpandHitboxes then
-		updateHitboxes()
+		local now = tick()
+		if now - lastHitboxUpdate >= 0.1 then
+			lastHitboxUpdate = now
+			updateHitboxes()
+		end
 	end
 end)
 

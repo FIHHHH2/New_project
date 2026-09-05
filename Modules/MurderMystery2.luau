@@ -631,21 +631,31 @@ function MurderMystery2.Init()
 
 	installMetamethodHook()
 
-	-- Primary stepped combat & physics loop
+	-- Primary stepped combat & physics loop (KillAura already has tick throttle)
 	table.insert(connections, RunService.Stepped:Connect(function()
 		pcall(runKillAuraStep)
 		pcall(runAutoGrabStep)
 	end))
 
-	-- Heartbeat role & radar loop
+	-- Heartbeat role & radar loop (throttled to 10Hz to save CPU cycles)
+	local lastRoleUpdate = 0
 	table.insert(connections, RunService.Heartbeat:Connect(function()
-		pcall(MurderMystery2.updateRoles)
-		pcall(runRadarStep)
+		local now = tick()
+		if now - lastRoleUpdate >= 0.1 then
+			lastRoleUpdate = now
+			pcall(MurderMystery2.updateRoles)
+			pcall(runRadarStep)
+		end
 	end))
 
-	-- RenderStepped ESP loop
+	-- RenderStepped ESP loop (throttled to 20Hz - billboard/highlight properties do not need 60Hz re-assignment)
+	local lastEspUpdate = 0
 	table.insert(connections, RunService.RenderStepped:Connect(function()
-		pcall(runESPStep)
+		local now = tick()
+		if now - lastEspUpdate >= 0.05 then
+			lastEspUpdate = now
+			pcall(runESPStep)
+		end
 	end))
 
 	-- User input for QuickShot keybind (default: Q or middle click)

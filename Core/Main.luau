@@ -276,17 +276,20 @@ task.spawn(function()
 	end
 end)
 
-RunService.RenderStepped:Connect(function()
-	local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
-	if pgui then
-		local et = pgui:FindFirstChild("Elevator Transition")
-		if et then pcall(function() et:Destroy() end) end
-		if not isGameGuisHidden then
-			for _, g in ipairs(pgui:GetChildren()) do
-				if g:IsA("ScreenGui") and not string.find(g.Name, "Modular") and not string.find(g.Name, "ProjectFih") then
-					local gn = g.Name:lower()
-					if gn:find("elevator") or gn:find("blackout") or gn:find("fade") or gn:find("transition") then
-						pcall(function() g:Destroy() end)
+task.spawn(function()
+	while true do
+		task.wait(0.35)
+		local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
+		if pgui then
+			local et = pgui:FindFirstChild("Elevator Transition")
+			if et then pcall(function() et:Destroy() end) end
+			if not isGameGuisHidden then
+				for _, g in ipairs(pgui:GetChildren()) do
+					if g:IsA("ScreenGui") and not string.find(g.Name, "Modular") and not string.find(g.Name, "ProjectFih") then
+						local gn = g.Name:lower()
+						if gn:find("elevator") or gn:find("blackout") or gn:find("fade") or gn:find("transition") then
+							pcall(function() g:Destroy() end)
+						end
 					end
 				end
 			end

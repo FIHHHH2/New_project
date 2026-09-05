@@ -23,7 +23,17 @@ def sync():
         "UI/LeaderstatsWidget.luau",
         "UI/MusicTracker.luau",
         "Modules/DisasterSurvival.luau",
+        "Modules/TBODSquared.luau",
     ]
+
+    # Ensure all target modules have a block in Loader.luau
+    for target in targets:
+        mod_key = f'Modules["{target}"]'
+        if mod_key not in loader_text:
+            bootstrap_marker = "-- MAIN APPLICATION BOOTSTRAP\n"
+            if bootstrap_marker in loader_text:
+                prefix, rest = loader_text.split(bootstrap_marker, 1)
+                loader_text = prefix + f'{mod_key} = function()\nend\n\n' + bootstrap_marker + rest
 
     def replacer(match):
         prefix = match.group(1)

@@ -9776,18 +9776,118 @@ Modules["Core/FeatureManager.luau"] = function()
     	return activeConfigName
     end
 
+    -- ── Active Game & Cross-Game Configuration Filtering ────────────────
+    local activeGamePrefix: string? = nil
+
+    local GAME_PREFIXES: {[string]: string} = {
+    	["mm2"] = "mm2",
+    	["nds"] = "nds",
+    	["svh"] = "svh",
+    	["rt"] = "rt",
+    	["lb"] = "lb",
+    	["rnh"] = "rnh",
+    	["ice"] = "ice",
+    	["tbod"] = "tbod"
+    }
+
+    local GAME_SLIDERS_MAP: {[string]: string} = {
+    	["Burst Shot Count"] = "rnh",
+    	["Burst Delay (ms)"] = "rnh",
+    	["Flight Speed"] = "nds",
+    	["Conveyor Speed"] = "ice",
+    	["Generator Dropper Velocity"] = "ice",
+    	["Claim Interval (s)"] = "lb",
+    	["Cash Sweep Interval (ms)"] = "rt",
+    	["Silent Aim FOV Radius"] = "svh",
+    	["Hit Chance Percentage"] = "svh",
+    	["Kill Box Radius / Size"] = "svh",
+    	["Aura Attack Delay (s)"] = "svh",
+    	["Prediction Lead Factor"] = "mm2",
+    	["Max Grab Range (studs)"] = "mm2",
+    	["Coin Farm Speed"] = "mm2",
+    	["Threat Radar Threshold (studs)"] = "mm2",
+    	["Rebirth Essence Threshold"] = "tbod",
+    	["TBOD Conveyor Boost"] = "tbod",
+    	["Auto Purchase Delay (s)"] = "tbod"
+    }
+
+    local function detectActiveGamePrefix(): string
+    	if activeGamePrefix and activeGamePrefix ~= "" then
+    		return activeGamePrefix
+    	end
+    	local placeId = game.PlaceId
+    	if placeId == 142823291 then return "mm2" end
+    	if placeId == 189707 then return "nds" end
+    	if placeId == 18336470541 then return "svh" end
+    	if placeId == 1190485299606 then return "rt" end
+    	if placeId == 662417684 then return "lb" end
+    	if placeId == 12901416348 then return "rnh" end
+    	if placeId == 139063887391814 then return "tbod" end
+
+    	local gameName = string.lower(game.Name)
+    	if string.find(gameName, "tbod") or string.find(gameName, "one dropper") then return "tbod" end
+    	if string.find(gameName, "murder mystery") or string.find(gameName, "mm2") then return "mm2" end
+    	if string.find(gameName, "disaster") then return "nds" end
+    	if string.find(gameName, "seeker") or string.find(gameName, "hider") then return "svh" end
+    	if string.find(gameName, "restaurant") then return "rt" end
+    	if string.find(gameName, "lucky block") then return "lb" end
+    	if string.find(gameName, "run and hide") or string.find(gameName, "demise") then return "rnh" end
+    	if string.find(gameName, "ice tycoon") then return "ice" end
+
+    	return ""
+    end
+
+    function FeatureManager.setActiveGamePrefix(prefix: string?)
+    	activeGamePrefix = prefix
+    end
+
+    function FeatureManager.getActiveGamePrefix(): string
+    	return detectActiveGamePrefix()
+    end
+
+    local function getToggleGame(id: string): string?
+    	local modExec = string.match(id, "^mod_exec_(%w+)")
+    	if modExec then
+    		if modExec == "lucky" then return "lb" end
+    		if modExec == "dis" then return "nds" end
+    		return modExec
+    	end
+    	local prefix = string.match(id, "^([^_]+)_")
+    	if prefix and GAME_PREFIXES[prefix] then
+    		return prefix
+    	end
+    	return nil
+    end
+
     -- ── Config Serialization & Restoration ───────────────────────────
     function FeatureManager.saveConfig(name: string): boolean
     	local cleanName = sanitizeConfigName(name)
+    	local currentGame = detectActiveGamePrefix()
     	local exportData = {
     		name = cleanName,
     		timestamp = os.time(),
+    		game = if currentGame ~= "" then currentGame else nil,
+    		theme = nil :: string?,
     		toggles = {},
     		sliders = {},
     		modules = {}
     	}
 
+    	-- Save active theme
+    	pcall(function()
+    		local UI = require("UI/UI.luau")
+    		if UI and UI.CurrentTheme and UI.CurrentTheme.Name then
+    			exportData.theme = UI.CurrentTheme.Name
+    		end
+    	end)
+
     	for id, feat in pairs(registeredFeatures) do
+    		local featGame = getToggleGame(id)
+    		-- If it belongs to a known game suite and does NOT match the current game, omit it
+    		if featGame and featGame ~= currentGame then
+    			continue
+    		end
+
     		exportData.toggles[id] = {
     			state = feat.state,
     			keybind = if feat.keybind and feat.keybind ~= Enum.KeyCode.Unknown then feat.keybind.Name else nil
@@ -9795,10 +9895,21 @@ Modules["Core/FeatureManager.luau"] = function()
     	end
 
     	for id, slider in pairs(registeredSliders) do
+    		local sliderGame = GAME_SLIDERS_MAP[id]
+    		if sliderGame and sliderGame ~= currentGame then
+    			continue
+    		end
     		exportData.sliders[id] = slider.value
     	end
 
     	for id, mod in pairs(registeredModules) do
+    		if string.sub(id, 1, 4) == "mod_" then
+    			local modGame = string.sub(id, 5)
+    			if modGame == "dis" then modGame = "nds" end
+    			if GAME_PREFIXES[modGame] and modGame ~= currentGame then
+    				continue
+    			end
+    		end
     		exportData.modules[id] = mod.enabled
     	end
 
@@ -9819,8 +9930,25 @@ Modules["Core/FeatureManager.luau"] = function()
     	local ok, decoded = pcall(function() return HttpService:JSONDecode(raw) end)
     	if not ok or type(decoded) ~= "table" then return false end
 
+    	local currentGame = detectActiveGamePrefix()
+
+    	-- Restore theme if present
+    	if decoded.theme and type(decoded.theme) == "string" then
+    		pcall(function()
+    			local UI = require("UI/UI.luau")
+    			if UI and UI.setTheme then
+    				UI.setTheme(decoded.theme)
+    			end
+    		end)
+    	end
+
     	if decoded.toggles then
     		for id, data in pairs(decoded.toggles) do
+    			local featGame = getToggleGame(id)
+    			if featGame and featGame ~= currentGame then
+    				continue -- Do not load settings from another game
+    			end
+
     			local feat = registeredFeatures[id]
     			if feat then
     				if data.state ~= nil then
@@ -9840,6 +9968,11 @@ Modules["Core/FeatureManager.luau"] = function()
 
     	if decoded.sliders then
     		for id, val in pairs(decoded.sliders) do
+    			local sliderGame = GAME_SLIDERS_MAP[id]
+    			if sliderGame and sliderGame ~= currentGame then
+    				continue -- Do not restore sliders from another game
+    			end
+
     			local s = registeredSliders[id]
     			if s and type(val) == "number" then
     				FeatureManager.setSliderValue(id, val)
@@ -9849,6 +9982,14 @@ Modules["Core/FeatureManager.luau"] = function()
 
     	if decoded.modules then
     		for id, enabled in pairs(decoded.modules) do
+    			if string.sub(id, 1, 4) == "mod_" then
+    				local modGame = string.sub(id, 5)
+    				if modGame == "dis" then modGame = "nds" end
+    				if GAME_PREFIXES[modGame] and modGame ~= currentGame then
+    					continue -- Do not restore modules from another game
+    				end
+    			end
+
     			local m = registeredModules[id]
     			if m and type(enabled) == "boolean" then
     				FeatureManager.setModuleState(id, enabled)
@@ -11633,6 +11774,7 @@ Modules["Core/MainUI.luau"] = function()
     	local RestaurantTycoon = require("Modules/RestaurantTycoon.luau")
     	local SeekerVsHider    = require("Modules/SeekerVsHider.luau")
     	local MurderMystery2   = require("Modules/MurderMystery2.luau")
+    	local TBODSquared      = require("Modules/TBODSquared.luau")
     	local PlayerUtilities  = require("Modules/PlayerUtilities.luau")
     	local Notification     = require("UI/Notification.luau")
     	local MusicTracker     = require("UI/MusicTracker.luau")
@@ -11661,6 +11803,8 @@ Modules["Core/MainUI.luau"] = function()
     			return "Lucky Blocks"
     		elseif placeId == 12901416348 or string.find(gameName, "run and hide") or string.find(gameName, "demise") then
     			return "Run N Hide"
+    		elseif placeId == 139063887391814 or string.find(gameName, "tbod") or string.find(gameName, "one dropper") or (workspace:FindFirstChild("Tycoons") and workspace:FindFirstChild("Plots")) then
+    			return "TBOD^2"
     		elseif string.find(gameName, "ice tycoon") or (workspace:FindFirstChild("Tycoon") and workspace.Tycoon:FindFirstChild("Buttons")) then
     			return "Ice Tycoon"
     		end
@@ -11668,6 +11812,20 @@ Modules["Core/MainUI.luau"] = function()
     	end
 
     	local gameTabTitle = getGameTabName()
+
+    	local gamePrefixMap: {[string]: string} = {
+    		["Murder Mystery 2"] = "mm2",
+    		["Natural Disaster"] = "nds",
+    		["Seeker vs Hider"] = "svh",
+    		["Restaurant Tycoon"] = "rt",
+    		["Lucky Blocks"] = "lb",
+    		["Run N Hide"] = "rnh",
+    		["Ice Tycoon"] = "ice",
+    		["TBOD^2"] = "tbod"
+    	}
+    	if gamePrefixMap[gameTabTitle] then
+    		FeatureManager.setActiveGamePrefix(gamePrefixMap[gameTabTitle])
+    	end
 
     	-- Create navigation tabs in strict layout order
     	local mainTab = window:CreateTab("Main")
@@ -11682,6 +11840,7 @@ Modules["Core/MainUI.luau"] = function()
     	local iceTab = window:CreateTab("Ice Tycoon")
     	local rnhTab = window:CreateTab("Run N Hide")
     	local disTab = window:CreateTab("Natural Disaster")
+    	local tbodTab = window:CreateTab("TBOD^2")
 
     	-- Create hidden dedicated settings and configs pages
     	local settingsTab = window:CreateTab("Settings", true)
@@ -12843,7 +13002,7 @@ Modules["Core/MainUI.luau"] = function()
 
     	end
 
-    	local function setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab)
+    	local function setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab, tbodTab)
     		-- ============================================================
     		-- 3. UNIVERSAL GAME MODULE SUITES (LOADABLE IN EVERY GAME)
     		-- ============================================================
@@ -13708,6 +13867,90 @@ Modules["Core/MainUI.luau"] = function()
     			end)
     		end
 
+    		-- ────── 8. TBOD^2 SUITE (TYCOON BUT ONE DROPPER: SQUARED) ────────────────
+    		do
+    			local tbodLeftCol, tbodRightCol = window:CreateColumns(tbodTab)
+
+    			-- Left Column: Tycoon Automation & Rebirth
+    			local autoSection = window:AddSection(tbodLeftCol, "Tycoon Automation")
+
+    			window:AddToggle(autoSection, "tbod_auto_purchase", "Auto Purchase Buttons", false, nil, function(val)
+    				TBODSquared.setAutoPurchase(val)
+    				window:Notify("TBOD^2", if val then "Auto Purchase active" else "Auto Purchase stopped", 2)
+    			end)
+
+    			window:AddToggle(autoSection, "tbod_smart_purchase", "Smart Purchase (Cheapest First)", true, nil, function(val)
+    				TBODSquared.setSmartPurchase(val)
+    			end)
+
+    			window:AddSlider(autoSection, "Auto Purchase Delay (s)", 0.1, 2.0, 0.3, function(val)
+    				TBODSquared.setPurchaseDelay(val)
+    			end)
+
+    			local rebirthSection = window:AddSection(tbodLeftCol, "Rebirth Automation")
+
+    			window:AddToggle(rebirthSection, "tbod_auto_rebirth", "Auto Rebirth (+Essence Threshold)", false, nil, function(val)
+    				TBODSquared.setAutoRebirth(val)
+    				window:Notify("TBOD^2", if val then "Auto Rebirth active" else "Auto Rebirth stopped", 2)
+    			end)
+
+    			window:AddSlider(rebirthSection, "Rebirth Essence Threshold", 5, 2000, 50, function(val)
+    				TBODSquared.setRebirthEssenceTarget(val)
+    			end)
+
+    			window:AddButton(rebirthSection, "Manual Rebirth Now", function()
+    				local ok = TBODSquared.manualRebirth()
+    				if ok then
+    					window:Notify("TBOD^2", "Rebirth initiated successfully", 2.5)
+    				else
+    					window:Notify("TBOD^2", "Could not trigger Rebirth - check obelisk", 2.5)
+    				end
+    			end)
+
+    			-- Right Column: Conveyor & Physical Modifiers
+    			local modifierSection = window:AddSection(tbodRightCol, "Conveyor & Physics Modifiers")
+
+    			window:AddToggle(modifierSection, "tbod_conveyor_boost", "Conveyor Speed Boost", false, nil, function(val)
+    				TBODSquared.setConveyorBoost(val)
+    			end)
+
+    			window:AddSlider(modifierSection, "TBOD Conveyor Boost", 1, 10, 3, function(val)
+    				TBODSquared.setConveyorMultiplier(val)
+    			end)
+
+    			window:AddToggle(modifierSection, "tbod_drop_vacuum", "Drop Collector Vacuum / Pull", false, nil, function(val)
+    				TBODSquared.setDropVacuum(val)
+    			end)
+
+    			-- Teleport Section
+    			local tpSection = window:AddSection(tbodRightCol, "Quick Teleports")
+
+    			window:AddButton(tpSection, "Warp to My Tycoon", function()
+    				local tyc = TBODSquared.getMyTycoon()
+    				local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+    				if tyc and hrp then
+    					local spawnPart = tyc:FindFirstChild("SpawnPart") or tyc:FindFirstChild("Base")
+    					if spawnPart and spawnPart:IsA("BasePart") then
+    						hrp.CFrame = CFrame.new(spawnPart.Position + Vector3.new(0, 4, 0))
+    						window:Notify("TBOD^2", "Teleported to Tycoon Base", 2)
+    					end
+    				end
+    			end)
+
+    			window:AddButton(tpSection, "Warp to Rebirth Obelisk", function()
+    				local obelisk = Workspace:FindFirstChild("Obelisk")
+    				local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+    				if obelisk and hrp then
+    					local rb = obelisk:FindFirstChild("RebirthButton")
+    					local target = (rb and rb:FindFirstChildWhichIsA("BasePart", true)) or obelisk:FindFirstChildWhichIsA("BasePart", true)
+    					if target then
+    						hrp.CFrame = CFrame.new(target.Position + Vector3.new(0, 5, 5))
+    						window:Notify("TBOD^2", "Teleported to Rebirth Obelisk", 2)
+    					end
+    				end
+    			end)
+    		end
+
     	end
 
     	local function setupVisualsTab(visualsTab)
@@ -14109,6 +14352,13 @@ Modules["Core/MainUI.luau"] = function()
     			end
     		end)
 
+    		window:AddToggle(gameModuleSection, "mod_exec_tbod", "TBOD^2 Tycoon Suite", true, nil, function(enabled)
+    			window:SetTabVisibility(tbodTab, enabled)
+    			if not enabled then
+    				TBODSquared.stop()
+    			end
+    		end)
+
     		local actionSection = window:AddSection(modLeftCol, "Suite Batch Operations")
 
     		window:AddButton(actionSection, "Execute All Game Modules", function()
@@ -14119,6 +14369,7 @@ Modules["Core/MainUI.luau"] = function()
     			window:SetTabVisibility(iceTab, true)
     			window:SetTabVisibility(rnhTab, true)
     			window:SetTabVisibility(disTab, true)
+    			window:SetTabVisibility(tbodTab, true)
     			FeatureManager.setFeatureState("mod_exec_mm2", true, true)
     			FeatureManager.setFeatureState("mod_exec_svh", true, true)
     			FeatureManager.setFeatureState("mod_exec_rt", true, true)
@@ -14126,7 +14377,8 @@ Modules["Core/MainUI.luau"] = function()
     			FeatureManager.setFeatureState("mod_exec_ice", true, true)
     			FeatureManager.setFeatureState("mod_exec_rnh", true, true)
     			FeatureManager.setFeatureState("mod_exec_nds", true, true)
-    			window:Notify("Modules Executed", "Mounted all 7 game suites to topbar", 3)
+    			FeatureManager.setFeatureState("mod_exec_tbod", true, true)
+    			window:Notify("Modules Executed", "Mounted all game suites to topbar", 3)
     		end)
 
     		window:AddButton(actionSection, "De-execute Inactive Games", function()
@@ -14137,6 +14389,7 @@ Modules["Core/MainUI.luau"] = function()
     			local isIce = (gameTabTitle == "Ice Tycoon")
     			local isRNH = (gameTabTitle == "Run N Hide")
     			local isNDS = (gameTabTitle == "Natural Disaster")
+    			local isTBOD = (gameTabTitle == "TBOD^2")
 
     			window:SetTabVisibility(mm2Tab, isMM2)
     			window:SetTabVisibility(svhTab, isSVH)
@@ -14145,6 +14398,7 @@ Modules["Core/MainUI.luau"] = function()
     			window:SetTabVisibility(iceTab, isIce)
     			window:SetTabVisibility(rnhTab, isRNH)
     			window:SetTabVisibility(disTab, isNDS)
+    			window:SetTabVisibility(tbodTab, isTBOD)
     			FeatureManager.setFeatureState("mod_exec_mm2", isMM2, true)
     			FeatureManager.setFeatureState("mod_exec_svh", isSVH, true)
     			FeatureManager.setFeatureState("mod_exec_rt", isRT, true)
@@ -14152,6 +14406,7 @@ Modules["Core/MainUI.luau"] = function()
     			FeatureManager.setFeatureState("mod_exec_ice", isIce, true)
     			FeatureManager.setFeatureState("mod_exec_rnh", isRNH, true)
     			FeatureManager.setFeatureState("mod_exec_nds", isNDS, true)
+    			FeatureManager.setFeatureState("mod_exec_tbod", isTBOD, true)
     			window:Notify("Modules Cleaned", "Topbar filtered to active game only", 3)
     		end)
 
@@ -14778,7 +15033,7 @@ Modules["Core/MainUI.luau"] = function()
 
     	safeRun("MainTab", function() setupMainTab(mainTab) end)
     	safeRun("CombatTab", function() setupCombatTab(combatTab) end)
-    	safeRun("GameTabs", function() setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab) end)
+    	safeRun("GameTabs", function() setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab, tbodTab) end)
     	safeRun("VisualsTab", function() setupVisualsTab(visualsTab) end)
     	safeRun("SettingsAndConfigs", function() setupSettingsAndConfigs(settingsTab, configsTab) end)
 
@@ -14798,6 +15053,8 @@ Modules["Core/MainUI.luau"] = function()
     			window:SelectTab(rnhTab)
     		elseif gameTabTitle == "Natural Disaster" then
     			window:SelectTab(disTab)
+    		elseif gameTabTitle == "TBOD^2" then
+    			window:SelectTab(tbodTab)
     		else
     			window:SelectTab(mainTab)
     		end
@@ -14808,6 +15065,7 @@ Modules["Core/MainUI.luau"] = function()
     		pcall(function() Visuals.removeAllVisuals() end)
     		pcall(function() Combat.resetHitboxes() end)
     		pcall(function() MurderMystery2.Destroy() end)
+    		pcall(function() TBODSquared.stop() end)
     		pcall(function() window:Destroy() end)
     		pcall(function() Notification:Destroy() end)
     		pcall(function() PlayerList:Destroy() end)
@@ -22286,6 +22544,462 @@ Modules["Modules/PlayerUtilities.luau"] = function()
     end
 
     return PlayerUtilities
+end
+
+Modules["Modules/TBODSquared.luau"] = function()
+    local require = requireModule
+    --!strict
+    -- Modules/TBODSquared.luau
+    -- Automation & Modifiers for [UPD 1.5] TBOD^2 (Tycoon But One Dropper: SQUARED)
+    -- PlaceId: 139063887391814
+
+    local Players = game:GetService("Players")
+    local Workspace = game:GetService("Workspace")
+    local RunService = game:GetService("RunService")
+    local HttpService = game:GetService("HttpService")
+
+    local localPlayer = Players.LocalPlayer
+
+    local TBODSquared = {}
+    TBODSquared.__index = TBODSquared
+
+    -- State
+    local isRunning = false
+    local autoPurchaseEnabled = false
+    local smartPurchaseEnabled = true
+    local purchaseDelay = 0.3
+    local autoRebirthEnabled = false
+    local rebirthEssenceTarget = 50
+    local conveyorBoostEnabled = false
+    local conveyorMultiplier = 3
+    local dropVacuumEnabled = false
+
+    -- Runtime references & connections
+    local purchaseThread: thread? = nil
+    local rebirthThread: thread? = nil
+    local conveyorHeartbeatConn: RBXScriptConnection? = nil
+    local vacuumHeartbeatConn: RBXScriptConnection? = nil
+    local cachedTycoon: Model? = nil
+    local cachedPlotName: string? = nil
+    local originalConveyorSpeeds: {[BasePart]: Vector3} = {}
+
+    -- Metrics
+    TBODSquared.Metrics = {
+    	buttonsPurchased = 0,
+    	rebirthsTriggered = 0,
+    	lastRebirthEssence = 0,
+    	currentCash = "$0",
+    	currentEssence = "+0"
+    }
+
+    -- Helper: parse formatted currency string ("$3B", "150M", "+253", "$130") into raw number
+    local function parseFormattedNumber(str: string?): number
+    	if not str then return 0 end
+    	local clean = string.gsub(str, "[,%$%+%s]", "")
+    	local numPart, suffix = string.match(clean, "^([%d%.]+)%s*([%a]*)$")
+    	if not numPart then return 0 end
+    	local num = tonumber(numPart) or 0
+    	suffix = string.upper(suffix or "")
+    	local multipliers: {[string]: number} = {
+    		K = 1e3,
+    		M = 1e6,
+    		B = 1e9,
+    		T = 1e12,
+    		QA = 1e15,
+    		QI = 1e18,
+    		SX = 1e21,
+    		SP = 1e24,
+    		OC = 1e27,
+    		NO = 1e30,
+    		DC = 1e33
+    	}
+    	if multipliers[suffix] then
+    		return num * multipliers[suffix]
+    	end
+    	return num
+    end
+
+    -- Resolve the player's plot and matching Tycoon model in workspace
+    function TBODSquared.getMyTycoon(): Model?
+    	if cachedTycoon and cachedTycoon.Parent == Workspace:FindFirstChild("Tycoons") then
+    		return cachedTycoon
+    	end
+
+    	local plots = Workspace:FindFirstChild("Plots")
+    	local tycoons = Workspace:FindFirstChild("Tycoons")
+    	if not (plots and tycoons) then return nil end
+
+    	local myPlot: Instance? = nil
+    	local myUserId = localPlayer.UserId
+    	local myUserIdStr = tostring(myUserId)
+
+    	for _, p in ipairs(plots:GetChildren()) do
+    		local ownerAttr = p:GetAttribute("Owner")
+    		if ownerAttr == myUserId or ownerAttr == myUserIdStr then
+    			myPlot = p
+    			cachedPlotName = p.Name
+    			break
+    		end
+    	end
+
+    	if not myPlot then return nil end
+
+    	local plotOriginPart = myPlot:FindFirstChildWhichIsA("BasePart", true)
+    	if not plotOriginPart then return nil end
+
+    	local bestDist = math.huge
+    	local bestTyc: Model? = nil
+
+    	for _, tyc in ipairs(tycoons:GetChildren()) do
+    		if tyc:IsA("Model") then
+    			local base = tyc:FindFirstChild("Base") or tyc:FindFirstChild("SpawnPart")
+    			if base and base:IsA("BasePart") then
+    				local dist = (base.Position - plotOriginPart.Position).Magnitude
+    				if dist < 60 and dist < bestDist then
+    					bestDist = dist
+    					bestTyc = tyc
+    				end
+    			end
+    		end
+    	end
+
+    	if bestTyc then
+    		cachedTycoon = bestTyc
+    	end
+
+    	return bestTyc
+    end
+
+    -- Read player's current cash balance
+    function TBODSquared.getPlayerCash(): number
+    	local pg = localPlayer:FindFirstChild("PlayerGui")
+    	if pg then
+    		local cashText = pg:FindFirstChild("System") 
+    			and pg.System:FindFirstChild("Main") 
+    			and pg.System.Main:FindFirstChild("Cash") 
+    			and pg.System.Main.Cash:FindFirstChild("CashText") :: TextLabel?
+    		if cashText and cashText.Text then
+    			TBODSquared.Metrics.currentCash = cashText.Text
+    			return parseFormattedNumber(cashText.Text)
+    		end
+    	end
+
+    	local leaderstats = localPlayer:FindFirstChild("leaderstats")
+    	if leaderstats then
+    		local cashVal = leaderstats:FindFirstChild("Cash") or leaderstats:FindFirstChild("Money")
+    		if cashVal and cashVal:IsA("ValueBase") then
+    			return tonumber((cashVal :: any).Value) or 0
+    		end
+    	end
+    	return 0
+    end
+
+    -- Read pending Rebirth Essence
+    function TBODSquared.getPendingEssence(): number
+    	local pg = localPlayer:FindFirstChild("PlayerGui")
+    	if pg then
+    		local essLabel = pg:FindFirstChild("Main")
+    			and pg.Main:FindFirstChild("Rebirth")
+    			and pg.Main.Rebirth:FindFirstChild("Main")
+    			and pg.Main.Rebirth.Main:FindFirstChild("Inner")
+    			and pg.Main.Rebirth.Main.Inner:FindFirstChild("Essence") :: TextLabel?
+    		if essLabel and essLabel.Text then
+    			TBODSquared.Metrics.currentEssence = essLabel.Text
+    			return parseFormattedNumber(essLabel.Text)
+    		end
+    	end
+    	return 0
+    end
+
+    -- Purchase a tycoon button via touch stimulation
+    local function triggerButtonPurchase(buttonPart: BasePart): boolean
+    	local char = localPlayer.Character
+    	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	if not hrp then return false end
+
+    	local fti = (firetouchinterest :: any) or (getgenv and getgenv().firetouchinterest)
+    	if type(fti) == "function" then
+    		pcall(function()
+    			fti(hrp, buttonPart, 0)
+    			task.wait(0.02)
+    			fti(hrp, buttonPart, 1)
+    		end)
+    		return true
+    	end
+
+    	-- Fallback CFrame pulse if firetouchinterest is unavailable
+    	local origCF = hrp.CFrame
+    	hrp.CFrame = CFrame.new(buttonPart.Position + Vector3.new(0, 2, 0))
+    	task.wait(0.04)
+    	hrp.CFrame = origCF
+    	return true
+    end
+
+    -- Auto Purchase Loop
+    local function startPurchaseLoop()
+    	if purchaseThread then return end
+    	purchaseThread = task.spawn(function()
+    		while autoPurchaseEnabled do
+    			local tyc = TBODSquared.getMyTycoon()
+    			local char = localPlayer.Character
+    			local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+
+    			if tyc and hrp then
+    				local buttonsFolder = tyc:FindFirstChild("Buttons")
+    				if buttonsFolder then
+    					local currentCash = TBODSquared.getPlayerCash()
+    					local candidateButtons = {}
+
+    					for _, b in ipairs(buttonsFolder:GetChildren()) do
+    						if b:IsA("BasePart") and b.Transparency < 0.5 then
+    							local priceDisplay = b:FindFirstChild("PriceDisplay")
+    							local priceLabel = priceDisplay and priceDisplay:FindFirstChildWhichIsA("TextLabel", true)
+    							local priceText = priceLabel and priceLabel.Text or ""
+    							local cost = parseFormattedNumber(priceText)
+
+    							if cost <= currentCash then
+    								table.insert(candidateButtons, {
+    									part = b,
+    									cost = cost,
+    									name = b.Name
+    								})
+    							end
+    						end
+    					end
+
+    					if smartPurchaseEnabled then
+    						table.sort(candidateButtons, function(a, b)
+    							return a.cost < b.cost
+    						end)
+    					end
+
+    					for _, item in ipairs(candidateButtons) do
+    						if not autoPurchaseEnabled then break end
+    						if item.part and item.part.Parent and item.part.Transparency < 0.5 then
+    							local ok = triggerButtonPurchase(item.part)
+    							if ok then
+    								TBODSquared.Metrics.buttonsPurchased += 1
+    							end
+    							task.wait(0.06)
+    						end
+    					end
+    				end
+    			end
+    			task.wait(math.max(0.1, purchaseDelay))
+    		end
+    		purchaseThread = nil
+    	end)
+    end
+
+    -- Trigger Rebirth Sequence
+    local function executeRebirth(): boolean
+    	local obelisk = Workspace:FindFirstChild("Obelisk")
+    	local clickPart = obelisk and obelisk:FindFirstChild("RebirthButton") and obelisk.RebirthButton:FindFirstChild("Click") :: BasePart?
+    	if not clickPart then return false end
+
+    	-- Open Rebirth Interface via Obelisk Button
+    	local fcd = (fireclickdetector :: any) or (getgenv and getgenv().fireclickdetector)
+    	local cd = clickPart:FindFirstChildWhichIsA("ClickDetector")
+    	if cd and type(fcd) == "function" then
+    		pcall(fcd, cd)
+    	end
+
+    	local fpp = (fireproximityprompt :: any) or (getgenv and getgenv().fireproximityprompt)
+    	local pp = clickPart:FindFirstChildWhichIsA("ProximityPrompt")
+    	if pp and type(fpp) == "function" then
+    		pcall(fpp, pp)
+    	end
+
+    	-- Wait for UI to show
+    	task.wait(0.2)
+
+    	local pg = localPlayer:FindFirstChild("PlayerGui")
+    	local rebBtn = pg and pg:FindFirstChild("Main")
+    		and pg.Main:FindFirstChild("Rebirth")
+    		and pg.Main.Rebirth:FindFirstChild("Main")
+    		and pg.Main.Rebirth.Main:FindFirstChild("Inner")
+    		and pg.Main.Rebirth.Main.Inner:FindFirstChild("Rebirth") :: GuiButton?
+
+    	if rebBtn then
+    		local fs = (firesignal :: any) or (getgenv and getgenv().firesignal)
+    		if type(fs) == "function" then
+    			pcall(function()
+    				fs(rebBtn.MouseButton1Click)
+    				fs(rebBtn.Activated)
+    			end)
+    		end
+    		TBODSquared.Metrics.rebirthsTriggered += 1
+    		cachedTycoon = nil -- Invalidate tycoon cache after rebirth reset
+    		return true
+    	end
+    	return false
+    end
+
+    -- Auto Rebirth Loop
+    local function startRebirthLoop()
+    	if rebirthThread then return end
+    	rebirthThread = task.spawn(function()
+    		while autoRebirthEnabled do
+    			local pending = TBODSquared.getPendingEssence()
+    			if pending >= rebirthEssenceTarget and pending > 0 then
+    				TBODSquared.Metrics.lastRebirthEssence = pending
+    				executeRebirth()
+    				task.wait(2.5) -- Debounce to allow plot reload & rebirth animation
+    			end
+    			task.wait(0.5)
+    		end
+    		rebirthThread = nil
+    	end)
+    end
+
+    -- Conveyor Speed Boosting
+    local function applyConveyorBoost()
+    	local tyc = TBODSquared.getMyTycoon()
+    	if not tyc then return end
+
+    	local items = tyc:FindFirstChild("Items")
+    	if not items then return end
+
+    	for _, d in ipairs(items:GetDescendants()) do
+    		if d:IsA("BasePart") and string.find(string.lower(d.Name), "conveyor") and not string.find(string.lower(d.Name), "wall") and not string.find(string.lower(d.Name), "cover") then
+    			if not originalConveyorSpeeds[d] then
+    				local cur = d.AssemblyLinearVelocity
+    				if cur.Magnitude > 0.1 then
+    					originalConveyorSpeeds[d] = cur
+    				else
+    					originalConveyorSpeeds[d] = Vector3.new(0, 0, -10)
+    				end
+    			end
+    			local baseVel = originalConveyorSpeeds[d]
+    			d.AssemblyLinearVelocity = baseVel.Unit * (10 * conveyorMultiplier)
+    		end
+    	end
+    end
+
+    local function restoreConveyorSpeeds()
+    	for part, orig in pairs(originalConveyorSpeeds) do
+    		if part and part.Parent then
+    			pcall(function()
+    				part.AssemblyLinearVelocity = orig
+    			end)
+    		end
+    	end
+    	table.clear(originalConveyorSpeeds)
+    end
+
+    -- Drop Vacuum: Accelerates drops in Workspace.Drops towards the collector
+    local function startDropVacuum()
+    	if vacuumHeartbeatConn then return end
+    	vacuumHeartbeatConn = RunService.Heartbeat:Connect(function()
+    		if not dropVacuumEnabled then return end
+    		local tyc = TBODSquared.getMyTycoon()
+    		if not tyc then return end
+
+    		local items = tyc:FindFirstChild("Items")
+    		local collector = items and items:FindFirstChild("Collector")
+    		local collectorPart = collector and collector:FindFirstChild("collectorPart") :: BasePart?
+    		if not collectorPart then return end
+
+    		local dropsFolder = Workspace:FindFirstChild("Drops")
+    		if not dropsFolder then return end
+
+    		local targetPos = collectorPart.Position + Vector3.new(0, 0.5, 0)
+
+    		for _, drop in ipairs(dropsFolder:GetChildren()) do
+    			local part = drop:IsA("BasePart") and drop or drop:FindFirstChildWhichIsA("BasePart", true)
+    			if part and part:IsA("BasePart") then
+    				local dist = (part.Position - targetPos).Magnitude
+    				if dist < 80 then
+    					local dir = (targetPos - part.Position).Unit
+    					part.AssemblyLinearVelocity = dir * 35
+    				end
+    			end
+    		end
+    	end)
+    end
+
+    -- Module Interface
+    function TBODSquared.setAutoPurchase(enabled: boolean)
+    	autoPurchaseEnabled = enabled
+    	if enabled then
+    		startPurchaseLoop()
+    	elseif purchaseThread then
+    		task.cancel(purchaseThread)
+    		purchaseThread = nil
+    	end
+    end
+
+    function TBODSquared.setSmartPurchase(enabled: boolean)
+    	smartPurchaseEnabled = enabled
+    end
+
+    function TBODSquared.setPurchaseDelay(delayVal: number)
+    	purchaseDelay = math.clamp(delayVal, 0.05, 5.0)
+    end
+
+    function TBODSquared.setAutoRebirth(enabled: boolean)
+    	autoRebirthEnabled = enabled
+    	if enabled then
+    		startRebirthLoop()
+    	elseif rebirthThread then
+    		task.cancel(rebirthThread)
+    		rebirthThread = nil
+    	end
+    end
+
+    function TBODSquared.setRebirthEssenceTarget(target: number)
+    	rebirthEssenceTarget = math.max(1, target)
+    end
+
+    function TBODSquared.setConveyorBoost(enabled: boolean)
+    	conveyorBoostEnabled = enabled
+    	if enabled then
+    		if not conveyorHeartbeatConn then
+    			conveyorHeartbeatConn = RunService.Heartbeat:Connect(function()
+    				applyConveyorBoost()
+    			end)
+    		end
+    	else
+    		if conveyorHeartbeatConn then
+    			conveyorHeartbeatConn:Disconnect()
+    			conveyorHeartbeatConn = nil
+    		end
+    		restoreConveyorSpeeds()
+    	end
+    end
+
+    function TBODSquared.setConveyorMultiplier(mult: number)
+    	conveyorMultiplier = math.clamp(mult, 1, 15)
+    	if conveyorBoostEnabled then
+    		applyConveyorBoost()
+    	end
+    end
+
+    function TBODSquared.setDropVacuum(enabled: boolean)
+    	dropVacuumEnabled = enabled
+    	if enabled then
+    		startDropVacuum()
+    	else
+    		if vacuumHeartbeatConn then
+    			vacuumHeartbeatConn:Disconnect()
+    			vacuumHeartbeatConn = nil
+    		end
+    	end
+    end
+
+    function TBODSquared.manualRebirth(): boolean
+    	return executeRebirth()
+    end
+
+    function TBODSquared.stop()
+    	TBODSquared.setAutoPurchase(false)
+    	TBODSquared.setAutoRebirth(false)
+    	TBODSquared.setConveyorBoost(false)
+    	TBODSquared.setDropVacuum(false)
+    	cachedTycoon = nil
+    end
+
+    return TBODSquared
 end
 
 -- MAIN APPLICATION BOOTSTRAP

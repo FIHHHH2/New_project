@@ -33,6 +33,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	local RestaurantTycoon = require("Modules/RestaurantTycoon.luau")
 	local SeekerVsHider    = require("Modules/SeekerVsHider.luau")
 	local MurderMystery2   = require("Modules/MurderMystery2.luau")
+	local TBODSquared      = require("Modules/TBODSquared.luau")
 	local PlayerUtilities  = require("Modules/PlayerUtilities.luau")
 	local Notification     = require("UI/Notification.luau")
 	local MusicTracker     = require("UI/MusicTracker.luau")
@@ -61,6 +62,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			return "Lucky Blocks"
 		elseif placeId == 12901416348 or string.find(gameName, "run and hide") or string.find(gameName, "demise") then
 			return "Run N Hide"
+		elseif placeId == 139063887391814 or string.find(gameName, "tbod") or string.find(gameName, "one dropper") or (workspace:FindFirstChild("Tycoons") and workspace:FindFirstChild("Plots")) then
+			return "TBOD^2"
 		elseif string.find(gameName, "ice tycoon") or (workspace:FindFirstChild("Tycoon") and workspace.Tycoon:FindFirstChild("Buttons")) then
 			return "Ice Tycoon"
 		end
@@ -68,6 +71,20 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	end
 
 	local gameTabTitle = getGameTabName()
+
+	local gamePrefixMap: {[string]: string} = {
+		["Murder Mystery 2"] = "mm2",
+		["Natural Disaster"] = "nds",
+		["Seeker vs Hider"] = "svh",
+		["Restaurant Tycoon"] = "rt",
+		["Lucky Blocks"] = "lb",
+		["Run N Hide"] = "rnh",
+		["Ice Tycoon"] = "ice",
+		["TBOD^2"] = "tbod"
+	}
+	if gamePrefixMap[gameTabTitle] then
+		FeatureManager.setActiveGamePrefix(gamePrefixMap[gameTabTitle])
+	end
 
 	-- Create navigation tabs in strict layout order
 	local mainTab = window:CreateTab("Main")
@@ -82,6 +99,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	local iceTab = window:CreateTab("Ice Tycoon")
 	local rnhTab = window:CreateTab("Run N Hide")
 	local disTab = window:CreateTab("Natural Disaster")
+	local tbodTab = window:CreateTab("TBOD^2")
 
 	-- Create hidden dedicated settings and configs pages
 	local settingsTab = window:CreateTab("Settings", true)
@@ -1243,7 +1261,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 
 	end
 
-	local function setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab)
+	local function setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab, tbodTab)
 		-- ============================================================
 		-- 3. UNIVERSAL GAME MODULE SUITES (LOADABLE IN EVERY GAME)
 		-- ============================================================
@@ -2108,6 +2126,90 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end)
 		end
 
+		-- ────── 8. TBOD^2 SUITE (TYCOON BUT ONE DROPPER: SQUARED) ────────────────
+		do
+			local tbodLeftCol, tbodRightCol = window:CreateColumns(tbodTab)
+
+			-- Left Column: Tycoon Automation & Rebirth
+			local autoSection = window:AddSection(tbodLeftCol, "Tycoon Automation")
+
+			window:AddToggle(autoSection, "tbod_auto_purchase", "Auto Purchase Buttons", false, nil, function(val)
+				TBODSquared.setAutoPurchase(val)
+				window:Notify("TBOD^2", if val then "Auto Purchase active" else "Auto Purchase stopped", 2)
+			end)
+
+			window:AddToggle(autoSection, "tbod_smart_purchase", "Smart Purchase (Cheapest First)", true, nil, function(val)
+				TBODSquared.setSmartPurchase(val)
+			end)
+
+			window:AddSlider(autoSection, "Auto Purchase Delay (s)", 0.1, 2.0, 0.3, function(val)
+				TBODSquared.setPurchaseDelay(val)
+			end)
+
+			local rebirthSection = window:AddSection(tbodLeftCol, "Rebirth Automation")
+
+			window:AddToggle(rebirthSection, "tbod_auto_rebirth", "Auto Rebirth (+Essence Threshold)", false, nil, function(val)
+				TBODSquared.setAutoRebirth(val)
+				window:Notify("TBOD^2", if val then "Auto Rebirth active" else "Auto Rebirth stopped", 2)
+			end)
+
+			window:AddSlider(rebirthSection, "Rebirth Essence Threshold", 5, 2000, 50, function(val)
+				TBODSquared.setRebirthEssenceTarget(val)
+			end)
+
+			window:AddButton(rebirthSection, "Manual Rebirth Now", function()
+				local ok = TBODSquared.manualRebirth()
+				if ok then
+					window:Notify("TBOD^2", "Rebirth initiated successfully", 2.5)
+				else
+					window:Notify("TBOD^2", "Could not trigger Rebirth - check obelisk", 2.5)
+				end
+			end)
+
+			-- Right Column: Conveyor & Physical Modifiers
+			local modifierSection = window:AddSection(tbodRightCol, "Conveyor & Physics Modifiers")
+
+			window:AddToggle(modifierSection, "tbod_conveyor_boost", "Conveyor Speed Boost", false, nil, function(val)
+				TBODSquared.setConveyorBoost(val)
+			end)
+
+			window:AddSlider(modifierSection, "TBOD Conveyor Boost", 1, 10, 3, function(val)
+				TBODSquared.setConveyorMultiplier(val)
+			end)
+
+			window:AddToggle(modifierSection, "tbod_drop_vacuum", "Drop Collector Vacuum / Pull", false, nil, function(val)
+				TBODSquared.setDropVacuum(val)
+			end)
+
+			-- Teleport Section
+			local tpSection = window:AddSection(tbodRightCol, "Quick Teleports")
+
+			window:AddButton(tpSection, "Warp to My Tycoon", function()
+				local tyc = TBODSquared.getMyTycoon()
+				local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if tyc and hrp then
+					local spawnPart = tyc:FindFirstChild("SpawnPart") or tyc:FindFirstChild("Base")
+					if spawnPart and spawnPart:IsA("BasePart") then
+						hrp.CFrame = CFrame.new(spawnPart.Position + Vector3.new(0, 4, 0))
+						window:Notify("TBOD^2", "Teleported to Tycoon Base", 2)
+					end
+				end
+			end)
+
+			window:AddButton(tpSection, "Warp to Rebirth Obelisk", function()
+				local obelisk = Workspace:FindFirstChild("Obelisk")
+				local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if obelisk and hrp then
+					local rb = obelisk:FindFirstChild("RebirthButton")
+					local target = (rb and rb:FindFirstChildWhichIsA("BasePart", true)) or obelisk:FindFirstChildWhichIsA("BasePart", true)
+					if target then
+						hrp.CFrame = CFrame.new(target.Position + Vector3.new(0, 5, 5))
+						window:Notify("TBOD^2", "Teleported to Rebirth Obelisk", 2)
+					end
+				end
+			end)
+		end
+
 	end
 
 	local function setupVisualsTab(visualsTab)
@@ -2509,6 +2611,13 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
+		window:AddToggle(gameModuleSection, "mod_exec_tbod", "TBOD^2 Tycoon Suite", true, nil, function(enabled)
+			window:SetTabVisibility(tbodTab, enabled)
+			if not enabled then
+				TBODSquared.stop()
+			end
+		end)
+
 		local actionSection = window:AddSection(modLeftCol, "Suite Batch Operations")
 
 		window:AddButton(actionSection, "Execute All Game Modules", function()
@@ -2519,6 +2628,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			window:SetTabVisibility(iceTab, true)
 			window:SetTabVisibility(rnhTab, true)
 			window:SetTabVisibility(disTab, true)
+			window:SetTabVisibility(tbodTab, true)
 			FeatureManager.setFeatureState("mod_exec_mm2", true, true)
 			FeatureManager.setFeatureState("mod_exec_svh", true, true)
 			FeatureManager.setFeatureState("mod_exec_rt", true, true)
@@ -2526,7 +2636,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			FeatureManager.setFeatureState("mod_exec_ice", true, true)
 			FeatureManager.setFeatureState("mod_exec_rnh", true, true)
 			FeatureManager.setFeatureState("mod_exec_nds", true, true)
-			window:Notify("Modules Executed", "Mounted all 7 game suites to topbar", 3)
+			FeatureManager.setFeatureState("mod_exec_tbod", true, true)
+			window:Notify("Modules Executed", "Mounted all game suites to topbar", 3)
 		end)
 
 		window:AddButton(actionSection, "De-execute Inactive Games", function()
@@ -2537,6 +2648,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			local isIce = (gameTabTitle == "Ice Tycoon")
 			local isRNH = (gameTabTitle == "Run N Hide")
 			local isNDS = (gameTabTitle == "Natural Disaster")
+			local isTBOD = (gameTabTitle == "TBOD^2")
 
 			window:SetTabVisibility(mm2Tab, isMM2)
 			window:SetTabVisibility(svhTab, isSVH)
@@ -2545,6 +2657,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			window:SetTabVisibility(iceTab, isIce)
 			window:SetTabVisibility(rnhTab, isRNH)
 			window:SetTabVisibility(disTab, isNDS)
+			window:SetTabVisibility(tbodTab, isTBOD)
 			FeatureManager.setFeatureState("mod_exec_mm2", isMM2, true)
 			FeatureManager.setFeatureState("mod_exec_svh", isSVH, true)
 			FeatureManager.setFeatureState("mod_exec_rt", isRT, true)
@@ -2552,6 +2665,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			FeatureManager.setFeatureState("mod_exec_ice", isIce, true)
 			FeatureManager.setFeatureState("mod_exec_rnh", isRNH, true)
 			FeatureManager.setFeatureState("mod_exec_nds", isNDS, true)
+			FeatureManager.setFeatureState("mod_exec_tbod", isTBOD, true)
 			window:Notify("Modules Cleaned", "Topbar filtered to active game only", 3)
 		end)
 
@@ -3178,7 +3292,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 
 	safeRun("MainTab", function() setupMainTab(mainTab) end)
 	safeRun("CombatTab", function() setupCombatTab(combatTab) end)
-	safeRun("GameTabs", function() setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab) end)
+	safeRun("GameTabs", function() setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab, tbodTab) end)
 	safeRun("VisualsTab", function() setupVisualsTab(visualsTab) end)
 	safeRun("SettingsAndConfigs", function() setupSettingsAndConfigs(settingsTab, configsTab) end)
 
@@ -3198,6 +3312,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			window:SelectTab(rnhTab)
 		elseif gameTabTitle == "Natural Disaster" then
 			window:SelectTab(disTab)
+		elseif gameTabTitle == "TBOD^2" then
+			window:SelectTab(tbodTab)
 		else
 			window:SelectTab(mainTab)
 		end
@@ -3208,6 +3324,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		pcall(function() Visuals.removeAllVisuals() end)
 		pcall(function() Combat.resetHitboxes() end)
 		pcall(function() MurderMystery2.Destroy() end)
+		pcall(function() TBODSquared.stop() end)
 		pcall(function() window:Destroy() end)
 		pcall(function() Notification:Destroy() end)
 		pcall(function() PlayerList:Destroy() end)

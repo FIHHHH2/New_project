@@ -481,18 +481,118 @@ function FeatureManager.getActiveConfigName(): string?
 	return activeConfigName
 end
 
+-- ── Active Game & Cross-Game Configuration Filtering ────────────────
+local activeGamePrefix: string? = nil
+
+local GAME_PREFIXES: {[string]: string} = {
+	["mm2"] = "mm2",
+	["nds"] = "nds",
+	["svh"] = "svh",
+	["rt"] = "rt",
+	["lb"] = "lb",
+	["rnh"] = "rnh",
+	["ice"] = "ice",
+	["tbod"] = "tbod"
+}
+
+local GAME_SLIDERS_MAP: {[string]: string} = {
+	["Burst Shot Count"] = "rnh",
+	["Burst Delay (ms)"] = "rnh",
+	["Flight Speed"] = "nds",
+	["Conveyor Speed"] = "ice",
+	["Generator Dropper Velocity"] = "ice",
+	["Claim Interval (s)"] = "lb",
+	["Cash Sweep Interval (ms)"] = "rt",
+	["Silent Aim FOV Radius"] = "svh",
+	["Hit Chance Percentage"] = "svh",
+	["Kill Box Radius / Size"] = "svh",
+	["Aura Attack Delay (s)"] = "svh",
+	["Prediction Lead Factor"] = "mm2",
+	["Max Grab Range (studs)"] = "mm2",
+	["Coin Farm Speed"] = "mm2",
+	["Threat Radar Threshold (studs)"] = "mm2",
+	["Rebirth Essence Threshold"] = "tbod",
+	["TBOD Conveyor Boost"] = "tbod",
+	["Auto Purchase Delay (s)"] = "tbod"
+}
+
+local function detectActiveGamePrefix(): string
+	if activeGamePrefix and activeGamePrefix ~= "" then
+		return activeGamePrefix
+	end
+	local placeId = game.PlaceId
+	if placeId == 142823291 then return "mm2" end
+	if placeId == 189707 then return "nds" end
+	if placeId == 18336470541 then return "svh" end
+	if placeId == 1190485299606 then return "rt" end
+	if placeId == 662417684 then return "lb" end
+	if placeId == 12901416348 then return "rnh" end
+	if placeId == 139063887391814 then return "tbod" end
+
+	local gameName = string.lower(game.Name)
+	if string.find(gameName, "tbod") or string.find(gameName, "one dropper") then return "tbod" end
+	if string.find(gameName, "murder mystery") or string.find(gameName, "mm2") then return "mm2" end
+	if string.find(gameName, "disaster") then return "nds" end
+	if string.find(gameName, "seeker") or string.find(gameName, "hider") then return "svh" end
+	if string.find(gameName, "restaurant") then return "rt" end
+	if string.find(gameName, "lucky block") then return "lb" end
+	if string.find(gameName, "run and hide") or string.find(gameName, "demise") then return "rnh" end
+	if string.find(gameName, "ice tycoon") then return "ice" end
+
+	return ""
+end
+
+function FeatureManager.setActiveGamePrefix(prefix: string?)
+	activeGamePrefix = prefix
+end
+
+function FeatureManager.getActiveGamePrefix(): string
+	return detectActiveGamePrefix()
+end
+
+local function getToggleGame(id: string): string?
+	local modExec = string.match(id, "^mod_exec_(%w+)")
+	if modExec then
+		if modExec == "lucky" then return "lb" end
+		if modExec == "dis" then return "nds" end
+		return modExec
+	end
+	local prefix = string.match(id, "^([^_]+)_")
+	if prefix and GAME_PREFIXES[prefix] then
+		return prefix
+	end
+	return nil
+end
+
 -- ── Config Serialization & Restoration ───────────────────────────
 function FeatureManager.saveConfig(name: string): boolean
 	local cleanName = sanitizeConfigName(name)
+	local currentGame = detectActiveGamePrefix()
 	local exportData = {
 		name = cleanName,
 		timestamp = os.time(),
+		game = if currentGame ~= "" then currentGame else nil,
+		theme = nil :: string?,
 		toggles = {},
 		sliders = {},
 		modules = {}
 	}
 
+	-- Save active theme
+	pcall(function()
+		local UI = require("UI/UI.luau")
+		if UI and UI.CurrentTheme and UI.CurrentTheme.Name then
+			exportData.theme = UI.CurrentTheme.Name
+		end
+	end)
+
 	for id, feat in pairs(registeredFeatures) do
+		local featGame = getToggleGame(id)
+		-- If it belongs to a known game suite and does NOT match the current game, omit it
+		if featGame and featGame ~= currentGame then
+			continue
+		end
+
 		exportData.toggles[id] = {
 			state = feat.state,
 			keybind = if feat.keybind and feat.keybind ~= Enum.KeyCode.Unknown then feat.keybind.Name else nil
@@ -500,10 +600,21 @@ function FeatureManager.saveConfig(name: string): boolean
 	end
 
 	for id, slider in pairs(registeredSliders) do
+		local sliderGame = GAME_SLIDERS_MAP[id]
+		if sliderGame and sliderGame ~= currentGame then
+			continue
+		end
 		exportData.sliders[id] = slider.value
 	end
 
 	for id, mod in pairs(registeredModules) do
+		if string.sub(id, 1, 4) == "mod_" then
+			local modGame = string.sub(id, 5)
+			if modGame == "dis" then modGame = "nds" end
+			if GAME_PREFIXES[modGame] and modGame ~= currentGame then
+				continue
+			end
+		end
 		exportData.modules[id] = mod.enabled
 	end
 
@@ -524,8 +635,25 @@ function FeatureManager.loadConfig(name: string): boolean
 	local ok, decoded = pcall(function() return HttpService:JSONDecode(raw) end)
 	if not ok or type(decoded) ~= "table" then return false end
 
+	local currentGame = detectActiveGamePrefix()
+
+	-- Restore theme if present
+	if decoded.theme and type(decoded.theme) == "string" then
+		pcall(function()
+			local UI = require("UI/UI.luau")
+			if UI and UI.setTheme then
+				UI.setTheme(decoded.theme)
+			end
+		end)
+	end
+
 	if decoded.toggles then
 		for id, data in pairs(decoded.toggles) do
+			local featGame = getToggleGame(id)
+			if featGame and featGame ~= currentGame then
+				continue -- Do not load settings from another game
+			end
+
 			local feat = registeredFeatures[id]
 			if feat then
 				if data.state ~= nil then
@@ -545,6 +673,11 @@ function FeatureManager.loadConfig(name: string): boolean
 
 	if decoded.sliders then
 		for id, val in pairs(decoded.sliders) do
+			local sliderGame = GAME_SLIDERS_MAP[id]
+			if sliderGame and sliderGame ~= currentGame then
+				continue -- Do not restore sliders from another game
+			end
+
 			local s = registeredSliders[id]
 			if s and type(val) == "number" then
 				FeatureManager.setSliderValue(id, val)
@@ -554,6 +687,14 @@ function FeatureManager.loadConfig(name: string): boolean
 
 	if decoded.modules then
 		for id, enabled in pairs(decoded.modules) do
+			if string.sub(id, 1, 4) == "mod_" then
+				local modGame = string.sub(id, 5)
+				if modGame == "dis" then modGame = "nds" end
+				if GAME_PREFIXES[modGame] and modGame ~= currentGame then
+					continue -- Do not restore modules from another game
+				end
+			end
+
 			local m = registeredModules[id]
 			if m and type(enabled) == "boolean" then
 				FeatureManager.setModuleState(id, enabled)

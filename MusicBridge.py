@@ -163,34 +163,35 @@ def update_audio_spectrum():
     if peak > 0.012:
         current_media["isPlaying"] = True
 
-    # Controlled Automatic Gain Control (Floor raised to 0.045 to prevent hyper-reactivity)
+    # Dynamic Automatic Gain Control (Floor 0.05, faster decay so peaks don't desensitize quiet parts)
     if peak > max_recent_peak:
-        max_recent_peak = max(0.045, peak)
+        max_recent_peak = max(0.05, peak)
     else:
-        max_recent_peak = max(0.045, max_recent_peak * 0.997)
+        max_recent_peak = max(0.05, max_recent_peak * 0.992)
 
-    ratio = min(1.0, peak / max(0.045, max_recent_peak))
-    boosted_peak = math.pow(ratio, 1.22) * 0.88 if ratio > 0 else 0.0
+    ratio = min(1.0, peak / max(0.05, max_recent_peak))
+    # Punchy non-linear curve: strong bounce on beats, leaving upper 15% headroom for loud moments
+    boosted_peak = math.pow(ratio, 1.10) * 0.85 if ratio > 0 else 0.0
     boosted_peak = max(0.0, min(1.0, boosted_peak))
 
-    # Gentle attack and musical release
+    # Snappy attack and dynamic release for punchy bounce
     if boosted_peak > smoothed_peak:
-        smoothed_peak = smoothed_peak * 0.65 + boosted_peak * 0.35
+        smoothed_peak = smoothed_peak * 0.45 + boosted_peak * 0.55
     else:
-        smoothed_peak = smoothed_peak * 0.88 + boosted_peak * 0.12
+        smoothed_peak = smoothed_peak * 0.78 + boosted_peak * 0.22
 
     current_media["audioPeak"] = round(smoothed_peak, 3)
 
-    phase += 0.24
+    phase += 0.35
     new_spectrum = []
     for i in range(16):
-        bass_mult = 1.15 if i < 5 else (1.05 if i < 10 else 0.90)
-        osc = math.sin(phase * (0.85 + i * 0.16) + i * 0.40) * 0.14 + 0.86
-        val = max(0.03, min(1.0, (smoothed_peak * bass_mult * osc)))
+        bass_mult = 1.20 if i < 5 else (1.08 if i < 10 else 0.92)
+        osc = math.sin(phase * (1.10 + i * 0.18) + i * 0.45) * 0.22 + 0.85
+        val = max(0.04, min(0.92, (smoothed_peak * bass_mult * osc)))
         if val > band_energy[i]:
-            band_energy[i] = band_energy[i] * 0.50 + val * 0.50
+            band_energy[i] = band_energy[i] * 0.35 + val * 0.65
         else:
-            band_energy[i] = band_energy[i] * 0.86 + val * 0.14
+            band_energy[i] = band_energy[i] * 0.75 + val * 0.25
         new_spectrum.append(round(band_energy[i], 3))
 
     current_media["spectrum"] = new_spectrum

@@ -982,37 +982,45 @@ function MusicTracker.new()
 		end
 	end)
 
-	-- ── Continuous 60+ FPS Fluid Spring-Damper Visualizer Physics ────
+	-- ── Continuous 60+ FPS Highly Reactive Spring-Damper Visualizer Physics ────
 	RunService.RenderStepped:Connect(function(dt: number)
 		if not widget.Visible or not screenGui.Enabled then return end
 
 		local safeDt = math.clamp(dt or 0.016, 0.001, 0.05)
-		local isAudible = isPlaying or (currentAudioPeak > 0.015)
+		local isAudible = isPlaying or (currentAudioPeak > 0.012)
 
+		-- Fast attack (instant jump on beats) with snappy release for lively bouncing
 		local targetEnergy = if isAudible then currentAudioPeak else 0.0
 		if targetEnergy > smoothedEnergy then
-			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 22.0, 0.12, 0.50)
+			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 34.0, 0.25, 0.75)
 		else
-			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 14.0, 0.08, 0.35)
+			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 18.0, 0.10, 0.45)
 		end
 
 		local t = os.clock()
+		local maxBarHeight = 28.0 -- Maximum container clearance
+
 		for i = 1, 16 do
 			local bar = visualizerBars[i]
 			if not bar then continue end
 
-			if smoothedEnergy < 0.004 then
-				currentHeights[i] = math.max(3.0, currentHeights[i] + (3.0 - currentHeights[i]) * math.clamp(safeDt * 16.0, 0.10, 0.5))
+			if smoothedEnergy < 0.003 then
+				currentHeights[i] = math.max(3.0, currentHeights[i] + (3.0 - currentHeights[i]) * math.clamp(safeDt * 20.0, 0.15, 0.6))
+				currentVelocities[i] = 0.0
 				bar.Size = UDim2.new(0, 6, 0, currentHeights[i])
 			else
 				local rawSpec = currentSpectrum[i] or 0.10
-				local waveHarmonic = math.sin(t * 7.5 + i * 0.45) * 0.14 + math.cos(t * 4.8 - i * 0.32) * 0.10 + 0.82
-				local targetHeight = math.clamp(rawSpec * 22.0 * (smoothedEnergy * 0.85 + 0.10) * waveHarmonic + 3.0, 3.0, 25.0)
+				-- Fast, rhythmic oscillation per column giving wave variation across the 16 bars
+				local waveHarmonic = math.sin(t * 11.5 + i * 0.65) * 0.22 + math.cos(t * 7.2 - i * 0.48) * 0.15 + 0.90
+				-- Non-linear punch curve: strong reaction to beats while reserving upper 20% for true crescendo/drop peaks
+				local intensity = math.pow(math.clamp(smoothedEnergy, 0.0, 1.0), 0.92)
+				local targetHeight = math.clamp(3.0 + (rawSpec * 18.0 * intensity * waveHarmonic), 3.0, 24.0)
 
-				local springForce = (targetHeight - currentHeights[i]) * 95.0
-				local dampingForce = currentVelocities[i] * 19.0
+				-- High-frequency spring (160.0) + under-damped damper (11.5) for crisp, energetic bouncing
+				local springForce = (targetHeight - currentHeights[i]) * 160.0
+				local dampingForce = currentVelocities[i] * 11.5
 				currentVelocities[i] = currentVelocities[i] + (springForce - dampingForce) * safeDt
-				currentHeights[i] = math.clamp(currentHeights[i] + currentVelocities[i] * safeDt, 3.0, 27.0)
+				currentHeights[i] = math.clamp(currentHeights[i] + currentVelocities[i] * safeDt, 3.0, maxBarHeight)
 
 				bar.Size = UDim2.new(0, 6, 0, currentHeights[i])
 			end

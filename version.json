@@ -1,7 +1,7 @@
 {
-  "version": "1.4.6",
+  "version": "1.4.7",
   "name": "Project Fih MusicBridge",
-  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.6",
+  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.7",
   "download_url": "https://github.com/FIHHHH2/New_project/raw/main/dist/MusicBridge.exe",
-  "changelog": "Synced lyrics payload array stream for zero-latency real-time animated karaoke lyrics, sliding dual-buffer line animations, and audio beat responsiveness in Roblox UI."
+  "changelog": "Sub-second word-level timestamp syncing with inline enhanced LRC support and real-time word-by-word animated karaoke in Roblox UI."
 }

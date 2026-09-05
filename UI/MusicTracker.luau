@@ -339,6 +339,44 @@ function MusicTracker.new()
 	lyricsStroke.Parent = lyricsBox
 	UI.registerThemeElement(lyricsStroke, "Border")
 
+	local function colorToHex(c: Color3): string
+		return string.format("#%02x%02x%02x", math.clamp(math.floor(c.R * 255 + 0.5), 0, 255), math.clamp(math.floor(c.G * 255 + 0.5), 0, 255), math.clamp(math.floor(c.B * 255 + 0.5), 0, 255))
+	end
+
+	local function buildWordSyncedMarkup(lineItem: any, curMs: number): (string, boolean, string?)
+		if not lineItem or not lineItem.words or #lineItem.words == 0 then
+			return "♫ " .. (lineItem.text or ""), false, nil
+		end
+
+		local words = lineItem.words
+		local primaryHex = colorToHex(UI.Theme.TextPrimary)
+		local accentHex = colorToHex(UI.Theme.Accent)
+		local secondaryHex = colorToHex(UI.Theme.TextSecondary)
+
+		local rendered = {}
+		local activeWordText: string? = nil
+
+		for i, w in ipairs(words) do
+			local sMs = w.start_ms or 0
+			local eMs = w.end_ms or (sMs + 350)
+			local wordText = w.word or ""
+
+			if curMs >= eMs then
+				-- Already sung: primary text, bold
+				table.insert(rendered, string.format('<font color="%s"><b>%s</b></font>', primaryHex, wordText))
+			elseif curMs >= sMs and curMs < eMs then
+				-- Actively being sung: vibrant accent highlight, bold with underline
+				activeWordText = wordText
+				table.insert(rendered, string.format('<font color="%s"><b><u>%s</u></b></font>', accentHex, wordText))
+			else
+				-- Upcoming words: dimmed secondary color
+				table.insert(rendered, string.format('<font color="%s">%s</font>', secondaryHex, wordText))
+			end
+		end
+
+		return "♫ " .. table.concat(rendered, " "), activeWordText ~= nil, activeWordText
+	end
+
 	local function createLyricSlot(slotName: string): (TextLabel, UIGradient)
 		local label = Instance.new("TextLabel")
 		label.Name = slotName
@@ -352,6 +390,7 @@ function MusicTracker.new()
 		label.TextXAlignment = Enum.TextXAlignment.Left
 		label.TextYAlignment = Enum.TextYAlignment.Center
 		label.TextWrapped = true
+		label.RichText = true
 		label.Parent = lyricsBox
 		UI.registerThemeElement(label, "TextPrimary")
 
@@ -652,7 +691,60 @@ function MusicTracker.new()
 	local hasExternalBridge = false
 	local activeGameSound: Sound? = nil
 
-	local function parseLrcString(lrcStr: string): {{ ms: number, text: string }}
+	local function parseLineWords(lineText: string, startMs: number, endMs: number): {{ word: string, start_ms: number, end_ms: number }}
+		local wordsList = {}
+		local hasInline = string.find(lineText, "<%d+")
+		if hasInline then
+			for rawMin, rawSec, text in string.gmatch(lineText, "<(%d*:?)(%d+%.?%d*)>([^<]+)") do
+				local sec = tonumber(rawSec) or 0
+				if rawMin and rawMin ~= "" and rawMin ~= ":" then
+					local m = tonumber(string.gsub(rawMin, ":", "")) or 0
+					sec = m * 60 + sec
+				end
+				local cleanW = string.gsub(text or "", "^%s*(.-)%s*$", "%1")
+				if cleanW ~= "" then
+					table.insert(wordsList, { word = cleanW, start_ms = math.floor(sec * 1000), end_ms = math.floor(sec * 1000) })
+				end
+			end
+			for i = 1, #wordsList do
+				local nxt = if wordsList[i + 1] then wordsList[i + 1].start_ms else endMs
+				wordsList[i].end_ms = nxt
+			end
+			if #wordsList > 0 then return wordsList end
+		end
+
+		local cleanLine = string.gsub(lineText, "<[^>]+>", "")
+		local rawWords = {}
+		for w in string.gmatch(cleanLine, "%S+") do
+			table.insert(rawWords, w)
+		end
+		if #rawWords == 0 then return wordsList end
+
+		local lineDur = math.max(endMs - startMs, 400)
+		local weights = {}
+		local totalWeight = 0
+		for i, w in ipairs(rawWords) do
+			local clean = string.gsub(w, "[^%w]", "")
+			local wt = math.max(#clean, 1)
+			weights[i] = wt
+			totalWeight += wt
+		end
+
+		local activeDur = lineDur * 0.92
+		local curMs = startMs
+		for i, w in ipairs(rawWords) do
+			local wDur = math.floor((weights[i] / math.max(totalWeight, 1)) * activeDur)
+			table.insert(wordsList, {
+				word = w,
+				start_ms = curMs,
+				end_ms = curMs + wDur,
+			})
+			curMs += wDur
+		end
+		return wordsList
+	end
+
+	local function parseLrcString(lrcStr: string): {{ ms: number, end_ms: number, text: string, words: any }}
 		local lrcList = {}
 		for raw in string.gmatch(lrcStr, "([^\n\r]+)") do
 			local minStr, secStr, milStr, text = string.match(raw, "%[(%d%d):(%d%d)%.?(%d*)%](.*)")
@@ -664,11 +756,16 @@ function MusicTracker.new()
 				local totalMs = (mins * 60 + secs) * 1000 + mils
 				text = string.gsub(text or "", "^%s*(.-)%s*$", "%1")
 				if text ~= "" then
-					table.insert(lrcList, { ms = totalMs, text = text })
+					table.insert(lrcList, { ms = totalMs, end_ms = totalMs + 4000, text = text, words = {} })
 				end
 			end
 		end
 		table.sort(lrcList, function(a, b) return a.ms < b.ms end)
+		for i = 1, #lrcList do
+			local nxt = if lrcList[i + 1] then lrcList[i + 1].ms else (lrcList[i].ms + 4500)
+			lrcList[i].end_ms = nxt
+			lrcList[i].words = parseLineWords(lrcList[i].text, lrcList[i].ms, nxt)
+		end
 		return lrcList
 	end
 
@@ -739,6 +836,10 @@ function MusicTracker.new()
 		end)
 	end
 
+	local activeLineItem: any = nil
+	local lastActiveMarkup = ""
+	local lastActiveWord = ""
+
 	local function updateActiveLyricFromTime(posMs: number)
 		if #parsedLrcLines == 0 then return end
 		local curIndex = 0
@@ -755,14 +856,37 @@ function MusicTracker.new()
 
 		if curIndex > 0 then
 			local item = parsedLrcLines[curIndex]
-			local curLine = item.text
 			local nextItem = parsedLrcLines[curIndex + 1]
 			activeLyricStartMs = item.ms
-			activeLyricEndMs = if nextItem then nextItem.ms else (item.ms + 4000)
+			activeLyricEndMs = if item.end_ms then item.end_ms else (if nextItem then nextItem.ms else (item.ms + 4000))
 
-			if curLine ~= "" and curLine ~= lastActiveLyric then
-				lastActiveLyric = curLine
-				displayLyric("♫ " .. curLine, true)
+			if not item.words or #item.words == 0 then
+				item.words = parseLineWords(item.text, item.ms, activeLyricEndMs)
+			end
+
+			-- Line change: trigger slide-up transition
+			if item ~= activeLineItem then
+				activeLineItem = item
+				lastActiveLyric = item.text
+				local markup, _, curW = buildWordSyncedMarkup(item, posMs)
+				lastActiveMarkup = markup
+				displayLyric(markup, true)
+				if curW then lastActiveWord = curW end
+			else
+				-- Intra-line progression: update word highlighting on point
+				local markup, hasActive, curW = buildWordSyncedMarkup(item, posMs)
+				if markup ~= lastActiveMarkup then
+					lastActiveMarkup = markup
+					activeLyricLabel.Text = markup
+				end
+				-- Tactile micro-bounce on active word transition
+				if curW and curW ~= lastActiveWord then
+					lastActiveWord = curW
+					lyricsBoxScale.Scale = 1.018
+					TweenService:Create(lyricsBoxScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+						Scale = 1.0,
+					}):Play()
+				end
 			end
 		end
 	end

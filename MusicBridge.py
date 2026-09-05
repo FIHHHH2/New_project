@@ -32,7 +32,7 @@ import pystray
 from PIL import Image, ImageDraw
 
 APP_NAME = "ModularMusicBridge"
-VERSION = "1.4.6"
+VERSION = "1.4.7"
 REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PORT = 8888
 VERSION_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/version.json"
@@ -43,6 +43,7 @@ current_media = {
     "title": "No Song Playing",
     "artist": "Waiting for Media...",
     "lyrics": "Play a track on Spotify / SoundCloud / YouTube",
+    "current_word": "",
     "synced_lyrics": [],
     "isPlaying": False,
     "position": 0.0,
@@ -325,8 +326,48 @@ def download_cover_image_bytes(title: str, artist: str) -> bytes:
     return b""
 
 # ── Multi-Source Synchronized Lyrics Engine ─────────────────────────
+def parse_lrc_words(line_text: str, line_start: float, line_end: float):
+    # Check for enhanced LRC inline timestamps e.g. <00:12.34>word or <12.34>word
+    inline_matches = list(re.finditer(r'<(\d+:)?(\d+(?:\.\d+)?)>([^<]+)', line_text))
+    words = []
+    if inline_matches:
+        for m in inline_matches:
+            min_part = m.group(1)
+            sec_part = float(m.group(2))
+            w_sec = (int(min_part[:-1]) * 60 + sec_part) if min_part else sec_part
+            raw_w = m.group(3).strip()
+            if raw_w:
+                words.append({"word": raw_w, "sec": w_sec})
+        for i in range(len(words)):
+            next_sec = words[i+1]["sec"] if i+1 < len(words) else line_end
+            words[i]["start_ms"] = int(words[i]["sec"] * 1000)
+            words[i]["end_ms"] = int(next_sec * 1000)
+            del words[i]["sec"]
+        return words
+
+    clean_line = re.sub(r'<[^>]+>', '', line_text).strip()
+    raw_words = clean_line.split()
+    if not raw_words:
+        return []
+
+    line_dur = max(0.4, line_end - line_start)
+    weights = [max(1, len(re.sub(r'[^a-zA-Z0-9]', '', w))) for w in raw_words]
+    total_weight = sum(weights) or 1
+    active_dur = line_dur * 0.92
+    cur_t = line_start
+
+    for w, wt in zip(raw_words, weights):
+        w_dur = (wt / total_weight) * active_dur
+        words.append({
+            "word": w,
+            "start_ms": int(cur_t * 1000),
+            "end_ms": int((cur_t + w_dur) * 1000)
+        })
+        cur_t += w_dur
+    return words
+
 def parse_lrc(lrc_text: str):
-    lines = []
+    raw_lines = []
     for line in lrc_text.splitlines():
         match = re.search(r'\[(\d+):(\d+(?:\.\d+)?)\](.*)', line)
         if match:
@@ -335,9 +376,23 @@ def parse_lrc(lrc_text: str):
             text = match.group(3).strip()
             total_sec = minutes * 60 + seconds
             if text:
-                lines.append((total_sec, text))
-    lines.sort(key=lambda x: x[0])
-    return lines
+                raw_lines.append((total_sec, text))
+    raw_lines.sort(key=lambda x: x[0])
+
+    structured = []
+    for i in range(len(raw_lines)):
+        sec, text = raw_lines[i]
+        next_sec = raw_lines[i+1][0] if i+1 < len(raw_lines) else (sec + 4.5)
+        clean_display_text = re.sub(r'<[^>]+>', '', text).strip()
+        words = parse_lrc_words(text, sec, next_sec)
+        structured.append({
+            "sec": sec,
+            "ms": int(sec * 1000),
+            "end_ms": int(next_sec * 1000),
+            "text": clean_display_text,
+            "words": words
+        })
+    return structured
 
 def fetch_synced_lyrics(title: str, artist: str, duration: float):
     clean_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*|prod\..*', '', title, flags=re.IGNORECASE).strip()
@@ -433,12 +488,12 @@ def get_current_lyric_line(title: str, artist: str, position: float, duration: f
     if lyrics_obj["type"] == "synced":
         lines = lyrics_obj["lines"]
         active_text = ""
-        for timestamp, text in lines:
-            if position >= timestamp:
-                active_text = text
+        for line in lines:
+            if position >= line["sec"]:
+                active_text = line["text"]
             else:
                 break
-        return active_text if active_text else (lines[0][1] if lines else title)
+        return active_text if active_text else (lines[0]["text"] if lines else title)
 
     elif lyrics_obj["type"] == "plain":
         lines = lyrics_obj["lines"]
@@ -634,9 +689,21 @@ async def fetch_windows_media():
                 current_media["lyrics"] = current_lyric
                 lyrics_obj = fetch_synced_lyrics(t, a, tl_dur)
                 if lyrics_obj and lyrics_obj.get("type") == "synced":
-                    current_media["synced_lyrics"] = [{"ms": int(sec * 1000), "text": txt} for sec, txt in lyrics_obj.get("lines", [])]
+                    lines = lyrics_obj.get("lines", [])
+                    current_media["synced_lyrics"] = lines
+                    pos_ms = int(calc_pos * 1000)
+                    cur_w = ""
+                    for line in lines:
+                        if line["ms"] <= pos_ms <= line["end_ms"]:
+                            for w in line.get("words", []):
+                                if w["start_ms"] <= pos_ms <= w["end_ms"]:
+                                    cur_w = w["word"]
+                                    break
+                            break
+                    current_media["current_word"] = cur_w
                 else:
                     current_media["synced_lyrics"] = []
+                    current_media["current_word"] = ""
     except Exception:
         pass
 

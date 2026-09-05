@@ -383,7 +383,13 @@ def normalize_title_token(s: str) -> str:
 def fetch_synced_lyrics(title: str, artist: str, duration: float):
     clean_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*|prod\..*|- remastered.*|- official.*', '', title, flags=re.IGNORECASE).strip()
     clean_artist = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*|prod\..*', '', artist, flags=re.IGNORECASE).strip()
+    if not clean_title:
+        clean_title = title.strip()
+    if not clean_artist:
+        clean_artist = artist.strip()
     cache_key = f"{clean_title}_{clean_artist}".lower()
+    if not cache_key or cache_key == "_":
+        return {"type": "none", "lines": [], "message": "No lyrics available"}
     if cache_key in lyrics_cache:
         return lyrics_cache[cache_key]
 
@@ -648,6 +654,12 @@ async def fetch_windows_media():
                     clock_base_pos = tl_pos
                     clock_sync_time = now
                     last_timeline_pos = tl_pos
+                    # Immediate lyrics reset to prevent any stale lyrics leak
+                    current_media["lyrics"] = "Loading lyrics..."
+                    current_media["has_synced_lyrics"] = False
+                    current_media["lyric_status"] = "loading"
+                    current_media["synced_lyrics"] = []
+                    current_media["current_word"] = ""
                 else:
                     if has_timeline_pos and abs(tl_pos - last_timeline_pos) > 1.2:
                         clock_base_pos = tl_pos

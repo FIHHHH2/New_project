@@ -4981,10 +4981,23 @@ Modules["UI/MusicTracker.luau"] = function()
     		return lrcList
     	end
 
+    	local currentLrcFetchId = 0
+
     	local function fetchLyricsForTrack(title: string, artist: string, durationSec: number?)
     		local songKey = string.lower(title) .. "::" .. string.lower(artist)
     		if songKey == lastLrcTrack or title == "Waiting for Audio Session..." or title == "No Media Playing" then return end
     		lastLrcTrack = songKey
+
+    		currentLrcFetchId += 1
+    		local thisReqId = currentLrcFetchId
+
+    		-- Immediately purge previous song's lyrics so they never linger
+    		parsedLrcLines = {}
+    		activeLineItem = nil
+    		activeLyricStartMs = 0
+    		activeLyricEndMs = 0
+    		lastActiveLyric = ""
+    		displayLyric("♫ Loading lyrics...", false)
 
     		task.spawn(function()
     			pcall(function()
@@ -5013,24 +5026,31 @@ Modules["UI/MusicTracker.luau"] = function()
     				local hasPlain = false
     				pcall(function() raw = game:HttpGet(url) end)
 
+    				-- Verify song hasn't changed while request was in-flight
+    				if thisReqId ~= currentLrcFetchId then return end
+
     				if raw and raw ~= "" and raw:find("{") then
-    					local data = HttpService:JSONDecode(raw)
-    					if data and data.syncedLyrics then
+    					local success, data = pcall(function() return HttpService:JSONDecode(raw) end)
+    					if success and data and data.syncedLyrics then
     						local lines = parseLrcString(data.syncedLyrics)
-    						if #lines > 0 then
+    						if #lines > 0 and thisReqId == currentLrcFetchId then
     							parsedLrcLines = lines
     							return
     						end
-    					elseif data and data.plainLyrics then
+    					elseif success and data and data.plainLyrics then
     						hasPlain = true
     					end
     				end
 
     				local searchUrl = string.format("https://lrclib.net/api/search?q=%s", HttpService:UrlEncode(cleanTitle .. " " .. cleanArtist))
     				pcall(function() raw = game:HttpGet(searchUrl) end)
+
+    				-- Verify song hasn't changed while search request was in-flight
+    				if thisReqId ~= currentLrcFetchId then return end
+
     				if raw and raw ~= "" and raw:find("%[") then
-    					local searchResults = HttpService:JSONDecode(raw)
-    					if searchResults and typeof(searchResults) == "table" and #searchResults > 0 then
+    					local success, searchResults = pcall(function() return HttpService:JSONDecode(raw) end)
+    					if success and searchResults and typeof(searchResults) == "table" and #searchResults > 0 then
     						local cleanTarget = string.lower(string.gsub(cleanTitle, "[^%w]", ""))
     						for _, item in ipairs(searchResults) do
     							local candTitle = if item.trackName then string.lower(string.gsub(item.trackName, "[^%w]", "")) else ""
@@ -5043,7 +5063,7 @@ Modules["UI/MusicTracker.luau"] = function()
     									if durOk then
     										if item.syncedLyrics then
     											local lines = parseLrcString(item.syncedLyrics)
-    											if #lines > 0 then
+    											if #lines > 0 and thisReqId == currentLrcFetchId then
     												parsedLrcLines = lines
     												return
     											end
@@ -5057,6 +5077,7 @@ Modules["UI/MusicTracker.luau"] = function()
     					end
     				end
 
+    				if thisReqId ~= currentLrcFetchId then return end
     				parsedLrcLines = {}
     				if hasPlain then
     					displayLyric("♫ Unable to track along song timestamps", false)
@@ -5435,6 +5456,11 @@ Modules["UI/MusicTracker.luau"] = function()
     								parsedLrcLines = {}
     								lastActiveLyric = ""
     								lastCoverVersion = coverVer
+    								activeLineItem = nil
+    								activeLyricStartMs = 0
+    								activeLyricEndMs = 0
+    								currentLrcFetchId += 1
+    								lastLrcTrack = ""
 
     								if isIdle then
     									songTitleLabel.Text = "No Media Playing"
@@ -5444,19 +5470,28 @@ Modules["UI/MusicTracker.luau"] = function()
     									updateCover(nil, true, false, 0)
     								else
     									songTitleLabel.Text = string.format("%s — %s", title, artist)
-    									local rawLyric = data.lyrics or "No lyrics available"
-    									local formattedLyric = if rawLyric:sub(1, 3) == "♫ " then rawLyric else ("♫ " .. rawLyric)
-    									displayLyric(formattedLyric, false)
-    									lastActiveLyric = rawLyric
     									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
     									playBtn.Text = if isPlaying then "❚❚" else "▶"
     									updateCover(data.cover, false, data.hasCover == true, coverVer)
 
-    									if data.has_synced_lyrics == true and data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 then
+    									local bridgeHasValidSynced = (data.has_synced_lyrics == true and data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 and data.lyric_status == "synced")
+
+    									if bridgeHasValidSynced then
     										parsedLrcLines = data.synced_lyrics
+    										local rawLyric = data.lyrics or "♫ Lyrics synced"
+    										local formattedLyric = if rawLyric:sub(1, 3) == "♫ " then rawLyric else ("♫ " .. rawLyric)
+    										displayLyric(formattedLyric, false)
+    										lastActiveLyric = rawLyric
     									else
     										parsedLrcLines = {}
-    										if not (data.lyric_status == "no_synced" or data.lyric_status == "none") then
+    										if data.lyric_status == "loading" then
+    											displayLyric("♫ Loading lyrics...", false)
+    										elseif data.lyric_status == "no_synced" then
+    											displayLyric("♫ Unable to track along song timestamps", false)
+    										elseif data.lyric_status == "none" then
+    											displayLyric("♫ No lyrics available", false)
+    										else
+    											displayLyric("♫ Loading lyrics...", false)
     											fetchLyricsForTrack(title, artist, serverDurationMs / 1000)
     										end
     									end
@@ -5465,14 +5500,29 @@ Modules["UI/MusicTracker.luau"] = function()
     								if not isIdle then
     									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
     									playBtn.Text = if isPlaying then "❚❚" else "▶"
-    									if #parsedLrcLines == 0 and data.lyrics and data.lyrics ~= "" then
-    										local rawLyric = data.lyrics
-    										local formattedLyric = if rawLyric:sub(1, 3) == "♫ " then rawLyric else ("♫ " .. rawLyric)
-    										displayLyric(formattedLyric, false)
+
+    									-- When bridge was loading and now delivers synced lyrics:
+    									local bridgeHasValidSynced = (data.has_synced_lyrics == true and data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 and data.lyric_status == "synced")
+    									if bridgeHasValidSynced then
+    										if #parsedLrcLines == 0 or data.synced_lyrics ~= parsedLrcLines then
+    											parsedLrcLines = data.synced_lyrics
+    										end
     									end
-    									if data.has_synced_lyrics == true and data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 and #parsedLrcLines == 0 then
-    										parsedLrcLines = data.synced_lyrics
+
+    									if #parsedLrcLines == 0 then
+    										if data.lyric_status == "no_synced" then
+    											displayLyric("♫ Unable to track along song timestamps", false)
+    										elseif data.lyric_status == "none" then
+    											displayLyric("♫ No lyrics available", false)
+    										elseif data.lyric_status == "loading" then
+    											displayLyric("♫ Loading lyrics...", false)
+    										elseif data.lyrics and data.lyrics ~= "" and data.lyrics ~= "No lyrics available" then
+    											local rawLyric = data.lyrics
+    											local formattedLyric = if rawLyric:sub(1, 3) == "♫ " then rawLyric else ("♫ " .. rawLyric)
+    											displayLyric(formattedLyric, false)
+    										end
     									end
+
     									-- Update cover art when bridge signals new version
     									if coverVer ~= lastCoverVersion then
     										lastCoverVersion = coverVer

@@ -929,25 +929,22 @@ function MusicTracker.new()
 		end
 	end)
 
+	local lastSoundScanClock = 0
+	local cachedLoudestSound: Sound? = nil
+
 	-- ── Heartbeat Synchronizer & In-Game Sound Scanner ───────────────
 	RunService.Heartbeat:Connect(function()
 		if not widget.Visible or not screenGui.Enabled then return end
 
-		-- In-Game Sound Tracking
+		-- In-Game Sound Tracking (Throttled to eliminate Workspace:GetDescendants lag spikes)
 		if not hasExternalBridge then
-			local loudestSound: Sound? = nil
-			local maxLoudness = 0
+			local now = os.clock()
+			if (now - lastSoundScanClock > 1.5) or (cachedLoudestSound and not cachedLoudestSound.IsPlaying) then
+				lastSoundScanClock = now
+				local loudestSound: Sound? = nil
+				local maxLoudness = 0
 
-			for _, s in ipairs(SoundService:GetDescendants()) do
-				if s:IsA("Sound") and s.IsPlaying and s.TimeLength > 5 then
-					if s.PlaybackLoudness > maxLoudness then
-						maxLoudness = s.PlaybackLoudness
-						loudestSound = s
-					end
-				end
-			end
-			if not loudestSound then
-				for _, s in ipairs(Workspace:GetDescendants()) do
+				for _, s in ipairs(SoundService:GetDescendants()) do
 					if s:IsA("Sound") and s.IsPlaying and s.TimeLength > 5 then
 						if s.PlaybackLoudness > maxLoudness then
 							maxLoudness = s.PlaybackLoudness
@@ -955,9 +952,21 @@ function MusicTracker.new()
 						end
 					end
 				end
+				if not loudestSound then
+					for _, s in ipairs(Workspace:GetDescendants()) do
+						if s:IsA("Sound") and s.IsPlaying and s.TimeLength > 5 then
+							if s.PlaybackLoudness > maxLoudness then
+								maxLoudness = s.PlaybackLoudness
+								loudestSound = s
+							end
+						end
+					end
+				end
+				cachedLoudestSound = loudestSound
 			end
 
-			if loudestSound then
+			local loudestSound = cachedLoudestSound
+			if loudestSound and loudestSound.IsPlaying then
 				activeGameSound = loudestSound
 				isPlaying = true
 				playBtn.Text = "❚❚"

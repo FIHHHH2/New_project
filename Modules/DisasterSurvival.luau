@@ -236,6 +236,7 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
     DisasterSurvival.AntiFling = enabled
     if enabled then
         local isAnchoring = false
+        local lastCollidePass = 0
         antiFlingConn = RunService.Stepped:Connect(function()
             local char = LocalPlayer.Character
             local hrp  = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -247,11 +248,13 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
             local angVel    = hrp.AssemblyAngularVelocity
             local flingOn   = DisasterSurvival.FlingMode
 
-            -- 1. Disable collision with other players and local limbs when fling is OFF
-            if not flingOn then
+            -- 1. Disable collision with other players (throttled to 2Hz to eliminate frame spikes)
+            local now = os.clock()
+            if not flingOn and (now - lastCollidePass > 0.5) then
+                lastCollidePass = now
                 for _, plr in ipairs(Players:GetPlayers()) do
                     if plr ~= LocalPlayer and plr.Character then
-                        for _, part in ipairs(plr.Character:GetDescendants()) do
+                        for _, part in ipairs(plr.Character:GetChildren()) do
                             if part:IsA("BasePart") and part.CanCollide then
                                 part.CanCollide = false
                             end
@@ -281,8 +284,8 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
                     hrp.AssemblyAngularVelocity = Vector3.zero
                 end
 
-                -- Single-frame anchor resets all physics momentum in the solver
-                if not isAnchoring then
+                -- Single-frame anchor resets all physics momentum in the solver (skip when fling mode is on)
+                if not flingOn and not isAnchoring then
                     isAnchoring = true
                     task.spawn(function()
                         if hrp and hrp.Parent then
@@ -311,37 +314,33 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
 end
 
 -- ── Anti-Object-Kill ─────────────────────────────────────────────
--- Prevents loose objects (boulders, debris, cars) in NDS from dealing
--- lethal velocity damage.  Works by:
---  1. Setting local character parts to CanCollide = false on Stepped
---     (objects pass through rather than impact)
---  2. Clamping any residual inbound linear velocity from BasePart
---     contacts with the HRP assembly
+-- Prevents loose objects (boulders, debris, cars) in NDS from dealing lethal velocity damage.
 function DisasterSurvival.setAntiObjectKill(enabled: boolean)
     DisasterSurvival.AntiObjectKill = enabled
     if enabled then
-        antiKillConn = RunService.Stepped:Connect(function()
-            local char = LocalPlayer.Character
-            if not char then return end
-            local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if not (hrp and hum and hum.Health > 0) then return end
-
-            -- Prevent object collision on every local part
-            for _, part in ipairs(char:GetDescendants()) do
+        local function applyNoCollide(targetChar: Model)
+            for _, part in ipairs(targetChar:GetChildren()) do
                 if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
                     part.CanCollide = false
                 end
             end
+        end
+        local char = LocalPlayer.Character
+        if char then applyNoCollide(char) end
 
-            -- Clamp extreme inbound velocity (object impact velocity transfer)
+        antiKillConn = RunService.Stepped:Connect(function()
+            local c = LocalPlayer.Character
+            local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
+            local hum = c and c:FindFirstChildOfClass("Humanoid")
+            if not (hrp and hum and hum.Health > 0) then return end
+
+            -- Clamp extreme inbound velocity
             local lv = hrp.AssemblyLinearVelocity
             if lv.Magnitude > 100 then
                 hrp.AssemblyLinearVelocity = lv.Unit * math.min(lv.Magnitude, 60)
             end
 
             -- Prevent death from falling/impact by restoring health if critically low
-            -- (Server health restoration is exploitable via leaderstats remote hooks in NDS)
             if hum.Health < hum.MaxHealth * 0.15 then
                 pcall(function()
                     hum.Health = hum.MaxHealth
@@ -352,7 +351,7 @@ function DisasterSurvival.setAntiObjectKill(enabled: boolean)
         antiKillConn:Disconnect() antiKillConn = nil
         local char = LocalPlayer.Character
         if char then
-            for _, part in ipairs(char:GetDescendants()) do
+            for _, part in ipairs(char:GetChildren()) do
                 if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
                     part.CanCollide = true
                 end
@@ -709,13 +708,33 @@ local function connectFlingTouched(char: Model)
     for _, conn in ipairs(flingTouchedConns) do pcall(function() conn:Disconnect() end) end
     table.clear(flingTouchedConns)
 
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+    for _, part in ipairs(char:GetChildren()) do
+        if part:IsA("BasePart") then
             table.insert(flingTouchedConns, part.Touched:Connect(function(hit)
                 if not DisasterSurvival.FlingMode then return end
+                if not hit or hit:IsDescendantOf(char) then return end
+
+                -- Fling enemy player characters
                 local targetHrp = getFlingTargetHRP(hit)
                 if targetHrp then
                     applyFlingToHRP(targetHrp)
+                    return
+                end
+
+                -- Fling loose disaster objects (unanchored boulders, debris, vehicles)
+                if hit:IsA("BasePart") and not hit.Anchored and not hit:FindFirstAncestorOfClass("Tool") then
+                    pcall(function()
+                        hit.AssemblyLinearVelocity = Vector3.new(
+                            math.random(-500, 500),
+                            1800,
+                            math.random(-500, 500)
+                        )
+                        hit.AssemblyAngularVelocity = Vector3.new(
+                            math.random(-100000, 100000),
+                            100000,
+                            math.random(-100000, 100000)
+                        )
+                    end)
                 end
             end))
         end
@@ -724,7 +743,6 @@ end
 
 function DisasterSurvival.setFling(enabled: boolean)
     DisasterSurvival.FlingMode = enabled
-    -- Disconnect existing touched listeners
     for _, conn in ipairs(flingTouchedConns) do pcall(function() conn:Disconnect() end) end
     table.clear(flingTouchedConns)
 
@@ -733,42 +751,57 @@ function DisasterSurvival.setFling(enabled: boolean)
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
 
     if enabled then
-        -- Immunize local player from their own spin via PlatformStand
-        if hum then hum.PlatformStand = true end
+        -- Prevent ragdoll / tripping without freezing character
+        if hum then
+            hum.PlatformStand = false
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end
 
-        -- Spin local HRP: physics engine transfers angular momentum to anyone who touches us
+        -- Spin local HRP while preserving walk and run velocities so player never gets stuck
         flingConn = RunService.Heartbeat:Connect(function()
             local c   = LocalPlayer.Character
             local r   = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
             local h   = c and c:FindFirstChildOfClass("Humanoid")
-            if not (r and h) then return end
-            -- Keep local player upright and immune while spinning
-            h.PlatformStand = true
+            if not (r and h and h.Health > 0) then return end
+
+            h.PlatformStand = false
+            if h.Sit then h.Sit = false end
+
+            local moveDir = h.MoveDirection
+            local curY = r.AssemblyLinearVelocity.Y
+            if moveDir.Magnitude > 0 then
+                r.AssemblyLinearVelocity = Vector3.new(moveDir.X * h.WalkSpeed, curY, moveDir.Z * h.WalkSpeed)
+            end
             r.AssemblyAngularVelocity = Vector3.new(0, 10000000, 0)
         end)
 
-        -- Also wire up explicit Touched spiking for direct contact detection
         if char then connectFlingTouched(char) end
 
-        -- Re-wire if character respawns
-        LocalPlayer.CharacterAdded:Connect(function(newChar)
+        table.insert(flingTouchedConns, LocalPlayer.CharacterAdded:Connect(function(newChar)
             if DisasterSurvival.FlingMode then
                 local newHum = newChar:WaitForChild("Humanoid", 5) :: Humanoid?
-                if newHum then newHum.PlatformStand = true end
+                if newHum then
+                    newHum.PlatformStand = false
+                    newHum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                    newHum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+                end
                 connectFlingTouched(newChar)
             end
-        end)
+        end))
     else
-        -- Disable: stop spin loop
         if flingConn then
             flingConn:Disconnect()
             flingConn = nil
         end
-        -- Restore local player
-        if hum then hum.PlatformStand = false end
+        if hum then
+            hum.PlatformStand = false
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+        end
         if hrp then
             hrp.AssemblyAngularVelocity = Vector3.zero
-            hrp.AssemblyLinearVelocity  = Vector3.zero
         end
     end
 end

@@ -15,6 +15,7 @@ def sync():
         "UI/LeaderstatsWidget.luau",
         "Core/MainUI.luau",
         "UI/MusicTracker.luau",
+        "Modules/DisasterSurvival.luau",
     ]
 
     def replacer(match):

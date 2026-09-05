@@ -49,20 +49,20 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		if placeId == 18336470541 or string.find(gameName, "seeker") or string.find(gameName, "hider") or workspace:FindFirstChild("SPH_Workspace") then
+		if placeId == 189707 or string.find(gameName, "disaster") or workspace:FindFirstChild("Structure") or game:GetService("ReplicatedStorage"):FindFirstChild("DisasterStatus") or (localPlayer and localPlayer:FindFirstChild("SurvivalTag")) then
+			return "Natural Disaster"
+		elseif placeId == 18336470541 or string.find(gameName, "seeker") or string.find(gameName, "hider") or workspace:FindFirstChild("SPH_Workspace") then
 			return "Seeker vs Hider"
 		elseif placeId == 1190485299606 or string.find(gameName, "restaurant") or (workspace:FindFirstChild("Tycoons") and workspace.Tycoons:FindFirstChildWhichIsA("Folder")) then
 			return "Restaurant Tycoon"
 		elseif placeId == 662417684 or string.find(gameName, "lucky block") or workspace:FindFirstChild("CenterBlocks") then
 			return "Lucky Blocks"
-		elseif placeId == 189707 or string.find(gameName, "disaster") then
-			return "Natural Disaster"
 		elseif placeId == 12901416348 or string.find(gameName, "run and hide") or string.find(gameName, "demise") then
 			return "Run N Hide"
 		elseif string.find(gameName, "ice tycoon") or (workspace:FindFirstChild("Tycoon") and workspace.Tycoon:FindFirstChild("Buttons")) then
 			return "Ice Tycoon"
 		end
-		return "Seeker vs Hider"
+		return ""
 	end
 
 	local gameTabTitle = getGameTabName()
@@ -337,6 +337,15 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 					local hrp  = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 					local hum  = char and char:FindFirstChildOfClass("Humanoid")
 					if not (hrp and hum and hum.Health > 0) then return end
+
+					hum.PlatformStand = false
+					if hum.Sit then hum.Sit = false end
+
+					local moveDir = hum.MoveDirection
+					local curY = hrp.AssemblyLinearVelocity.Y
+					if moveDir.Magnitude > 0 then
+						hrp.AssemblyLinearVelocity = Vector3.new(moveDir.X * hum.WalkSpeed, curY, moveDir.Z * hum.WalkSpeed)
+					end
 					hrp.AssemblyAngularVelocity = Vector3.new(0, 10000000, 0)
 				end)
 			elseif walkFlingHeartbeat then
@@ -350,6 +359,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 
 		local universalAntiFlingConn: RBXScriptConnection? = nil
 		local isUniversalAntiFlingAnchoring = false
+		local lastUniversalAntiFlingPass = 0
 
 		window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Impulse Absorption & No-Collide)", false, nil, function(enabled)
 			if enabled then
@@ -364,18 +374,19 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 					local angVel    = hrp.AssemblyAngularVelocity
 					local flingOn   = isFlingModeActive
 
-					-- 1. No-collide all other players' parts so they cannot transfer physics momentum
-					if not flingOn then
+					-- 1. No-collide all other players' parts (throttled to 2Hz to prevent frame drops)
+					local now = os.clock()
+					if not flingOn and (now - lastUniversalAntiFlingPass > 0.5) then
+						lastUniversalAntiFlingPass = now
 						for _, plr in ipairs(Players:GetPlayers()) do
 							if plr ~= localPlayer and plr.Character then
-								for _, part in ipairs(plr.Character:GetDescendants()) do
+								for _, part in ipairs(plr.Character:GetChildren()) do
 									if part:IsA("BasePart") and part.CanCollide then
 										part.CanCollide = false
 									end
 								end
 							end
 						end
-						-- Also disable collision on local limbs (excluding HumanoidRootPart)
 						for _, part in ipairs(char:GetChildren()) do
 							if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.CanCollide then
 								part.CanCollide = false
@@ -399,8 +410,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 							hrp.AssemblyAngularVelocity = Vector3.zero
 						end
 
-						-- Single-frame anchor resets all accumulated momentum inside the physics solver
-						if not isUniversalAntiFlingAnchoring then
+						-- Single-frame anchor resets all accumulated momentum inside the physics solver (skip if fling mode is active)
+						if not flingOn and not isUniversalAntiFlingAnchoring then
 							isUniversalAntiFlingAnchoring = true
 							task.spawn(function()
 								if hrp and hrp.Parent then
@@ -2862,22 +2873,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			window:Notify("Auto-Load", "Startup auto-load profile cleared", 2)
 		end)
 
-		-- Initial scan of configs on startup
+		-- Initial scan of configs on startup (configs ignored on game join by default)
 		task.spawn(refreshProfilesList)
-
-		-- Auto-load configuration profile on startup if configured
-		task.spawn(function()
-			task.wait(1.0)
-			pcall(function()
-				local auto = FeatureManager.getAutoLoadConfig()
-				if auto.enabled and auto.configName ~= "" then
-					local ok = FeatureManager.loadConfig(auto.configName)
-					if ok then
-						window:Notify("Auto-Load", string.format("Auto-loaded startup config '%s'", auto.configName), 4)
-					end
-				end
-			end)
-		end)
 
 		-- Ensure saved theme is applied and saved on leave
 		pcall(function()

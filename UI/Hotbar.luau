@@ -20,6 +20,7 @@ local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local GuiService = game:GetService("GuiService")
+local ContextActionService = game:GetService("ContextActionService")
 
 local UI = require("UI/UI.luau")
 local Animations = require("UI/Animations.luau")
@@ -214,6 +215,11 @@ function Hotbar.new(): HotbarWidget
 	if _G.__ModularHotbar_Cleanup then
 		pcall(_G.__ModularHotbar_Cleanup)
 		_G.__ModularHotbar_Cleanup = nil
+	end
+	for slotIdx = 1, NUM_SLOTS do
+		pcall(function()
+			ContextActionService:UnbindAction("ProjectFih_HotbarSlot_" .. tostring(slotIdx))
+		end)
 	end
 
 	local activeConnections: {RBXScriptConnection} = {}
@@ -1295,30 +1301,73 @@ function Hotbar.new(): HotbarWidget
 		bpWindow.Visible = false
 	end))
 
-	-- Keybinds for 1-0 hotbar selection and ` for inventory
-	table.insert(activeConnections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		if not isHotbarEnabled then return end
-		if gameProcessed then return end
-		if input.UserInputType == Enum.UserInputType.Keyboard then
-			for slotNum, key in ipairs(KEYCODES) do
-				if input.KeyCode == key then
-					local tool = assignedSlots[slotNum]
-					local btn = slotFrames[slotNum]
-					if btn then Animations.buttonClickPop(btn) end
+	-- ── 10. High-Priority Keybind Engine (ContextActionService + InputBegan) ──
+	local lastKeyActionTick = 0
+	local HOTBAR_ACTION_PRIORITY = 3000
 
-					if tool then
-						equipOrToggleTool(tool)
-					else
-						local char = LocalPlayer.Character
-						local hum = char and char:FindFirstChildOfClass("Humanoid")
-						if hum then hum:UnequipTools() end
-						updateSlotHighlightsOnly()
-					end
-					break
-				end
-			end
+	local function executeSlotToggle(slotNum: number)
+		local tool = assignedSlots[slotNum]
+		local btn = slotFrames[slotNum]
+		if btn then Animations.buttonClickPop(btn) end
+
+		if tool then
+			equipOrToggleTool(tool)
+		else
+			local char = LocalPlayer.Character
+			local hum = char and char:FindFirstChildOfClass("Humanoid")
+			if hum then hum:UnequipTools() end
+			updateSlotHighlightsOnly()
+		end
+	end
+
+	local function handleSlotAction(actionName: string, inputState: Enum.UserInputState, _inputObject: InputObject)
+		if inputState ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Pass end
+		if not isHotbarEnabled then return Enum.ContextActionResult.Pass end
+
+		local focused = UserInputService:GetFocusedTextBox()
+		if focused then return Enum.ContextActionResult.Pass end
+
+		local slotNumStr = actionName:match("(%d+)$")
+		local slotNum = tonumber(slotNumStr)
+		if not slotNum or slotNum < 1 or slotNum > NUM_SLOTS then return Enum.ContextActionResult.Pass end
+
+		lastKeyActionTick = os.clock()
+		executeSlotToggle(slotNum)
+		return Enum.ContextActionResult.Sink
+	end
+
+	for slotNum, key in ipairs(KEYCODES) do
+		local actionName = "ProjectFih_HotbarSlot_" .. tostring(slotNum)
+		ContextActionService:BindActionAtPriority(
+			actionName,
+			handleSlotAction,
+			false,
+			HOTBAR_ACTION_PRIORITY,
+			key
+		)
+	end
+
+	-- Secondary fallback for Backquote & any unhandled keystrokes without gameProcessed blockage
+	table.insert(activeConnections, UserInputService.InputBegan:Connect(function(input, _gameProcessed)
+		if not isHotbarEnabled then return end
+		local focused = UserInputService:GetFocusedTextBox()
+		if focused then return end
+
+		if input.UserInputType == Enum.UserInputType.Keyboard then
 			if input.KeyCode == Enum.KeyCode.Backquote then
 				toggleBackpack()
+				return
+			end
+
+			-- Debounce so ContextActionService doesn't fire twice
+			if (os.clock() - lastKeyActionTick) < 0.05 then return end
+
+			for slotNum, key in ipairs(KEYCODES) do
+				if input.KeyCode == key then
+					lastKeyActionTick = os.clock()
+					executeSlotToggle(slotNum)
+					break
+				end
 			end
 		end
 	end))
@@ -1503,6 +1552,11 @@ function Hotbar.new(): HotbarWidget
 	end))
 
 	_G.__ModularHotbar_Cleanup = function()
+		for slotIdx = 1, NUM_SLOTS do
+			pcall(function()
+				ContextActionService:UnbindAction("ProjectFih_HotbarSlot_" .. tostring(slotIdx))
+			end)
+		end
 		for _, conn in ipairs(activeConnections) do
 			pcall(function() conn:Disconnect() end)
 		end

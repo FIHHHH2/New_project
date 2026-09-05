@@ -12792,15 +12792,19 @@ Modules["Core/MainUI.luau"] = function()
     		local emotesSection = window:AddSection(utilRightCol, "Emotes & Custom Animations")
 
     		window:AddButton(emotesSection, "Open Emotes GUI", function()
-    			emotesWidget:Open()
+    			if emotesWidget then emotesWidget:Open() end
     		end)
 
     		window:AddToggle(emotesSection, "show_emotes_hud", "Show Emotes HUD Widget", true, nil, function(enabled)
-    			emotesWidget.SetVisible(enabled)
+    			if emotesWidget and emotesWidget.SetVisible then
+    				emotesWidget.SetVisible(enabled)
+    			end
     		end)
 
     		window:AddButton(emotesSection, "Stop Playing Emote", function()
-    			emotesWidget.StopEmote()
+    			if emotesWidget and emotesWidget.StopEmote then
+    				emotesWidget.StopEmote()
+    			end
     			window:Notify("Emotes", "Stopped active animation track", 2)
     		end)
 
@@ -21232,7 +21236,7 @@ Modules["Modules/MurderMystery2.luau"] = function()
     }
 
     local connections: {RBXScriptConnection} = {}
-    local espInstances: {[Instance]: {Highlight?: Highlight, Billboard?: BillboardGui}} = {}
+    local espInstances: {[Instance]: {Highlight: Highlight?, Billboard: BillboardGui?}} = {}
     local killBoxPart: Part? = nil
     local killBoxSelection: SelectionBox? = nil
     local lastKillAuraTick = 0
@@ -22296,6 +22300,7 @@ local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
 local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
 local HealthWidget = require("UI/HealthWidget.luau")
+local EmotesWidget = require("UI/EmotesWidget.luau")
 
 pcall(function() MurderMystery2.Init() end)
 
@@ -22595,6 +22600,7 @@ local musicTrackerWidget = MusicTracker.new()
 local hotbarWidget = Hotbar.new()
 local leaderstatsWidget = LeaderstatsWidget.new()
 local healthWidget = HealthWidget.new()
+local emotesWidget = EmotesWidget.new()
 
 -- Standalone Leaderstats HUD integrated directly into PlayerList inspection profile
 if leaderstatsWidget and typeof(leaderstatsWidget.Close) == "function" then
@@ -22634,4 +22640,4 @@ local sharedEnv = {
 	purgeBlackoutScreens = purgeBlackoutScreens,
 }
 
-require("Core/MainUI.luau")(require, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, nil, sharedEnv)
+require("Core/MainUI.luau")(require, window, playerListWidget, chatWidgetInstance, musicTrackerWidget, hotbarWidget, leaderstatsWidget, healthWidget, emotesWidget, sharedEnv)

@@ -1159,15 +1159,19 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		local emotesSection = window:AddSection(utilRightCol, "Emotes & Custom Animations")
 
 		window:AddButton(emotesSection, "Open Emotes GUI", function()
-			emotesWidget:Open()
+			if emotesWidget then emotesWidget:Open() end
 		end)
 
 		window:AddToggle(emotesSection, "show_emotes_hud", "Show Emotes HUD Widget", true, nil, function(enabled)
-			emotesWidget.SetVisible(enabled)
+			if emotesWidget and emotesWidget.SetVisible then
+				emotesWidget.SetVisible(enabled)
+			end
 		end)
 
 		window:AddButton(emotesSection, "Stop Playing Emote", function()
-			emotesWidget.StopEmote()
+			if emotesWidget and emotesWidget.StopEmote then
+				emotesWidget.StopEmote()
+			end
 			window:Notify("Emotes", "Stopped active animation track", 2)
 		end)
 

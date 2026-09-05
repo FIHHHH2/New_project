@@ -76,7 +76,7 @@ local MurderMystery2 = {
 }
 
 local connections: {RBXScriptConnection} = {}
-local espInstances: {[Instance]: {Highlight?: Highlight, Billboard?: BillboardGui}} = {}
+local espInstances: {[Instance]: {Highlight: Highlight?, Billboard: BillboardGui?}} = {}
 local killBoxPart: Part? = nil
 local killBoxSelection: SelectionBox? = nil
 local lastKillAuraTick = 0

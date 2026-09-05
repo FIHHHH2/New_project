@@ -3020,11 +3020,18 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 
 	end
 
-	setupMainTab(mainTab)
-	setupCombatTab(combatTab)
-	setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab)
-	setupVisualsTab(visualsTab)
-	setupSettingsAndConfigs(settingsTab, configsTab)
+	local function safeRun(tabName: string, fn: () -> ())
+		local ok, err = pcall(fn)
+		if not ok then
+			warn(string.format("[MainUI] Error during %s setup: %s", tabName, tostring(err)))
+		end
+	end
+
+	safeRun("MainTab", function() setupMainTab(mainTab) end)
+	safeRun("CombatTab", function() setupCombatTab(combatTab) end)
+	safeRun("GameTabs", function() setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab) end)
+	safeRun("VisualsTab", function() setupVisualsTab(visualsTab) end)
+	safeRun("SettingsAndConfigs", function() setupSettingsAndConfigs(settingsTab, configsTab) end)
 
 	-- Auto-select active game tab on startup if recognized, otherwise Main tab
 	task.defer(function()

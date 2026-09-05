@@ -10950,6 +10950,91 @@ Modules["Core/CoreUI.luau"] = function()
     	return box, row
     end
 
+    function CoreUI:AddDropdown(section: Frame, name: string, options: {string}, defaultSelected: string?, onSelected: ((string) -> ())?): Frame
+    	local row = Instance.new("Frame")
+    	row.Name = name .. "DropdownRow"
+    	row.Size = UDim2.new(1, -4, 0, 26)
+    	row.Position = UDim2.new(0, 2, 0, 0)
+    	row.BackgroundTransparency = 1
+    	row.BorderSizePixel = 0
+    	row.ClipsDescendants = false
+    	row.Parent = section
+
+    	local titleLabel = Instance.new("TextLabel")
+    	titleLabel.Name = "DropdownLabel"
+    	titleLabel.Size = UDim2.new(0.48, -4, 1, 0)
+    	titleLabel.Position = UDim2.new(0, 4, 0, 0)
+    	titleLabel.BackgroundTransparency = 1
+    	titleLabel.Text = name
+    	titleLabel.TextColor3 = UI.Theme.TextPrimary
+    	titleLabel.Font = UI.Fonts.Header
+    	titleLabel.TextSize = 10
+    	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    	titleLabel.Parent = row
+    	UI.registerThemeElement(titleLabel, "TextPrimary")
+
+    	local currentIndex = 1
+    	local currentVal = defaultSelected or (options[1] or "")
+    	for idx, opt in ipairs(options) do
+    		if opt == currentVal then
+    			currentIndex = idx
+    			break
+    		end
+    	end
+
+    	local btn = Instance.new("TextButton")
+    	btn.Name = "SelectorBtn"
+    	btn.Size = UDim2.new(0.52, -4, 1, 0)
+    	btn.Position = UDim2.new(0.48, 4, 0, 0)
+    	btn.BackgroundColor3 = UI.Theme.Container
+    	btn.BackgroundTransparency = UI.Theme.ContainerTransparency
+    	btn.BorderSizePixel = 0
+    	btn.Text = string.format("[ %s ▾ ]", tostring(currentVal))
+    	btn.TextColor3 = UI.Theme.Accent
+    	btn.Font = UI.Fonts.Mono
+    	btn.TextSize = 10
+    	btn.TextTruncate = Enum.TextTruncate.AtEnd
+    	btn.ClipsDescendants = true
+    	btn.Parent = row
+    	UI.registerThemeElement(btn, "Container")
+
+    	local btnStroke = Instance.new("UIStroke")
+    	btnStroke.Color = UI.Theme.Border
+    	btnStroke.Thickness = 1.0
+    	btnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    	btnStroke.Parent = btn
+    	UI.registerThemeElement(btnStroke, "Border")
+
+    	btn.MouseEnter:Connect(function()
+    		TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark }):Play()
+    		TweenService:Create(btnStroke, TweenInfo.new(0.12), { Color = UI.Theme.Accent, Thickness = 1.4 }):Play()
+    	end)
+    	btn.MouseLeave:Connect(function()
+    		TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container }):Play()
+    		TweenService:Create(btnStroke, TweenInfo.new(0.12), { Color = UI.Theme.Border, Thickness = 1.0 }):Play()
+    	end)
+
+    	local function cycleOption(step: number)
+    		if #options == 0 then return end
+    		currentIndex = ((currentIndex - 1 + step) % #options) + 1
+    		currentVal = options[currentIndex]
+    		btn.Text = string.format("[ %s ▾ ]", tostring(currentVal))
+    		if onSelected then
+    			onSelected(currentVal)
+    		end
+    	end
+
+    	btn.MouseButton1Click:Connect(function()
+    		cycleOption(1)
+    	end)
+    	btn.MouseButton2Click:Connect(function()
+    		cycleOption(-1)
+    	end)
+
+    	return row
+    end
+
     function CoreUI:Notify(title: string, message: string, duration: number?)
     	Notification.show(title, message, duration)
     end
@@ -14026,11 +14111,18 @@ Modules["Core/MainUI.luau"] = function()
 
     	end
 
-    	setupMainTab(mainTab)
-    	setupCombatTab(combatTab)
-    	setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab)
-    	setupVisualsTab(visualsTab)
-    	setupSettingsAndConfigs(settingsTab, configsTab)
+    	local function safeRun(tabName: string, fn: () -> ())
+    		local ok, err = pcall(fn)
+    		if not ok then
+    			warn(string.format("[MainUI] Error during %s setup: %s", tabName, tostring(err)))
+    		end
+    	end
+
+    	safeRun("MainTab", function() setupMainTab(mainTab) end)
+    	safeRun("CombatTab", function() setupCombatTab(combatTab) end)
+    	safeRun("GameTabs", function() setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab) end)
+    	safeRun("VisualsTab", function() setupVisualsTab(visualsTab) end)
+    	safeRun("SettingsAndConfigs", function() setupSettingsAndConfigs(settingsTab, configsTab) end)
 
     	-- Auto-select active game tab on startup if recognized, otherwise Main tab
     	task.defer(function()

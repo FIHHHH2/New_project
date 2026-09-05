@@ -41,8 +41,8 @@ export type PlayerListWidget = {
 local ROW_H = 38
 local ROW_GAP = 4
 local HEADER_H = 28
-local POPUP_W = 220
-local POPUP_H = 254
+local POPUP_W = 260
+local POPUP_H = 345
 
 function PlayerList.new(): PlayerListWidget
 	local screenGui = Instance.new("ScreenGui")
@@ -329,7 +329,19 @@ function PlayerList.new(): PlayerListWidget
 		closeWidget()
 	end)
 
-	-- ── Floating Player Context Menu Popup ───────────────────────────
+	-- ── Full-Screen Dismiss Overlay (Clicking anywhere outside closes the profile) ──
+	local dismissOverlay = Instance.new("TextButton")
+	dismissOverlay.Name = "PlayerProfileDismissOverlay"
+	dismissOverlay.Size = UDim2.new(1, 0, 1, 0)
+	dismissOverlay.Position = UDim2.new(0, 0, 0, 0)
+	dismissOverlay.BackgroundTransparency = 1
+	dismissOverlay.Text = ""
+	dismissOverlay.AutoButtonColor = false
+	dismissOverlay.Visible = false
+	dismissOverlay.ZIndex = 95
+	dismissOverlay.Parent = screenGui
+
+	-- ── Floating Player Extended Profile & Leaderstats Popup ─────────
 	popupFrame = Instance.new("Frame")
 	popupFrame.Name = "PlayerContextMenu"
 	popupFrame.Size = UDim2.new(0, POPUP_W, 0, POPUP_H)
@@ -364,10 +376,10 @@ function PlayerList.new(): PlayerListWidget
 	popupScale.Scale = 1.0
 	popupScale.Parent = popupFrame
 
-	-- Popup Header with Avatar & Details
+	-- 1. Popup Header with Avatar & Details
 	local pHeader = Instance.new("Frame")
 	pHeader.Name = "PopupHeader"
-	pHeader.Size = UDim2.new(1, 0, 0, 52)
+	pHeader.Size = UDim2.new(1, 0, 0, 50)
 	pHeader.BackgroundColor3 = UI.Theme.Container
 	pHeader.BackgroundTransparency = UI.Theme.ContainerTransparency
 	pHeader.BorderSizePixel = 0
@@ -382,7 +394,7 @@ function PlayerList.new(): PlayerListWidget
 	UI.registerThemeElement(pHeaderStroke, "Border")
 
 	local pAvatarBox = Instance.new("Frame")
-	pAvatarBox.Size = UDim2.new(0, 42, 0, 42)
+	pAvatarBox.Size = UDim2.new(0, 40, 0, 40)
 	pAvatarBox.Position = UDim2.new(0, 5, 0, 5)
 	pAvatarBox.BackgroundColor3 = UI.Theme.ContainerDark
 	pAvatarBox.BorderSizePixel = 0
@@ -396,7 +408,7 @@ function PlayerList.new(): PlayerListWidget
 
 	local pNameLabel = Instance.new("TextLabel")
 	pNameLabel.Size = UDim2.new(1, -74, 0, 16)
-	pNameLabel.Position = UDim2.new(0, 52, 0, 6)
+	pNameLabel.Position = UDim2.new(0, 50, 0, 6)
 	pNameLabel.BackgroundTransparency = 1
 	pNameLabel.Text = "DisplayName"
 	pNameLabel.TextColor3 = UI.Theme.TextPrimary
@@ -409,7 +421,7 @@ function PlayerList.new(): PlayerListWidget
 
 	local pSubLabel = Instance.new("TextLabel")
 	pSubLabel.Size = UDim2.new(1, -74, 0, 14)
-	pSubLabel.Position = UDim2.new(0, 52, 0, 24)
+	pSubLabel.Position = UDim2.new(0, 50, 0, 24)
 	pSubLabel.BackgroundTransparency = 1
 	pSubLabel.Text = "@Username | 0d"
 	pSubLabel.TextColor3 = UI.Theme.TextSecondary
@@ -437,31 +449,91 @@ function PlayerList.new(): PlayerListWidget
 		if closeContextMenu then closeContextMenu() end
 	end)
 
-	-- Popup Action Buttons List
+	-- 2. Live Leaderstats & Currencies Section
+	local statsHeader = Instance.new("TextLabel")
+	statsHeader.Size = UDim2.new(1, -12, 0, 16)
+	statsHeader.Position = UDim2.new(0, 6, 0, 54)
+	statsHeader.BackgroundTransparency = 1
+	statsHeader.Text = "LIVE LEADERSTATS"
+	statsHeader.TextColor3 = UI.Theme.TextSecondary
+	statsHeader.Font = UI.Fonts.Header
+	statsHeader.TextSize = 9
+	statsHeader.TextXAlignment = Enum.TextXAlignment.Left
+	statsHeader.Parent = popupFrame
+	UI.registerThemeElement(statsHeader, "TextSecondary")
+
+	local statsContainer = Instance.new("ScrollingFrame")
+	statsContainer.Name = "StatsContainer"
+	statsContainer.Size = UDim2.new(1, -12, 0, 105)
+	statsContainer.Position = UDim2.new(0, 6, 0, 72)
+	statsContainer.BackgroundColor3 = UI.Theme.ContainerDark
+	statsContainer.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+	statsContainer.BorderSizePixel = 0
+	statsContainer.ScrollBarThickness = 2
+	statsContainer.ScrollBarImageColor3 = UI.Theme.Accent
+	statsContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+	statsContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	statsContainer.Parent = popupFrame
+	UI.registerThemeElement(statsContainer, "ContainerDark")
+
+	local statsStroke = Instance.new("UIStroke")
+	statsStroke.Color = UI.Theme.BorderDim
+	statsStroke.Thickness = 0.8
+	statsStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	statsStroke.Parent = statsContainer
+	UI.registerThemeElement(statsStroke, "BorderDim")
+
+	local statsList = Instance.new("UIListLayout")
+	statsList.Padding = UDim.new(0, 2)
+	statsList.SortOrder = Enum.SortOrder.LayoutOrder
+	statsList.Parent = statsContainer
+
+	-- 3. Action Buttons Section
+	local actionsHeader = Instance.new("TextLabel")
+	actionsHeader.Size = UDim2.new(1, -12, 0, 16)
+	actionsHeader.Position = UDim2.new(0, 6, 0, 182)
+	actionsHeader.BackgroundTransparency = 1
+	actionsHeader.Text = "PLAYER ACTIONS"
+	actionsHeader.TextColor3 = UI.Theme.TextSecondary
+	actionsHeader.Font = UI.Fonts.Header
+	actionsHeader.TextSize = 9
+	actionsHeader.TextXAlignment = Enum.TextXAlignment.Left
+	actionsHeader.Parent = popupFrame
+	UI.registerThemeElement(actionsHeader, "TextSecondary")
+
 	local pBtnContainer = Instance.new("Frame")
-	pBtnContainer.Size = UDim2.new(1, -10, 1, -60)
-	pBtnContainer.Position = UDim2.new(0, 5, 0, 56)
+	pBtnContainer.Size = UDim2.new(1, -12, 0, 138)
+	pBtnContainer.Position = UDim2.new(0, 6, 0, 200)
 	pBtnContainer.BackgroundTransparency = 1
 	pBtnContainer.Parent = popupFrame
 
-	local pLayout = Instance.new("UIListLayout")
-	pLayout.Padding = UDim.new(0, 4)
-	pLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	pLayout.Parent = pBtnContainer
+	local pGridLayout = Instance.new("UIGridLayout")
+	pGridLayout.CellSize = UDim2.new(0.5, -3, 0, 24)
+	pGridLayout.CellPadding = UDim2.new(0, 6, 0, 4)
+	pGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	pGridLayout.Parent = pBtnContainer
 
 	local currentTargetPlayer: Player? = nil
 	local isSpying = false
+	local activeStatConns: {RBXScriptConnection} = {}
+
+	local function clearStatConns()
+		for _, conn in ipairs(activeStatConns) do
+			pcall(function() conn:Disconnect() end)
+		end
+		table.clear(activeStatConns)
+	end
 
 	local function makeActionBtn(text: string, order: number, onClick: () -> ()): TextButton
 		local btn = Instance.new("TextButton")
-		btn.Size = UDim2.new(1, 0, 0, 23)
+		btn.Size = UDim2.new(1, 0, 1, 0)
 		btn.BackgroundColor3 = UI.Theme.Container
 		btn.BackgroundTransparency = UI.Theme.ContainerTransparency
 		btn.BorderSizePixel = 0
 		btn.Text = text
 		btn.TextColor3 = UI.Theme.TextPrimary
 		btn.Font = UI.Fonts.Header
-		btn.TextSize = 10
+		btn.TextSize = 9
 		btn.LayoutOrder = order
 		btn.Parent = pBtnContainer
 		UI.registerThemeElement(btn, "Container")
@@ -475,7 +547,7 @@ function PlayerList.new(): PlayerListWidget
 		UI.registerThemeElement(bStroke, "Border")
 
 		btn.MouseEnter:Connect(function()
-			TweenService:Create(bStroke, TweenInfo.new(0.12), { Thickness = 1.6, Color = UI.Theme.Accent }):Play()
+			TweenService:Create(bStroke, TweenInfo.new(0.12), { Thickness = 1.4, Color = UI.Theme.Accent }):Play()
 			TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark, TextColor3 = UI.Theme.Accent }):Play()
 		end)
 		btn.MouseLeave:Connect(function()
@@ -496,17 +568,8 @@ function PlayerList.new(): PlayerListWidget
 		end
 	end)
 
-	-- 2. Block Player
-	local blockBtn = makeActionBtn("Block Player", 2, function()
-		if currentTargetPlayer and currentTargetPlayer ~= Players.LocalPlayer then
-			pcall(function()
-				StarterGui:SetCore("PromptBlockPlayer", currentTargetPlayer)
-			end)
-		end
-	end)
-
-	-- 3. Teleport To Player
-	local tpBtn = makeActionBtn("Teleport Behind", 3, function()
+	-- 2. Teleport To Player
+	local tpBtn = makeActionBtn("Teleport", 2, function()
 		if currentTargetPlayer and currentTargetPlayer.Character then
 			local myChar = Players.LocalPlayer.Character
 			local tChar = currentTargetPlayer.Character
@@ -518,8 +581,41 @@ function PlayerList.new(): PlayerListWidget
 		end
 	end)
 
-	-- 4. Fling Player (Target High-Torque Burst)
-	local flingBtn = makeActionBtn("Fling Player", 4, function()
+	-- 3. Spectate / Spy
+	local spyBtn = makeActionBtn("Spectate", 3, function()
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+		isSpying = not isSpying
+		spyBtn.Text = if isSpying then "Unspectate" else "Spectate"
+		if isSpying and currentTargetPlayer and currentTargetPlayer.Character and currentTargetPlayer.Character:FindFirstChildOfClass("Humanoid") then
+			cam.CameraSubject = currentTargetPlayer.Character:FindFirstChildOfClass("Humanoid")
+		elseif Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+			cam.CameraSubject = Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+		end
+	end)
+
+	-- 4. Copy Username & User ID
+	local copyBtn = makeActionBtn("Copy ID", 4, function()
+		if currentTargetPlayer then
+			local clip = string.format("%s (@%s) [ID:%d]", currentTargetPlayer.DisplayName, currentTargetPlayer.Name, currentTargetPlayer.UserId)
+			local setclip = setclipboard or (getgenv and getgenv().setclipboard) or toclipboard
+			if type(setclip) == "function" then
+				setclip(clip)
+			end
+		end
+	end)
+
+	-- 5. Inspect Profile / Report
+	local inspectBtn = makeActionBtn("Inspect", 5, function()
+		if currentTargetPlayer then
+			pcall(function()
+				GuiService:InspectPlayerFromUserId(currentTargetPlayer.UserId)
+			end)
+		end
+	end)
+
+	-- 6. Fling Player (Target High-Torque Burst)
+	local flingBtn = makeActionBtn("Fling", 6, function()
 		if currentTargetPlayer and currentTargetPlayer.Character then
 			local myChar = Players.LocalPlayer.Character
 			local tChar = currentTargetPlayer.Character
@@ -542,63 +638,121 @@ function PlayerList.new(): PlayerListWidget
 		end
 	end)
 
-	-- 5. Spectate / Spy
-	local spyBtn = makeActionBtn("Spectate Player", 5, function()
-		local cam = workspace.CurrentCamera
-		if not cam then return end
-		isSpying = not isSpying
-		spyBtn.Text = if isSpying then "Unspectate" else "Spectate Player"
-		if isSpying and currentTargetPlayer and currentTargetPlayer.Character and currentTargetPlayer.Character:FindFirstChildOfClass("Humanoid") then
-			cam.CameraSubject = currentTargetPlayer.Character:FindFirstChildOfClass("Humanoid")
-		elseif Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-			cam.CameraSubject = Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-		end
-	end)
-
-	-- 6. Inspect Profile / Report
-	local inspectBtn = makeActionBtn("Inspect / Report", 6, function()
-		if currentTargetPlayer then
-			pcall(function()
-				GuiService:InspectPlayerFromUserId(currentTargetPlayer.UserId)
-			end)
-		end
-	end)
-
-	-- 7. Copy Username & User ID
-	local copyBtn = makeActionBtn("Copy Name & ID", 7, function()
-		if currentTargetPlayer then
-			local clip = string.format("%s (@%s) [ID:%d]", currentTargetPlayer.DisplayName, currentTargetPlayer.Name, currentTargetPlayer.UserId)
-			local setclip = setclipboard or (getgenv and getgenv().setclipboard) or toclipboard
-			if type(setclip) == "function" then
-				setclip(clip)
-			end
-		end
-	end)
-
 	closeContextMenu = function()
 		if not isPopupOpen then return end
 		isPopupOpen = false
+		dismissOverlay.Visible = false
+		clearStatConns()
 		Animations.popOut(popupFrame, popupScale)
 	end
+
+	dismissOverlay.MouseButton1Click:Connect(function()
+		closeContextMenu()
+	end)
+
+	-- Dismiss when clicking anywhere on screen outside popup
+	UserInputService.InputBegan:Connect(function(input)
+		if not isPopupOpen then return end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			task.defer(function()
+				if not isPopupOpen then return end
+				local mousePos = UserInputService:GetMouseLocation()
+				local pPos = popupFrame.AbsolutePosition
+				local pSize = popupFrame.AbsoluteSize
+				if mousePos.X < pPos.X or mousePos.X > (pPos.X + pSize.X) or
+				   mousePos.Y < pPos.Y or mousePos.Y > (pPos.Y + pSize.Y) then
+					closeContextMenu()
+				end
+			end)
+		end
+	end)
 
 	local function openContextMenuForPlayer(player: Player, rowAbsPos: Vector2)
 		currentTargetPlayer = player
 		pAvatarImg.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
 		pNameLabel.Text = player.DisplayName
-		local teamStr = if player.Team then string.format("[%s] ", player.Team.Name) else ""
-		local ls = player:FindFirstChild("leaderstats") or player:FindFirstChild("Data") or player:FindFirstChild("Stats")
-		local statItems = {}
-		if ls then
-			for _, c in ipairs(ls:GetChildren()) do
-				if c:IsA("ValueBase") then
-					table.insert(statItems, string.format("%s: %s", c.Name, tostring((c :: any).Value)))
+		pSubLabel.Text = string.format("@%s | ID: %d | %dd", player.Name, player.UserId, player.AccountAge or 0)
+
+		-- Clear previous stat rows & connections
+		clearStatConns()
+		for _, child in ipairs(statsContainer:GetChildren()) do
+			if child:IsA("GuiObject") and child ~= statsList then
+				child:Destroy()
+			end
+		end
+
+		-- Gather all live leaderstats / currencies
+		local statItems: {Instance} = {}
+		local statFolders = {
+			player:FindFirstChild("leaderstats"),
+			player:FindFirstChild("Data"),
+			player:FindFirstChild("Stats"),
+			player:FindFirstChild("Currencies"),
+			player:FindFirstChild("hiddenstats")
+		}
+		for _, folder in ipairs(statFolders) do
+			if folder then
+				for _, c in ipairs(folder:GetChildren()) do
+					if c:IsA("ValueBase") then
+						table.insert(statItems, c)
+					end
 				end
 			end
 		end
+
 		if #statItems > 0 then
-			pSubLabel.Text = string.format("%s@%s | %s", teamStr, player.Name, table.concat(statItems, " • "))
+			for _, valObj in ipairs(statItems) do
+				local sRow = Instance.new("Frame")
+				sRow.Name = "StatRow_" .. valObj.Name
+				sRow.Size = UDim2.new(1, -4, 0, 20)
+				sRow.BackgroundColor3 = UI.Theme.Container
+				sRow.BackgroundTransparency = 0.55
+				sRow.BorderSizePixel = 0
+				sRow.Parent = statsContainer
+
+				local sCorner = Instance.new("UICorner")
+				sCorner.CornerRadius = UDim.new(0, 2)
+				sCorner.Parent = sRow
+
+				local nameLbl = Instance.new("TextLabel")
+				nameLbl.Size = UDim2.new(0.55, -4, 1, 0)
+				nameLbl.Position = UDim2.new(0, 4, 0, 0)
+				nameLbl.BackgroundTransparency = 1
+				nameLbl.Text = valObj.Name
+				nameLbl.TextColor3 = UI.Theme.TextPrimary
+				nameLbl.Font = UI.Fonts.Header
+				nameLbl.TextSize = 10
+				nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+				nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+				nameLbl.Parent = sRow
+
+				local valLbl = Instance.new("TextLabel")
+				valLbl.Size = UDim2.new(0.45, -4, 1, 0)
+				valLbl.Position = UDim2.new(0.55, 0, 0, 0)
+				valLbl.BackgroundTransparency = 1
+				valLbl.Text = tostring((valObj :: any).Value)
+				valLbl.TextColor3 = UI.Theme.Accent
+				valLbl.Font = UI.Fonts.Mono
+				valLbl.TextSize = 10
+				valLbl.TextXAlignment = Enum.TextXAlignment.Right
+				valLbl.TextTruncate = Enum.TextTruncate.AtEnd
+				valLbl.Parent = sRow
+
+				local conn = (valObj :: any).Changed:Connect(function(newVal)
+					valLbl.Text = tostring(newVal)
+				end)
+				table.insert(activeStatConns, conn)
+			end
 		else
-			pSubLabel.Text = string.format("%s@%s | ID:%d", teamStr, player.Name, player.UserId)
+			local emptyLbl = Instance.new("TextLabel")
+			emptyLbl.Size = UDim2.new(1, 0, 0, 28)
+			emptyLbl.BackgroundTransparency = 1
+			emptyLbl.Text = "No active leaderstats recorded"
+			emptyLbl.TextColor3 = UI.Theme.TextSecondary
+			emptyLbl.Font = UI.Fonts.Body
+			emptyLbl.TextSize = 10
+			emptyLbl.TextXAlignment = Enum.TextXAlignment.Center
+			emptyLbl.Parent = statsContainer
 		end
 
 		-- Update Friend Button text based on status
@@ -631,6 +785,7 @@ function PlayerList.new(): PlayerListWidget
 		posX = math.clamp(posX, margin, math.max(margin, vpSize.X - POPUP_W - margin))
 
 		popupFrame.Position = UDim2.new(0, posX, 0, posY)
+		dismissOverlay.Visible = true
 		isPopupOpen = true
 		Animations.popIn(popupFrame, popupScale)
 	end

@@ -175,7 +175,7 @@ function HealthWidget.new(): HealthWidgetInstance
 	hudFrame.BorderSizePixel = 0
 	hudFrame.ClipsDescendants = false
 	hudFrame.Visible = false
-	hudFrame.Parent = screenGui
+	hudFrame.Parent = nil
 	UI.registerThemeElement(hudFrame, "Background")
 
 	local hudStroke = Instance.new("UIStroke")

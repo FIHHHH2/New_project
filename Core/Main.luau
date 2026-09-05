@@ -329,23 +329,9 @@ local hotbarWidget = Hotbar.new()
 local leaderstatsWidget = LeaderstatsWidget.new()
 local healthWidget = HealthWidget.new()
 
--- Synchronize Player List with Leaderstats and Player Profile Sub-GUIs
-playerListWidget.OnClose = function()
-	if leaderstatsWidget and typeof(leaderstatsWidget.Close) == "function" then
-		leaderstatsWidget.Close()
-	end
-end
-
-playerListWidget.OnOpen = function()
-	if leaderstatsWidget and typeof(leaderstatsWidget.Open) == "function" then
-		leaderstatsWidget.Open()
-	end
-end
-
-playerListWidget.OnMinimize = function(isMin: boolean)
-	if leaderstatsWidget and typeof(leaderstatsWidget.SetMinimized) == "function" then
-		leaderstatsWidget.SetMinimized(isMin)
-	end
+-- Standalone Leaderstats HUD integrated directly into PlayerList inspection profile
+if leaderstatsWidget and typeof(leaderstatsWidget.Close) == "function" then
+	leaderstatsWidget.Close()
 end
 
 _G.__ToggleProjectFihBackpack = function()

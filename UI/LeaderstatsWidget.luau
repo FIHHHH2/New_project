@@ -223,10 +223,9 @@ function LeaderstatsWidget.new()
 	widget.Position = UDim2.new(1, -(270 + WIDGET_W + 8), 0, 10)
 	widget.BackgroundColor3 = UI.Theme.Background
 	widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
-	widget.BorderSizePixel = 0
 	widget.Visible = false
 	widget.ClipsDescendants = false
-	widget.Parent = screenGui
+	widget.Parent = nil
 	UI.registerThemeElement(widget, "Background")
 
 	local outerStroke = Instance.new("UIStroke")
@@ -888,14 +887,9 @@ function LeaderstatsWidget.new()
 
 	local function openWidget(selfOrOnComplete: any, maybeOnComplete: any)
 		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
-		if isOpen or isTransitioning then return end
-		isTransitioning = true
-		pcall(autoDockNextToPlayerList)
-		Animations.openWindow(widget, uiScale, function()
-			isOpen = true
-			isTransitioning = false
-			if onComplete then onComplete() end
-		end)
+		isOpen = false
+		widget.Visible = false
+		if onComplete then onComplete() end
 	end
 
 	local function closeWidget(selfOrOnComplete: any, maybeOnComplete: any)

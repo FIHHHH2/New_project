@@ -132,7 +132,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	-- [ Chat Badge ] on Left (matches VersionBox in Main GUI)
 	local chatBadge = Instance.new("Frame")
 	chatBadge.Name = "ChatBadge"
-	chatBadge.Size = UDim2.new(0, 52, 1, 0)
+	chatBadge.Size = UDim2.new(0, 48, 1, 0)
 	chatBadge.Position = UDim2.new(0, 0, 0, 0)
 	chatBadge.BackgroundColor3 = UI.Theme.Container
 	chatBadge.BackgroundTransparency = UI.Theme.ContainerTransparency
@@ -160,8 +160,8 @@ function ChatWidget.new(): ChatWidgetInstance
 	-- [ Channel Box ] (matches Main GUI tabs)
 	local channelBtn = Instance.new("TextButton")
 	channelBtn.Name = "ChannelBtn"
-	channelBtn.Size = UDim2.new(0, 58, 1, 0)
-	channelBtn.Position = UDim2.new(0, 58, 0, 0)
+	channelBtn.Size = UDim2.new(0, 52, 1, 0)
+	channelBtn.Position = UDim2.new(0, 52, 0, 0)
 	channelBtn.BackgroundColor3 = UI.Theme.Accent
 	channelBtn.BackgroundTransparency = 0.15
 	channelBtn.BorderSizePixel = 0
@@ -181,8 +181,8 @@ function ChatWidget.new(): ChatWidgetInstance
 	-- [ Title & Controls Box ] on Right (matches TitleBox in Main GUI)
 	local titleBox = Instance.new("Frame")
 	titleBox.Name = "TitleBox"
-	titleBox.Size = UDim2.new(0, 138, 1, 0)
-	titleBox.Position = UDim2.new(1, -138, 0, 0)
+	titleBox.Size = UDim2.new(0, 116, 1, 0)
+	titleBox.Position = UDim2.new(1, -116, 0, 0)
 	titleBox.BackgroundColor3 = UI.Theme.Container
 	titleBox.BackgroundTransparency = UI.Theme.ContainerTransparency
 	titleBox.BorderSizePixel = 0
@@ -197,7 +197,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	UI.registerThemeElement(titleBoxStroke, "Border")
 
 	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(1, -50, 1, 0)
+	titleLabel.Size = UDim2.new(1, -44, 1, 0)
 	titleLabel.Position = UDim2.new(0, 6, 0, 0)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = "Chat Box"
@@ -208,11 +208,11 @@ function ChatWidget.new(): ChatWidgetInstance
 	titleLabel.Parent = titleBox
 	UI.registerThemeElement(titleLabel, "TextPrimary")
 
-	-- ── Center Action Buttons: [ ⯎ ] [ ≡ ] [ 🎙 ] ─────────────────────
+	-- ── Action Buttons: [ ≡ ] [ 🎙 ] ──────────────────────────────────
 	local actionGroup = Instance.new("Frame")
 	actionGroup.Name = "TopBarActions"
-	actionGroup.Size = UDim2.new(0, 84, 0, 22)
-	actionGroup.Position = UDim2.new(0, 148, 0, 3)
+	actionGroup.Size = UDim2.new(0, 60, 0, 22)
+	actionGroup.Position = UDim2.new(0, 108, 0, 3)
 	actionGroup.BackgroundTransparency = 1
 	actionGroup.BorderSizePixel = 0
 	actionGroup.Parent = topbar
@@ -225,50 +225,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	actLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	actLayout.Parent = actionGroup
 
-	-- 1. Roblox Menu Button [ ⯎ ]
-	local rbxBtn = Instance.new("ImageButton")
-	rbxBtn.Name = "RobloxLogoBtn"
-	rbxBtn.Size = UDim2.new(0, 24, 0, 22)
-	rbxBtn.BackgroundColor3 = UI.Theme.ContainerDark
-	rbxBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
-	rbxBtn.BorderSizePixel = 0
-	rbxBtn.Image = "rbxasset://textures/ui/TopBar/icon_roblox.png"
-	rbxBtn.ScaleType = Enum.ScaleType.Fit
-	rbxBtn.LayoutOrder = 1
-	rbxBtn.Parent = actionGroup
-	UI.registerThemeElement(rbxBtn, "ContainerDark")
-
-	local rbxStroke = Instance.new("UIStroke")
-	rbxStroke.Color = UI.Theme.Border
-	rbxStroke.Thickness = 1
-	rbxStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	rbxStroke.Parent = rbxBtn
-	UI.registerThemeElement(rbxStroke, "Border")
-
-	rbxBtn.MouseEnter:Connect(function()
-		TweenService:Create(rbxStroke, TweenInfo.new(0.12), { Thickness = 1.6, Color = UI.Theme.Accent }):Play()
-	end)
-	rbxBtn.MouseLeave:Connect(function()
-		TweenService:Create(rbxStroke, TweenInfo.new(0.12), { Thickness = 1, Color = UI.Theme.Border }):Play()
-	end)
-
-	rbxBtn.MouseButton1Click:Connect(function()
-		local vim = pcall(function() return game:GetService("VirtualInputManager") end) and game:GetService("VirtualInputManager") or nil
-		if vim then
-			pcall(function()
-				vim:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
-				task.delay(0.05, function()
-					vim:SendKeyEvent(false, Enum.KeyCode.Escape, false, game)
-				end)
-			end)
-		else
-			pcall(function()
-				GuiService:SetMenuIsOpen(not GuiService.MenuIsOpen)
-			end)
-		end
-	end)
-
-	-- 2. Hamburger Menu Button [ ≡ ]
+	-- 1. Hamburger Menu Button [ ≡ ]
 	local menuBtn = Instance.new("TextButton")
 	menuBtn.Name = "HamburgerBtn"
 	menuBtn.Size = UDim2.new(0, 24, 0, 22)
@@ -279,7 +236,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	menuBtn.TextColor3 = UI.Theme.TextPrimary
 	menuBtn.Font = Enum.Font.GothamBold
 	menuBtn.TextSize = 16
-	menuBtn.LayoutOrder = 2
+	menuBtn.LayoutOrder = 1
 	menuBtn.Parent = actionGroup
 	UI.registerThemeElement(menuBtn, "ContainerDark")
 	UI.registerThemeElement(menuBtn, "TextPrimary")
@@ -300,10 +257,10 @@ function ChatWidget.new(): ChatWidgetInstance
 		TweenService:Create(menuBtn, TweenInfo.new(0.12), { TextColor3 = UI.Theme.TextPrimary }):Play()
 	end)
 
-	-- 3. Voice Chat Mic Button [ 🎙 ]
+	-- 2. Voice Chat Mic Button [ 🎙 ]
 	local micBtn = Instance.new("TextButton")
 	micBtn.Name = "VoiceChatMicBtn"
-	micBtn.Size = UDim2.new(0, 24, 0, 22)
+	micBtn.Size = UDim2.new(0, 30, 0, 22)
 	micBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	micBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	micBtn.BorderSizePixel = 0
@@ -311,7 +268,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	micBtn.TextColor3 = Color3.fromRGB(245, 75, 75)
 	micBtn.Font = Enum.Font.GothamBold
 	micBtn.TextSize = 8
-	micBtn.LayoutOrder = 3
+	micBtn.LayoutOrder = 2
 	micBtn.Parent = actionGroup
 	UI.registerThemeElement(micBtn, "ContainerDark")
 
@@ -472,8 +429,8 @@ function ChatWidget.new(): ChatWidgetInstance
 	-- Right: Minimize [—] & Close [X] Buttons inside TitleBox (matching Main GUI)
 	local minBtn = Instance.new("TextButton")
 	minBtn.Name = "MinBtn"
-	minBtn.Size = UDim2.new(0, 20, 1, -4)
-	minBtn.Position = UDim2.new(1, -44, 0, 2)
+	minBtn.Size = UDim2.new(0, 18, 1, -4)
+	minBtn.Position = UDim2.new(1, -40, 0, 2)
 	minBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	minBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	minBtn.BorderSizePixel = 0
@@ -494,8 +451,8 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.Name = "CloseBtn"
-	closeBtn.Size = UDim2.new(0, 20, 1, -4)
-	closeBtn.Position = UDim2.new(1, -22, 0, 2)
+	closeBtn.Size = UDim2.new(0, 18, 1, -4)
+	closeBtn.Position = UDim2.new(1, -20, 0, 2)
 	closeBtn.BackgroundColor3 = UI.Theme.ContainerDark
 	closeBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	closeBtn.BorderSizePixel = 0
@@ -1309,6 +1266,32 @@ function ChatWidget.new(): ChatWidgetInstance
 		return sender, message
 	end
 
+	local function suppressDefaultChat()
+		pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
+		end)
+		pcall(function()
+			local TextChatService = game:GetService("TextChatService")
+			if TextChatService and TextChatService:FindFirstChild("ChatWindowConfiguration") then
+				(TextChatService.ChatWindowConfiguration :: any).Enabled = false
+			end
+		end)
+		pcall(function()
+			local expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
+			if expChat and expChat:IsA("ScreenGui") then
+				expChat.Enabled = false
+			end
+			local pgui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+			local legacyChat = pgui and pgui:FindFirstChild("Chat")
+			if legacyChat and legacyChat:IsA("ScreenGui") then
+				legacyChat.Enabled = false
+			end
+		end)
+	end
+
+	-- Suppress Roblox default chat window unconditionally so dark backgrounds don't bleed through
+	suppressDefaultChat()
+
 	local function backfillChatHistory(): number
 		local count = 0
 
@@ -1323,9 +1306,9 @@ function ChatWidget.new(): ChatWidgetInstance
 				task.wait(0.05)
 				expChat = CoreGui:FindFirstChild("ExperienceChat") or (Players.LocalPlayer:FindFirstChild("PlayerGui") and Players.LocalPlayer.PlayerGui:FindFirstChild("ExperienceChat"))
 				sv = expChat and expChat:FindFirstChild("scrollView", true)
-				if _G.__ModularSuite_IsRobloxCoreHidden == true and expChat and expChat:IsA("ScreenGui") then
-					expChat.Enabled = false
-				end
+				suppressDefaultChat()
+			else
+				suppressDefaultChat()
 			end
 			if sv and sv:IsA("ScrollingFrame") then
 				local children = sv:GetChildren()
@@ -1394,6 +1377,8 @@ function ChatWidget.new(): ChatWidgetInstance
 			end
 		end
 
+		suppressDefaultChat()
+
 		task.defer(function()
 			container.CanvasPosition = Vector2.new(0, math.max(0, container.AbsoluteCanvasSize.Y - container.AbsoluteWindowSize.Y))
 		end)
@@ -1415,6 +1400,7 @@ function ChatWidget.new(): ChatWidgetInstance
 				break
 			end
 		end
+		suppressDefaultChat()
 	end)
 
 	-- ── Dragging & Full-Screen Boundaries Handlers ────────────────────

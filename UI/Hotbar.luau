@@ -274,7 +274,8 @@ function Hotbar.new(): HotbarWidget
 	local hotbarFrame = Instance.new("Frame")
 	hotbarFrame.Name = "HotbarFrame"
 	hotbarFrame.Size = UDim2.new(0, totalWidth, 0, SLOT_SIZE + 10)
-	hotbarFrame.Position = UDim2.new(0.5, -totalWidth / 2, 1, -(SLOT_SIZE + 24))
+	hotbarFrame.AnchorPoint = Vector2.new(0.5, 1)
+	hotbarFrame.Position = UDim2.new(0.5, 0, 1, -16)
 	hotbarFrame.BackgroundColor3 = UI.Theme.Background
 	hotbarFrame.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	hotbarFrame.BorderSizePixel = 0
@@ -297,26 +298,27 @@ function Hotbar.new(): HotbarWidget
 	hotbarList.SortOrder = Enum.SortOrder.LayoutOrder
 	hotbarList.Parent = hotbarFrame
 
-	-- ── Integrated Toolbar Health Bar ─────────────────────────────────
-	-- A large green line across the toolbar that smoothly drops by HP
+	-- ── Integrated Toolbar Health Bar (XP Bar Style) ───────────────────
+	-- Sits slightly above the hotbar like an XP bar with centered HP text
 	local healthBarContainer = Instance.new("Frame")
 	healthBarContainer.Name = "ToolbarHealthBar"
-	healthBarContainer.Size = UDim2.new(0, totalWidth, 0, 5)
-	healthBarContainer.Position = UDim2.new(0.5, -totalWidth / 2, 1, -(SLOT_SIZE + 24 + 8))
-	healthBarContainer.BackgroundColor3 = Color3.fromRGB(15, 25, 18)
-	healthBarContainer.BackgroundTransparency = 0.25
+	healthBarContainer.Size = UDim2.new(0, totalWidth, 0, 14)
+	healthBarContainer.AnchorPoint = Vector2.new(0.5, 1)
+	healthBarContainer.Position = UDim2.new(0.5, 0, 1, -(SLOT_SIZE + 10 + 16 + 4))
+	healthBarContainer.BackgroundColor3 = Color3.fromRGB(15, 22, 18)
+	healthBarContainer.BackgroundTransparency = 0.2
 	healthBarContainer.BorderSizePixel = 0
 	healthBarContainer.ClipsDescendants = true
 	healthBarContainer.ZIndex = 10
 	healthBarContainer.Parent = screenGui
 
 	local healthBarCorner = Instance.new("UICorner")
-	healthBarCorner.CornerRadius = UDim.new(0, 2)
+	healthBarCorner.CornerRadius = UDim.new(0, 3)
 	healthBarCorner.Parent = healthBarContainer
 
 	local healthBarStroke = Instance.new("UIStroke")
 	healthBarStroke.Color = UI.Theme.Border
-	healthBarStroke.Thickness = 1.0
+	healthBarStroke.Thickness = 1.2
 	healthBarStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	healthBarStroke.Parent = healthBarContainer
 	UI.registerThemeElement(healthBarStroke, "Border")
@@ -331,7 +333,7 @@ function Hotbar.new(): HotbarWidget
 	healthBarFill.Parent = healthBarContainer
 
 	local healthFillCorner = Instance.new("UICorner")
-	healthFillCorner.CornerRadius = UDim.new(0, 2)
+	healthFillCorner.CornerRadius = UDim.new(0, 3)
 	healthFillCorner.Parent = healthBarFill
 
 	local healthGrad = Instance.new("UIGradient")
@@ -341,11 +343,26 @@ function Hotbar.new(): HotbarWidget
 	})
 	healthGrad.Parent = healthBarFill
 
+	local healthLabel = Instance.new("TextLabel")
+	healthLabel.Name = "HealthIndicator"
+	healthLabel.Size = UDim2.new(1, 0, 1, 0)
+	healthLabel.Position = UDim2.new(0, 0, 0, 0)
+	healthLabel.BackgroundTransparency = 1
+	healthLabel.Text = "100 / 100 HP"
+	healthLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	healthLabel.Font = UI.Fonts.Header
+	healthLabel.TextSize = 10
+	healthLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	healthLabel.TextStrokeTransparency = 0.25
+	healthLabel.ZIndex = 15
+	healthLabel.Parent = healthBarContainer
+
 	local function updateToolbarHealth(currentHp: number, maxHp: number)
 		local ratio = math.clamp(currentHp / math.max(1, maxHp), 0, 1)
 		TweenService:Create(healthBarFill, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Size = UDim2.new(ratio, 0, 1, 0)
 		}):Play()
+		healthLabel.Text = string.format("%d / %d HP", math.floor(currentHp + 0.5), math.floor(maxHp + 0.5))
 	end
 
 	local function bindCharHealth(char: Model)

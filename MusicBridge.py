@@ -759,7 +759,7 @@ _media_ctrl_loop: asyncio.AbstractEventLoop | None = None
 _media_ctrl_loop_lock = threading.Lock()
 _last_media_cmd_time = 0.0
 _media_cmd_lock = threading.Lock()
-DEBOUNCE_INTERVAL = 0.40  # 400ms debounce window prevents double execution from hotkeys, repeats, and Luau HTTP calls
+DEBOUNCE_INTERVAL = 0.25
 
 def _get_or_create_media_ctrl_loop() -> asyncio.AbstractEventLoop:
     global _media_ctrl_loop
@@ -771,13 +771,39 @@ def _get_or_create_media_ctrl_loop() -> asyncio.AbstractEventLoop:
             t.start()
         return _media_ctrl_loop
 
+def send_virtual_media_key(vk: int):
+    """Sends clean media key event by temporarily releasing modifiers to avoid player shortcut interference."""
+    user32 = ctypes.windll.user32
+    KEYEVENTF_KEYUP = 0x0002
+
+    ctrl_down = bool(user32.GetAsyncKeyState(0x11) & 0x8000)
+    alt_down = bool(user32.GetAsyncKeyState(0x12) & 0x8000)
+    shift_down = bool(user32.GetAsyncKeyState(0x10) & 0x8000)
+
+    # Release any held modifiers
+    if ctrl_down: user32.keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0)
+    if alt_down: user32.keybd_event(0x12, 0, KEYEVENTF_KEYUP, 0)
+    if shift_down: user32.keybd_event(0x10, 0, KEYEVENTF_KEYUP, 0)
+
+    time.sleep(0.015)
+    user32.keybd_event(vk, 0, 0, 0)
+    time.sleep(0.035)
+    user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
+
+    # Restore held modifiers
+    if ctrl_down and (user32.GetAsyncKeyState(0x11) & 0x8000):
+        user32.keybd_event(0x11, 0, 0, 0)
+    if alt_down and (user32.GetAsyncKeyState(0x12) & 0x8000):
+        user32.keybd_event(0x12, 0, 0, 0)
+    if shift_down and (user32.GetAsyncKeyState(0x10) & 0x8000):
+        user32.keybd_event(0x10, 0, 0, 0)
+
 def trigger_media_command(cmd: str) -> bool:
-    """Executes media command via WinRT session manager targeting Spotify/active session or virtual media key event fallback with atomic 400ms debounce."""
+    """Executes media command via WinRT session manager or virtual media key fallback with debounce."""
     global _last_media_cmd_time
     with _media_cmd_lock:
         now = time.time()
         if (now - _last_media_cmd_time) < DEBOUNCE_INTERVAL:
-            print(f"[MediaControl] Debounced duplicate command '{cmd}' ({now - _last_media_cmd_time:.3f}s < {DEBOUNCE_INTERVAL}s)")
             return True
         _last_media_cmd_time = now
 
@@ -785,34 +811,29 @@ def trigger_media_command(cmd: str) -> bool:
     try:
         loop = _get_or_create_media_ctrl_loop()
         future = asyncio.run_coroutine_threadsafe(send_media_control(cmd), loop)
-        success = future.result(timeout=4.0)
+        success = future.result(timeout=1.5)
     except Exception as e:
         print(f"[MediaControl] WinRT dispatch error: {e}")
 
     if not success:
-        print(f"[MediaControl] WinRT failed, falling back to media key event for: {cmd}")
-        try:
-            import ctypes
-            VK_MEDIA_NEXT_TRACK = 0xB0
-            VK_MEDIA_PREV_TRACK = 0xB1
-            VK_MEDIA_PLAY_PAUSE = 0xB3
-            KEYEVENTF_KEYUP = 0x0002
-            vk_map = {
-                "skip": VK_MEDIA_NEXT_TRACK,
-                "prev": VK_MEDIA_PREV_TRACK,
-                "toggle": VK_MEDIA_PLAY_PAUSE,
-                "pause": VK_MEDIA_PLAY_PAUSE,
-                "play": VK_MEDIA_PLAY_PAUSE
-            }
-            vk = vk_map.get(cmd)
-            if vk:
-                ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
-                time.sleep(0.05)
-                ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
-                print(f"[MediaControl] Sent virtual media key 0x{vk:02X} for: {cmd}")
+        VK_MEDIA_NEXT_TRACK = 0xB0
+        VK_MEDIA_PREV_TRACK = 0xB1
+        VK_MEDIA_PLAY_PAUSE = 0xB3
+        vk_map = {
+            "skip": VK_MEDIA_NEXT_TRACK,
+            "prev": VK_MEDIA_PREV_TRACK,
+            "toggle": VK_MEDIA_PLAY_PAUSE,
+            "pause": VK_MEDIA_PLAY_PAUSE,
+            "play": VK_MEDIA_PLAY_PAUSE
+        }
+        vk = vk_map.get(cmd)
+        if vk:
+            try:
+                send_virtual_media_key(vk)
+                print(f"[MediaControl] Dispatched virtual media key 0x{vk:02X} for: {cmd}")
                 success = True
-        except Exception as ke:
-            print(f"[MediaControl] Keybd fallback error: {ke}")
+            except Exception as ke:
+                print(f"[MediaControl] Keybd fallback error: {ke}")
     return success
 
 # ── Configurable Global Hotkeys & Persistence ──────────────────────
@@ -867,6 +888,23 @@ DEFAULT_CONFIG = {
     }
 }
 
+ACTION_IDS = {
+    "skip": 201,
+    "prev": 202,
+    "toggle": 203
+}
+ID_TO_ACTION = {v: k for k, v in ACTION_IDS.items()}
+hotkey_thread_id = [0]
+WM_RELOAD_HOTKEYS = 0x0400 + 101
+
+def reload_registered_hotkeys():
+    """Signals hotkey thread to re-register Windows hotkeys from updated config."""
+    try:
+        if hotkey_thread_id[0]:
+            ctypes.windll.user32.PostThreadMessageW(hotkey_thread_id[0], WM_RELOAD_HOTKEYS, 0, 0)
+    except Exception:
+        pass
+
 def format_hotkey_name(ctrl: bool, alt: bool, shift: bool, vk: int) -> str:
     parts = []
     if ctrl: parts.append("Ctrl")
@@ -916,141 +954,131 @@ def save_config():
             json.dump(bridge_config, f, indent=2)
     except Exception as e:
         print(f"[Config] Error saving config: {e}")
+    reload_registered_hotkeys()
 
 load_config()
 
 def setup_global_hotkeys():
-    """Listens for global Windows shortcuts dynamically configured in bridge_config.json.
-    Supports keyboard combinations (Ctrl, Alt, Shift + any key) and mouse click gestures.
+    """Listens for global Windows shortcuts dynamically using native Win32 RegisterHotKey and mouse hooks.
+    Works seamlessly across games, browsers, and background apps without timeouts.
     """
-    hook_mouse_id = None
-    hook_kbd_id = None
-    try:
-        import ctypes
-        from ctypes import wintypes
+    global hotkey_thread_id
+    import ctypes
+    from ctypes import wintypes
 
-        user32 = ctypes.windll.user32
-        kernel32 = ctypes.windll.kernel32
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
 
-        WH_KEYBOARD_LL = 13
-        WH_MOUSE_LL = 14
-        WM_KEYDOWN = 0x0100
-        WM_SYSKEYDOWN = 0x0104
-        WM_LBUTTONDOWN = 0x0201
-        WM_RBUTTONDOWN = 0x0204
-        WM_MBUTTONDOWN = 0x0207
-        VK_CONTROL = 0x11
-        VK_LCONTROL = 0xA2
-        VK_RCONTROL = 0xA3
-        VK_MENU = 0x12  # Alt
-        VK_LMENU = 0xA4
-        VK_RMENU = 0xA5
-        VK_SHIFT = 0x10
-        VK_LSHIFT = 0xA0
-        VK_RSHIFT = 0xA1
+    hotkey_thread_id[0] = kernel32.GetCurrentThreadId()
 
-        class KBDLLHOOKSTRUCT(ctypes.Structure):
-            _fields_ = [
-                ('vkCode', wintypes.DWORD),
-                ('scanCode', wintypes.DWORD),
-                ('flags', wintypes.DWORD),
-                ('time', wintypes.DWORD),
-                ('dwExtraInfo', ctypes.c_size_t)
-            ]
+    user32.RegisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT]
+    user32.RegisterHotKey.restype = wintypes.BOOL
+    user32.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.UnregisterHotKey.restype = wintypes.BOOL
 
-        HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+    MOD_ALT = 0x0001
+    MOD_CONTROL = 0x0002
+    MOD_SHIFT = 0x0004
+    MOD_NOREPEAT = 0x4000
+    WM_HOTKEY = 0x0312
 
-        def is_ctrl_down():
-            return (user32.GetAsyncKeyState(VK_CONTROL) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_LCONTROL) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_RCONTROL) & 0x8000 != 0)
+    registered_ids = set()
 
-        def is_alt_down():
-            return (user32.GetAsyncKeyState(VK_MENU) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_LMENU) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_RMENU) & 0x8000 != 0)
+    def register_all():
+        for hid in list(registered_ids):
+            user32.UnregisterHotKey(None, hid)
+        registered_ids.clear()
 
-        def is_shift_down():
-            return (user32.GetAsyncKeyState(VK_SHIFT) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_LSHIFT) & 0x8000 != 0) or (user32.GetAsyncKeyState(VK_RSHIFT) & 0x8000 != 0)
+        if not bridge_config.get("enable_global_hotkeys", True):
+            print("[Shortcuts] Keyboard hotkeys currently disabled.")
+            return
 
-        last_hotkey_tick = {}
+        hotkeys = bridge_config.get("hotkeys", {})
+        for action, hid in ACTION_IDS.items():
+            cfg = hotkeys.get(action)
+            if not cfg or not cfg.get("enabled", True):
+                continue
+            vk = cfg.get("vk", 0)
+            if not vk:
+                continue
 
-        def check_debounce(action: str, min_delay: float = 0.35) -> bool:
-            now = time.time()
-            if (now - last_hotkey_tick.get(action, 0.0)) < min_delay:
-                return False
-            last_hotkey_tick[action] = now
-            return True
+            mods = MOD_NOREPEAT
+            if cfg.get("ctrl"): mods |= MOD_CONTROL
+            if cfg.get("alt"): mods |= MOD_ALT
+            if cfg.get("shift"): mods |= MOD_SHIFT
 
-        def low_level_mouse_proc(nCode, wParam, lParam):
-            if nCode >= 0:
-                if bridge_config.get("enable_mouse_shortcuts", True):
-                    if is_ctrl_down() and is_alt_down():
-                        if wParam == WM_LBUTTONDOWN:
-                            if check_debounce("skip"):
-                                print("[Hotkey] Mouse Gesture: Ctrl + Alt + Left Click -> Skip Song")
-                                threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
-                            return 1
-                        elif wParam == WM_RBUTTONDOWN:
-                            if check_debounce("prev"):
-                                print("[Hotkey] Mouse Gesture: Ctrl + Alt + Right Click -> Replay / Go Back")
-                                threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
-                            return 1
-                        elif wParam == WM_MBUTTONDOWN:
-                            if check_debounce("toggle"):
-                                print("[Hotkey] Mouse Gesture: Ctrl + Alt + Middle Click -> Play / Pause")
-                                threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
-                            return 1
-            return user32.CallNextHookEx(None, nCode, wParam, lParam)
+            ok = user32.RegisterHotKey(None, hid, mods, vk)
+            if ok:
+                registered_ids.add(hid)
+                print(f"[Shortcuts] Registered hotkey: {cfg.get('name')} -> {action}")
+            else:
+                err = kernel32.GetLastError()
+                print(f"[Shortcuts] RegisterHotKey failed for '{action}': {cfg.get('name')} (Err: {err})")
 
-        def low_level_kbd_proc(nCode, wParam, lParam):
-            if nCode >= 0 and wParam in (WM_KEYDOWN, WM_SYSKEYDOWN):
-                if bridge_config.get("enable_global_hotkeys", True):
-                    kb_struct = KBDLLHOOKSTRUCT.from_address(lParam)
-                    vk = kb_struct.vkCode
+    register_all()
 
-                    # Skip standalone modifier key presses
-                    if vk not in (VK_CONTROL, VK_LCONTROL, VK_RCONTROL, VK_MENU, VK_LMENU, VK_RMENU, VK_SHIFT, VK_LSHIFT, VK_RSHIFT, 0x5B, 0x5C):
-                        c_down = is_ctrl_down()
-                        a_down = is_alt_down()
-                        s_down = is_shift_down()
+    # Low-level mouse hook for Ctrl + Alt + Left/Right/Middle Click
+    WH_MOUSE_LL = 14
+    WM_LBUTTONDOWN = 0x0201
+    WM_RBUTTONDOWN = 0x0204
+    WM_MBUTTONDOWN = 0x0207
+    HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_longlong, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
 
-                        hotkeys = bridge_config.get("hotkeys", {})
-                        for action in ("skip", "prev", "toggle"):
-                            cfg = hotkeys.get(action)
-                            if not cfg or not cfg.get("enabled", True):
-                                continue
-                            if cfg.get("vk") == vk:
-                                req_c = bool(cfg.get("ctrl", False))
-                                req_a = bool(cfg.get("alt", False))
-                                req_s = bool(cfg.get("shift", False))
-                                if (c_down == req_c) and (a_down == req_a) and (s_down == req_s):
-                                    if check_debounce(action):
-                                        print(f"[Hotkey] Triggered configured shortcut for '{action}': {cfg.get('name')}")
-                                        threading.Thread(target=lambda a=action: trigger_media_command(a), daemon=True).start()
-                                    return 1
-            return user32.CallNextHookEx(None, nCode, wParam, lParam)
+    def is_ctrl_down():
+        return (user32.GetAsyncKeyState(0x11) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA2) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA3) & 0x8000 != 0)
 
-        hook_mouse_cb = HOOKPROC(low_level_mouse_proc)
-        hook_mouse_id = user32.SetWindowsHookExW(WH_MOUSE_LL, hook_mouse_cb, kernel32.GetModuleHandleW(None), 0)
+    def is_alt_down():
+        return (user32.GetAsyncKeyState(0x12) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA4) & 0x8000 != 0) or (user32.GetAsyncKeyState(0xA5) & 0x8000 != 0)
 
-        hook_kbd_cb = HOOKPROC(low_level_kbd_proc)
-        hook_kbd_id = user32.SetWindowsHookExW(WH_KEYBOARD_LL, hook_kbd_cb, kernel32.GetModuleHandleW(None), 0)
+    last_mouse_tick = 0.0
 
-        print(f"[Shortcuts] Dynamic Windows Hotkeys Active (Config: {CONFIG_PATH}):")
-        hk = bridge_config.get("hotkeys", {})
-        print(f"  - Skip Song:      {hk.get('skip', {}).get('name', 'None')}")
-        print(f"  - Previous Song:  {hk.get('prev', {}).get('name', 'None')}")
-        print(f"  - Play / Pause:   {hk.get('toggle', {}).get('name', 'None')}")
-        print("  - Mouse Gestures: Ctrl + Alt + Left/Right/Middle Click (Enabled: %s)" % bridge_config.get("enable_mouse_shortcuts", True))
+    def low_level_mouse_proc(nCode, wParam, lParam):
+        nonlocal last_mouse_tick
+        if nCode >= 0 and bridge_config.get("enable_mouse_shortcuts", True):
+            if is_ctrl_down() and is_alt_down():
+                now = time.time()
+                if (now - last_mouse_tick) > 0.30:
+                    if wParam == WM_LBUTTONDOWN:
+                        last_mouse_tick = now
+                        print("[Hotkey] Mouse Gesture: Ctrl + Alt + Left Click -> Skip Song")
+                        threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
+                        return 1
+                    elif wParam == WM_RBUTTONDOWN:
+                        last_mouse_tick = now
+                        print("[Hotkey] Mouse Gesture: Ctrl + Alt + Right Click -> Replay / Go Back")
+                        threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
+                        return 1
+                    elif wParam == WM_MBUTTONDOWN:
+                        last_mouse_tick = now
+                        print("[Hotkey] Mouse Gesture: Ctrl + Alt + Middle Click -> Play / Pause")
+                        threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
+                        return 1
+        return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
-        msg = wintypes.MSG()
-        while user32.GetMessageW(ctypes.byref(msg), 0, 0, 0) != 0:
-            user32.TranslateMessage(ctypes.byref(msg))
-            user32.DispatchMessageW(ctypes.byref(msg))
-    except Exception as e:
-        print(f"[Shortcuts] Low-level hook error: {e}")
-    finally:
-        if hook_kbd_id:
-            user32.UnhookWindowsHookEx(hook_kbd_id)
-        if hook_mouse_id:
-            user32.UnhookWindowsHookEx(hook_mouse_id)
+    hook_mouse_cb = HOOKPROC(low_level_mouse_proc)
+    hook_mouse_id = user32.SetWindowsHookExW(WH_MOUSE_LL, hook_mouse_cb, 0, 0)
+    if hook_mouse_id:
+        print("[Shortcuts] Mouse gestures active (Ctrl + Alt + Clicks)")
+
+    msg = wintypes.MSG()
+    user32.PeekMessageW(ctypes.byref(msg), 0, 0, 0, 0)
+
+    while user32.GetMessageW(ctypes.byref(msg), 0, 0, 0) != 0:
+        if msg.message == WM_HOTKEY:
+            action = ID_TO_ACTION.get(msg.wParam)
+            if action:
+                print(f"[Hotkey] Activated shortcut for: {action}")
+                threading.Thread(target=lambda a=action: trigger_media_command(a), daemon=True).start()
+        elif msg.message == WM_RELOAD_HOTKEYS:
+            print("[Shortcuts] Reloading hotkeys from configuration...")
+            register_all()
+        user32.TranslateMessage(ctypes.byref(msg))
+        user32.DispatchMessageW(ctypes.byref(msg))
+
+    if hook_mouse_id:
+        user32.UnhookWindowsHookEx(hook_mouse_id)
+    for hid in list(registered_ids):
+        user32.UnregisterHotKey(None, hid)
 
 # ── HTTP Server Request Handler ───────────────────────────────────
 class BridgeHandler(BaseHTTPRequestHandler):

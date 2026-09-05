@@ -469,18 +469,36 @@ function UI.createWindow(titleText: string)
 	versionLabel.Parent = versionBox
 	UI.registerThemeElement(versionLabel, "TextPrimary")
 
-	-- [ Tabs Container ] in Top Bar Area
+	-- [ Tabs Container ] in Top Bar Area (Clips & Scrolls horizontally when tabs exceed width)
 	local sidebar = Instance.new("ScrollingFrame")
 	sidebar.Name = "Sidebar"
 	sidebar.Size = UDim2.new(1, -260, 1, 0)
 	sidebar.Position = UDim2.new(0, 66, 0, 0)
 	sidebar.BackgroundTransparency = 1
 	sidebar.BorderSizePixel = 0
-	sidebar.ScrollBarThickness = 0
+	sidebar.ScrollBarThickness = 2
+	sidebar.ScrollBarImageColor3 = UI.Theme.Accent
+	sidebar.ScrollBarImageTransparency = 0.35
 	sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
 	sidebar.AutomaticCanvasSize = Enum.AutomaticSize.X
-	sidebar.ClipsDescendants = false
+	sidebar.ScrollingDirection = Enum.ScrollingDirection.X
+	sidebar.ClipsDescendants = true
+	sidebar.ScrollingEnabled = true
+	sidebar.ElasticBehavior = Enum.ElasticBehavior.WhenScrollable
 	sidebar.Parent = topbar
+	UI.registerThemeElement(sidebar, "Accent")
+
+	-- Smooth horizontal wheel scrolling support for tab strip
+	sidebar.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseWheel then
+			local delta = -input.Position.Z * 45
+			local maxScroll = math.max(0, sidebar.AbsoluteCanvasSize.X - sidebar.AbsoluteSize.X)
+			local newX = math.clamp(sidebar.CanvasPosition.X + delta, 0, maxScroll)
+			TweenService:Create(sidebar, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				CanvasPosition = Vector2.new(newX, 0)
+			}):Play()
+		end
+	end)
 
 	local sideList = Instance.new("UIListLayout")
 	sideList.Padding = UDim.new(0, 6)
@@ -727,8 +745,12 @@ function UI.createWindow(titleText: string)
 	local isTransitioning = false
 
 	local function openWindow(onComplete: (() -> ())?)
-		if isOpen or isTransitioning then return end
+		if mainFrame.Visible and isOpen then
+			if onComplete then onComplete() end
+			return
+		end
 		isTransitioning = true
+		isOpen = true
 		Animations.openWindow(mainFrame, uiScale, function()
 			isOpen = true
 			isTransitioning = false
@@ -739,8 +761,12 @@ function UI.createWindow(titleText: string)
 	end
 
 	local function closeWindow(onComplete: (() -> ())?)
-		if not isOpen or isTransitioning then return end
+		if not mainFrame.Visible and not isOpen then
+			if onComplete then onComplete() end
+			return
+		end
 		isTransitioning = true
+		isOpen = false
 		Animations.closeWindow(mainFrame, uiScale, function()
 			isOpen = false
 			isTransitioning = false
@@ -751,7 +777,7 @@ function UI.createWindow(titleText: string)
 	end
 
 	local function toggleWindow(onComplete: (() -> ())?)
-		if isOpen then
+		if mainFrame.Visible then
 			closeWindow(onComplete)
 		else
 			openWindow(onComplete)

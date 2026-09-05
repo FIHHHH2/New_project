@@ -155,38 +155,42 @@ def update_audio_spectrum():
     global smoothed_peak, max_recent_peak, band_energy, phase
     peak = get_media_peak()
 
-    # If media is outputting sound, mark media active
-    if peak > 0.001:
+    # Noise gate: ignore low-level background noise
+    if peak < 0.010:
+        peak = 0.0
+
+    # If media is outputting real sound, mark media active
+    if peak > 0.012:
         current_media["isPlaying"] = True
 
-    # Ultra-Reactive Automatic Gain Control
+    # Controlled Automatic Gain Control (Floor raised to 0.045 to prevent hyper-reactivity)
     if peak > max_recent_peak:
-        max_recent_peak = max(0.004, peak)
+        max_recent_peak = max(0.045, peak)
     else:
-        max_recent_peak = max(0.004, max_recent_peak * 0.995)
+        max_recent_peak = max(0.045, max_recent_peak * 0.997)
 
-    ratio = min(1.0, peak / max(0.004, max_recent_peak))
-    boosted_peak = math.pow(ratio, 0.68) * 1.12 if ratio > 0 else 0.0
+    ratio = min(1.0, peak / max(0.045, max_recent_peak))
+    boosted_peak = math.pow(ratio, 1.22) * 0.88 if ratio > 0 else 0.0
     boosted_peak = max(0.0, min(1.0, boosted_peak))
 
-    # Instantaneous 0ms attack on transients, snappy rapid release
+    # Gentle attack and musical release
     if boosted_peak > smoothed_peak:
-        smoothed_peak = boosted_peak
+        smoothed_peak = smoothed_peak * 0.65 + boosted_peak * 0.35
     else:
-        smoothed_peak = smoothed_peak * 0.85 + boosted_peak * 0.15
+        smoothed_peak = smoothed_peak * 0.88 + boosted_peak * 0.12
 
     current_media["audioPeak"] = round(smoothed_peak, 3)
 
-    phase += 0.40
+    phase += 0.24
     new_spectrum = []
     for i in range(16):
-        bass_mult = 1.30 if i < 5 else (1.12 if i < 10 else 0.92)
-        osc = math.sin(phase * (1.20 + i * 0.22) + i * 0.48) * 0.28 + 0.72
-        val = max(0.05, min(1.0, (smoothed_peak * bass_mult * osc)))
+        bass_mult = 1.15 if i < 5 else (1.05 if i < 10 else 0.90)
+        osc = math.sin(phase * (0.85 + i * 0.16) + i * 0.40) * 0.14 + 0.86
+        val = max(0.03, min(1.0, (smoothed_peak * bass_mult * osc)))
         if val > band_energy[i]:
-            band_energy[i] = val
+            band_energy[i] = band_energy[i] * 0.50 + val * 0.50
         else:
-            band_energy[i] = band_energy[i] * 0.80 + val * 0.20
+            band_energy[i] = band_energy[i] * 0.86 + val * 0.14
         new_spectrum.append(round(band_energy[i], 3))
 
     current_media["spectrum"] = new_spectrum

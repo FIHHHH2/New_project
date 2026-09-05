@@ -322,12 +322,42 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 	end)
 	
 	table.insert(self.Tabs, tabObj)
+	self:_UpdateTabSizing()
 	
 	if not isHiddenFromSidebar and #self.Tabs == 1 then
 		self:SelectTab(tabObj)
 	end
 	
 	return tabObj
+end
+
+function CoreUI:_UpdateTabSizing()
+	local visibleTabs = {}
+	for _, tab in ipairs(self.Tabs) do
+		if not tab.IsHidden and tab.IsVisible ~= false and tab.Button then
+			table.insert(visibleTabs, tab)
+		end
+	end
+
+	local count = #visibleTabs
+	local padX = if count > 7 then 5 else (if count > 4 then 7 else 10)
+	local textSize = if count > 7 then 9 else (if count > 5 then 10 else 11)
+
+	for _, tab in ipairs(visibleTabs) do
+		local pad = tab.Button:FindFirstChildWhichIsA("UIPadding")
+		if pad then
+			pad.PaddingLeft = UDim.new(0, padX)
+			pad.PaddingRight = UDim.new(0, padX)
+		end
+		tab.Button.TextSize = textSize
+	end
+
+	if self.Sidebar then
+		local layout = self.Sidebar:FindFirstChildWhichIsA("UIListLayout")
+		if layout then
+			layout.Padding = UDim.new(0, if count > 6 then 4 else 6)
+		end
+	end
 end
 
 function CoreUI:GetTab(name: string): any
@@ -358,6 +388,7 @@ function CoreUI:SetTabVisibility(tabObjOrName: any, visible: boolean)
 	if targetTab.Button then
 		targetTab.Button.Visible = visible
 	end
+	self:_UpdateTabSizing()
 
 	if not visible and self.ActiveTab == targetTab then
 		-- Fall back to first visible non-hidden tab
@@ -377,6 +408,33 @@ end
 function CoreUI:SelectTab(tabObj)
 	if not tabObj then return end
 	if self.ActiveTab == tabObj then return end
+
+	-- Auto-scroll sidebar to ensure active tab button is smoothly in view
+	if tabObj.Button and self.Sidebar then
+		task.defer(function()
+			pcall(function()
+				local btn = tabObj.Button
+				local sb = self.Sidebar
+				local btnAbsX = btn.AbsolutePosition.X
+				local sbAbsX = sb.AbsolutePosition.X
+				local sbWidth = sb.AbsoluteSize.X
+				local relLeft = btnAbsX - sbAbsX + sb.CanvasPosition.X
+				local relRight = relLeft + btn.AbsoluteSize.X
+				local viewLeft = sb.CanvasPosition.X
+				local viewRight = viewLeft + sbWidth
+
+				if relLeft < viewLeft then
+					TweenService:Create(sb, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+						CanvasPosition = Vector2.new(math.max(0, relLeft - 8), 0)
+					}):Play()
+				elseif relRight > viewRight then
+					TweenService:Create(sb, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+						CanvasPosition = Vector2.new(math.max(0, relRight - sbWidth + 8), 0)
+					}):Play()
+				end
+			end)
+		end)
+	end
 
 	local oldTab = self.ActiveTab
 
@@ -1469,8 +1527,12 @@ function CoreUI:Notify(title: string, message: string, duration: number?)
 end
 
 function CoreUI:Open(onComplete: (() -> ())?)
-	if self.IsOpen or self.IsTransitioning then return end
+	if self.MainFrame and self.MainFrame.Visible and self.IsOpen then
+		if onComplete then onComplete() end
+		return
+	end
 	self.IsTransitioning = true
+	self.IsOpen = true
 	Animations.openWindow(self.MainFrame, self.UiScale, function()
 		self.IsOpen = true
 		self.IsTransitioning = false
@@ -1479,8 +1541,12 @@ function CoreUI:Open(onComplete: (() -> ())?)
 end
 
 function CoreUI:Close(onComplete: (() -> ())?)
-	if not self.IsOpen or self.IsTransitioning then return end
+	if self.MainFrame and not self.MainFrame.Visible and not self.IsOpen then
+		if onComplete then onComplete() end
+		return
+	end
 	self.IsTransitioning = true
+	self.IsOpen = false
 	Animations.closeWindow(self.MainFrame, self.UiScale, function()
 		self.IsOpen = false
 		self.IsTransitioning = false
@@ -1489,7 +1555,8 @@ function CoreUI:Close(onComplete: (() -> ())?)
 end
 
 function CoreUI:Toggle(onComplete: (() -> ())?)
-	if self.IsOpen then
+	local isCurrentlyVisible = self.MainFrame and self.MainFrame.Visible
+	if isCurrentlyVisible then
 		self:Close(onComplete)
 	else
 		self:Open(onComplete)

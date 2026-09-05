@@ -616,6 +616,23 @@ function Hotbar.new(): HotbarWidget
 		end
 	end
 
+	-- Auto-compact assigned slots to shift tools up so no gaps exist (1, 2, 3, 4 contiguous)
+	local function compactSlots()
+		local packed: {Tool} = {}
+		for i = 1, NUM_SLOTS do
+			local t = assignedSlots[i]
+			if t and t.Parent then
+				table.insert(packed, t)
+			end
+			assignedSlots[i] = nil
+		end
+		for i, t in ipairs(packed) do
+			if i <= NUM_SLOTS then
+				assignedSlots[i] = t
+			end
+		end
+	end
+
 	-- ── 5. Full Hotbar Viewport Render Function (Only Runs on Inventory Change) ──
 	local function updateHotbarVisuals()
 		local allTools = getAllTools()
@@ -632,6 +649,9 @@ function Hotbar.new(): HotbarWidget
 				cleanViewport(slotFrames[i])
 			end
 		end
+
+		-- Auto-compact to shift subsequent slots up (e.g. if slot 1 is empty, move slot 2, 3, 4 up)
+		compactSlots()
 
 		-- Auto-assign unassigned tools to first available slots
 		for _, tool in ipairs(allTools) do
@@ -651,6 +671,8 @@ function Hotbar.new(): HotbarWidget
 				end
 			end
 		end
+
+		compactSlots()
 
 		for slotNum = 1, NUM_SLOTS do
 			local slotBtn = slotFrames[slotNum]
@@ -919,6 +941,7 @@ function Hotbar.new(): HotbarWidget
 				assignedSlots[i] = nil
 			end
 		end
+		compactSlots()
 
 		updateHotbarVisuals()
 		if isBackpackOpen then updateBackpackGrid() end
@@ -1037,6 +1060,7 @@ function Hotbar.new(): HotbarWidget
 		if bpWindow.Visible and isPointInsideGui(endMouse, bpGridScroll) then
 			if fromSlot then
 				assignedSlots[fromSlot] = nil
+				compactSlots()
 				pcall(function()
 					local Notification = require("UI/Notification.luau")
 					Notification.new("Toolbar", string.format("Removed '%s' from Slot %d", tool.Name, fromSlot % 10), 1.5)

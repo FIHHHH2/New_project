@@ -193,21 +193,53 @@ function Animations.pulseIndicator(stroke: UIStroke, pulseColor: Color3, normalC
 	end)
 end
 
+local activeWindowTweens: {[GuiObject]: Tween} = {}
+
 -- Window open transition (Smooth deceleration scale 0.94 -> 1.0 Quad.Out)
 function Animations.openWindow(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
-	frame.Visible = true
-	if uiScale then
-		uiScale.Scale = 0.94
-		local tween = TweenService:Create(uiScale, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Scale = 1.0
-		})
-		tween:Play()
-		if onComplete then
-			tween.Completed:Connect(onComplete)
-		end
-	elseif onComplete then
-		onComplete()
+	if activeWindowTweens[frame] then
+		pcall(function() activeWindowTweens[frame]:Cancel() end)
+		activeWindowTweens[frame] = nil
 	end
+
+	frame.Visible = true
+	local scale = uiScale or frame:FindFirstChildWhichIsA("UIScale")
+	if not scale then
+		scale = Instance.new("UIScale")
+		scale.Scale = 0.94
+		scale.Parent = frame
+	end
+
+	local curScale = scale.Scale
+	if curScale >= 0.99 or curScale < 0.85 then
+		scale.Scale = 0.94
+	end
+
+	local tween = TweenService:Create(scale, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Scale = 1.0
+	})
+	activeWindowTweens[frame] = tween
+	tween:Play()
+
+	local completedFired = false
+	local function finish()
+		if completedFired then return end
+		completedFired = true
+		if activeWindowTweens[frame] == tween then
+			activeWindowTweens[frame] = nil
+		end
+		if onComplete then
+			onComplete()
+		end
+	end
+
+	local conn = tween.Completed:Connect(finish)
+	task.delay(0.25, function()
+		if not completedFired then
+			pcall(function() conn:Disconnect() end)
+			finish()
+		end
+	end)
 end
 
 function Animations.springOpen(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
@@ -216,16 +248,41 @@ end
 
 -- Window close transition (Smooth instant fade-out 1.0 -> 0.94 Quad.In)
 function Animations.closeWindow(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
-	if uiScale then
-		local tween = TweenService:Create(uiScale, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+	if activeWindowTweens[frame] then
+		pcall(function() activeWindowTweens[frame]:Cancel() end)
+		activeWindowTweens[frame] = nil
+	end
+
+	local scale = uiScale or frame:FindFirstChildWhichIsA("UIScale")
+	if scale then
+		local curScale = scale.Scale
+		if curScale < 0.90 then scale.Scale = 1.0 end
+
+		local tween = TweenService:Create(scale, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 			Scale = 0.94
 		})
+		activeWindowTweens[frame] = tween
 		tween:Play()
-		tween.Completed:Connect(function()
+
+		local completedFired = false
+		local function finish()
+			if completedFired then return end
+			completedFired = true
+			if activeWindowTweens[frame] == tween then
+				activeWindowTweens[frame] = nil
+			end
 			frame.Visible = false
-			uiScale.Scale = 1.0
+			scale.Scale = 1.0
 			if onComplete then
 				onComplete()
+			end
+		end
+
+		local conn = tween.Completed:Connect(finish)
+		task.delay(0.20, function()
+			if not completedFired then
+				pcall(function() conn:Disconnect() end)
+				finish()
 			end
 		end)
 	else

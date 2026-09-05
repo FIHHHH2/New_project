@@ -11,6 +11,7 @@ def sync():
     pattern = re.compile(r'(Modules\["([^"]+)"\] = function\(\)\n)(.*?)(^end\n)', re.DOTALL | re.MULTILINE)
 
     targets = [
+        "UI/Animations.luau",
         "UI/UI.luau",
         "Core/CoreUI.luau",
         "Core/MainUI.luau",

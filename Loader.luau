@@ -84,7 +84,7 @@ Modules["UI/Animations.luau"] = function()
     	local dur = if config and config.duration ~= nil then config.duration else 0.15
     	local style = if config and config.easingStyle ~= nil then config.easingStyle else Enum.EasingStyle.Quad
     	local dir = if config and config.easingDirection ~= nil then config.easingDirection else Enum.EasingDirection.Out
-
+	
     	local tweenInfo = TweenInfo.new(dur, style, dir)
     	local tween = TweenService:Create(instance, tweenInfo, properties)
     	tween:Play()
@@ -256,21 +256,53 @@ Modules["UI/Animations.luau"] = function()
     	end)
     end
 
+    local activeWindowTweens: {[GuiObject]: Tween} = {}
+
     -- Window open transition (Smooth deceleration scale 0.94 -> 1.0 Quad.Out)
     function Animations.openWindow(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
-    	frame.Visible = true
-    	if uiScale then
-    		uiScale.Scale = 0.94
-    		local tween = TweenService:Create(uiScale, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-    			Scale = 1.0
-    		})
-    		tween:Play()
-    		if onComplete then
-    			tween.Completed:Connect(onComplete)
-    		end
-    	elseif onComplete then
-    		onComplete()
+    	if activeWindowTweens[frame] then
+    		pcall(function() activeWindowTweens[frame]:Cancel() end)
+    		activeWindowTweens[frame] = nil
     	end
+
+    	frame.Visible = true
+    	local scale = uiScale or frame:FindFirstChildWhichIsA("UIScale")
+    	if not scale then
+    		scale = Instance.new("UIScale")
+    		scale.Scale = 0.94
+    		scale.Parent = frame
+    	end
+
+    	local curScale = scale.Scale
+    	if curScale >= 0.99 or curScale < 0.85 then
+    		scale.Scale = 0.94
+    	end
+
+    	local tween = TweenService:Create(scale, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    		Scale = 1.0
+    	})
+    	activeWindowTweens[frame] = tween
+    	tween:Play()
+
+    	local completedFired = false
+    	local function finish()
+    		if completedFired then return end
+    		completedFired = true
+    		if activeWindowTweens[frame] == tween then
+    			activeWindowTweens[frame] = nil
+    		end
+    		if onComplete then
+    			onComplete()
+    		end
+    	end
+
+    	local conn = tween.Completed:Connect(finish)
+    	task.delay(0.25, function()
+    		if not completedFired then
+    			pcall(function() conn:Disconnect() end)
+    			finish()
+    		end
+    	end)
     end
 
     function Animations.springOpen(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
@@ -279,16 +311,41 @@ Modules["UI/Animations.luau"] = function()
 
     -- Window close transition (Smooth instant fade-out 1.0 -> 0.94 Quad.In)
     function Animations.closeWindow(frame: GuiObject, uiScale: UIScale?, onComplete: (() -> ())?)
-    	if uiScale then
-    		local tween = TweenService:Create(uiScale, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+    	if activeWindowTweens[frame] then
+    		pcall(function() activeWindowTweens[frame]:Cancel() end)
+    		activeWindowTweens[frame] = nil
+    	end
+
+    	local scale = uiScale or frame:FindFirstChildWhichIsA("UIScale")
+    	if scale then
+    		local curScale = scale.Scale
+    		if curScale < 0.90 then scale.Scale = 1.0 end
+
+    		local tween = TweenService:Create(scale, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
     			Scale = 0.94
     		})
+    		activeWindowTweens[frame] = tween
     		tween:Play()
-    		tween.Completed:Connect(function()
+
+    		local completedFired = false
+    		local function finish()
+    			if completedFired then return end
+    			completedFired = true
+    			if activeWindowTweens[frame] == tween then
+    				activeWindowTweens[frame] = nil
+    			end
     			frame.Visible = false
-    			uiScale.Scale = 1.0
+    			scale.Scale = 1.0
     			if onComplete then
     				onComplete()
+    			end
+    		end
+
+    		local conn = tween.Completed:Connect(finish)
+    		task.delay(0.20, function()
+    			if not completedFired then
+    				pcall(function() conn:Disconnect() end)
+    				finish()
     			end
     		end)
     	else
@@ -834,18 +891,36 @@ Modules["UI/UI.luau"] = function()
     	versionLabel.Parent = versionBox
     	UI.registerThemeElement(versionLabel, "TextPrimary")
 
-    	-- [ Tabs Container ] in Top Bar Area
+    	-- [ Tabs Container ] in Top Bar Area (Clips & Scrolls horizontally when tabs exceed width)
     	local sidebar = Instance.new("ScrollingFrame")
     	sidebar.Name = "Sidebar"
     	sidebar.Size = UDim2.new(1, -260, 1, 0)
     	sidebar.Position = UDim2.new(0, 66, 0, 0)
     	sidebar.BackgroundTransparency = 1
     	sidebar.BorderSizePixel = 0
-    	sidebar.ScrollBarThickness = 0
+    	sidebar.ScrollBarThickness = 2
+    	sidebar.ScrollBarImageColor3 = UI.Theme.Accent
+    	sidebar.ScrollBarImageTransparency = 0.35
     	sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
     	sidebar.AutomaticCanvasSize = Enum.AutomaticSize.X
-    	sidebar.ClipsDescendants = false
+    	sidebar.ScrollingDirection = Enum.ScrollingDirection.X
+    	sidebar.ClipsDescendants = true
+    	sidebar.ScrollingEnabled = true
+    	sidebar.ElasticBehavior = Enum.ElasticBehavior.WhenScrollable
     	sidebar.Parent = topbar
+    	UI.registerThemeElement(sidebar, "Accent")
+
+    	-- Smooth horizontal wheel scrolling support for tab strip
+    	sidebar.InputChanged:Connect(function(input)
+    		if input.UserInputType == Enum.UserInputType.MouseWheel then
+    			local delta = -input.Position.Z * 45
+    			local maxScroll = math.max(0, sidebar.AbsoluteCanvasSize.X - sidebar.AbsoluteSize.X)
+    			local newX = math.clamp(sidebar.CanvasPosition.X + delta, 0, maxScroll)
+    			TweenService:Create(sidebar, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    				CanvasPosition = Vector2.new(newX, 0)
+    			}):Play()
+    		end
+    	end)
 
     	local sideList = Instance.new("UIListLayout")
     	sideList.Padding = UDim.new(0, 6)
@@ -1092,8 +1167,12 @@ Modules["UI/UI.luau"] = function()
     	local isTransitioning = false
 
     	local function openWindow(onComplete: (() -> ())?)
-    		if isOpen or isTransitioning then return end
+    		if mainFrame.Visible and isOpen then
+    			if onComplete then onComplete() end
+    			return
+    		end
     		isTransitioning = true
+    		isOpen = true
     		Animations.openWindow(mainFrame, uiScale, function()
     			isOpen = true
     			isTransitioning = false
@@ -1104,8 +1183,12 @@ Modules["UI/UI.luau"] = function()
     	end
 
     	local function closeWindow(onComplete: (() -> ())?)
-    		if not isOpen or isTransitioning then return end
+    		if not mainFrame.Visible and not isOpen then
+    			if onComplete then onComplete() end
+    			return
+    		end
     		isTransitioning = true
+    		isOpen = false
     		Animations.closeWindow(mainFrame, uiScale, function()
     			isOpen = false
     			isTransitioning = false
@@ -1116,7 +1199,7 @@ Modules["UI/UI.luau"] = function()
     	end
 
     	local function toggleWindow(onComplete: (() -> ())?)
-    		if isOpen then
+    		if mainFrame.Visible then
     			closeWindow(onComplete)
     		else
     			openWindow(onComplete)
@@ -5266,13 +5349,13 @@ Modules["UI/MusicTracker.luau"] = function()
     		if not widget.Visible or not screenGui.Enabled then return end
 
     		local safeDt = math.clamp(dt or 0.016, 0.001, 0.05)
-    		local isAudible = isPlaying or (currentAudioPeak > 0.005)
+    		local isAudible = isPlaying or (currentAudioPeak > 0.015)
 
     		local targetEnergy = if isAudible then currentAudioPeak else 0.0
     		if targetEnergy > smoothedEnergy then
-    			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 60.0, 0.40, 0.98)
+    			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 22.0, 0.12, 0.50)
     		else
-    			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 24.0, 0.15, 0.85)
+    			smoothedEnergy = smoothedEnergy + (targetEnergy - smoothedEnergy) * math.clamp(safeDt * 14.0, 0.08, 0.35)
     		end
 
     		local t = os.clock()
@@ -5280,18 +5363,18 @@ Modules["UI/MusicTracker.luau"] = function()
     			local bar = visualizerBars[i]
     			if not bar then continue end
 
-    			if smoothedEnergy < 0.002 then
-    				currentHeights[i] = math.max(3.0, currentHeights[i] + (3.0 - currentHeights[i]) * math.clamp(safeDt * 20.0, 0.15, 0.6))
+    			if smoothedEnergy < 0.004 then
+    				currentHeights[i] = math.max(3.0, currentHeights[i] + (3.0 - currentHeights[i]) * math.clamp(safeDt * 16.0, 0.10, 0.5))
     				bar.Size = UDim2.new(0, 6, 0, currentHeights[i])
     			else
-    				local rawSpec = currentSpectrum[i] or 0.15
-    				local waveHarmonic = math.sin(t * 12.0 + i * 0.60) * 0.22 + math.cos(t * 7.5 - i * 0.45) * 0.14 + 0.68
-    				local targetHeight = math.clamp(rawSpec * 28.0 * (smoothedEnergy * 1.20 + 0.15) * waveHarmonic + 3.0, 3.0, 30.0)
+    				local rawSpec = currentSpectrum[i] or 0.10
+    				local waveHarmonic = math.sin(t * 7.5 + i * 0.45) * 0.14 + math.cos(t * 4.8 - i * 0.32) * 0.10 + 0.82
+    				local targetHeight = math.clamp(rawSpec * 22.0 * (smoothedEnergy * 0.85 + 0.10) * waveHarmonic + 3.0, 3.0, 25.0)
 
-    				local springForce = (targetHeight - currentHeights[i]) * 160.0
-    				local dampingForce = currentVelocities[i] * 22.0
+    				local springForce = (targetHeight - currentHeights[i]) * 95.0
+    				local dampingForce = currentVelocities[i] * 19.0
     				currentVelocities[i] = currentVelocities[i] + (springForce - dampingForce) * safeDt
-    				currentHeights[i] = math.clamp(currentHeights[i] + currentVelocities[i] * safeDt, 3.0, 32.0)
+    				currentHeights[i] = math.clamp(currentHeights[i] + currentVelocities[i] * safeDt, 3.0, 27.0)
 
     				bar.Size = UDim2.new(0, 6, 0, currentHeights[i])
     			end
@@ -5339,7 +5422,7 @@ Modules["UI/MusicTracker.luau"] = function()
     				activeGameSound = loudestSound
     				isPlaying = true
     				playBtn.Text = "❚❚"
-    				currentAudioPeak = math.clamp(loudestSound.PlaybackLoudness / 320, 0.15, 1.0)
+    				currentAudioPeak = math.clamp((loudestSound.PlaybackLoudness - 40) / 480, 0.0, 1.0)
 
     				local sName = loudestSound.Name
     				if sName ~= lastSongTitle and sName ~= "" then
@@ -6277,6 +6360,23 @@ Modules["UI/Hotbar.luau"] = function()
     		end
     	end
 
+    	-- Auto-compact assigned slots to shift tools up so no gaps exist (1, 2, 3, 4 contiguous)
+    	local function compactSlots()
+    		local packed: {Tool} = {}
+    		for i = 1, NUM_SLOTS do
+    			local t = assignedSlots[i]
+    			if t and t.Parent then
+    				table.insert(packed, t)
+    			end
+    			assignedSlots[i] = nil
+    		end
+    		for i, t in ipairs(packed) do
+    			if i <= NUM_SLOTS then
+    				assignedSlots[i] = t
+    			end
+    		end
+    	end
+
     	-- ── 5. Full Hotbar Viewport Render Function (Only Runs on Inventory Change) ──
     	local function updateHotbarVisuals()
     		local allTools = getAllTools()
@@ -6293,6 +6393,9 @@ Modules["UI/Hotbar.luau"] = function()
     				cleanViewport(slotFrames[i])
     			end
     		end
+
+    		-- Auto-compact to shift subsequent slots up (e.g. if slot 1 is empty, move slot 2, 3, 4 up)
+    		compactSlots()
 
     		-- Auto-assign unassigned tools to first available slots
     		for _, tool in ipairs(allTools) do
@@ -6312,6 +6415,8 @@ Modules["UI/Hotbar.luau"] = function()
     				end
     			end
     		end
+
+    		compactSlots()
 
     		for slotNum = 1, NUM_SLOTS do
     			local slotBtn = slotFrames[slotNum]
@@ -6580,6 +6685,7 @@ Modules["UI/Hotbar.luau"] = function()
     				assignedSlots[i] = nil
     			end
     		end
+    		compactSlots()
 
     		updateHotbarVisuals()
     		if isBackpackOpen then updateBackpackGrid() end
@@ -6698,6 +6804,7 @@ Modules["UI/Hotbar.luau"] = function()
     		if bpWindow.Visible and isPointInsideGui(endMouse, bpGridScroll) then
     			if fromSlot then
     				assignedSlots[fromSlot] = nil
+    				compactSlots()
     				pcall(function()
     					local Notification = require("UI/Notification.luau")
     					Notification.new("Toolbar", string.format("Removed '%s' from Slot %d", tool.Name, fromSlot % 10), 1.5)
@@ -10296,12 +10403,42 @@ Modules["Core/CoreUI.luau"] = function()
     	end)
 	
     	table.insert(self.Tabs, tabObj)
+    	self:_UpdateTabSizing()
 	
     	if not isHiddenFromSidebar and #self.Tabs == 1 then
     		self:SelectTab(tabObj)
     	end
 	
     	return tabObj
+    end
+
+    function CoreUI:_UpdateTabSizing()
+    	local visibleTabs = {}
+    	for _, tab in ipairs(self.Tabs) do
+    		if not tab.IsHidden and tab.IsVisible ~= false and tab.Button then
+    			table.insert(visibleTabs, tab)
+    		end
+    	end
+
+    	local count = #visibleTabs
+    	local padX = if count > 7 then 5 else (if count > 4 then 7 else 10)
+    	local textSize = if count > 7 then 9 else (if count > 5 then 10 else 11)
+
+    	for _, tab in ipairs(visibleTabs) do
+    		local pad = tab.Button:FindFirstChildWhichIsA("UIPadding")
+    		if pad then
+    			pad.PaddingLeft = UDim.new(0, padX)
+    			pad.PaddingRight = UDim.new(0, padX)
+    		end
+    		tab.Button.TextSize = textSize
+    	end
+
+    	if self.Sidebar then
+    		local layout = self.Sidebar:FindFirstChildWhichIsA("UIListLayout")
+    		if layout then
+    			layout.Padding = UDim.new(0, if count > 6 then 4 else 6)
+    		end
+    	end
     end
 
     function CoreUI:GetTab(name: string): any
@@ -10332,6 +10469,7 @@ Modules["Core/CoreUI.luau"] = function()
     	if targetTab.Button then
     		targetTab.Button.Visible = visible
     	end
+    	self:_UpdateTabSizing()
 
     	if not visible and self.ActiveTab == targetTab then
     		-- Fall back to first visible non-hidden tab
@@ -10351,6 +10489,33 @@ Modules["Core/CoreUI.luau"] = function()
     function CoreUI:SelectTab(tabObj)
     	if not tabObj then return end
     	if self.ActiveTab == tabObj then return end
+
+    	-- Auto-scroll sidebar to ensure active tab button is smoothly in view
+    	if tabObj.Button and self.Sidebar then
+    		task.defer(function()
+    			pcall(function()
+    				local btn = tabObj.Button
+    				local sb = self.Sidebar
+    				local btnAbsX = btn.AbsolutePosition.X
+    				local sbAbsX = sb.AbsolutePosition.X
+    				local sbWidth = sb.AbsoluteSize.X
+    				local relLeft = btnAbsX - sbAbsX + sb.CanvasPosition.X
+    				local relRight = relLeft + btn.AbsoluteSize.X
+    				local viewLeft = sb.CanvasPosition.X
+    				local viewRight = viewLeft + sbWidth
+
+    				if relLeft < viewLeft then
+    					TweenService:Create(sb, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    						CanvasPosition = Vector2.new(math.max(0, relLeft - 8), 0)
+    					}):Play()
+    				elseif relRight > viewRight then
+    					TweenService:Create(sb, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    						CanvasPosition = Vector2.new(math.max(0, relRight - sbWidth + 8), 0)
+    					}):Play()
+    				end
+    			end)
+    		end)
+    	end
 
     	local oldTab = self.ActiveTab
 
@@ -11443,8 +11608,12 @@ Modules["Core/CoreUI.luau"] = function()
     end
 
     function CoreUI:Open(onComplete: (() -> ())?)
-    	if self.IsOpen or self.IsTransitioning then return end
+    	if self.MainFrame and self.MainFrame.Visible and self.IsOpen then
+    		if onComplete then onComplete() end
+    		return
+    	end
     	self.IsTransitioning = true
+    	self.IsOpen = true
     	Animations.openWindow(self.MainFrame, self.UiScale, function()
     		self.IsOpen = true
     		self.IsTransitioning = false
@@ -11453,8 +11622,12 @@ Modules["Core/CoreUI.luau"] = function()
     end
 
     function CoreUI:Close(onComplete: (() -> ())?)
-    	if not self.IsOpen or self.IsTransitioning then return end
+    	if self.MainFrame and not self.MainFrame.Visible and not self.IsOpen then
+    		if onComplete then onComplete() end
+    		return
+    	end
     	self.IsTransitioning = true
+    	self.IsOpen = false
     	Animations.closeWindow(self.MainFrame, self.UiScale, function()
     		self.IsOpen = false
     		self.IsTransitioning = false
@@ -11463,7 +11636,8 @@ Modules["Core/CoreUI.luau"] = function()
     end
 
     function CoreUI:Toggle(onComplete: (() -> ())?)
-    	if self.IsOpen then
+    	local isCurrentlyVisible = self.MainFrame and self.MainFrame.Visible
+    	if isCurrentlyVisible then
     		self:Close(onComplete)
     	else
     		self:Open(onComplete)

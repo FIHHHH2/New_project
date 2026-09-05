@@ -232,6 +232,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		local activeSpeedLock: number? = nil
 		local activeJumpLock: number? = nil
 		local activeHipHeightLock: number? = nil
+		local speedPropConn: RBXScriptConnection? = nil
+		local jumpPropConn: RBXScriptConnection? = nil
 
 		local function getHumanoid(): Humanoid?
 			local char = localPlayer.Character
@@ -280,6 +282,23 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end)
 		end
 
+		local function bindHumanoidWatchers(hum: Humanoid)
+			if speedPropConn then speedPropConn:Disconnect() speedPropConn = nil end
+			if jumpPropConn then jumpPropConn:Disconnect() jumpPropConn = nil end
+
+			speedPropConn = hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+				if activeSpeedLock ~= nil and hum.WalkSpeed ~= activeSpeedLock then
+					hum.WalkSpeed = activeSpeedLock
+				end
+			end)
+
+			jumpPropConn = hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
+				if activeJumpLock ~= nil and hum.JumpPower ~= activeJumpLock then
+					hum.JumpPower = activeJumpLock
+				end
+			end)
+		end
+
 		local function enforcePersistentStats()
 			local hum = getHumanoid()
 			if not hum or hum.Health <= 0 then return end
@@ -296,16 +315,54 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end
 
-		local lastStatsCheck = 0
-		RunService.Heartbeat:Connect(function()
-			if activeSpeedLock == nil and activeJumpLock == nil and activeHipHeightLock == nil then return end
-			local now = tick()
-			if now - lastStatsCheck >= 0.066 then
-				lastStatsCheck = now
-				enforcePersistentStats()
+		local initHum = getHumanoid()
+		if initHum then
+			bindHumanoidWatchers(initHum)
+		end
+
+		local stepConn = RunService.PreSimulation or RunService.Stepped
+		stepConn:Connect(function()
+			local char = localPlayer.Character
+			if not char then return end
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if not hum or hum.Health <= 0 then return end
+
+			if activeSpeedLock ~= nil and activeSpeedLock > 16 then
+				if hum.WalkSpeed ~= activeSpeedLock then
+					hum.WalkSpeed = activeSpeedLock
+				end
+
+				local moveDir = hum.MoveDirection
+				if moveDir.Magnitude > 0.05 then
+					local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+					if hrp and not hrp.Anchored then
+						local curY = hrp.AssemblyLinearVelocity.Y
+						local curH = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z)
+						if curH.Magnitude < (activeSpeedLock - 1) or hum.WalkSpeed < activeSpeedLock then
+							local targetH = moveDir.Unit * activeSpeedLock
+							hrp.AssemblyLinearVelocity = Vector3.new(targetH.X, curY, targetH.Z)
+						end
+					end
+				end
+			end
+
+			if activeJumpLock ~= nil then
+				if not hum.UseJumpPower or hum.JumpPower ~= activeJumpLock then
+					hum.UseJumpPower = true
+					hum.JumpPower = activeJumpLock
+				end
+			end
+
+			if activeHipHeightLock ~= nil and hum.HipHeight ~= activeHipHeightLock then
+				hum.HipHeight = activeHipHeightLock
 			end
 		end)
-		localPlayer.CharacterAdded:Connect(function()
+
+		localPlayer.CharacterAdded:Connect(function(char)
+			local hum = char:WaitForChild("Humanoid", 5) :: Humanoid?
+			if hum then
+				bindHumanoidWatchers(hum)
+			end
 			task.wait(0.12)
 			enforcePersistentStats()
 		end)

@@ -1278,25 +1278,30 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	valStroke.Parent = valBox
 	UI.registerThemeElement(valStroke, "Border")
 
-	local valLabel = Instance.new("TextLabel")
-	valLabel.Size = UDim2.new(1, 0, 1, 0)
-	valLabel.BackgroundTransparency = 1
-	valLabel.Text = tostring(initialValue)
-	valLabel.TextColor3 = UI.Theme.Accent
-	valLabel.Font = UI.Fonts.Mono
-	valLabel.TextSize = 10
-	valLabel.TextTruncate = Enum.TextTruncate.AtEnd
-	valLabel.ClipsDescendants = true
-	valLabel.Parent = valBox
+	local valInput = Instance.new("TextBox")
+	valInput.Name = "ValInput"
+	valInput.Size = UDim2.new(1, 0, 1, 0)
+	valInput.BackgroundTransparency = 1
+	valInput.Text = tostring(initialValue)
+	valInput.TextColor3 = UI.Theme.Accent
+	valInput.Font = UI.Fonts.Mono
+	valInput.TextSize = 10
+	valInput.TextTruncate = Enum.TextTruncate.AtEnd
+	valInput.ClearTextOnFocus = false
+	valInput.ClipsDescendants = true
+	valInput.Parent = valBox
 
-	-- track
-	local bar = Instance.new("Frame")
+	-- track (TextButton to sink clicks inside scrolling frames and guarantee input reception)
+	local bar = Instance.new("TextButton")
 	bar.Name = "SliderTrack"
 	bar.Size = UDim2.new(1, 0, 0, 16)
 	bar.Position = UDim2.new(0, 0, 0, 24)
 	bar.BackgroundColor3 = UI.Theme.ContainerDark
 	bar.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	bar.BorderSizePixel = 0
+	bar.Text = ""
+	bar.AutoButtonColor = false
+	bar.Active = true
 	bar.Parent = row
 	UI.registerThemeElement(bar, "ContainerDark")
 
@@ -1313,6 +1318,7 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	fill.Size = UDim2.new(initialRatio, 0, 1, 0)
 	fill.BackgroundColor3 = UI.Theme.Accent
 	fill.BorderSizePixel = 0
+	fill.Active = false
 	fill.Parent = bar
 	table.insert(self.SliderFills, fill)
 
@@ -1337,30 +1343,35 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 	local releaseConn: RBXScriptConnection? = nil
 
 	local function applyValue(val: number, isDragging: boolean?)
-		if val ~= currentVal then
-			currentVal = val
-			valLabel.Text = tostring(val)
-			valLabel.TextColor3 = UI.Theme.Accent
-		end
+		currentVal = val
+		valInput.Text = tostring(val)
+		valInput.TextColor3 = UI.Theme.Accent
 		local ratio = math.clamp((val - min) / (max - min), 0, 1)
-		if isDragging then
-			fill.Size = UDim2.new(ratio, 0, 1, 0)
-		else
-			fill.Size = UDim2.new(ratio, 0, 1, 0)
-		end
+		fill.Size = UDim2.new(ratio, 0, 1, 0)
 	end
 
-	local function update(input: InputObject)
+	local function update(input: InputObject, force: boolean?)
 		local barWidth = bar.AbsoluteSize.X
 		if barWidth <= 0 then return end
 		local ratio = math.clamp((input.Position.X - bar.AbsolutePosition.X) / barWidth, 0, 1)
 		local rawVal = min + (max - min) * ratio
 		local val = math.floor(rawVal + 0.5)
-		if val ~= currentVal then
+		if val ~= currentVal or force then
 			applyValue(val, true)
 			FeatureManager.setSliderValue(name, val)
 		end
 	end
+
+	valInput.FocusLost:Connect(function()
+		local parsed = tonumber(valInput.Text)
+		if parsed then
+			local clamped = math.clamp(math.floor(parsed + 0.5), min, max)
+			applyValue(clamped, false)
+			FeatureManager.setSliderValue(name, clamped)
+		else
+			valInput.Text = tostring(currentVal)
+		end
+	end)
 
 	sliderRecord.onValueChanged = function(newVal: number)
 		applyValue(newVal, false)
@@ -1368,13 +1379,13 @@ function CoreUI:AddSlider(section: Frame, name: string, min: number, max: number
 
 	bar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			update(input)
+			update(input, true)
 			if dragConn then dragConn:Disconnect() end
 			if releaseConn then releaseConn:Disconnect() end
 
 			dragConn = UserInputService.InputChanged:Connect(function(moveInput)
 				if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
-					update(moveInput)
+					update(moveInput, false)
 				end
 			end)
 

@@ -37,6 +37,19 @@ local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
 local HealthWidget = require("UI/HealthWidget.luau")
 
 pcall(function() MurderMystery2.Init() end)
+pcall(function()
+	DisasterSurvival.init(function(msg)
+		if _G.__ModularSuite_Window and typeof(_G.__ModularSuite_Window.Notify) == "function" then
+			_G.__ModularSuite_Window:Notify("Natural Disaster", msg, 4)
+		end
+	end)
+end)
+pcall(function() RunNHide.init() end)
+pcall(function()
+	if LuckyBlocks and LuckyBlocks.AntiVoid then
+		LuckyBlocks.setAntiVoid(true)
+	end
+end)
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character

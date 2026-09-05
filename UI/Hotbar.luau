@@ -1394,20 +1394,24 @@ function Hotbar.new(): HotbarWidget
 		bpWindow.Visible = false
 	end))
 
-	-- ── 10. Direct Hardware Keybind Engine (Top Row 1-0 & Keypad 1-0) ──
-	for slotIdx = 1, NUM_SLOTS do
-		pcall(function()
-			ContextActionService:UnbindAction("ProjectFih_HotbarSlot_" .. tostring(slotIdx))
-		end)
-	end
-
 	executeSlotToggle = function(slotNum: number)
 		local tool = assignedSlots[slotNum]
 		if not tool or not tool.Parent then
 			local allTools = getAllTools()
-			tool = allTools[slotNum]
-			if tool then
-				assignedSlots[slotNum] = tool
+			-- Find first valid tool that isn't already assigned to a different slot
+			for _, t in ipairs(allTools) do
+				local alreadyAssignedElsewhere = false
+				for s = 1, NUM_SLOTS do
+					if s ~= slotNum and assignedSlots[s] == t then
+						alreadyAssignedElsewhere = true
+						break
+					end
+				end
+				if not alreadyAssignedElsewhere then
+					tool = t
+					assignedSlots[slotNum] = t
+					break
+				end
 			end
 		end
 
@@ -1448,6 +1452,38 @@ function Hotbar.new(): HotbarWidget
 	}
 
 	local lastKeyActionTick = 0
+	local function onKeyTriggered(targetSlot: number)
+		if not isHotbarEnabled then return end
+		local focused = UserInputService:GetFocusedTextBox()
+		if focused then return end
+
+		local now = os.clock()
+		if (now - lastKeyActionTick) < 0.08 then return end
+		lastKeyActionTick = now
+		executeSlotToggle(targetSlot)
+	end
+
+	-- High-priority ContextActionService bindings to guarantee slot 2 and all slots intercept input
+	-- even in games that sink or bind number keys
+	for slotIdx = 1, NUM_SLOTS do
+		local actionName = "ProjectFih_HotbarSlot_" .. tostring(slotIdx)
+		pcall(function() ContextActionService:UnbindAction(actionName) end)
+		local key = KEYCODES[slotIdx]
+		local keypadKey = KEYPAD_CODES[slotIdx]
+		pcall(function()
+			ContextActionService:BindActionAtPriority(actionName, function(actName, state, input)
+				if state == Enum.UserInputState.Begin then
+					local focused = UserInputService:GetFocusedTextBox()
+					if focused then return Enum.ContextActionResult.Pass end
+					onKeyTriggered(slotIdx)
+					return Enum.ContextActionResult.Sink
+				end
+				return Enum.ContextActionResult.Pass
+			end, false, 3000, key, keypadKey)
+		end)
+	end
+
+	-- Backup UserInputService listener
 	table.insert(activeConnections, UserInputService.InputBegan:Connect(function(input, _gameProcessed)
 		if not isHotbarEnabled then return end
 		local focused = UserInputService:GetFocusedTextBox()
@@ -1461,10 +1497,7 @@ function Hotbar.new(): HotbarWidget
 
 			local targetSlot = KEY_TO_SLOT[input.KeyCode]
 			if targetSlot then
-				local now = os.clock()
-				if (now - lastKeyActionTick) < 0.08 then return end
-				lastKeyActionTick = now
-				executeSlotToggle(targetSlot)
+				onKeyTriggered(targetSlot)
 			end
 		end
 	end))

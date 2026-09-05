@@ -2409,6 +2409,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				MurderMystery2.setQuickShot(false)
 				MurderMystery2.setRoleESP(false)
 				MurderMystery2.setCoinFarm(false)
+			else
+				pcall(function() MurderMystery2.Init() end)
 			end
 		end)
 
@@ -2419,6 +2421,10 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				SeekerVsHider.NoRecoil = false
 				SeekerVsHider.NoSpread = false
 				SeekerVsHider.FullAuto = false
+			else
+				pcall(function()
+					if SeekerVsHider.Init then SeekerVsHider.Init() end
+				end)
 			end
 		end)
 
@@ -2430,6 +2436,10 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				RestaurantTycoon.setAutoCollectTips(false)
 				RestaurantTycoon.setAutoCatchDineAndDash(false)
 				RestaurantTycoon.setFastCooking(false)
+			else
+				pcall(function()
+					if RestaurantTycoon.Init then RestaurantTycoon.Init() end
+				end)
 			end
 		end)
 
@@ -2440,6 +2450,10 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				LuckyBlocks.setAutoOpen(false)
 				LuckyBlocks.setTurboSword(false)
 				LuckyBlocks.setAntiVoid(false)
+			else
+				pcall(function()
+					if LuckyBlocks.setAntiVoid then LuckyBlocks.setAntiVoid(true) end
+				end)
 			end
 		end)
 
@@ -2452,6 +2466,10 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				IceTycoon.setAutoFillWater(false)
 				IceTycoon.setFastConveyors(false)
 				IceTycoon.setFastGenerators(false)
+			else
+				pcall(function()
+					if IceTycoon.Init then IceTycoon.Init() end
+				end)
 			end
 		end)
 
@@ -2465,6 +2483,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				RunNHide.FastFireRate = false
 				RunNHide.RemoveSpawnWalls = false
 				RunNHide.RemoveInvisibleWalls = false
+			else
+				pcall(function() RunNHide.init() end)
 			end
 		end)
 
@@ -2478,6 +2498,14 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				DisasterSurvival.setFling(false)
 				DisasterSurvival.setCarDriving(false)
 				DisasterSurvival.setObjectDrag(false)
+			else
+				pcall(function()
+					DisasterSurvival.init(function(msg)
+						if window and typeof(window.Notify) == "function" then
+							window:Notify("Natural Disaster", msg, 4)
+						end
+					end)
+				end)
 			end
 		end)
 
@@ -2491,31 +2519,39 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			window:SetTabVisibility(iceTab, true)
 			window:SetTabVisibility(rnhTab, true)
 			window:SetTabVisibility(disTab, true)
-			FeatureManager.setFeatureState("mod_exec_mm2", true)
-			FeatureManager.setFeatureState("mod_exec_svh", true)
-			FeatureManager.setFeatureState("mod_exec_rt", true)
-			FeatureManager.setFeatureState("mod_exec_lucky", true)
-			FeatureManager.setFeatureState("mod_exec_ice", true)
-			FeatureManager.setFeatureState("mod_exec_rnh", true)
-			FeatureManager.setFeatureState("mod_exec_nds", true)
+			FeatureManager.setFeatureState("mod_exec_mm2", true, true)
+			FeatureManager.setFeatureState("mod_exec_svh", true, true)
+			FeatureManager.setFeatureState("mod_exec_rt", true, true)
+			FeatureManager.setFeatureState("mod_exec_lucky", true, true)
+			FeatureManager.setFeatureState("mod_exec_ice", true, true)
+			FeatureManager.setFeatureState("mod_exec_rnh", true, true)
+			FeatureManager.setFeatureState("mod_exec_nds", true, true)
 			window:Notify("Modules Executed", "Mounted all 7 game suites to topbar", 3)
 		end)
 
 		window:AddButton(actionSection, "De-execute Inactive Games", function()
-			window:SetTabVisibility(mm2Tab, gameTabTitle == "Murder Mystery 2")
-			window:SetTabVisibility(svhTab, gameTabTitle == "Seeker vs Hider")
-			window:SetTabVisibility(restTab, gameTabTitle == "Restaurant Tycoon")
-			window:SetTabVisibility(luckyTab, gameTabTitle == "Lucky Blocks")
-			window:SetTabVisibility(iceTab, gameTabTitle == "Ice Tycoon")
-			window:SetTabVisibility(rnhTab, gameTabTitle == "Run N Hide")
-			window:SetTabVisibility(disTab, gameTabTitle == "Natural Disaster")
-			FeatureManager.setFeatureState("mod_exec_mm2", gameTabTitle == "Murder Mystery 2")
-			FeatureManager.setFeatureState("mod_exec_svh", gameTabTitle == "Seeker vs Hider")
-			FeatureManager.setFeatureState("mod_exec_rt", gameTabTitle == "Restaurant Tycoon")
-			FeatureManager.setFeatureState("mod_exec_lucky", gameTabTitle == "Lucky Blocks")
-			FeatureManager.setFeatureState("mod_exec_ice", gameTabTitle == "Ice Tycoon")
-			FeatureManager.setFeatureState("mod_exec_rnh", gameTabTitle == "Run N Hide")
-			FeatureManager.setFeatureState("mod_exec_nds", gameTabTitle == "Natural Disaster")
+			local isMM2 = (gameTabTitle == "Murder Mystery 2")
+			local isSVH = (gameTabTitle == "Seeker vs Hider")
+			local isRT = (gameTabTitle == "Restaurant Tycoon")
+			local isLucky = (gameTabTitle == "Lucky Blocks")
+			local isIce = (gameTabTitle == "Ice Tycoon")
+			local isRNH = (gameTabTitle == "Run N Hide")
+			local isNDS = (gameTabTitle == "Natural Disaster")
+
+			window:SetTabVisibility(mm2Tab, isMM2)
+			window:SetTabVisibility(svhTab, isSVH)
+			window:SetTabVisibility(restTab, isRT)
+			window:SetTabVisibility(luckyTab, isLucky)
+			window:SetTabVisibility(iceTab, isIce)
+			window:SetTabVisibility(rnhTab, isRNH)
+			window:SetTabVisibility(disTab, isNDS)
+			FeatureManager.setFeatureState("mod_exec_mm2", isMM2, true)
+			FeatureManager.setFeatureState("mod_exec_svh", isSVH, true)
+			FeatureManager.setFeatureState("mod_exec_rt", isRT, true)
+			FeatureManager.setFeatureState("mod_exec_lucky", isLucky, true)
+			FeatureManager.setFeatureState("mod_exec_ice", isIce, true)
+			FeatureManager.setFeatureState("mod_exec_rnh", isRNH, true)
+			FeatureManager.setFeatureState("mod_exec_nds", isNDS, true)
 			window:Notify("Modules Cleaned", "Topbar filtered to active game only", 3)
 		end)
 

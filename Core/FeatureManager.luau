@@ -420,10 +420,10 @@ function FeatureManager.setSliderValue(id: string, value: number)
 	pcall(s.callback, value)
 end
 
-function FeatureManager.setFeatureState(id: string, state: boolean)
+function FeatureManager.setFeatureState(id: string, state: boolean, force: boolean?)
 	local feat = registeredFeatures[id]
 	if not feat then return end
-	if feat.state == state then return end
+	if feat.state == state and not force then return end
 	
 	feat.state = state
 	if feat.onStateChanged then feat.onStateChanged(state) end
@@ -528,8 +528,8 @@ function FeatureManager.loadConfig(name: string): boolean
 		for id, data in pairs(decoded.toggles) do
 			local feat = registeredFeatures[id]
 			if feat then
-				if data.state ~= nil and feat.state ~= data.state then
-					FeatureManager.setFeatureState(id, data.state)
+				if data.state ~= nil then
+					FeatureManager.setFeatureState(id, data.state, true)
 				end
 				if data.keybind then
 					pcall(function()

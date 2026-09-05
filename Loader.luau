@@ -7306,20 +7306,24 @@ Modules["UI/Hotbar.luau"] = function()
     		bpWindow.Visible = false
     	end))
 
-    	-- ── 10. Direct Hardware Keybind Engine (Top Row 1-0 & Keypad 1-0) ──
-    	for slotIdx = 1, NUM_SLOTS do
-    		pcall(function()
-    			ContextActionService:UnbindAction("ProjectFih_HotbarSlot_" .. tostring(slotIdx))
-    		end)
-    	end
-
     	executeSlotToggle = function(slotNum: number)
     		local tool = assignedSlots[slotNum]
     		if not tool or not tool.Parent then
     			local allTools = getAllTools()
-    			tool = allTools[slotNum]
-    			if tool then
-    				assignedSlots[slotNum] = tool
+    			-- Find first valid tool that isn't already assigned to a different slot
+    			for _, t in ipairs(allTools) do
+    				local alreadyAssignedElsewhere = false
+    				for s = 1, NUM_SLOTS do
+    					if s ~= slotNum and assignedSlots[s] == t then
+    						alreadyAssignedElsewhere = true
+    						break
+    					end
+    				end
+    				if not alreadyAssignedElsewhere then
+    					tool = t
+    					assignedSlots[slotNum] = t
+    					break
+    				end
     			end
     		end
 
@@ -7360,6 +7364,38 @@ Modules["UI/Hotbar.luau"] = function()
     	}
 
     	local lastKeyActionTick = 0
+    	local function onKeyTriggered(targetSlot: number)
+    		if not isHotbarEnabled then return end
+    		local focused = UserInputService:GetFocusedTextBox()
+    		if focused then return end
+
+    		local now = os.clock()
+    		if (now - lastKeyActionTick) < 0.08 then return end
+    		lastKeyActionTick = now
+    		executeSlotToggle(targetSlot)
+    	end
+
+    	-- High-priority ContextActionService bindings to guarantee slot 2 and all slots intercept input
+    	-- even in games that sink or bind number keys
+    	for slotIdx = 1, NUM_SLOTS do
+    		local actionName = "ProjectFih_HotbarSlot_" .. tostring(slotIdx)
+    		pcall(function() ContextActionService:UnbindAction(actionName) end)
+    		local key = KEYCODES[slotIdx]
+    		local keypadKey = KEYPAD_CODES[slotIdx]
+    		pcall(function()
+    			ContextActionService:BindActionAtPriority(actionName, function(actName, state, input)
+    				if state == Enum.UserInputState.Begin then
+    					local focused = UserInputService:GetFocusedTextBox()
+    					if focused then return Enum.ContextActionResult.Pass end
+    					onKeyTriggered(slotIdx)
+    					return Enum.ContextActionResult.Sink
+    				end
+    				return Enum.ContextActionResult.Pass
+    			end, false, 3000, key, keypadKey)
+    		end)
+    	end
+
+    	-- Backup UserInputService listener
     	table.insert(activeConnections, UserInputService.InputBegan:Connect(function(input, _gameProcessed)
     		if not isHotbarEnabled then return end
     		local focused = UserInputService:GetFocusedTextBox()
@@ -7373,10 +7409,7 @@ Modules["UI/Hotbar.luau"] = function()
 
     			local targetSlot = KEY_TO_SLOT[input.KeyCode]
     			if targetSlot then
-    				local now = os.clock()
-    				if (now - lastKeyActionTick) < 0.08 then return end
-    				lastKeyActionTick = now
-    				executeSlotToggle(targetSlot)
+    				onKeyTriggered(targetSlot)
     			end
     		end
     	end))
@@ -9320,7 +9353,7 @@ Modules["Core/FeatureManager.luau"] = function()
     local function deleteConfigFile(name: string): boolean
     	ensureFolders()
     	local cleanName = name:gsub("^FihSuiteConfigs", ""):gsub("%.json$", "")
-
+	
     	configsIndex[cleanName] = nil
     	configsIndex[name] = nil
     	deletedConfigsSet[cleanName] = true
@@ -9385,9 +9418,9 @@ Modules["Core/FeatureManager.luau"] = function()
     			return
     		end
     	end
-
+	
     	if gameProcessed then return end
-
+	
     	if input.UserInputType == Enum.UserInputType.Keyboard then
     		local matching = keybindMap[input.KeyCode]
     		if matching then
@@ -9425,14 +9458,14 @@ Modules["Core/FeatureManager.luau"] = function()
     	}
     	registeredFeatures[id] = record
     	rebuildKeybindMap()
-
+	
     	task.spawn(function()
     		local success, err = pcall(callback, defaultState)
     		if not success then
     			warn(string.format("[FeatureManager] error initializing feature %s: %s", id, tostring(err)))
     		end
     	end)
-
+	
     	return record
     end
 
@@ -9481,11 +9514,11 @@ Modules["Core/FeatureManager.luau"] = function()
     	pcall(s.callback, value)
     end
 
-    function FeatureManager.setFeatureState(id: string, state: boolean)
+    function FeatureManager.setFeatureState(id: string, state: boolean, force: boolean?)
     	local feat = registeredFeatures[id]
     	if not feat then return end
-    	if feat.state == state then return end
-
+    	if feat.state == state and not force then return end
+	
     	feat.state = state
     	if feat.onStateChanged then feat.onStateChanged(state) end
     	if feat.stateListeners then
@@ -9589,8 +9622,8 @@ Modules["Core/FeatureManager.luau"] = function()
     		for id, data in pairs(decoded.toggles) do
     			local feat = registeredFeatures[id]
     			if feat then
-    				if data.state ~= nil and feat.state ~= data.state then
-    					FeatureManager.setFeatureState(id, data.state)
+    				if data.state ~= nil then
+    					FeatureManager.setFeatureState(id, data.state, true)
     				end
     				if data.keybind then
     					pcall(function()
@@ -13775,6 +13808,8 @@ Modules["Core/MainUI.luau"] = function()
     				MurderMystery2.setQuickShot(false)
     				MurderMystery2.setRoleESP(false)
     				MurderMystery2.setCoinFarm(false)
+    			else
+    				pcall(function() MurderMystery2.Init() end)
     			end
     		end)
 
@@ -13785,6 +13820,10 @@ Modules["Core/MainUI.luau"] = function()
     				SeekerVsHider.NoRecoil = false
     				SeekerVsHider.NoSpread = false
     				SeekerVsHider.FullAuto = false
+    			else
+    				pcall(function()
+    					if SeekerVsHider.Init then SeekerVsHider.Init() end
+    				end)
     			end
     		end)
 
@@ -13796,6 +13835,10 @@ Modules["Core/MainUI.luau"] = function()
     				RestaurantTycoon.setAutoCollectTips(false)
     				RestaurantTycoon.setAutoCatchDineAndDash(false)
     				RestaurantTycoon.setFastCooking(false)
+    			else
+    				pcall(function()
+    					if RestaurantTycoon.Init then RestaurantTycoon.Init() end
+    				end)
     			end
     		end)
 
@@ -13806,6 +13849,10 @@ Modules["Core/MainUI.luau"] = function()
     				LuckyBlocks.setAutoOpen(false)
     				LuckyBlocks.setTurboSword(false)
     				LuckyBlocks.setAntiVoid(false)
+    			else
+    				pcall(function()
+    					if LuckyBlocks.setAntiVoid then LuckyBlocks.setAntiVoid(true) end
+    				end)
     			end
     		end)
 
@@ -13818,6 +13865,10 @@ Modules["Core/MainUI.luau"] = function()
     				IceTycoon.setAutoFillWater(false)
     				IceTycoon.setFastConveyors(false)
     				IceTycoon.setFastGenerators(false)
+    			else
+    				pcall(function()
+    					if IceTycoon.Init then IceTycoon.Init() end
+    				end)
     			end
     		end)
 
@@ -13831,6 +13882,8 @@ Modules["Core/MainUI.luau"] = function()
     				RunNHide.FastFireRate = false
     				RunNHide.RemoveSpawnWalls = false
     				RunNHide.RemoveInvisibleWalls = false
+    			else
+    				pcall(function() RunNHide.init() end)
     			end
     		end)
 
@@ -13844,6 +13897,14 @@ Modules["Core/MainUI.luau"] = function()
     				DisasterSurvival.setFling(false)
     				DisasterSurvival.setCarDriving(false)
     				DisasterSurvival.setObjectDrag(false)
+    			else
+    				pcall(function()
+    					DisasterSurvival.init(function(msg)
+    						if window and typeof(window.Notify) == "function" then
+    							window:Notify("Natural Disaster", msg, 4)
+    						end
+    					end)
+    				end)
     			end
     		end)
 
@@ -13857,31 +13918,39 @@ Modules["Core/MainUI.luau"] = function()
     			window:SetTabVisibility(iceTab, true)
     			window:SetTabVisibility(rnhTab, true)
     			window:SetTabVisibility(disTab, true)
-    			FeatureManager.setFeatureState("mod_exec_mm2", true)
-    			FeatureManager.setFeatureState("mod_exec_svh", true)
-    			FeatureManager.setFeatureState("mod_exec_rt", true)
-    			FeatureManager.setFeatureState("mod_exec_lucky", true)
-    			FeatureManager.setFeatureState("mod_exec_ice", true)
-    			FeatureManager.setFeatureState("mod_exec_rnh", true)
-    			FeatureManager.setFeatureState("mod_exec_nds", true)
+    			FeatureManager.setFeatureState("mod_exec_mm2", true, true)
+    			FeatureManager.setFeatureState("mod_exec_svh", true, true)
+    			FeatureManager.setFeatureState("mod_exec_rt", true, true)
+    			FeatureManager.setFeatureState("mod_exec_lucky", true, true)
+    			FeatureManager.setFeatureState("mod_exec_ice", true, true)
+    			FeatureManager.setFeatureState("mod_exec_rnh", true, true)
+    			FeatureManager.setFeatureState("mod_exec_nds", true, true)
     			window:Notify("Modules Executed", "Mounted all 7 game suites to topbar", 3)
     		end)
 
     		window:AddButton(actionSection, "De-execute Inactive Games", function()
-    			window:SetTabVisibility(mm2Tab, gameTabTitle == "Murder Mystery 2")
-    			window:SetTabVisibility(svhTab, gameTabTitle == "Seeker vs Hider")
-    			window:SetTabVisibility(restTab, gameTabTitle == "Restaurant Tycoon")
-    			window:SetTabVisibility(luckyTab, gameTabTitle == "Lucky Blocks")
-    			window:SetTabVisibility(iceTab, gameTabTitle == "Ice Tycoon")
-    			window:SetTabVisibility(rnhTab, gameTabTitle == "Run N Hide")
-    			window:SetTabVisibility(disTab, gameTabTitle == "Natural Disaster")
-    			FeatureManager.setFeatureState("mod_exec_mm2", gameTabTitle == "Murder Mystery 2")
-    			FeatureManager.setFeatureState("mod_exec_svh", gameTabTitle == "Seeker vs Hider")
-    			FeatureManager.setFeatureState("mod_exec_rt", gameTabTitle == "Restaurant Tycoon")
-    			FeatureManager.setFeatureState("mod_exec_lucky", gameTabTitle == "Lucky Blocks")
-    			FeatureManager.setFeatureState("mod_exec_ice", gameTabTitle == "Ice Tycoon")
-    			FeatureManager.setFeatureState("mod_exec_rnh", gameTabTitle == "Run N Hide")
-    			FeatureManager.setFeatureState("mod_exec_nds", gameTabTitle == "Natural Disaster")
+    			local isMM2 = (gameTabTitle == "Murder Mystery 2")
+    			local isSVH = (gameTabTitle == "Seeker vs Hider")
+    			local isRT = (gameTabTitle == "Restaurant Tycoon")
+    			local isLucky = (gameTabTitle == "Lucky Blocks")
+    			local isIce = (gameTabTitle == "Ice Tycoon")
+    			local isRNH = (gameTabTitle == "Run N Hide")
+    			local isNDS = (gameTabTitle == "Natural Disaster")
+
+    			window:SetTabVisibility(mm2Tab, isMM2)
+    			window:SetTabVisibility(svhTab, isSVH)
+    			window:SetTabVisibility(restTab, isRT)
+    			window:SetTabVisibility(luckyTab, isLucky)
+    			window:SetTabVisibility(iceTab, isIce)
+    			window:SetTabVisibility(rnhTab, isRNH)
+    			window:SetTabVisibility(disTab, isNDS)
+    			FeatureManager.setFeatureState("mod_exec_mm2", isMM2, true)
+    			FeatureManager.setFeatureState("mod_exec_svh", isSVH, true)
+    			FeatureManager.setFeatureState("mod_exec_rt", isRT, true)
+    			FeatureManager.setFeatureState("mod_exec_lucky", isLucky, true)
+    			FeatureManager.setFeatureState("mod_exec_ice", isIce, true)
+    			FeatureManager.setFeatureState("mod_exec_rnh", isRNH, true)
+    			FeatureManager.setFeatureState("mod_exec_nds", isNDS, true)
     			window:Notify("Modules Cleaned", "Topbar filtered to active game only", 3)
     		end)
 
@@ -22060,6 +22129,19 @@ local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
 local HealthWidget = require("UI/HealthWidget.luau")
 
 pcall(function() MurderMystery2.Init() end)
+pcall(function()
+	DisasterSurvival.init(function(msg)
+		if _G.__ModularSuite_Window and typeof(_G.__ModularSuite_Window.Notify) == "function" then
+			_G.__ModularSuite_Window:Notify("Natural Disaster", msg, 4)
+		end
+	end)
+end)
+pcall(function() RunNHide.init() end)
+pcall(function()
+	if LuckyBlocks and LuckyBlocks.AntiVoid then
+		LuckyBlocks.setAntiVoid(true)
+	end
+end)
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character

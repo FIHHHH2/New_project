@@ -5791,6 +5791,18 @@ Modules["UI/Hotbar.luau"] = function()
     	Enum.KeyCode.Nine,
     	Enum.KeyCode.Zero
     }
+    local KEYPAD_CODES = {
+    	Enum.KeyCode.KeypadOne,
+    	Enum.KeyCode.KeypadTwo,
+    	Enum.KeyCode.KeypadThree,
+    	Enum.KeyCode.KeypadFour,
+    	Enum.KeyCode.KeypadFive,
+    	Enum.KeyCode.KeypadSix,
+    	Enum.KeyCode.KeypadSeven,
+    	Enum.KeyCode.KeypadEight,
+    	Enum.KeyCode.KeypadNine,
+    	Enum.KeyCode.KeypadZero
+    }
 
     export type ToolViewportCache = {
     	Tool: Tool?,
@@ -6651,18 +6663,26 @@ Modules["UI/Hotbar.luau"] = function()
     		local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
     		if not char or not hum or not tool or not tool.Parent then return end
 
-    		local currentlyEquipped = char:FindFirstChildOfClass("Tool")
+    		local isEquipped = (tool.Parent == char) or isToolEquipped(tool)
 
     		pcall(function()
-    			if currentlyEquipped == tool or isToolEquipped(tool) then
+    			if isEquipped then
+    				-- Unequip cleanly into Backpack
     				hum:UnequipTools()
-    				if bp and tool.Parent == char then
+    				if tool.Parent == char and bp then
     					tool.Parent = bp
     				end
     			else
-    				hum:UnequipTools()
-    				if tool.Parent then
-    					hum:EquipTool(tool)
+    				-- Unequip any other tool currently in Character into Backpack
+    				for _, c in ipairs(char:GetChildren()) do
+    					if c:IsA("Tool") and c ~= tool and bp then
+    						c.Parent = bp
+    					end
+    				end
+    				-- Equip target tool cleanly: try native humanoid equip first, fallback to direct parenting
+    				hum:EquipTool(tool)
+    				if tool.Parent ~= char then
+    					tool.Parent = char
     				end
     			end
     		end)
@@ -6969,18 +6989,28 @@ Modules["UI/Hotbar.luau"] = function()
     			end
     		end))
 
-    		table.insert(activeConnections, slotBtn.MouseButton1Click:Connect(function()
+    		local lastClickTick = 0
+    		local function onSlotTriggered()
+    			local now = os.clock()
+    			if (now - lastClickTick) < 0.08 then return end
+    			lastClickTick = now
     			if not justFinishedDrag and not isDraggingActive then
     				local tool = assignedSlots[i]
-    				if tool then
-    					Animations.buttonClickPop(slotBtn)
+    				if not tool or not tool.Parent then
+    					local allTools = getAllTools()
+    					tool = allTools[i]
+    					if tool then assignedSlots[i] = tool end
+    				end
+    				Animations.buttonClickPop(slotBtn)
+    				if tool and tool.Parent then
     					equipOrToggleTool(tool)
     				else
-    					Animations.buttonClickPop(slotBtn)
     					if toggleBackpack then toggleBackpack() end
     				end
     			end
-    		end))
+    		end
+    		table.insert(activeConnections, slotBtn.MouseButton1Click:Connect(onSlotTriggered))
+    		table.insert(activeConnections, slotBtn.Activated:Connect(onSlotTriggered))
 
     		slotFrames[i] = slotBtn
     	end
@@ -7083,12 +7113,43 @@ Modules["UI/Hotbar.luau"] = function()
     	local lastKeyActionTick = 0
     	local HOTBAR_ACTION_PRIORITY = 3000
 
+    	local KEY_TO_SLOT: {[Enum.KeyCode]: number} = {
+    		[Enum.KeyCode.One] = 1,
+    		[Enum.KeyCode.Two] = 2,
+    		[Enum.KeyCode.Three] = 3,
+    		[Enum.KeyCode.Four] = 4,
+    		[Enum.KeyCode.Five] = 5,
+    		[Enum.KeyCode.Six] = 6,
+    		[Enum.KeyCode.Seven] = 7,
+    		[Enum.KeyCode.Eight] = 8,
+    		[Enum.KeyCode.Nine] = 9,
+    		[Enum.KeyCode.Zero] = 10,
+    		[Enum.KeyCode.KeypadOne] = 1,
+    		[Enum.KeyCode.KeypadTwo] = 2,
+    		[Enum.KeyCode.KeypadThree] = 3,
+    		[Enum.KeyCode.KeypadFour] = 4,
+    		[Enum.KeyCode.KeypadFive] = 5,
+    		[Enum.KeyCode.KeypadSix] = 6,
+    		[Enum.KeyCode.KeypadSeven] = 7,
+    		[Enum.KeyCode.KeypadEight] = 8,
+    		[Enum.KeyCode.KeypadNine] = 9,
+    		[Enum.KeyCode.KeypadZero] = 10,
+    	}
+
     	local function executeSlotToggle(slotNum: number)
     		local tool = assignedSlots[slotNum]
+    		if not tool or not tool.Parent then
+    			local allTools = getAllTools()
+    			tool = allTools[slotNum]
+    			if tool then
+    				assignedSlots[slotNum] = tool
+    			end
+    		end
+
     		local btn = slotFrames[slotNum]
     		if btn then Animations.buttonClickPop(btn) end
 
-    		if tool then
+    		if tool and tool.Parent then
     			equipOrToggleTool(tool)
     		else
     			local char = LocalPlayer.Character
@@ -7114,18 +7175,21 @@ Modules["UI/Hotbar.luau"] = function()
     		return Enum.ContextActionResult.Sink
     	end
 
-    	for slotNum, key in ipairs(KEYCODES) do
+    	for slotNum = 1, NUM_SLOTS do
+    		local key = KEYCODES[slotNum]
+    		local padKey = KEYPAD_CODES[slotNum]
     		local actionName = "ProjectFih_HotbarSlot_" .. tostring(slotNum)
     		ContextActionService:BindActionAtPriority(
     			actionName,
     			handleSlotAction,
     			false,
     			HOTBAR_ACTION_PRIORITY,
-    			key
+    			key,
+    			padKey
     		)
     	end
 
-    	-- Secondary fallback for Backquote & any unhandled keystrokes without gameProcessed blockage
+    	-- Secondary fallback for Backquote & unhandled keystrokes
     	table.insert(activeConnections, UserInputService.InputBegan:Connect(function(input, _gameProcessed)
     		if not isHotbarEnabled then return end
     		local focused = UserInputService:GetFocusedTextBox()
@@ -7137,15 +7201,11 @@ Modules["UI/Hotbar.luau"] = function()
     				return
     			end
 
-    			-- Debounce so ContextActionService doesn't fire twice
-    			if (os.clock() - lastKeyActionTick) < 0.05 then return end
-
-    			for slotNum, key in ipairs(KEYCODES) do
-    				if input.KeyCode == key then
-    					lastKeyActionTick = os.clock()
-    					executeSlotToggle(slotNum)
-    					break
-    				end
+    			local targetSlot = KEY_TO_SLOT[input.KeyCode]
+    			if targetSlot then
+    				if (os.clock() - lastKeyActionTick) < 0.04 then return end
+    				lastKeyActionTick = os.clock()
+    				executeSlotToggle(targetSlot)
     			end
     		end
     	end))

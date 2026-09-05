@@ -13,7 +13,7 @@ UI.Themes = {
 	Dark = {
 		Name = "Dark",
 		Background = Color3.fromRGB(13, 13, 15),
-		BackgroundTransparency = 0.22,
+		BackgroundTransparency = 0.85,
 		Border = Color3.fromRGB(250, 250, 255), -- Crisp white outlines for dark mode
 		BorderDim = Color3.fromRGB(120, 120, 135),
 		Accent = Color3.fromRGB(55, 175, 245), -- Light blue-ish selection accent
@@ -22,14 +22,14 @@ UI.Themes = {
 		TextPrimary = Color3.fromRGB(245, 245, 245),
 		TextSecondary = Color3.fromRGB(170, 170, 185),
 		Container = Color3.fromRGB(22, 22, 28),
-		ContainerTransparency = 0.28,
+		ContainerTransparency = 0.85,
 		ContainerDark = Color3.fromRGB(15, 15, 20),
-		ContainerDarkTransparency = 0.35
+		ContainerDarkTransparency = 0.88
 	},
 	Light = {
 		Name = "Light",
 		Background = Color3.fromRGB(242, 243, 246),
-		BackgroundTransparency = 0.22,
+		BackgroundTransparency = 0.85,
 		Border = Color3.fromRGB(12, 12, 16), -- True black outlines for light mode
 		BorderDim = Color3.fromRGB(130, 130, 140),
 		Accent = Color3.fromRGB(45, 155, 235), -- Light blue accent
@@ -38,14 +38,14 @@ UI.Themes = {
 		TextPrimary = Color3.fromRGB(15, 15, 20),
 		TextSecondary = Color3.fromRGB(75, 75, 85),
 		Container = Color3.fromRGB(255, 255, 255),
-		ContainerTransparency = 0.25,
+		ContainerTransparency = 0.85,
 		ContainerDark = Color3.fromRGB(228, 230, 236),
-		ContainerDarkTransparency = 0.32
+		ContainerDarkTransparency = 0.88
 	},
 	TranslucentDark = {
 		Name = "Translucent Dark",
 		Background = Color3.fromRGB(12, 12, 16),
-		BackgroundTransparency = 0.40,
+		BackgroundTransparency = 0.85,
 		Border = Color3.fromRGB(250, 250, 255), -- White outlines
 		BorderDim = Color3.fromRGB(90, 90, 110),
 		Accent = Color3.fromRGB(55, 175, 245), -- Light blue accent
@@ -54,14 +54,14 @@ UI.Themes = {
 		TextPrimary = Color3.fromRGB(255, 255, 255),
 		TextSecondary = Color3.fromRGB(180, 180, 195),
 		Container = Color3.fromRGB(24, 24, 32),
-		ContainerTransparency = 0.35,
+		ContainerTransparency = 0.85,
 		ContainerDark = Color3.fromRGB(14, 14, 20),
-		ContainerDarkTransparency = 0.45
+		ContainerDarkTransparency = 0.88
 	},
 	TranslucentLight = {
 		Name = "Translucent Light",
 		Background = Color3.fromRGB(240, 242, 248),
-		BackgroundTransparency = 0.40,
+		BackgroundTransparency = 0.85,
 		Border = Color3.fromRGB(12, 12, 16), -- Black outlines
 		BorderDim = Color3.fromRGB(120, 120, 135),
 		Accent = Color3.fromRGB(45, 155, 235), -- Light blue accent
@@ -70,14 +70,14 @@ UI.Themes = {
 		TextPrimary = Color3.fromRGB(12, 12, 16),
 		TextSecondary = Color3.fromRGB(70, 70, 80),
 		Container = Color3.fromRGB(255, 255, 255),
-		ContainerTransparency = 0.35,
+		ContainerTransparency = 0.85,
 		ContainerDark = Color3.fromRGB(225, 228, 236),
-		ContainerDarkTransparency = 0.45
+		ContainerDarkTransparency = 0.88
 	},
 	Adaptive = {
 		Name = "Adaptive",
 		Background = Color3.fromRGB(16, 16, 22),
-		BackgroundTransparency = 0.35,
+		BackgroundTransparency = 0.85,
 		Border = Color3.fromRGB(240, 240, 250),
 		BorderDim = Color3.fromRGB(90, 90, 110),
 		Accent = Color3.fromRGB(55, 175, 245),
@@ -86,9 +86,9 @@ UI.Themes = {
 		TextPrimary = Color3.fromRGB(250, 250, 255),
 		TextSecondary = Color3.fromRGB(175, 175, 190),
 		Container = Color3.fromRGB(24, 24, 32),
-		ContainerTransparency = 0.30,
+		ContainerTransparency = 0.85,
 		ContainerDark = Color3.fromRGB(14, 14, 20),
-		ContainerDarkTransparency = 0.40
+		ContainerDarkTransparency = 0.88
 	}
 }
 
@@ -209,11 +209,11 @@ function UI.applyAdaptiveTheme(accentCol: Color3, bgCol: Color3, containerCol: C
 	ad.Accent = accentCol
 	ad.AccentDark = Color3.fromRGB(math.floor(accentCol.R * 255 * 0.7), math.floor(accentCol.G * 255 * 0.7), math.floor(accentCol.B * 255 * 0.7))
 	ad.Background = bgCol
-	ad.BackgroundTransparency = 0.35
+	ad.BackgroundTransparency = 0.85
 	ad.Container = containerCol
-	ad.ContainerTransparency = 0.30
+	ad.ContainerTransparency = 0.85
 	ad.ContainerDark = bgCol
-	ad.ContainerDarkTransparency = 0.40
+	ad.ContainerDarkTransparency = 0.88
 	ad.Border = borderCol or Color3.fromRGB(240, 240, 250)
 
 	if UI.CurrentTheme.Name == "Adaptive" then
@@ -316,7 +316,12 @@ function UI.setTheme(themeName: string)
 		for _, root in ipairs(roots) do
 			for _, inst in ipairs(root:GetDescendants()) do
 				if inst:IsA("UIStroke") then
-					if inst.Thickness >= 1.4 then
+					local propMap = UI.RegisteredElements[inst]
+					if propMap and propMap["Border"] then
+						inst.Color = targetTheme.Border
+					elseif propMap and propMap["BorderDim"] then
+						inst.Color = targetTheme.BorderDim
+					elseif inst.Thickness >= 1.4 then
 						inst.Color = targetTheme.Border
 					else
 						inst.Color = targetTheme.BorderDim
@@ -331,8 +336,18 @@ function UI.setTheme(themeName: string)
 					end
 				elseif inst:IsA("TextButton") then
 					local propMap = UI.RegisteredElements[inst]
-					local isAccent = propMap and propMap["Accent"]
-					if not isAccent then
+					if propMap and propMap["Accent"] then
+						inst.BackgroundColor3 = targetTheme.Accent
+						inst.TextColor3 = targetTheme.AccentText
+					elseif propMap and propMap["ContainerDark"] then
+						inst.BackgroundColor3 = targetTheme.ContainerDark
+						inst.BackgroundTransparency = targetTheme.ContainerDarkTransparency
+						if propMap["TextSecondary"] then
+							inst.TextColor3 = targetTheme.TextSecondary
+						else
+							inst.TextColor3 = targetTheme.TextPrimary
+						end
+					else
 						inst.BackgroundColor3 = targetTheme.Container
 						inst.BackgroundTransparency = targetTheme.ContainerTransparency
 						if propMap and propMap["TextSecondary"] then
@@ -340,11 +355,11 @@ function UI.setTheme(themeName: string)
 						else
 							inst.TextColor3 = targetTheme.TextPrimary
 						end
-					else
-						inst.BackgroundColor3 = targetTheme.Accent
-						inst.TextColor3 = targetTheme.AccentText
 					end
 				elseif inst:IsA("TextLabel") then
+					if inst:GetAttribute("KeepTextColor") or inst.Name == "HealthIndicator" then
+						continue
+					end
 					local propMap = UI.RegisteredElements[inst]
 					if propMap and propMap["AccentText"] then
 						inst.TextColor3 = targetTheme.AccentText

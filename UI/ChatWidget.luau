@@ -646,23 +646,41 @@ function ChatWidget.new(): ChatWidgetInstance
 	local isQuickOpen = false
 	local isWidgetEnabled = true
 
+	local INACTIVITY_TIMEOUT = 5.5
+	local lastActivityTick = os.clock()
+	local isMouseHovered = false
+	local isInputFocused = false
+
+	local function resetInactivity()
+		lastActivityTick = os.clock()
+	end
+
 	local closeProfilePopup: () -> ()
 	local closeQuickPopup: () -> ()
 
 	local function openWidget(selfOrOnComplete: any, maybeOnComplete: any)
 		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
-		if isOpen or isTransitioning then return end
+		resetInactivity()
+		if isOpen then
+			if onComplete then onComplete() end
+			return
+		end
+		if isTransitioning then return end
 		isTransitioning = true
 		Animations.openWindow(widget, uiScale, function()
 			isOpen = true
 			isTransitioning = false
+			resetInactivity()
 			if onComplete then onComplete() end
 		end)
 	end
 
 	local function closeWidget(selfOrOnComplete: any, maybeOnComplete: any)
 		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
-		if not isOpen or isTransitioning then return end
+		if not isOpen or isTransitioning then
+			if onComplete then onComplete() end
+			return
+		end
 		isTransitioning = true
 		dropdown.Visible = false
 		if closeProfilePopup then closeProfilePopup() end
@@ -1197,6 +1215,11 @@ function ChatWidget.new(): ChatWidgetInstance
 		end
 
 		if not isHistorical then
+			resetInactivity()
+			if not isOpen and not isTransitioning and isWidgetEnabled then
+				openWidget()
+			end
+
 			-- Domino slide-in & text fade
 			TweenService:Create(msgBtn, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 				Position = UDim2.new(0, 0, 0, 0)
@@ -1502,16 +1525,65 @@ function ChatWidget.new(): ChatWidgetInstance
 	end
 
 	sendBtn.MouseButton1Click:Connect(function() sendMessage(textBox.Text) end)
-	textBox.FocusLost:Connect(function(enter) if enter then sendMessage(textBox.Text) end end)
+
+	textBox.Focused:Connect(function()
+		isInputFocused = true
+		resetInactivity()
+		if not isOpen and not isTransitioning and isWidgetEnabled then
+			openWidget()
+		end
+	end)
+
+	textBox.FocusLost:Connect(function(enter)
+		isInputFocused = false
+		resetInactivity()
+		if enter then sendMessage(textBox.Text) end
+	end)
+
+	textBox:GetPropertyChangedSignal("Text"):Connect(function()
+		resetInactivity()
+	end)
+
+	widget.MouseEnter:Connect(function()
+		isMouseHovered = true
+		resetInactivity()
+	end)
+
+	widget.MouseLeave:Connect(function()
+		isMouseHovered = false
+		resetInactivity()
+	end)
+
+	container.InputBegan:Connect(function()
+		resetInactivity()
+	end)
+
+	-- Auto-hide chat loop when inactive
+	task.spawn(function()
+		while true do
+			task.wait(0.5)
+			if isOpen and not isTransitioning and not isInputFocused and not isMouseHovered and not isProfileOpen and not isQuickOpen and not dragging and not isResizing and isWidgetEnabled then
+				if (os.clock() - lastActivityTick) >= INACTIVITY_TIMEOUT then
+					closeWidget()
+				end
+			end
+		end
+	end)
 
 	-- Slash key opens & focuses chat input with smooth animation
-	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	UserInputService.InputBegan:Connect(function(input, _gameProcessed)
 		if not isWidgetEnabled then return end
-		if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Slash then
+		if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Slash then
+			local focused = UserInputService:GetFocusedTextBox()
+			if focused and focused ~= textBox then return end
+
+			resetInactivity()
 			if not isOpen then
 				openWidget(function()
 					textBox.Text = ""
-					textBox:CaptureFocus()
+					task.defer(function()
+						textBox:CaptureFocus()
+					end)
 				end)
 			else
 				task.defer(function()

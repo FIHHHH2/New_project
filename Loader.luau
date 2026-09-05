@@ -89,7 +89,7 @@ Modules["UI/Animations.luau"] = function()
     	local dur = if config and config.duration ~= nil then config.duration else 0.15
     	local style = if config and config.easingStyle ~= nil then config.easingStyle else Enum.EasingStyle.Quad
     	local dir = if config and config.easingDirection ~= nil then config.easingDirection else Enum.EasingDirection.Out
-
+	
     	local tweenInfo = TweenInfo.new(dur, style, dir)
     	local tween = TweenService:Create(instance, tweenInfo, properties)
     	tween:Play()
@@ -440,7 +440,7 @@ Modules["UI/UI.luau"] = function()
     	Dark = {
     		Name = "Dark",
     		Background = Color3.fromRGB(13, 13, 15),
-    		BackgroundTransparency = 0.22,
+    		BackgroundTransparency = 0.85,
     		Border = Color3.fromRGB(250, 250, 255), -- Crisp white outlines for dark mode
     		BorderDim = Color3.fromRGB(120, 120, 135),
     		Accent = Color3.fromRGB(55, 175, 245), -- Light blue-ish selection accent
@@ -449,14 +449,14 @@ Modules["UI/UI.luau"] = function()
     		TextPrimary = Color3.fromRGB(245, 245, 245),
     		TextSecondary = Color3.fromRGB(170, 170, 185),
     		Container = Color3.fromRGB(22, 22, 28),
-    		ContainerTransparency = 0.28,
+    		ContainerTransparency = 0.85,
     		ContainerDark = Color3.fromRGB(15, 15, 20),
-    		ContainerDarkTransparency = 0.35
+    		ContainerDarkTransparency = 0.88
     	},
     	Light = {
     		Name = "Light",
     		Background = Color3.fromRGB(242, 243, 246),
-    		BackgroundTransparency = 0.22,
+    		BackgroundTransparency = 0.85,
     		Border = Color3.fromRGB(12, 12, 16), -- True black outlines for light mode
     		BorderDim = Color3.fromRGB(130, 130, 140),
     		Accent = Color3.fromRGB(45, 155, 235), -- Light blue accent
@@ -465,14 +465,14 @@ Modules["UI/UI.luau"] = function()
     		TextPrimary = Color3.fromRGB(15, 15, 20),
     		TextSecondary = Color3.fromRGB(75, 75, 85),
     		Container = Color3.fromRGB(255, 255, 255),
-    		ContainerTransparency = 0.25,
+    		ContainerTransparency = 0.85,
     		ContainerDark = Color3.fromRGB(228, 230, 236),
-    		ContainerDarkTransparency = 0.32
+    		ContainerDarkTransparency = 0.88
     	},
     	TranslucentDark = {
     		Name = "Translucent Dark",
     		Background = Color3.fromRGB(12, 12, 16),
-    		BackgroundTransparency = 0.40,
+    		BackgroundTransparency = 0.85,
     		Border = Color3.fromRGB(250, 250, 255), -- White outlines
     		BorderDim = Color3.fromRGB(90, 90, 110),
     		Accent = Color3.fromRGB(55, 175, 245), -- Light blue accent
@@ -481,14 +481,14 @@ Modules["UI/UI.luau"] = function()
     		TextPrimary = Color3.fromRGB(255, 255, 255),
     		TextSecondary = Color3.fromRGB(180, 180, 195),
     		Container = Color3.fromRGB(24, 24, 32),
-    		ContainerTransparency = 0.35,
+    		ContainerTransparency = 0.85,
     		ContainerDark = Color3.fromRGB(14, 14, 20),
-    		ContainerDarkTransparency = 0.45
+    		ContainerDarkTransparency = 0.88
     	},
     	TranslucentLight = {
     		Name = "Translucent Light",
     		Background = Color3.fromRGB(240, 242, 248),
-    		BackgroundTransparency = 0.40,
+    		BackgroundTransparency = 0.85,
     		Border = Color3.fromRGB(12, 12, 16), -- Black outlines
     		BorderDim = Color3.fromRGB(120, 120, 135),
     		Accent = Color3.fromRGB(45, 155, 235), -- Light blue accent
@@ -497,14 +497,14 @@ Modules["UI/UI.luau"] = function()
     		TextPrimary = Color3.fromRGB(12, 12, 16),
     		TextSecondary = Color3.fromRGB(70, 70, 80),
     		Container = Color3.fromRGB(255, 255, 255),
-    		ContainerTransparency = 0.35,
+    		ContainerTransparency = 0.85,
     		ContainerDark = Color3.fromRGB(225, 228, 236),
-    		ContainerDarkTransparency = 0.45
+    		ContainerDarkTransparency = 0.88
     	},
     	Adaptive = {
     		Name = "Adaptive",
     		Background = Color3.fromRGB(16, 16, 22),
-    		BackgroundTransparency = 0.35,
+    		BackgroundTransparency = 0.85,
     		Border = Color3.fromRGB(240, 240, 250),
     		BorderDim = Color3.fromRGB(90, 90, 110),
     		Accent = Color3.fromRGB(55, 175, 245),
@@ -513,9 +513,9 @@ Modules["UI/UI.luau"] = function()
     		TextPrimary = Color3.fromRGB(250, 250, 255),
     		TextSecondary = Color3.fromRGB(175, 175, 190),
     		Container = Color3.fromRGB(24, 24, 32),
-    		ContainerTransparency = 0.30,
+    		ContainerTransparency = 0.85,
     		ContainerDark = Color3.fromRGB(14, 14, 20),
-    		ContainerDarkTransparency = 0.40
+    		ContainerDarkTransparency = 0.88
     	}
     }
 
@@ -636,11 +636,11 @@ Modules["UI/UI.luau"] = function()
     	ad.Accent = accentCol
     	ad.AccentDark = Color3.fromRGB(math.floor(accentCol.R * 255 * 0.7), math.floor(accentCol.G * 255 * 0.7), math.floor(accentCol.B * 255 * 0.7))
     	ad.Background = bgCol
-    	ad.BackgroundTransparency = 0.35
+    	ad.BackgroundTransparency = 0.85
     	ad.Container = containerCol
-    	ad.ContainerTransparency = 0.30
+    	ad.ContainerTransparency = 0.85
     	ad.ContainerDark = bgCol
-    	ad.ContainerDarkTransparency = 0.40
+    	ad.ContainerDarkTransparency = 0.88
     	ad.Border = borderCol or Color3.fromRGB(240, 240, 250)
 
     	if UI.CurrentTheme.Name == "Adaptive" then
@@ -659,9 +659,9 @@ Modules["UI/UI.luau"] = function()
     	UI.CurrentTheme = targetTheme
     	UI.Theme = targetTheme
     	UI.saveTheme(themeName)
-
+	
     	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-
+	
     	for inst, propMap in pairs(UI.RegisteredElements) do
     		if inst and inst.Parent then
     			for pt in pairs(propMap) do
@@ -743,7 +743,12 @@ Modules["UI/UI.luau"] = function()
     		for _, root in ipairs(roots) do
     			for _, inst in ipairs(root:GetDescendants()) do
     				if inst:IsA("UIStroke") then
-    					if inst.Thickness >= 1.4 then
+    					local propMap = UI.RegisteredElements[inst]
+    					if propMap and propMap["Border"] then
+    						inst.Color = targetTheme.Border
+    					elseif propMap and propMap["BorderDim"] then
+    						inst.Color = targetTheme.BorderDim
+    					elseif inst.Thickness >= 1.4 then
     						inst.Color = targetTheme.Border
     					else
     						inst.Color = targetTheme.BorderDim
@@ -758,8 +763,18 @@ Modules["UI/UI.luau"] = function()
     					end
     				elseif inst:IsA("TextButton") then
     					local propMap = UI.RegisteredElements[inst]
-    					local isAccent = propMap and propMap["Accent"]
-    					if not isAccent then
+    					if propMap and propMap["Accent"] then
+    						inst.BackgroundColor3 = targetTheme.Accent
+    						inst.TextColor3 = targetTheme.AccentText
+    					elseif propMap and propMap["ContainerDark"] then
+    						inst.BackgroundColor3 = targetTheme.ContainerDark
+    						inst.BackgroundTransparency = targetTheme.ContainerDarkTransparency
+    						if propMap["TextSecondary"] then
+    							inst.TextColor3 = targetTheme.TextSecondary
+    						else
+    							inst.TextColor3 = targetTheme.TextPrimary
+    						end
+    					else
     						inst.BackgroundColor3 = targetTheme.Container
     						inst.BackgroundTransparency = targetTheme.ContainerTransparency
     						if propMap and propMap["TextSecondary"] then
@@ -767,11 +782,11 @@ Modules["UI/UI.luau"] = function()
     						else
     							inst.TextColor3 = targetTheme.TextPrimary
     						end
-    					else
-    						inst.BackgroundColor3 = targetTheme.Accent
-    						inst.TextColor3 = targetTheme.AccentText
     					end
     				elseif inst:IsA("TextLabel") then
+    					if inst:GetAttribute("KeepTextColor") or inst.Name == "HealthIndicator" then
+    						continue
+    					end
     					local propMap = UI.RegisteredElements[inst]
     					if propMap and propMap["AccentText"] then
     						inst.TextColor3 = targetTheme.AccentText
@@ -3431,23 +3446,41 @@ Modules["UI/ChatWidget.luau"] = function()
     	local isQuickOpen = false
     	local isWidgetEnabled = true
 
+    	local INACTIVITY_TIMEOUT = 5.5
+    	local lastActivityTick = os.clock()
+    	local isMouseHovered = false
+    	local isInputFocused = false
+
+    	local function resetInactivity()
+    		lastActivityTick = os.clock()
+    	end
+
     	local closeProfilePopup: () -> ()
     	local closeQuickPopup: () -> ()
 
     	local function openWidget(selfOrOnComplete: any, maybeOnComplete: any)
     		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
-    		if isOpen or isTransitioning then return end
+    		resetInactivity()
+    		if isOpen then
+    			if onComplete then onComplete() end
+    			return
+    		end
+    		if isTransitioning then return end
     		isTransitioning = true
     		Animations.openWindow(widget, uiScale, function()
     			isOpen = true
     			isTransitioning = false
+    			resetInactivity()
     			if onComplete then onComplete() end
     		end)
     	end
 
     	local function closeWidget(selfOrOnComplete: any, maybeOnComplete: any)
     		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
-    		if not isOpen or isTransitioning then return end
+    		if not isOpen or isTransitioning then
+    			if onComplete then onComplete() end
+    			return
+    		end
     		isTransitioning = true
     		dropdown.Visible = false
     		if closeProfilePopup then closeProfilePopup() end
@@ -3697,7 +3730,7 @@ Modules["UI/ChatWidget.luau"] = function()
     				popAvatar.Image = thumb
     			end
     		end)
-
+		
     		local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
     		local x = math.clamp(clickPos.X, 8, math.max(8, vp.X - 198))
     		local y = math.clamp(clickPos.Y, 8, math.max(8, vp.Y - 248))
@@ -3982,6 +4015,11 @@ Modules["UI/ChatWidget.luau"] = function()
     		end
 
     		if not isHistorical then
+    			resetInactivity()
+    			if not isOpen and not isTransitioning and isWidgetEnabled then
+    				openWidget()
+    			end
+
     			-- Domino slide-in & text fade
     			TweenService:Create(msgBtn, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
     				Position = UDim2.new(0, 0, 0, 0)
@@ -4287,16 +4325,65 @@ Modules["UI/ChatWidget.luau"] = function()
     	end
 
     	sendBtn.MouseButton1Click:Connect(function() sendMessage(textBox.Text) end)
-    	textBox.FocusLost:Connect(function(enter) if enter then sendMessage(textBox.Text) end end)
+
+    	textBox.Focused:Connect(function()
+    		isInputFocused = true
+    		resetInactivity()
+    		if not isOpen and not isTransitioning and isWidgetEnabled then
+    			openWidget()
+    		end
+    	end)
+
+    	textBox.FocusLost:Connect(function(enter)
+    		isInputFocused = false
+    		resetInactivity()
+    		if enter then sendMessage(textBox.Text) end
+    	end)
+
+    	textBox:GetPropertyChangedSignal("Text"):Connect(function()
+    		resetInactivity()
+    	end)
+
+    	widget.MouseEnter:Connect(function()
+    		isMouseHovered = true
+    		resetInactivity()
+    	end)
+
+    	widget.MouseLeave:Connect(function()
+    		isMouseHovered = false
+    		resetInactivity()
+    	end)
+
+    	container.InputBegan:Connect(function()
+    		resetInactivity()
+    	end)
+
+    	-- Auto-hide chat loop when inactive
+    	task.spawn(function()
+    		while true do
+    			task.wait(0.5)
+    			if isOpen and not isTransitioning and not isInputFocused and not isMouseHovered and not isProfileOpen and not isQuickOpen and not dragging and not isResizing and isWidgetEnabled then
+    				if (os.clock() - lastActivityTick) >= INACTIVITY_TIMEOUT then
+    					closeWidget()
+    				end
+    			end
+    		end
+    	end)
 
     	-- Slash key opens & focuses chat input with smooth animation
-    	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    	UserInputService.InputBegan:Connect(function(input, _gameProcessed)
     		if not isWidgetEnabled then return end
-    		if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Slash then
+    		if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Slash then
+    			local focused = UserInputService:GetFocusedTextBox()
+    			if focused and focused ~= textBox then return end
+
+    			resetInactivity()
     			if not isOpen then
     				openWidget(function()
     					textBox.Text = ""
-    					textBox:CaptureFocus()
+    					task.defer(function()
+    						textBox:CaptureFocus()
+    					end)
     				end)
     			else
     				task.defer(function()
@@ -5905,6 +5992,14 @@ Modules["UI/Hotbar.luau"] = function()
     		end
 
     		if #parts > 0 then
+    			local hasVisible = false
+    			for _, p in ipairs(parts) do
+    				if p.Transparency < 1 then
+    					hasVisible = true
+    					break
+    				end
+    			end
+
     			local refPart = handle or parts[1]
     			local refCF = refPart.CFrame
     			local minBounds = Vector3.new(math.huge, math.huge, math.huge)
@@ -5921,25 +6016,27 @@ Modules["UI/Hotbar.luau"] = function()
     				clone.CFrame = relCF
     				clone.Parent = model
 
-    				local cp = relCF.Position
-    				local sz = clone.Size
+    				if not hasVisible or p.Transparency < 1 then
+    					local cp = relCF.Position
+    					local sz = clone.Size
 
-    				-- Check if SpecialMesh scale enlarges the visual size
-    				local sm = clone:FindFirstChildOfClass("SpecialMesh")
-    				if sm then
-    					sz = Vector3.new(sz.X * math.abs(sm.Scale.X), sz.Y * math.abs(sm.Scale.Y), sz.Z * math.abs(sm.Scale.Z))
+    					-- Check if SpecialMesh scale enlarges the visual size
+    					local sm = clone:FindFirstChildOfClass("SpecialMesh")
+    					if sm then
+    						sz = Vector3.new(sz.X * math.abs(sm.Scale.X), sz.Y * math.abs(sm.Scale.Y), sz.Z * math.abs(sm.Scale.Z))
+    					end
+
+    					minBounds = Vector3.new(
+    						math.min(minBounds.X, cp.X - sz.X / 2),
+    						math.min(minBounds.Y, cp.Y - sz.Y / 2),
+    						math.min(minBounds.Z, cp.Z - sz.Z / 2)
+    					)
+    					maxBounds = Vector3.new(
+    						math.max(maxBounds.X, cp.X + sz.X / 2),
+    						math.max(maxBounds.Y, cp.Y + sz.Y / 2),
+    						math.max(maxBounds.Z, cp.Z + sz.Z / 2)
+    					)
     				end
-
-    				minBounds = Vector3.new(
-    					math.min(minBounds.X, cp.X - sz.X / 2),
-    					math.min(minBounds.Y, cp.Y - sz.Y / 2),
-    					math.min(minBounds.Z, cp.Z - sz.Z / 2)
-    				)
-    				maxBounds = Vector3.new(
-    					math.max(maxBounds.X, cp.X + sz.X / 2),
-    					math.max(maxBounds.Y, cp.Y + sz.Y / 2),
-    					math.max(maxBounds.Z, cp.Z + sz.Z / 2)
-    				)
     			end
 
     			model.Parent = vp
@@ -6079,7 +6176,7 @@ Modules["UI/Hotbar.luau"] = function()
 
     	local healthBarStroke = Instance.new("UIStroke")
     	healthBarStroke.Color = UI.Theme.Border
-    	healthBarStroke.Thickness = 1.2
+    	healthBarStroke.Thickness = 1.5
     	healthBarStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     	healthBarStroke.Parent = healthBarContainer
     	UI.registerThemeElement(healthBarStroke, "Border")
@@ -6112,6 +6209,7 @@ Modules["UI/Hotbar.luau"] = function()
     	healthLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     	healthLabel.TextStrokeTransparency = 0.25
     	healthLabel.ZIndex = 15
+    	healthLabel:SetAttribute("KeepTextColor", true)
     	healthLabel.Parent = healthBarContainer
 
     	local function updateToolbarHealth(currentHp: number, maxHp: number)
@@ -6325,6 +6423,7 @@ Modules["UI/Hotbar.luau"] = function()
 
     	-- ── 4. Instant O(1) Slot Highlight Updater (Zero Viewport Rebuild) ──
     	local function updateSlotHighlightsOnly()
+    		local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
     		for slotNum = 1, NUM_SLOTS do
     			local slotBtn = slotFrames[slotNum]
     			if not slotBtn or not slotBtn.Visible then continue end
@@ -6336,24 +6435,26 @@ Modules["UI/Hotbar.luau"] = function()
     				local equipped = isToolEquipped(tool)
     				if nameLabel then
     					nameLabel.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+    					nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
+    					nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
     				end
     				if equipped then
     					slotBtn.BackgroundColor3 = UI.Theme.Accent
-    					slotBtn.BackgroundTransparency = 0.2
+    					slotBtn.BackgroundTransparency = 0.15
     					if stroke then
     						stroke.Color = UI.Theme.Border
     						stroke.Thickness = 2.0
     					end
     				else
-    					slotBtn.BackgroundColor3 = UI.Theme.Container
+    					slotBtn.BackgroundColor3 = if isLight then UI.Theme.ContainerDark else UI.Theme.Container
     					slotBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
     					if stroke then
     						stroke.Color = UI.Theme.Border
-    						stroke.Thickness = 1.2
+    						stroke.Thickness = 1.5
     					end
     				end
     			else
-    				slotBtn.BackgroundColor3 = UI.Theme.ContainerDark
+    				slotBtn.BackgroundColor3 = if isLight then Color3.fromRGB(215, 218, 226) else UI.Theme.ContainerDark
     				slotBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
     				if stroke then
     					stroke.Color = UI.Theme.BorderDim
@@ -6469,32 +6570,36 @@ Modules["UI/Hotbar.luau"] = function()
 
     			if tool and validToolSet[tool] then
     				renderToolViewportCached(slotBtn, tool, slotNum, slotCaches)
+    				local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
     				local equipped = isToolEquipped(tool)
     				if nameLabel then
     					nameLabel.Text = tool.Name
     					nameLabel.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+    					nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
+    					nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
     				end
 
     				if equipped then
     					slotBtn.BackgroundColor3 = UI.Theme.Accent
-    					slotBtn.BackgroundTransparency = 0.2
+    					slotBtn.BackgroundTransparency = 0.15
     					if stroke then
     						stroke.Color = UI.Theme.Border
     						stroke.Thickness = 2.0
     					end
     				else
-    					slotBtn.BackgroundColor3 = UI.Theme.Container
+    					slotBtn.BackgroundColor3 = if isLight then UI.Theme.ContainerDark else UI.Theme.Container
     					slotBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
     					if stroke then
     						stroke.Color = UI.Theme.Border
-    						stroke.Thickness = 1.2
+    						stroke.Thickness = 1.5
     					end
     				end
     			else
+    				local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
     				assignedSlots[slotNum] = nil
     				cleanViewport(slotBtn)
     				if nameLabel then nameLabel.Text = "" end
-    				slotBtn.BackgroundColor3 = UI.Theme.ContainerDark
+    				slotBtn.BackgroundColor3 = if isLight then Color3.fromRGB(215, 218, 226) else UI.Theme.ContainerDark
     				slotBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
     				if stroke then
     					stroke.Color = UI.Theme.BorderDim
@@ -6933,7 +7038,7 @@ Modules["UI/Hotbar.luau"] = function()
 
     		local slotStroke = Instance.new("UIStroke")
     		slotStroke.Color = UI.Theme.Border
-    		slotStroke.Thickness = 1.2
+    		slotStroke.Thickness = 1.5
     		slotStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     		slotStroke.Parent = slotBtn
     		UI.registerThemeElement(slotStroke, "Border")
@@ -6957,6 +7062,7 @@ Modules["UI/Hotbar.luau"] = function()
     		UI.registerThemeElement(keyLabel, "TextSecondary")
 
     		-- Tool Name Label at Bottom of Slot
+    		local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
     		local nameLabel = Instance.new("TextLabel")
     		nameLabel.Name = "ToolName"
     		nameLabel.Size = UDim2.new(1, -4, 0, 12)
@@ -6966,6 +7072,8 @@ Modules["UI/Hotbar.luau"] = function()
     		nameLabel.TextColor3 = UI.Theme.TextPrimary
     		nameLabel.Font = UI.Fonts.Header
     		nameLabel.TextSize = 8
+    		nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
+    		nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
     		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
     		nameLabel.ZIndex = 10
     		nameLabel.Parent = slotBtn
@@ -7368,6 +7476,19 @@ Modules["UI/Hotbar.luau"] = function()
     			bindBpEvents(child :: Backpack)
     		end
     	end))
+
+    	UI.onThemeChanged(function(targetTheme)
+    		healthLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    		healthLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    		healthLabel.TextStrokeTransparency = 0.25
+    		healthBarStroke.Color = targetTheme.Border
+    		hotbarStroke.Color = targetTheme.Border
+    		updateHotbarVisuals()
+    		updateSlotHighlightsOnly()
+    		if isBackpackOpen then
+    			updateBackpackGrid()
+    		end
+    	end)
 
     	_G.__ModularHotbar_Cleanup = function()
     		for slotIdx = 1, NUM_SLOTS do
@@ -9513,7 +9634,7 @@ Modules["Core/CoreUI.luau"] = function()
 
     function CoreUI.new(titleText: string)
     	local self = setmetatable({}, CoreUI)
-
+	
     	pcall(function()
     		local containers = {
     			(type(gethui) == "function" and gethui()),
@@ -9537,12 +9658,12 @@ Modules["Core/CoreUI.luau"] = function()
     	screenGui.ResetOnSpawn = false
     	screenGui.IgnoreGuiInset = true
     	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
+	
     	safeParentGui(screenGui)
-
+	
     	local mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale, controller, themesBtn, statusLabel = UI.createWindow(titleText)
     	mainFrame.Parent = screenGui
-
+	
     	self.ScreenGui = screenGui
     	self.MainFrame = mainFrame
     	self.Sidebar = sidebar
@@ -9564,7 +9685,7 @@ Modules["Core/CoreUI.luau"] = function()
     	self.ActiveToggles = {}
     	self.SliderFills = {}
     	self.SubTabGroups = {}
-
+	
     	-- Wire toggle click handlers for Settings and Themes
     	if self.SettingsBtn then
     		self.SettingsBtn.MouseButton1Click:Connect(function()
@@ -9606,7 +9727,7 @@ Modules["Core/CoreUI.luau"] = function()
     	UI.onThemeChanged(function(targetTheme)
     		self:UpdateTheme(targetTheme)
     	end)
-
+	
     	return self
     end
 
@@ -9714,7 +9835,7 @@ Modules["Core/CoreUI.luau"] = function()
     			}):Play()
     		end
     	end)
-
+	
     	-- Active tab gradient overlay
     	local tabGrad = Instance.new("UIGradient")
     	tabGrad.Name = "ActiveGradient"
@@ -9725,14 +9846,14 @@ Modules["Core/CoreUI.luau"] = function()
     	})
     	tabGrad.Enabled = false
     	tabGrad.Parent = tabButton
-
+	
     	local tabStroke = Instance.new("UIStroke")
     	tabStroke.Color = UI.Theme.Border
     	tabStroke.Thickness = 1.0
     	tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     	tabStroke.Parent = tabButton
     	UI.registerThemeElement(tabStroke, "Border")
-
+	
     	local tabContent = Instance.new("ScrollingFrame")
     	tabContent.Name = name .. "Page"
     	tabContent.Size = UDim2.new(1, 0, 1, 0)
@@ -9753,12 +9874,12 @@ Modules["Core/CoreUI.luau"] = function()
     	pad.PaddingTop = UDim.new(0, 2)
     	pad.PaddingBottom = UDim.new(0, 12)
     	pad.Parent = tabContent
-
+	
     	local layout = Instance.new("UIListLayout")
     	layout.Padding = UDim.new(0, 10)
     	layout.SortOrder = Enum.SortOrder.LayoutOrder
     	layout.Parent = tabContent
-
+	
     	local tabObj = {
     		Name = name,
     		Button = tabButton,
@@ -9769,7 +9890,7 @@ Modules["Core/CoreUI.luau"] = function()
     		IsVisible = not (isHiddenFromSidebar or false),
     		OnVisibilityChanged = nil
     	}
-
+	
     	tabButton.MouseEnter:Connect(function()
     		if self.ActiveTab ~= tabObj then
     			if tabStroke then TweenService:Create(tabStroke, TweenInfo.new(0.12), { Thickness = 1.5 }):Play() end
@@ -9798,14 +9919,14 @@ Modules["Core/CoreUI.luau"] = function()
     			handleRightClick()
     		end
     	end)
-
+	
     	table.insert(self.Tabs, tabObj)
     	self:_UpdateTabSizing()
-
+	
     	if not isHiddenFromSidebar and #self.Tabs == 1 then
     		self:SelectTab(tabObj)
     	end
-
+	
     	return tabObj
     end
 
@@ -9965,7 +10086,7 @@ Modules["Core/CoreUI.luau"] = function()
     		tabObj.Button.TextColor3 = UI.Theme.AccentText
     		tabObj.Stroke.Color = UI.Theme.Border
     		tabObj.Stroke.Thickness = 1.2
-
+		
     		Animations.pulseIndicator(tabObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
 
     		local grad = tabObj.Button:FindFirstChild("ActiveGradient") :: UIGradient?
@@ -10223,10 +10344,10 @@ Modules["Core/CoreUI.luau"] = function()
     				BackgroundTransparency = 0,
     				TextColor3 = UI.Theme.AccentText
     			}):Play()
-
+			
     			-- Active sub-tab indicator pulse
     			Animations.pulseIndicator(targetObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
-
+			
     			if targetObj.Gradient then targetObj.Gradient.Enabled = true end
     		end
 
@@ -10515,7 +10636,7 @@ Modules["Core/CoreUI.luau"] = function()
     -- 3-Segment Toggle Row: [ X ] Option Name [ Bind ]
     function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defaultState: boolean, defaultKeybind: Enum.KeyCode?, callback: (boolean) -> ())
     	local feature = FeatureManager.register(featureId, name, defaultState, defaultKeybind, callback)
-
+	
     	local row = Instance.new("Frame")
     	row.Name = featureId .. "Row"
     	row.Size = UDim2.new(1, -4, 0, 24)

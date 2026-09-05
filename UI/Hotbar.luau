@@ -163,6 +163,14 @@ local function renderToolViewportCached(
 		end
 
 		if #parts > 0 then
+			local hasVisible = false
+			for _, p in ipairs(parts) do
+				if p.Transparency < 1 then
+					hasVisible = true
+					break
+				end
+			end
+
 			local refPart = handle or parts[1]
 			local refCF = refPart.CFrame
 			local minBounds = Vector3.new(math.huge, math.huge, math.huge)
@@ -179,25 +187,27 @@ local function renderToolViewportCached(
 				clone.CFrame = relCF
 				clone.Parent = model
 
-				local cp = relCF.Position
-				local sz = clone.Size
+				if not hasVisible or p.Transparency < 1 then
+					local cp = relCF.Position
+					local sz = clone.Size
 
-				-- Check if SpecialMesh scale enlarges the visual size
-				local sm = clone:FindFirstChildOfClass("SpecialMesh")
-				if sm then
-					sz = Vector3.new(sz.X * math.abs(sm.Scale.X), sz.Y * math.abs(sm.Scale.Y), sz.Z * math.abs(sm.Scale.Z))
+					-- Check if SpecialMesh scale enlarges the visual size
+					local sm = clone:FindFirstChildOfClass("SpecialMesh")
+					if sm then
+						sz = Vector3.new(sz.X * math.abs(sm.Scale.X), sz.Y * math.abs(sm.Scale.Y), sz.Z * math.abs(sm.Scale.Z))
+					end
+
+					minBounds = Vector3.new(
+						math.min(minBounds.X, cp.X - sz.X / 2),
+						math.min(minBounds.Y, cp.Y - sz.Y / 2),
+						math.min(minBounds.Z, cp.Z - sz.Z / 2)
+					)
+					maxBounds = Vector3.new(
+						math.max(maxBounds.X, cp.X + sz.X / 2),
+						math.max(maxBounds.Y, cp.Y + sz.Y / 2),
+						math.max(maxBounds.Z, cp.Z + sz.Z / 2)
+					)
 				end
-
-				minBounds = Vector3.new(
-					math.min(minBounds.X, cp.X - sz.X / 2),
-					math.min(minBounds.Y, cp.Y - sz.Y / 2),
-					math.min(minBounds.Z, cp.Z - sz.Z / 2)
-				)
-				maxBounds = Vector3.new(
-					math.max(maxBounds.X, cp.X + sz.X / 2),
-					math.max(maxBounds.Y, cp.Y + sz.Y / 2),
-					math.max(maxBounds.Z, cp.Z + sz.Z / 2)
-				)
 			end
 
 			model.Parent = vp
@@ -337,7 +347,7 @@ function Hotbar.new(): HotbarWidget
 
 	local healthBarStroke = Instance.new("UIStroke")
 	healthBarStroke.Color = UI.Theme.Border
-	healthBarStroke.Thickness = 1.2
+	healthBarStroke.Thickness = 1.5
 	healthBarStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	healthBarStroke.Parent = healthBarContainer
 	UI.registerThemeElement(healthBarStroke, "Border")
@@ -370,6 +380,7 @@ function Hotbar.new(): HotbarWidget
 	healthLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 	healthLabel.TextStrokeTransparency = 0.25
 	healthLabel.ZIndex = 15
+	healthLabel:SetAttribute("KeepTextColor", true)
 	healthLabel.Parent = healthBarContainer
 
 	local function updateToolbarHealth(currentHp: number, maxHp: number)
@@ -583,6 +594,7 @@ function Hotbar.new(): HotbarWidget
 
 	-- ── 4. Instant O(1) Slot Highlight Updater (Zero Viewport Rebuild) ──
 	local function updateSlotHighlightsOnly()
+		local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
 		for slotNum = 1, NUM_SLOTS do
 			local slotBtn = slotFrames[slotNum]
 			if not slotBtn or not slotBtn.Visible then continue end
@@ -594,24 +606,26 @@ function Hotbar.new(): HotbarWidget
 				local equipped = isToolEquipped(tool)
 				if nameLabel then
 					nameLabel.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+					nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
+					nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
 				end
 				if equipped then
 					slotBtn.BackgroundColor3 = UI.Theme.Accent
-					slotBtn.BackgroundTransparency = 0.2
+					slotBtn.BackgroundTransparency = 0.15
 					if stroke then
 						stroke.Color = UI.Theme.Border
 						stroke.Thickness = 2.0
 					end
 				else
-					slotBtn.BackgroundColor3 = UI.Theme.Container
+					slotBtn.BackgroundColor3 = if isLight then UI.Theme.ContainerDark else UI.Theme.Container
 					slotBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
 					if stroke then
 						stroke.Color = UI.Theme.Border
-						stroke.Thickness = 1.2
+						stroke.Thickness = 1.5
 					end
 				end
 			else
-				slotBtn.BackgroundColor3 = UI.Theme.ContainerDark
+				slotBtn.BackgroundColor3 = if isLight then Color3.fromRGB(215, 218, 226) else UI.Theme.ContainerDark
 				slotBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 				if stroke then
 					stroke.Color = UI.Theme.BorderDim
@@ -727,32 +741,36 @@ function Hotbar.new(): HotbarWidget
 
 			if tool and validToolSet[tool] then
 				renderToolViewportCached(slotBtn, tool, slotNum, slotCaches)
+				local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
 				local equipped = isToolEquipped(tool)
 				if nameLabel then
 					nameLabel.Text = tool.Name
 					nameLabel.TextColor3 = if equipped then UI.Theme.AccentText else UI.Theme.TextPrimary
+					nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
+					nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
 				end
 
 				if equipped then
 					slotBtn.BackgroundColor3 = UI.Theme.Accent
-					slotBtn.BackgroundTransparency = 0.2
+					slotBtn.BackgroundTransparency = 0.15
 					if stroke then
 						stroke.Color = UI.Theme.Border
 						stroke.Thickness = 2.0
 					end
 				else
-					slotBtn.BackgroundColor3 = UI.Theme.Container
+					slotBtn.BackgroundColor3 = if isLight then UI.Theme.ContainerDark else UI.Theme.Container
 					slotBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
 					if stroke then
 						stroke.Color = UI.Theme.Border
-						stroke.Thickness = 1.2
+						stroke.Thickness = 1.5
 					end
 				end
 			else
+				local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
 				assignedSlots[slotNum] = nil
 				cleanViewport(slotBtn)
 				if nameLabel then nameLabel.Text = "" end
-				slotBtn.BackgroundColor3 = UI.Theme.ContainerDark
+				slotBtn.BackgroundColor3 = if isLight then Color3.fromRGB(215, 218, 226) else UI.Theme.ContainerDark
 				slotBtn.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 				if stroke then
 					stroke.Color = UI.Theme.BorderDim
@@ -1191,7 +1209,7 @@ function Hotbar.new(): HotbarWidget
 
 		local slotStroke = Instance.new("UIStroke")
 		slotStroke.Color = UI.Theme.Border
-		slotStroke.Thickness = 1.2
+		slotStroke.Thickness = 1.5
 		slotStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		slotStroke.Parent = slotBtn
 		UI.registerThemeElement(slotStroke, "Border")
@@ -1215,6 +1233,7 @@ function Hotbar.new(): HotbarWidget
 		UI.registerThemeElement(keyLabel, "TextSecondary")
 
 		-- Tool Name Label at Bottom of Slot
+		local isLight = UI.CurrentTheme and UI.CurrentTheme.Name and string.find(UI.CurrentTheme.Name, "Light") ~= nil
 		local nameLabel = Instance.new("TextLabel")
 		nameLabel.Name = "ToolName"
 		nameLabel.Size = UDim2.new(1, -4, 0, 12)
@@ -1224,6 +1243,8 @@ function Hotbar.new(): HotbarWidget
 		nameLabel.TextColor3 = UI.Theme.TextPrimary
 		nameLabel.Font = UI.Fonts.Header
 		nameLabel.TextSize = 8
+		nameLabel.TextStrokeTransparency = if isLight then 0.35 else 0.5
+		nameLabel.TextStrokeColor3 = if isLight then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
 		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 		nameLabel.ZIndex = 10
 		nameLabel.Parent = slotBtn
@@ -1626,6 +1647,19 @@ function Hotbar.new(): HotbarWidget
 			bindBpEvents(child :: Backpack)
 		end
 	end))
+
+	UI.onThemeChanged(function(targetTheme)
+		healthLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		healthLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+		healthLabel.TextStrokeTransparency = 0.25
+		healthBarStroke.Color = targetTheme.Border
+		hotbarStroke.Color = targetTheme.Border
+		updateHotbarVisuals()
+		updateSlotHighlightsOnly()
+		if isBackpackOpen then
+			updateBackpackGrid()
+		end
+	end)
 
 	_G.__ModularHotbar_Cleanup = function()
 		for slotIdx = 1, NUM_SLOTS do

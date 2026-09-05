@@ -327,6 +327,11 @@ function MusicTracker.new()
 	lyricsBox.Parent = rightCol
 	UI.registerThemeElement(lyricsBox, "ContainerDark")
 
+	local lyricsBoxScale = Instance.new("UIScale")
+	lyricsBoxScale.Name = "LyricsBoxScale"
+	lyricsBoxScale.Scale = 1.0
+	lyricsBoxScale.Parent = lyricsBox
+
 	local lyricsStroke = Instance.new("UIStroke")
 	lyricsStroke.Color = UI.Theme.Border
 	lyricsStroke.Thickness = 1
@@ -334,20 +339,120 @@ function MusicTracker.new()
 	lyricsStroke.Parent = lyricsBox
 	UI.registerThemeElement(lyricsStroke, "Border")
 
-	local lyricsLabel = Instance.new("TextLabel")
-	lyricsLabel.Name = "LyricsText"
-	lyricsLabel.Size = UDim2.new(1, -12, 1, -4)
-	lyricsLabel.Position = UDim2.new(0, 6, 0, 2)
-	lyricsLabel.BackgroundTransparency = 1
-	lyricsLabel.Text = "♫ Play a song on Spotify, YouTube, or In-Game Audio"
-	lyricsLabel.TextColor3 = UI.Theme.TextPrimary
-	lyricsLabel.Font = UI.Fonts.Body
-	lyricsLabel.TextSize = 11
-	lyricsLabel.TextXAlignment = Enum.TextXAlignment.Left
-	lyricsLabel.TextYAlignment = Enum.TextYAlignment.Center
-	lyricsLabel.TextWrapped = true
-	lyricsLabel.Parent = lyricsBox
-	UI.registerThemeElement(lyricsLabel, "TextPrimary")
+	local function createLyricSlot(slotName: string): (TextLabel, UIGradient)
+		local label = Instance.new("TextLabel")
+		label.Name = slotName
+		label.Size = UDim2.new(1, -12, 1, -4)
+		label.Position = UDim2.new(0, 6, 0, 2)
+		label.BackgroundTransparency = 1
+		label.Text = ""
+		label.TextColor3 = UI.Theme.TextPrimary
+		label.Font = UI.Fonts.Body
+		label.TextSize = 11
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.TextYAlignment = Enum.TextYAlignment.Center
+		label.TextWrapped = true
+		label.Parent = lyricsBox
+		UI.registerThemeElement(label, "TextPrimary")
+
+		local grad = Instance.new("UIGradient")
+		grad.Name = "KaraokeSweepGradient"
+		grad.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0.0, UI.Theme.TextPrimary),
+			ColorSequenceKeypoint.new(0.4, UI.Theme.Accent),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+			ColorSequenceKeypoint.new(0.6, UI.Theme.Accent),
+			ColorSequenceKeypoint.new(1.0, UI.Theme.TextPrimary),
+		})
+		grad.Offset = Vector2.new(-1.0, 0)
+		grad.Parent = label
+
+		return label, grad
+	end
+
+	local lyricLabelA, gradA = createLyricSlot("LyricSlotA")
+	local lyricLabelB, gradB = createLyricSlot("LyricSlotB")
+	lyricLabelA.Text = "♫ Play a song on Spotify, YouTube, or In-Game Audio"
+	lyricLabelA.Position = UDim2.new(0, 6, 0, 2)
+	lyricLabelA.TextTransparency = 0
+	lyricLabelB.Visible = false
+	lyricLabelB.Position = UDim2.new(0, 6, 0, 16)
+	lyricLabelB.TextTransparency = 1
+
+	local activeLyricLabel = lyricLabelA
+	local inactiveLyricLabel = lyricLabelB
+	local activeGradient = gradA
+
+	local function updateLyricGradients()
+		local seq = ColorSequence.new({
+			ColorSequenceKeypoint.new(0.0, UI.Theme.TextPrimary),
+			ColorSequenceKeypoint.new(0.4, UI.Theme.Accent),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+			ColorSequenceKeypoint.new(0.6, UI.Theme.Accent),
+			ColorSequenceKeypoint.new(1.0, UI.Theme.TextPrimary),
+		})
+		gradA.Color = seq
+		gradB.Color = seq
+	end
+	UI.onThemeChanged(function()
+		updateLyricGradients()
+	end)
+
+	local currentLyricTransitionTween: Tween? = nil
+	local currentIncomingTween: Tween? = nil
+	local activeLyricStartMs = 0
+	local activeLyricEndMs = 0
+
+	local function displayLyric(newText: string, animate: boolean)
+		if newText == "" then return end
+		if activeLyricLabel.Text == newText then return end
+
+		if not animate then
+			if currentLyricTransitionTween then pcall(function() currentLyricTransitionTween:Cancel() end) end
+			if currentIncomingTween then pcall(function() currentIncomingTween:Cancel() end) end
+			activeLyricLabel.Text = newText
+			activeLyricLabel.Position = UDim2.new(0, 6, 0, 2)
+			activeLyricLabel.TextTransparency = 0
+			inactiveLyricLabel.Visible = false
+			return
+		end
+
+		if currentLyricTransitionTween then pcall(function() currentLyricTransitionTween:Cancel() end) end
+		if currentIncomingTween then pcall(function() currentIncomingTween:Cancel() end) end
+
+		inactiveLyricLabel.Text = newText
+		inactiveLyricLabel.Position = UDim2.new(0, 6, 0, 16)
+		inactiveLyricLabel.TextTransparency = 1
+		inactiveLyricLabel.Visible = true
+
+		currentLyricTransitionTween = TweenService:Create(activeLyricLabel, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0, 6, 0, -16),
+			TextTransparency = 1,
+		})
+		currentLyricTransitionTween:Play()
+
+		currentIncomingTween = TweenService:Create(inactiveLyricLabel, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0, 6, 0, 2),
+			TextTransparency = 0,
+		})
+		currentIncomingTween:Play()
+
+		if activeLyricLabel == lyricLabelA then
+			activeLyricLabel = lyricLabelB
+			inactiveLyricLabel = lyricLabelA
+			activeGradient = gradB
+		else
+			activeLyricLabel = lyricLabelA
+			inactiveLyricLabel = lyricLabelB
+			activeGradient = gradA
+		end
+
+		Animations.pulseIndicator(lyricsStroke, UI.Theme.Accent, UI.Theme.Border, 0.35, 1.2)
+		lyricsBoxScale.Scale = 1.025
+		TweenService:Create(lyricsBoxScale, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Scale = 1.0,
+		}):Play()
+	end
 
 	-- Box 3: Seek Track Bar & Timestamps
 	local seekRow = Instance.new("Frame")
@@ -636,21 +741,29 @@ function MusicTracker.new()
 
 	local function updateActiveLyricFromTime(posMs: number)
 		if #parsedLrcLines == 0 then return end
-		local curLine = ""
+		local curIndex = 0
 		for i, item in ipairs(parsedLrcLines) do
 			if posMs >= item.ms then
-				curLine = item.text
+				curIndex = i
 			else
-				if curLine == "" and i == 1 then
-					curLine = item.text
+				if curIndex == 0 and i == 1 then
+					curIndex = 1
 				end
 				break
 			end
 		end
 
-		if curLine ~= "" and curLine ~= lastActiveLyric then
-			lastActiveLyric = curLine
-			lyricsLabel.Text = "♫ " .. curLine
+		if curIndex > 0 then
+			local item = parsedLrcLines[curIndex]
+			local curLine = item.text
+			local nextItem = parsedLrcLines[curIndex + 1]
+			activeLyricStartMs = item.ms
+			activeLyricEndMs = if nextItem then nextItem.ms else (item.ms + 4000)
+
+			if curLine ~= "" and curLine ~= lastActiveLyric then
+				lastActiveLyric = curLine
+				displayLyric("♫ " .. curLine, true)
+			end
 		end
 	end
 
@@ -880,6 +993,25 @@ function MusicTracker.new()
 			local totSec = math.floor(serverDurationMs / 1000)
 			timeLabel.Text = string.format("%d:%02d / %d:%02d", math.floor(curSec / 60), curSec % 60, math.floor(totSec / 60), totSec % 60)
 		end
+
+		-- Real-time Karaoke sweep animation across active lyric line
+		if activeLyricEndMs > activeLyricStartMs and isPlaying then
+			local curPosMs = if hasExternalBridge then (serverProgressMs + (os.clock() - lastSyncClock) * 1000) else (if activeGameSound then activeGameSound.TimePosition * 1000 else 0)
+			local lineDur = math.max(activeLyricEndMs - activeLyricStartMs, 500)
+			local lineRatio = math.clamp((curPosMs - activeLyricStartMs) / lineDur, 0, 1)
+			activeGradient.Offset = Vector2.new(-1.0 + lineRatio * 2.0, 0)
+		else
+			local shimmer = math.sin(os.clock() * 2.6) * 0.35
+			activeGradient.Offset = Vector2.new(shimmer, 0)
+		end
+
+		-- Audio beat micro-pulse on lyrics box
+		if currentAudioPeak > 0.4 and isPlaying then
+			local beatBoost = math.clamp((currentAudioPeak - 0.4) * 0.06, 0, 0.03)
+			lyricsBoxScale.Scale = 1.0 + beatBoost
+		else
+			lyricsBoxScale.Scale = 1.0
+		end
 	end)
 
 	-- ── Multi-Source Bridge Poller (Direct HTTP Port 8888 Priority) ───
@@ -958,14 +1090,14 @@ function MusicTracker.new()
 
 								if isIdle then
 									songTitleLabel.Text = "No Media Playing"
-									lyricsLabel.Text = "♫ Play a song on Spotify, YouTube, or In-Game Audio"
+									displayLyric("♫ Play a song on Spotify, YouTube, or In-Game Audio", false)
 									isPlaying = false
 									playBtn.Text = "▶"
 									updateCover(nil, true, false, 0)
 								else
 									songTitleLabel.Text = string.format("%s — %s", title, artist)
 									if data.lyrics and data.lyrics ~= "" then
-										lyricsLabel.Text = "♫ " .. data.lyrics
+										displayLyric("♫ " .. data.lyrics, true)
 										lastActiveLyric = data.lyrics
 									end
 									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
@@ -983,7 +1115,10 @@ function MusicTracker.new()
 									isPlaying = (data.isPlaying == true or currentAudioPeak > 0.005)
 									playBtn.Text = if isPlaying then "❚❚" else "▶"
 									if data.lyrics and data.lyrics ~= "" and #parsedLrcLines == 0 then
-										lyricsLabel.Text = "♫ " .. data.lyrics
+										displayLyric("♫ " .. data.lyrics, true)
+									end
+									if data.synced_lyrics and typeof(data.synced_lyrics) == "table" and #data.synced_lyrics > 0 and #parsedLrcLines == 0 then
+										parsedLrcLines = data.synced_lyrics
 									end
 									-- Update cover art when bridge signals new version
 									if coverVer ~= lastCoverVersion then

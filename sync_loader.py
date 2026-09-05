@@ -10,7 +10,12 @@ def sync():
     # Find all module definitions
     pattern = re.compile(r'(Modules\["([^"]+)"\] = function\(\)\n)(.*?)(^end\n)', re.DOTALL | re.MULTILINE)
 
-    targets = ["UI/HealthWidget.luau", "UI/LeaderstatsWidget.luau", "Core/MainUI.luau"]
+    targets = [
+        "UI/HealthWidget.luau",
+        "UI/LeaderstatsWidget.luau",
+        "Core/MainUI.luau",
+        "UI/MusicTracker.luau",
+    ]
 
     def replacer(match):
         prefix = match.group(1)

@@ -1,7 +1,7 @@
 {
-  "version": "1.4.5",
+  "version": "1.4.6",
   "name": "Project Fih MusicBridge",
-  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.5",
+  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.6",
   "download_url": "https://github.com/FIHHHH2/New_project/raw/main/dist/MusicBridge.exe",
-  "changelog": "Multi-source media tracking across Spotify and browser sites, monotonic timeline clock, master WASAPI loudness metering, and added Play/Pause to Ctrl+Alt+Middle Click and Ctrl+Alt+Space."
+  "changelog": "Synced lyrics payload array stream for zero-latency real-time animated karaoke lyrics, sliding dual-buffer line animations, and audio beat responsiveness in Roblox UI."
 }

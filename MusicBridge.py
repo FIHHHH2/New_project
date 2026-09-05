@@ -32,7 +32,7 @@ import pystray
 from PIL import Image, ImageDraw
 
 APP_NAME = "ModularMusicBridge"
-VERSION = "1.4.5"
+VERSION = "1.4.6"
 REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PORT = 8888
 VERSION_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/version.json"
@@ -43,6 +43,7 @@ current_media = {
     "title": "No Song Playing",
     "artist": "Waiting for Media...",
     "lyrics": "Play a track on Spotify / SoundCloud / YouTube",
+    "synced_lyrics": [],
     "isPlaying": False,
     "position": 0.0,
     "duration": 0.0,
@@ -631,6 +632,11 @@ async def fetch_windows_media():
 
                 current_lyric = get_current_lyric_line(t, a, calc_pos, tl_dur)
                 current_media["lyrics"] = current_lyric
+                lyrics_obj = fetch_synced_lyrics(t, a, tl_dur)
+                if lyrics_obj and lyrics_obj.get("type") == "synced":
+                    current_media["synced_lyrics"] = [{"ms": int(sec * 1000), "text": txt} for sec, txt in lyrics_obj.get("lines", [])]
+                else:
+                    current_media["synced_lyrics"] = []
     except Exception:
         pass
 

@@ -588,9 +588,116 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		-- ?????? MAIN SUB-TAB 3: PLAYER UTILITIES ???????????????????????????????????????????????????????????????????????????
 		local utilLeftCol, utilRightCol = window:CreateColumns(playerUtilsSubTab)
 
-		-- Left Column: Live Currencies & Leaderstats
-		local statsSection = window:AddSection(utilLeftCol, "Live Currencies & Leaderstats")
+		-- Left Column: Live Currencies & Leaderstats HUD
+		local statsSection = window:AddSection(utilLeftCol, "Live Currencies & Leaderstats HUD")
 
+		-- Category Selector: [ Currencies ] [ All Stats ] [ Server Players ]
+		local catBar = Instance.new("Frame")
+		catBar.Name = "CategoryBar"
+		catBar.Size = UDim2.new(1, 0, 0, 24)
+		catBar.BackgroundColor3 = UI.Theme.ContainerDark
+		catBar.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+		catBar.BorderSizePixel = 0
+		catBar.Parent = statsSection
+		UI.registerThemeElement(catBar, "ContainerDark")
+
+		local catStroke = Instance.new("UIStroke")
+		catStroke.Color = UI.Theme.BorderDim
+		catStroke.Thickness = 1.0
+		catStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		catStroke.Parent = catBar
+		UI.registerThemeElement(catStroke, "BorderDim")
+
+		local catLayout = Instance.new("UIListLayout")
+		catLayout.FillDirection = Enum.FillDirection.Horizontal
+		catLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		catLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		catLayout.Padding = UDim.new(0, 4)
+		catLayout.Parent = catBar
+
+		local activeCategory = "currencies"
+		local catButtons: {[string]: TextButton} = {}
+		local renderStatsContent: () -> () = nil
+
+		local categories = {
+			{ id = "currencies", name = "Currencies" },
+			{ id = "all", name = "All Stats" },
+			{ id = "players", name = "Server Players" }
+		}
+
+		for _, cat in ipairs(categories) do
+			local cBtn = Instance.new("TextButton")
+			cBtn.Name = cat.id .. "Btn"
+			cBtn.Size = UDim2.new(0.32, -3, 1, -4)
+			cBtn.BackgroundColor3 = if cat.id == activeCategory then UI.Theme.Accent else UI.Theme.Container
+			cBtn.BackgroundTransparency = if cat.id == activeCategory then 0 else UI.Theme.ContainerTransparency
+			cBtn.BorderSizePixel = 0
+			cBtn.Text = cat.name
+			cBtn.TextColor3 = if cat.id == activeCategory then UI.Theme.AccentText else UI.Theme.TextSecondary
+			cBtn.Font = UI.Fonts.Header
+			cBtn.TextSize = 10
+			cBtn.TextTruncate = Enum.TextTruncate.AtEnd
+			cBtn.Parent = catBar
+
+			local cStroke = Instance.new("UIStroke")
+			cStroke.Color = UI.Theme.BorderDim
+			cStroke.Thickness = 1.0
+			cStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			cStroke.Parent = cBtn
+
+			cBtn.MouseButton1Click:Connect(function()
+				activeCategory = cat.id
+				for id, b in pairs(catButtons) do
+					local isAct = (id == activeCategory)
+					b.BackgroundColor3 = if isAct then UI.Theme.Accent else UI.Theme.Container
+					b.BackgroundTransparency = if isAct then 0 else UI.Theme.ContainerTransparency
+					b.TextColor3 = if isAct then UI.Theme.AccentText else UI.Theme.TextSecondary
+				end
+				if renderStatsContent then renderStatsContent() end
+			end)
+
+			catButtons[cat.id] = cBtn
+		end
+
+		-- Search filter box
+		local searchFrame = Instance.new("Frame")
+		searchFrame.Name = "SearchFrame"
+		searchFrame.Size = UDim2.new(1, 0, 0, 22)
+		searchFrame.BackgroundColor3 = UI.Theme.ContainerDark
+		searchFrame.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
+		searchFrame.BorderSizePixel = 0
+		searchFrame.Parent = statsSection
+		UI.registerThemeElement(searchFrame, "ContainerDark")
+
+		local searchStroke = Instance.new("UIStroke")
+		searchStroke.Color = UI.Theme.BorderDim
+		searchStroke.Thickness = 1.0
+		searchStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		searchStroke.Parent = searchFrame
+		UI.registerThemeElement(searchStroke, "BorderDim")
+
+		local searchFilter = ""
+		local searchBox = Instance.new("TextBox")
+		searchBox.Size = UDim2.new(1, -12, 1, 0)
+		searchBox.Position = UDim2.new(0, 6, 0, 0)
+		searchBox.BackgroundTransparency = 1
+		searchBox.BorderSizePixel = 0
+		searchBox.PlaceholderText = "Search stats or players..."
+		searchBox.PlaceholderColor3 = UI.Theme.TextSecondary
+		searchBox.Text = ""
+		searchBox.TextColor3 = UI.Theme.TextPrimary
+		searchBox.Font = UI.Fonts.Body
+		searchBox.TextSize = 10
+		searchBox.TextXAlignment = Enum.TextXAlignment.Left
+		searchBox.ClearTextOnFocus = false
+		searchBox.Parent = searchFrame
+
+		searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+			searchFilter = searchBox.Text:lower()
+			if renderStatsContent then renderStatsContent() end
+		end)
+
+		-- Dynamic Stats Container
 		local statsContainer = Instance.new("Frame")
 		statsContainer.Name = "StatsContainer"
 		statsContainer.Size = UDim2.new(1, 0, 0, 0)
@@ -604,93 +711,221 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		statsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 		statsLayout.Parent = statsContainer
 
-		local statRowFrames: {[string]: {Row: Frame, ValLabel: TextLabel}} = {}
+		local PRIMARY_NAMES = {
+			coins = true, coin = true, cash = true, money = true, crystals = true, crystal = true,
+			gems = true, gem = true, points = true, point = true, rubies = true, ruby = true,
+			diamonds = true, diamond = true, tokens = true, token = true, credits = true, credit = true,
+			water = true, tankwater = true, rebirths = true, rebirth = true, level = true, lvl = true,
+			kills = true, kill = true, wins = true, win = true, score = true, xp = true, exp = true
+		}
 
-		local function renderCurrencies()
-			local stats = PlayerUtilities.getCurrenciesAndStats()
-			if #stats == 0 then
-				local noStat = statRowFrames["_empty"]
-				if not noStat then
-					local row = Instance.new("Frame")
-					row.Size = UDim2.new(1, 0, 0, 24)
-					row.BackgroundColor3 = UI.Theme.ContainerDark
-					row.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
-					row.BorderSizePixel = 0
-					row.Parent = statsContainer
-					UI.registerThemeElement(row, "ContainerDark")
+		local function isCurrencyName(name: string): boolean
+			local low = name:lower()
+			return PRIMARY_NAMES[low] == true or string.find(low, "coin") ~= nil or string.find(low, "cash") ~= nil or string.find(low, "gem") ~= nil or string.find(low, "money") ~= nil or string.find(low, "point") ~= nil or string.find(low, "win") ~= nil or string.find(low, "kill") ~= nil
+		end
 
-					local lbl = Instance.new("TextLabel")
-					lbl.Size = UDim2.new(1, -8, 1, 0)
-					lbl.Position = UDim2.new(0, 4, 0, 0)
-					lbl.BackgroundTransparency = 1
-					lbl.Text = "No active currencies found in session"
-					lbl.TextColor3 = UI.Theme.TextSecondary
-					lbl.Font = UI.Fonts.Body
-					lbl.TextSize = 10
-					lbl.Parent = row
-					UI.registerThemeElement(lbl, "TextSecondary")
-
-					statRowFrames["_empty"] = {Row = row, ValLabel = lbl}
+		renderStatsContent = function()
+			for _, child in ipairs(statsContainer:GetChildren()) do
+				if child:IsA("GuiObject") and child ~= statsLayout then
+					child:Destroy()
 				end
-				return
 			end
 
-			if statRowFrames["_empty"] then
-				if statRowFrames["_empty"].Row and statRowFrames["_empty"].Row.Parent then
-					statRowFrames["_empty"].Row:Destroy()
-				end
-				statRowFrames["_empty"] = nil
-			end
+			if activeCategory == "players" then
+				local playerList = Players:GetPlayers()
+				local playerEntries = {}
 
-			for idx, s in ipairs(stats) do
-				local existing = statRowFrames[s.Name]
-				if existing and existing.Row and existing.Row.Parent then
-					existing.ValLabel.Text = s.Formatted or s.Value
+				for _, p in ipairs(playerList) do
+					local bestStatName = "None"
+					local bestStatVal = 0
+					local bestStatFmt = "0"
+
+					local ls = p:FindFirstChild("leaderstats")
+					if ls then
+						for _, val in ipairs(ls:GetChildren()) do
+							if val:IsA("ValueBase") then
+								local num = tonumber((val :: any).Value) or 0
+								if num >= bestStatVal then
+									bestStatVal = num
+									bestStatName = val.Name
+									bestStatFmt = tostring((val :: any).Value)
+								end
+							end
+						end
+					end
+
+					table.insert(playerEntries, {
+						Player = p,
+						Name = p.DisplayName or p.Name,
+						Username = p.Name,
+						StatName = bestStatName,
+						StatValue = bestStatVal,
+						Formatted = bestStatFmt
+					})
+				end
+
+				table.sort(playerEntries, function(a, b)
+					return a.StatValue > b.StatValue
+				end)
+
+				local count = 0
+				for rank, entry in ipairs(playerEntries) do
+					if searchFilter == "" or string.find(entry.Name:lower(), searchFilter) or string.find(entry.Username:lower(), searchFilter) or string.find(entry.StatName:lower(), searchFilter) then
+						count += 1
+						local row = Instance.new("Frame")
+						row.Name = "PlayerRow_" .. entry.Username
+						row.Size = UDim2.new(1, 0, 0, 24)
+						row.BackgroundColor3 = if entry.Player == localPlayer then UI.Theme.ContainerDark else UI.Theme.Container
+						row.BackgroundTransparency = UI.Theme.ContainerTransparency
+						row.BorderSizePixel = 0
+						row.LayoutOrder = rank
+						row.Parent = statsContainer
+						UI.registerThemeElement(row, "Container")
+
+						local rStroke = Instance.new("UIStroke")
+						rStroke.Color = if entry.Player == localPlayer then UI.Theme.Accent else UI.Theme.BorderDim
+						rStroke.Thickness = 1.0
+						rStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+						rStroke.Parent = row
+
+						local rankLabel = Instance.new("TextLabel")
+						rankLabel.Size = UDim2.new(0, 28, 1, 0)
+						rankLabel.Position = UDim2.new(0, 4, 0, 0)
+						rankLabel.BackgroundTransparency = 1
+						rankLabel.Text = string.format("#%d", rank)
+						rankLabel.TextColor3 = if rank <= 3 then UI.Theme.Accent else UI.Theme.TextSecondary
+						rankLabel.Font = UI.Fonts.Mono
+						rankLabel.TextSize = 10
+						rankLabel.TextXAlignment = Enum.TextXAlignment.Left
+						rankLabel.Parent = row
+
+						local nameLabel = Instance.new("TextLabel")
+						nameLabel.Size = UDim2.new(0.55, -34, 1, 0)
+						nameLabel.Position = UDim2.new(0, 32, 0, 0)
+						nameLabel.BackgroundTransparency = 1
+						nameLabel.Text = entry.Name .. (if entry.Player == localPlayer then " (You)" else "")
+						nameLabel.TextColor3 = UI.Theme.TextPrimary
+						nameLabel.Font = UI.Fonts.Header
+						nameLabel.TextSize = 10
+						nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+						nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+						nameLabel.Parent = row
+						UI.registerThemeElement(nameLabel, "TextPrimary")
+
+						local valLabel = Instance.new("TextLabel")
+						valLabel.Size = UDim2.new(0.45, -6, 1, 0)
+						valLabel.Position = UDim2.new(0.55, 0, 0, 0)
+						valLabel.BackgroundTransparency = 1
+						valLabel.Text = string.format("%s: %s", entry.StatName, entry.Formatted)
+						valLabel.TextColor3 = UI.Theme.Accent
+						valLabel.Font = UI.Fonts.Mono
+						valLabel.TextSize = 10
+						valLabel.TextXAlignment = Enum.TextXAlignment.Right
+						valLabel.TextTruncate = Enum.TextTruncate.AtEnd
+						valLabel.Parent = row
+						UI.registerThemeElement(valLabel, "AccentText")
+					end
+				end
+
+				if count == 0 then
+					local emptyRow = Instance.new("Frame")
+					emptyRow.Size = UDim2.new(1, 0, 0, 24)
+					emptyRow.BackgroundColor3 = UI.Theme.ContainerDark
+					emptyRow.BackgroundTransparency = 0.5
+					emptyRow.BorderSizePixel = 0
+					emptyRow.Parent = statsContainer
+
+					local emptyLabel = Instance.new("TextLabel")
+					emptyLabel.Size = UDim2.new(1, 0, 1, 0)
+					emptyLabel.BackgroundTransparency = 1
+					emptyLabel.Text = "No players matched filter"
+					emptyLabel.TextColor3 = UI.Theme.TextSecondary
+					emptyLabel.Font = UI.Fonts.Body
+					emptyLabel.TextSize = 10
+					emptyLabel.Parent = emptyRow
+				end
+			else
+				local rawStats = PlayerUtilities.getCurrenciesAndStats()
+				local filtered = {}
+
+				for _, s in ipairs(rawStats) do
+					local matchesCat = (activeCategory == "all") or isCurrencyName(s.Name)
+					local matchesFilter = (searchFilter == "") or string.find(s.Name:lower(), searchFilter) or string.find(s.Value:lower(), searchFilter)
+					if matchesCat and matchesFilter then
+						table.insert(filtered, s)
+					end
+				end
+
+				if #filtered == 0 then
+					local emptyRow = Instance.new("Frame")
+					emptyRow.Size = UDim2.new(1, 0, 0, 24)
+					emptyRow.BackgroundColor3 = UI.Theme.ContainerDark
+					emptyRow.BackgroundTransparency = 0.5
+					emptyRow.BorderSizePixel = 0
+					emptyRow.Parent = statsContainer
+
+					local emptyLabel = Instance.new("TextLabel")
+					emptyLabel.Size = UDim2.new(1, 0, 1, 0)
+					emptyLabel.BackgroundTransparency = 1
+					emptyLabel.Text = if activeCategory == "currencies" then "No currencies detected in session" else "No stats found"
+					emptyLabel.TextColor3 = UI.Theme.TextSecondary
+					emptyLabel.Font = UI.Fonts.Body
+					emptyLabel.TextSize = 10
+					emptyLabel.Parent = emptyRow
 				else
-					local row = Instance.new("Frame")
-					row.Name = s.Name .. "StatRow"
-					row.Size = UDim2.new(1, 0, 0, 24)
-					row.BackgroundColor3 = UI.Theme.Container
-					row.BackgroundTransparency = UI.Theme.ContainerTransparency
-					row.BorderSizePixel = 0
-					row.LayoutOrder = idx
-					row.Parent = statsContainer
-					UI.registerThemeElement(row, "Container")
+					for idx, s in ipairs(filtered) do
+						local row = Instance.new("TextButton")
+						row.Name = s.Name .. "StatRow"
+						row.Size = UDim2.new(1, 0, 0, 24)
+						row.BackgroundColor3 = UI.Theme.Container
+						row.BackgroundTransparency = UI.Theme.ContainerTransparency
+						row.BorderSizePixel = 0
+						row.Text = ""
+						row.LayoutOrder = idx
+						row.Parent = statsContainer
+						UI.registerThemeElement(row, "Container")
 
-					local rStroke = Instance.new("UIStroke")
-					rStroke.Color = UI.Theme.Border
-					rStroke.Thickness = 1.0
-					rStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-					rStroke.Parent = row
-					UI.registerThemeElement(rStroke, "Border")
+						local rStroke = Instance.new("UIStroke")
+						rStroke.Color = UI.Theme.BorderDim
+						rStroke.Thickness = 1.0
+						rStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+						rStroke.Parent = row
+						UI.registerThemeElement(rStroke, "BorderDim")
 
-					local nameLabel = Instance.new("TextLabel")
-					nameLabel.Size = UDim2.new(0.55, -6, 1, 0)
-					nameLabel.Position = UDim2.new(0, 6, 0, 0)
-					nameLabel.BackgroundTransparency = 1
-					nameLabel.Text = s.Name
-					nameLabel.TextColor3 = UI.Theme.TextPrimary
-					nameLabel.Font = UI.Fonts.Body
-					nameLabel.TextSize = 10
-					nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-					nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-					nameLabel.Parent = row
-					UI.registerThemeElement(nameLabel, "TextPrimary")
+						local nameLabel = Instance.new("TextLabel")
+						nameLabel.Size = UDim2.new(0.55, -8, 1, 0)
+						nameLabel.Position = UDim2.new(0, 6, 0, 0)
+						nameLabel.BackgroundTransparency = 1
+						nameLabel.Text = s.Name
+						nameLabel.TextColor3 = UI.Theme.TextPrimary
+						nameLabel.Font = UI.Fonts.Header
+						nameLabel.TextSize = 10
+						nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+						nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+						nameLabel.Parent = row
+						UI.registerThemeElement(nameLabel, "TextPrimary")
 
-					local valLabel = Instance.new("TextLabel")
-					valLabel.Size = UDim2.new(0.45, -8, 1, 0)
-					valLabel.Position = UDim2.new(0.55, 0, 0, 0)
-					valLabel.BackgroundTransparency = 1
-					valLabel.Text = s.Formatted or s.Value
-					valLabel.TextColor3 = UI.Theme.Accent
-					valLabel.Font = UI.Fonts.Mono
-					valLabel.TextSize = 10
-					valLabel.TextXAlignment = Enum.TextXAlignment.Right
-					valLabel.TextTruncate = Enum.TextTruncate.AtEnd
-					valLabel.Parent = row
-					UI.registerThemeElement(valLabel, "AccentText")
+						local valLabel = Instance.new("TextLabel")
+						valLabel.Size = UDim2.new(0.45, -8, 1, 0)
+						valLabel.Position = UDim2.new(0.55, 0, 0, 0)
+						valLabel.BackgroundTransparency = 1
+						valLabel.Text = s.Formatted or s.Value
+						valLabel.TextColor3 = UI.Theme.Accent
+						valLabel.Font = UI.Fonts.Mono
+						valLabel.TextSize = 10
+						valLabel.TextXAlignment = Enum.TextXAlignment.Right
+						valLabel.TextTruncate = Enum.TextTruncate.AtEnd
+						valLabel.Parent = row
+						UI.registerThemeElement(valLabel, "AccentText")
 
-					statRowFrames[s.Name] = {Row = row, ValLabel = valLabel}
+						row.MouseButton1Click:Connect(function()
+							Animations.buttonClickPop(row)
+							local copyText = string.format("%s: %s", s.Name, s.Value)
+							local setClip = setclipboard or toclipboard or (Clipboard and (Clipboard :: any).set)
+							if type(setClip) == "function" then pcall(setClip, copyText) end
+							window:Notify("Leaderstats", "Copied " .. copyText, 2)
+						end)
+					end
 				end
 			end
 		end
@@ -698,7 +933,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		-- Initial render
 		task.spawn(function()
 			task.wait(0.5)
-			pcall(renderCurrencies)
+			pcall(renderStatsContent)
 		end)
 
 		-- Continuous auto-updater (0.25s high-frequency polling with reactive value change triggers)
@@ -708,7 +943,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			if not autoUpdateCurrencies then return end
 			if refreshCurrenciesDebounced then task.cancel(refreshCurrenciesDebounced) end
 			refreshCurrenciesDebounced = task.delay(0.04, function()
-				pcall(renderCurrencies)
+				pcall(renderStatsContent)
 			end)
 		end
 
@@ -774,13 +1009,13 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			while true do
 				task.wait(0.25)
 				if autoUpdateCurrencies then
-					pcall(renderCurrencies)
+					pcall(renderStatsContent)
 				end
 			end
 		end)
 
-		window:AddButton(statsSection, "Refresh Currencies Now", function()
-			renderCurrencies()
+		window:AddButton(statsSection, "Refresh Stats Now", function()
+			renderStatsContent()
 			window:Notify("Currencies", "Refreshed live leaderstats & currencies", 2)
 		end)
 
@@ -788,7 +1023,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			autoUpdateCurrencies = enabled
 		end)
 
-		window:AddToggle(statsSection, "show_leaderstats_hud", "Show On-Screen Stats HUD Widget", true, nil, function(enabled)
+		window:AddToggle(statsSection, "show_leaderstats_hud", "Show Floating Stats HUD Widget", false, nil, function(enabled)
 			leaderstatsWidget.SetVisible(enabled)
 		end)
 

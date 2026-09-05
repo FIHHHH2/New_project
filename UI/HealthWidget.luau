@@ -163,13 +163,13 @@ function HealthWidget.new(): HealthWidgetInstance
 	end
 
 	-- ── 3. Main Player Health Bar Widget HUD ──────────────────────────
-	local HUD_WIDTH = 230
-	local HUD_HEIGHT = 54
+	local HUD_WIDTH = 224
+	local HUD_HEIGHT = 44
 	local hudFrame = Instance.new("Frame")
 	hudFrame.Name = "HealthWidgetFrame"
 	hudFrame.Size = UDim2.new(0, HUD_WIDTH, 0, HUD_HEIGHT)
-	hudFrame.AnchorPoint = Vector2.new(0.5, 0)
-	hudFrame.Position = UDim2.new(0.5, 0, 0, 10)
+	hudFrame.AnchorPoint = Vector2.new(0.5, 1)
+	hudFrame.Position = UDim2.new(0.5, 0, 1, -78)
 	hudFrame.BackgroundColor3 = UI.Theme.Background
 	hudFrame.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	hudFrame.BorderSizePixel = 0
@@ -179,19 +179,19 @@ function HealthWidget.new(): HealthWidgetInstance
 
 	local hudStroke = Instance.new("UIStroke")
 	hudStroke.Color = UI.Theme.Border
-	hudStroke.Thickness = 2
+	hudStroke.Thickness = 1.2
 	hudStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	hudStroke.Parent = hudFrame
 	UI.registerThemeElement(hudStroke, "Border")
 
 	-- Dragging handler for Health HUD (Zero-drift cursor locked)
-		UI.makeDraggable(hudFrame, hudFrame)
+	UI.makeDraggable(hudFrame, hudFrame)
 
 	-- Player Headshot Avatar Box
 	local headshotBox = Instance.new("Frame")
 	headshotBox.Name = "AvatarBox"
-	headshotBox.Size = UDim2.new(0, 38, 0, 38)
-	headshotBox.Position = UDim2.new(0, 8, 0, 8)
+	headshotBox.Size = UDim2.new(0, 32, 0, 32)
+	headshotBox.Position = UDim2.new(0, 6, 0, 6)
 	headshotBox.BackgroundColor3 = UI.Theme.ContainerDark
 	headshotBox.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	headshotBox.BorderSizePixel = 0
@@ -222,8 +222,8 @@ function HealthWidget.new(): HealthWidgetInstance
 
 	-- Info Header: Username & HP Text
 	local infoContainer = Instance.new("Frame")
-	infoContainer.Size = UDim2.new(1, -58, 0, 18)
-	infoContainer.Position = UDim2.new(0, 52, 0, 7)
+	infoContainer.Size = UDim2.new(1, -48, 0, 15)
+	infoContainer.Position = UDim2.new(0, 44, 0, 5)
 	infoContainer.BackgroundTransparency = 1
 	infoContainer.BorderSizePixel = 0
 	infoContainer.Parent = hudFrame
@@ -261,8 +261,8 @@ function HealthWidget.new(): HealthWidgetInstance
 	-- Main Health Bar Track
 	local barTrack = Instance.new("Frame")
 	barTrack.Name = "HealthTrack"
-	barTrack.Size = UDim2.new(1, -58, 0, 14)
-	barTrack.Position = UDim2.new(0, 52, 0, 29)
+	barTrack.Size = UDim2.new(1, -48, 0, 12)
+	barTrack.Position = UDim2.new(0, 44, 0, 24)
 	barTrack.BackgroundColor3 = UI.Theme.ContainerDark
 	barTrack.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
 	barTrack.BorderSizePixel = 0
@@ -272,7 +272,7 @@ function HealthWidget.new(): HealthWidgetInstance
 
 	local barTrackStroke = Instance.new("UIStroke")
 	barTrackStroke.Color = UI.Theme.Border
-	barTrackStroke.Thickness = 1.2
+	barTrackStroke.Thickness = 1.0
 	barTrackStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	barTrackStroke.Parent = barTrack
 	UI.registerThemeElement(barTrackStroke, "Border")
@@ -303,73 +303,7 @@ function HealthWidget.new(): HealthWidgetInstance
 	})
 	fillGrad.Parent = barFill
 
-	-- ── 4. Target Combat Health HUD Card ──────────────────────────────
-	local targetCard = Instance.new("Frame")
-	targetCard.Name = "TargetCombatHUD"
-	targetCard.Size = UDim2.new(0, 180, 0, 42)
-	targetCard.Position = UDim2.new(0.5, -90, 0, 18)
-	targetCard.BackgroundColor3 = UI.Theme.Background
-	targetCard.BackgroundTransparency = UI.Theme.BackgroundTransparency
-	targetCard.BorderSizePixel = 0
-	targetCard.Visible = false
-	targetCard.ClipsDescendants = false
-	targetCard.Parent = screenGui
-	UI.registerThemeElement(targetCard, "Background")
-
-	local targetStroke = Instance.new("UIStroke")
-	targetStroke.Color = UI.Theme.Border
-	targetStroke.Thickness = 1.5
-	targetStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	targetStroke.Parent = targetCard
-	UI.registerThemeElement(targetStroke, "Border")
-
-	local targetTitle = Instance.new("TextLabel")
-	targetTitle.Size = UDim2.new(1, -12, 0, 16)
-	targetTitle.Position = UDim2.new(0, 6, 0, 4)
-	targetTitle.BackgroundTransparency = 1
-	targetTitle.Text = "Target"
-	targetTitle.TextColor3 = UI.Theme.TextPrimary
-	targetTitle.Font = UI.Fonts.Header
-	targetTitle.TextSize = 9
-	targetTitle.TextXAlignment = Enum.TextXAlignment.Left
-	targetTitle.TextTruncate = Enum.TextTruncate.AtEnd
-	targetTitle.Parent = targetCard
-	UI.registerThemeElement(targetTitle, "TextPrimary")
-
-	local targetTrack = Instance.new("Frame")
-	targetTrack.Size = UDim2.new(1, -12, 0, 10)
-	targetTrack.Position = UDim2.new(0, 6, 0, 24)
-	targetTrack.BackgroundColor3 = UI.Theme.ContainerDark
-	targetTrack.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
-	targetTrack.BorderSizePixel = 0
-	targetTrack.ClipsDescendants = true
-	targetTrack.Parent = targetCard
-	UI.registerThemeElement(targetTrack, "ContainerDark")
-
-	local targetFill = Instance.new("Frame")
-	targetFill.Size = UDim2.new(1, 0, 1, 0)
-	targetFill.BackgroundColor3 = Color3.fromRGB(245, 60, 60)
-	targetFill.BorderSizePixel = 0
-	targetFill.Parent = targetTrack
-
-	local hideTargetDebounce: thread? = nil
-	local function updateTargetCard(targetName: string, curHealth: number, maxHealth: number)
-		targetTitle.Text = string.format("Target: %s  [%d/%d]", targetName, math.floor(curHealth), math.floor(maxHealth))
-		local ratio = math.clamp(curHealth / math.max(maxHealth, 1), 0, 1)
-		targetFill.BackgroundColor3 = HealthWidget.getHealthColor(ratio)
-		TweenService:Create(targetFill, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = UDim2.new(ratio, 0, 1, 0)
-		}):Play()
-
-		targetCard.Visible = true
-
-		if hideTargetDebounce then task.cancel(hideTargetDebounce) end
-		hideTargetDebounce = task.delay(4.0, function()
-			targetCard.Visible = false
-		end)
-	end
-
-	-- ── 5. Humanoid Tracking & Damage Listeners ────────────────────────
+	-- ── 4. Humanoid Tracking & Damage Listeners (Local Player Only) ────
 	local damageNumbersEnabled = true
 	local damageFlashEnabled = true
 	local useDynamicColors = true
@@ -378,6 +312,7 @@ function HealthWidget.new(): HealthWidgetInstance
 	local trackedHumanoids: {[Humanoid]: number} = {}
 
 	local function hookHumanoid(hum: Humanoid, ownerName: string, isLocal: boolean)
+		if not isLocal then return end
 		trackedHumanoids[hum] = hum.Health
 
 		local healthConn = hum.HealthChanged:Connect(function(newHealth)
@@ -387,55 +322,40 @@ function HealthWidget.new(): HealthWidgetInstance
 			local maxHp = math.max(hum.MaxHealth, 1)
 			local ratio = math.clamp(newHealth / maxHp, 0, 1)
 
-			if isLocal then
-				-- Update local player health bar
-				hpLabel.Text = string.format("%d / %d HP", math.floor(newHealth + 0.5), math.floor(maxHp))
+			-- Update local player health bar
+			hpLabel.Text = string.format("%d / %d HP", math.floor(newHealth + 0.5), math.floor(maxHp))
 
-				if useDynamicColors then
-					barFill.BackgroundColor3 = HealthWidget.getHealthColor(ratio)
-				else
-					barFill.BackgroundColor3 = UI.Theme.Accent
-				end
+			if useDynamicColors then
+				barFill.BackgroundColor3 = HealthWidget.getHealthColor(ratio)
+			else
+				barFill.BackgroundColor3 = UI.Theme.Accent
+			end
 
-				TweenService:Create(barFill, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			TweenService:Create(barFill, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Size = UDim2.new(ratio, 0, 1, 0)
+			}):Play()
+
+			task.delay(0.25, function()
+				TweenService:Create(bufferFill, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 					Size = UDim2.new(ratio, 0, 1, 0)
 				}):Play()
+			end)
 
-				task.delay(0.25, function()
-					TweenService:Create(bufferFill, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-						Size = UDim2.new(ratio, 0, 1, 0)
-					}):Play()
-				end)
+			-- Low health warning pulse (<25%)
+			if ratio < 0.25 and newHealth > 0 then
+				Animations.pulseIndicator(hudStroke, Color3.fromRGB(255, 40, 40), UI.Theme.Border, 2.4, 1.6)
+			end
 
-				-- Low health warning pulse (<25%)
-				if ratio < 0.25 and newHealth > 0 then
-					Animations.pulseIndicator(hudStroke, Color3.fromRGB(255, 40, 40), UI.Theme.Border, 2.4, 1.6)
+			-- Damage Taken Effect
+			if newHealth < oldHealth then
+				local dmg = oldHealth - newHealth
+				if damageFlashEnabled then
+					triggerDamageFlash(dmg / maxHp)
 				end
-
-				-- Damage Taken Effect
-				if newHealth < oldHealth then
-					local dmg = oldHealth - newHealth
-					if damageFlashEnabled then
-						triggerDamageFlash(dmg / maxHp)
-					end
-					if damageNumbersEnabled then
-						local hrp = hum.RootPart or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?)
-						if hrp then
-							showDamageNumber(hrp.Position + Vector3.new(0, 1.5, 0), dmg, true, dmg > 35)
-						end
-					end
-				end
-			else
-				-- Damage Dealt to another player / entity
-				if newHealth < oldHealth then
-					local dmg = oldHealth - newHealth
-					updateTargetCard(ownerName, newHealth, maxHp)
-
-					if damageNumbersEnabled then
-						local hrp = hum.RootPart
-						if hrp then
-							showDamageNumber(hrp.Position + Vector3.new(0, 2, 0), dmg, false, dmg > 35)
-						end
+				if damageNumbersEnabled then
+					local hrp = hum.RootPart or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?)
+					if hrp then
+						showDamageNumber(hrp.Position + Vector3.new(0, 1.5, 0), dmg, true, dmg > 35)
 					end
 				end
 			end
@@ -478,24 +398,6 @@ function HealthWidget.new(): HealthWidgetInstance
 
 	if LocalPlayer.Character then onCharAdded(LocalPlayer.Character) end
 	table.insert(activeConns, LocalPlayer.CharacterAdded:Connect(onCharAdded))
-
-	-- Hook other players in server
-	local function hookOtherPlayer(p: Player)
-		if p == LocalPlayer then return end
-		local function onOtherChar(char: Model)
-			local hum = char:WaitForChild("Humanoid", 5) :: Humanoid?
-			if hum then
-				hookHumanoid(hum, p.DisplayName or p.Name, false)
-			end
-		end
-		if p.Character then onOtherChar(p.Character) end
-		table.insert(activeConns, p.CharacterAdded:Connect(onOtherChar))
-	end
-
-	for _, p in ipairs(Players:GetPlayers()) do
-		hookOtherPlayer(p)
-	end
-	table.insert(activeConns, Players.PlayerAdded:Connect(hookOtherPlayer))
 
 	-- ── 6. Cleanup & Export Instance ──────────────────────────────────
 	local widgetObj: HealthWidgetInstance = {

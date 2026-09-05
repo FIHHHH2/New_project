@@ -224,6 +224,7 @@ function LeaderstatsWidget.new()
 	widget.BackgroundColor3 = UI.Theme.Background
 	widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
 	widget.BorderSizePixel = 0
+	widget.Visible = false
 	widget.ClipsDescendants = false
 	widget.Parent = screenGui
 	UI.registerThemeElement(widget, "Background")
@@ -882,7 +883,7 @@ function LeaderstatsWidget.new()
 		widget.Visible = false
 	end)
 
-	local isOpen = true
+	local isOpen = false
 	local isTransitioning = false
 
 	local function openWidget(selfOrOnComplete: any, maybeOnComplete: any)

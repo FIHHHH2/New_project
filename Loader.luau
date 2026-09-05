@@ -892,10 +892,54 @@ Modules["UI/UI.luau"] = function()
     	UI.registerThemeElement(versionLabel, "TextPrimary")
 
     	-- [ Tabs Container ] in Top Bar Area (Clips & Scrolls horizontally when tabs exceed width)
+    	local scrollLeftBtn = Instance.new("TextButton")
+    	scrollLeftBtn.Name = "ScrollLeftBtn"
+    	scrollLeftBtn.Size = UDim2.new(0, 16, 1, 0)
+    	scrollLeftBtn.Position = UDim2.new(0, 64, 0, 0)
+    	scrollLeftBtn.BackgroundColor3 = UI.Theme.Container
+    	scrollLeftBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
+    	scrollLeftBtn.BorderSizePixel = 0
+    	scrollLeftBtn.Text = "<"
+    	scrollLeftBtn.TextColor3 = UI.Theme.TextSecondary
+    	scrollLeftBtn.Font = UI.Fonts.Header
+    	scrollLeftBtn.TextSize = 10
+    	scrollLeftBtn.Parent = topbar
+    	UI.registerThemeElement(scrollLeftBtn, "Container")
+    	UI.registerThemeElement(scrollLeftBtn, "TextSecondary")
+
+    	local scrollLeftStroke = Instance.new("UIStroke")
+    	scrollLeftStroke.Color = UI.Theme.Border
+    	scrollLeftStroke.Thickness = 1.0
+    	scrollLeftStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    	scrollLeftStroke.Parent = scrollLeftBtn
+    	UI.registerThemeElement(scrollLeftStroke, "Border")
+
+    	local scrollRightBtn = Instance.new("TextButton")
+    	scrollRightBtn.Name = "ScrollRightBtn"
+    	scrollRightBtn.Size = UDim2.new(0, 16, 1, 0)
+    	scrollRightBtn.Position = UDim2.new(1, -208, 0, 0)
+    	scrollRightBtn.BackgroundColor3 = UI.Theme.Container
+    	scrollRightBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
+    	scrollRightBtn.BorderSizePixel = 0
+    	scrollRightBtn.Text = ">"
+    	scrollRightBtn.TextColor3 = UI.Theme.TextSecondary
+    	scrollRightBtn.Font = UI.Fonts.Header
+    	scrollRightBtn.TextSize = 10
+    	scrollRightBtn.Parent = topbar
+    	UI.registerThemeElement(scrollRightBtn, "Container")
+    	UI.registerThemeElement(scrollRightBtn, "TextSecondary")
+
+    	local scrollRightStroke = Instance.new("UIStroke")
+    	scrollRightStroke.Color = UI.Theme.Border
+    	scrollRightStroke.Thickness = 1.0
+    	scrollRightStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    	scrollRightStroke.Parent = scrollRightBtn
+    	UI.registerThemeElement(scrollRightStroke, "Border")
+
     	local sidebar = Instance.new("ScrollingFrame")
     	sidebar.Name = "Sidebar"
-    	sidebar.Size = UDim2.new(1, -260, 1, 0)
-    	sidebar.Position = UDim2.new(0, 66, 0, 0)
+    	sidebar.Size = UDim2.new(1, -296, 1, 0)
+    	sidebar.Position = UDim2.new(0, 84, 0, 0)
     	sidebar.BackgroundTransparency = 1
     	sidebar.BorderSizePixel = 0
     	sidebar.ScrollBarThickness = 2
@@ -910,20 +954,30 @@ Modules["UI/UI.luau"] = function()
     	sidebar.Parent = topbar
     	UI.registerThemeElement(sidebar, "Accent")
 
+    	local function scrollSidebar(deltaX: number)
+    		local maxScroll = math.max(0, sidebar.AbsoluteCanvasSize.X - sidebar.AbsoluteSize.X)
+    		local newX = math.clamp(sidebar.CanvasPosition.X + deltaX, 0, maxScroll)
+    		TweenService:Create(sidebar, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    			CanvasPosition = Vector2.new(newX, 0)
+    		}):Play()
+    	end
+
+    	scrollLeftBtn.MouseButton1Click:Connect(function()
+    		scrollSidebar(-120)
+    	end)
+    	scrollRightBtn.MouseButton1Click:Connect(function()
+    		scrollSidebar(120)
+    	end)
+
     	-- Smooth horizontal wheel scrolling support for tab strip
     	sidebar.InputChanged:Connect(function(input)
     		if input.UserInputType == Enum.UserInputType.MouseWheel then
-    			local delta = -input.Position.Z * 45
-    			local maxScroll = math.max(0, sidebar.AbsoluteCanvasSize.X - sidebar.AbsoluteSize.X)
-    			local newX = math.clamp(sidebar.CanvasPosition.X + delta, 0, maxScroll)
-    			TweenService:Create(sidebar, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-    				CanvasPosition = Vector2.new(newX, 0)
-    			}):Play()
+    			scrollSidebar(-input.Position.Z * 60)
     		end
     	end)
 
     	local sideList = Instance.new("UIListLayout")
-    	sideList.Padding = UDim.new(0, 6)
+    	sideList.Padding = UDim.new(0, 5)
     	sideList.SortOrder = Enum.SortOrder.LayoutOrder
     	sideList.FillDirection = Enum.FillDirection.Horizontal
     	sideList.VerticalAlignment = Enum.VerticalAlignment.Center
@@ -9578,7 +9632,7 @@ Modules["Core/CoreUI.luau"] = function()
     function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
     	local tabButton = Instance.new("TextButton")
     	tabButton.Name = name .. "TabBtn"
-    	tabButton.Size = UDim2.new(0, 80, 1, 0)
+    	tabButton.Size = UDim2.new(0, 0, 1, -2)
     	tabButton.AutomaticSize = Enum.AutomaticSize.X
     	tabButton.Position = UDim2.new(0, 0, 0, 0)
     	tabButton.BackgroundColor3 = UI.Theme.Container
@@ -9587,8 +9641,8 @@ Modules["Core/CoreUI.luau"] = function()
     	tabButton.Text = name
     	tabButton.TextColor3 = UI.Theme.TextSecondary
     	tabButton.Font = UI.Fonts.Header
-    	tabButton.TextSize = 11
-    	tabButton.TextTruncate = Enum.TextTruncate.AtEnd
+    	tabButton.TextSize = 10
+    	tabButton.TextTruncate = Enum.TextTruncate.None
     	tabButton.ClipsDescendants = false
     	tabButton.LayoutOrder = #self.Tabs + 1
     	tabButton.Visible = not (isHiddenFromSidebar or false)
@@ -9597,9 +9651,21 @@ Modules["Core/CoreUI.luau"] = function()
     	UI.registerThemeElement(tabButton, "TextSecondary")
 
     	local tabPad = Instance.new("UIPadding")
-    	tabPad.PaddingLeft = UDim.new(0, 10)
-    	tabPad.PaddingRight = UDim.new(0, 10)
+    	tabPad.PaddingLeft = UDim.new(0, 8)
+    	tabPad.PaddingRight = UDim.new(0, 8)
     	tabPad.Parent = tabButton
+
+    	-- Forward mouse wheel scrolling from tab buttons to sidebar container
+    	tabButton.InputChanged:Connect(function(input)
+    		if input.UserInputType == Enum.UserInputType.MouseWheel and self.Sidebar then
+    			local delta = -input.Position.Z * 60
+    			local maxScroll = math.max(0, self.Sidebar.AbsoluteCanvasSize.X - self.Sidebar.AbsoluteSize.X)
+    			local newX = math.clamp(self.Sidebar.CanvasPosition.X + delta, 0, maxScroll)
+    			TweenService:Create(self.Sidebar, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    				CanvasPosition = Vector2.new(newX, 0)
+    			}):Play()
+    		end
+    	end)
 
     	-- Active tab gradient overlay
     	local tabGrad = Instance.new("UIGradient")
@@ -9704,8 +9770,8 @@ Modules["Core/CoreUI.luau"] = function()
     	end
 
     	local count = #visibleTabs
-    	local padX = if count > 7 then 5 else (if count > 4 then 7 else 10)
-    	local textSize = if count > 7 then 9 else (if count > 5 then 10 else 11)
+    	local padX = if count > 8 then 6 else (if count > 5 then 8 else 10)
+    	local textSize = if count > 8 then 10 else 11
 
     	for _, tab in ipairs(visibleTabs) do
     		local pad = tab.Button:FindFirstChildWhichIsA("UIPadding")
@@ -9719,7 +9785,7 @@ Modules["Core/CoreUI.luau"] = function()
     	if self.Sidebar then
     		local layout = self.Sidebar:FindFirstChildWhichIsA("UIListLayout")
     		if layout then
-    			layout.Padding = UDim.new(0, if count > 6 then 4 else 6)
+    			layout.Padding = UDim.new(0, if count > 6 then 4 else 5)
     		end
     	end
     end
@@ -9900,6 +9966,21 @@ Modules["Core/CoreUI.luau"] = function()
     	if parentPage:IsA("ScrollingFrame") then
     		parentPage.ScrollBarThickness = 0
     		parentPage.AutomaticCanvasSize = Enum.AutomaticSize.None
+    		parentPage.CanvasSize = UDim2.new(0, 0, 0, 0)
+    	end
+
+    	-- Crucial: Remove parentPage UIListLayout so subTabBar and subPagesContainer
+    	-- do not receive 10px list spacing that pushes subpage content off-screen!
+    	local existingLayout = parentPage:FindFirstChildWhichIsA("UIListLayout")
+    	if existingLayout then
+    		existingLayout:Destroy()
+    	end
+    	local existingPad = parentPage:FindFirstChildWhichIsA("UIPadding")
+    	if existingPad then
+    		existingPad.PaddingTop = UDim.new(0, 0)
+    		existingPad.PaddingBottom = UDim.new(0, 0)
+    		existingPad.PaddingLeft = UDim.new(0, 2)
+    		existingPad.PaddingRight = UDim.new(0, 2)
     	end
 
     	-- 1. Horizontal Sub-Tab Bar Container (LayoutOrder = 1)
@@ -9940,12 +10021,12 @@ Modules["Core/CoreUI.luau"] = function()
     	-- 2. Sub-Pages Container (LayoutOrder = 2)
     	local subPagesContainer = Instance.new("Frame")
     	subPagesContainer.Name = "SubPagesContainer"
-    	subPagesContainer.Size = UDim2.new(1, 0, 1, -28)
-    	subPagesContainer.Position = UDim2.new(0, 0, 0, 28)
+    	subPagesContainer.Size = UDim2.new(1, 0, 1, -27)
+    	subPagesContainer.Position = UDim2.new(0, 0, 0, 27)
     	subPagesContainer.BackgroundTransparency = 1
     	subPagesContainer.BorderSizePixel = 0
     	subPagesContainer.LayoutOrder = 2
-    	subPagesContainer.ClipsDescendants = true
+    	subPagesContainer.ClipsDescendants = false
     	subPagesContainer.Parent = parentPage
 
     	local subTabs = {
@@ -9962,7 +10043,7 @@ Modules["Core/CoreUI.luau"] = function()
 
     	local numTabs = #subTabNames
     	local tabWidthScale = 1 / math.max(1, numTabs)
-    	local spacingOffset = math.floor((4 * (numTabs - 1)) / numTabs)
+    	local spacingOffset = math.floor((4 * (numTabs - 1) + 6) / numTabs)
 
     	for idx, name in ipairs(subTabNames) do
     		-- Sub-Tab Button
@@ -10149,7 +10230,7 @@ Modules["Core/CoreUI.luau"] = function()
     	columnsContainer.Position = UDim2.new(0, 0, 0, 0)
     	columnsContainer.BackgroundTransparency = 1
     	columnsContainer.BorderSizePixel = 0
-    	columnsContainer.ClipsDescendants = true
+    	columnsContainer.ClipsDescendants = false
     	columnsContainer.Parent = parentPage
 
     	-- ── Left Column Card (fills 50% width and full height) ───────────
@@ -10999,14 +11080,14 @@ Modules["Core/MainUI.luau"] = function()
     	local combatTab = window:CreateTab("Combat")
     	local visualsTab = window:CreateTab("Visuals")
 
-    	-- Create Game Module Tabs (Current detected game is shown on start; all other game modules can be toggled/opened on demand)
-    	local mm2Tab = window:CreateTab("Murder Mystery 2", gameTabTitle ~= "Murder Mystery 2")
-    	local svhTab = window:CreateTab("Seeker vs Hider", gameTabTitle ~= "Seeker vs Hider")
-    	local restTab = window:CreateTab("Restaurant Tycoon", gameTabTitle ~= "Restaurant Tycoon")
-    	local luckyTab = window:CreateTab("Lucky Blocks", gameTabTitle ~= "Lucky Blocks")
-    	local iceTab = window:CreateTab("Ice Tycoon", gameTabTitle ~= "Ice Tycoon")
-    	local rnhTab = window:CreateTab("Run N Hide", gameTabTitle ~= "Run N Hide")
-    	local disTab = window:CreateTab("Natural Disaster", gameTabTitle ~= "Natural Disaster")
+    	-- Create Game Module Tabs (All game suites directly accessible in topbar tab strip)
+    	local mm2Tab = window:CreateTab("Murder Mystery 2")
+    	local svhTab = window:CreateTab("Seeker vs Hider")
+    	local restTab = window:CreateTab("Restaurant Tycoon")
+    	local luckyTab = window:CreateTab("Lucky Blocks")
+    	local iceTab = window:CreateTab("Ice Tycoon")
+    	local rnhTab = window:CreateTab("Run N Hide")
+    	local disTab = window:CreateTab("Natural Disaster")
 
     	-- Create hidden dedicated settings and configs pages
     	local settingsTab = window:CreateTab("Settings", true)
@@ -13269,7 +13350,18 @@ Modules["Core/MainUI.luau"] = function()
     		-- Left Column: Game Suite Modules (Execution / De-execution)
     		local gameModuleSection = window:AddSection(modLeftCol, "Game Suite Modules (Mount & Execute)")
 
-    		window:AddToggle(gameModuleSection, "mod_exec_svh", "Seeker vs Hider Suite", gameTabTitle == "Seeker vs Hider", nil, function(enabled)
+    		window:AddToggle(gameModuleSection, "mod_exec_mm2", "Murder Mystery 2 Suite", true, nil, function(enabled)
+    			window:SetTabVisibility(mm2Tab, enabled)
+    			if not enabled then
+    				MurderMystery2.setKillAura(false)
+    				MurderMystery2.setSilentAim(false)
+    				MurderMystery2.setQuickShot(false)
+    				MurderMystery2.setRoleESP(false)
+    				MurderMystery2.setCoinFarm(false)
+    			end
+    		end)
+
+    		window:AddToggle(gameModuleSection, "mod_exec_svh", "Seeker vs Hider Suite", true, nil, function(enabled)
     			window:SetTabVisibility(svhTab, enabled)
     			if not enabled then
     				SeekerVsHider.SilentAim = false
@@ -13279,7 +13371,7 @@ Modules["Core/MainUI.luau"] = function()
     			end
     		end)
 
-    		window:AddToggle(gameModuleSection, "mod_exec_rt", "Restaurant Tycoon 3 Suite", gameTabTitle == "Restaurant Tycoon", nil, function(enabled)
+    		window:AddToggle(gameModuleSection, "mod_exec_rt", "Restaurant Tycoon 3 Suite", true, nil, function(enabled)
     			window:SetTabVisibility(restTab, enabled)
     			if not enabled then
     				RestaurantTycoon.setAutoGrabCash(false)
@@ -13290,7 +13382,7 @@ Modules["Core/MainUI.luau"] = function()
     			end
     		end)
 
-    		window:AddToggle(gameModuleSection, "mod_exec_lucky", "Lucky Blocks Battlegrounds Suite", gameTabTitle == "Lucky Blocks", nil, function(enabled)
+    		window:AddToggle(gameModuleSection, "mod_exec_lucky", "Lucky Blocks Battlegrounds Suite", true, nil, function(enabled)
     			window:SetTabVisibility(luckyTab, enabled)
     			if not enabled then
     				LuckyBlocks.setAutoClaim(false)
@@ -13300,7 +13392,7 @@ Modules["Core/MainUI.luau"] = function()
     			end
     		end)
 
-    		window:AddToggle(gameModuleSection, "mod_exec_ice", "Ice Tycoon 2 Suite", gameTabTitle == "Ice Tycoon", nil, function(enabled)
+    		window:AddToggle(gameModuleSection, "mod_exec_ice", "Ice Tycoon 2 Suite", true, nil, function(enabled)
     			window:SetTabVisibility(iceTab, enabled)
     			if not enabled then
     				IceTycoon.setAutoCollect(false)
@@ -13312,7 +13404,7 @@ Modules["Core/MainUI.luau"] = function()
     			end
     		end)
 
-    		window:AddToggle(gameModuleSection, "mod_exec_rnh", "Run N Hide Suite", gameTabTitle == "Run N Hide", nil, function(enabled)
+    		window:AddToggle(gameModuleSection, "mod_exec_rnh", "Run N Hide Suite", true, nil, function(enabled)
     			window:SetTabVisibility(rnhTab, enabled)
     			if not enabled then
     				RunNHide.SilentGunAudio = false
@@ -13325,7 +13417,7 @@ Modules["Core/MainUI.luau"] = function()
     			end
     		end)
 
-    		window:AddToggle(gameModuleSection, "mod_exec_nds", "Natural Disaster Survival Suite", gameTabTitle == "Natural Disaster", nil, function(enabled)
+    		window:AddToggle(gameModuleSection, "mod_exec_nds", "Natural Disaster Survival Suite", true, nil, function(enabled)
     			window:SetTabVisibility(disTab, enabled)
     			if not enabled then
     				DisasterSurvival.DisasterTracker = false
@@ -13341,31 +13433,39 @@ Modules["Core/MainUI.luau"] = function()
     		local actionSection = window:AddSection(modLeftCol, "Suite Batch Operations")
 
     		window:AddButton(actionSection, "Execute All Game Modules", function()
+    			window:SetTabVisibility(mm2Tab, true)
+    			window:SetTabVisibility(svhTab, true)
     			window:SetTabVisibility(restTab, true)
     			window:SetTabVisibility(luckyTab, true)
     			window:SetTabVisibility(iceTab, true)
     			window:SetTabVisibility(rnhTab, true)
     			window:SetTabVisibility(disTab, true)
+    			FeatureManager.setFeatureState("mod_exec_mm2", true)
+    			FeatureManager.setFeatureState("mod_exec_svh", true)
     			FeatureManager.setFeatureState("mod_exec_rt", true)
     			FeatureManager.setFeatureState("mod_exec_lucky", true)
     			FeatureManager.setFeatureState("mod_exec_ice", true)
     			FeatureManager.setFeatureState("mod_exec_rnh", true)
     			FeatureManager.setFeatureState("mod_exec_nds", true)
-    			window:Notify("Modules Executed", "Mounted all 5 game suites to sidebar", 3)
+    			window:Notify("Modules Executed", "Mounted all 7 game suites to topbar", 3)
     		end)
 
     		window:AddButton(actionSection, "De-execute Inactive Games", function()
+    			window:SetTabVisibility(mm2Tab, gameTabTitle == "Murder Mystery 2")
+    			window:SetTabVisibility(svhTab, gameTabTitle == "Seeker vs Hider")
     			window:SetTabVisibility(restTab, gameTabTitle == "Restaurant Tycoon")
     			window:SetTabVisibility(luckyTab, gameTabTitle == "Lucky Blocks")
     			window:SetTabVisibility(iceTab, gameTabTitle == "Ice Tycoon")
     			window:SetTabVisibility(rnhTab, gameTabTitle == "Run N Hide")
     			window:SetTabVisibility(disTab, gameTabTitle == "Natural Disaster")
+    			FeatureManager.setFeatureState("mod_exec_mm2", gameTabTitle == "Murder Mystery 2")
+    			FeatureManager.setFeatureState("mod_exec_svh", gameTabTitle == "Seeker vs Hider")
     			FeatureManager.setFeatureState("mod_exec_rt", gameTabTitle == "Restaurant Tycoon")
     			FeatureManager.setFeatureState("mod_exec_lucky", gameTabTitle == "Lucky Blocks")
     			FeatureManager.setFeatureState("mod_exec_ice", gameTabTitle == "Ice Tycoon")
     			FeatureManager.setFeatureState("mod_exec_rnh", gameTabTitle == "Run N Hide")
     			FeatureManager.setFeatureState("mod_exec_nds", gameTabTitle == "Natural Disaster")
-    			window:Notify("Modules Cleaned", "Sidebar filtered to active game only", 3)
+    			window:Notify("Modules Cleaned", "Topbar filtered to active game only", 3)
     		end)
 
     		-- Right Column: Core Modules & Peripheral HUDs
@@ -13931,6 +14031,27 @@ Modules["Core/MainUI.luau"] = function()
     	setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab)
     	setupVisualsTab(visualsTab)
     	setupSettingsAndConfigs(settingsTab, configsTab)
+
+    	-- Auto-select active game tab on startup if recognized, otherwise Main tab
+    	task.defer(function()
+    		if gameTabTitle == "Murder Mystery 2" then
+    			window:SelectTab(mm2Tab)
+    		elseif gameTabTitle == "Seeker vs Hider" then
+    			window:SelectTab(svhTab)
+    		elseif gameTabTitle == "Restaurant Tycoon" then
+    			window:SelectTab(restTab)
+    		elseif gameTabTitle == "Lucky Blocks" then
+    			window:SelectTab(luckyTab)
+    		elseif gameTabTitle == "Ice Tycoon" then
+    			window:SelectTab(iceTab)
+    		elseif gameTabTitle == "Run N Hide" then
+    			window:SelectTab(rnhTab)
+    		elseif gameTabTitle == "Natural Disaster" then
+    			window:SelectTab(disTab)
+    		else
+    			window:SelectTab(mainTab)
+    		end
+    	end)
 
     	-- Register global cleanup function for hot-reload and multi-execution safety
     	_G.__ModularSuite_Cleanup = function()

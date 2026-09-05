@@ -470,10 +470,54 @@ function UI.createWindow(titleText: string)
 	UI.registerThemeElement(versionLabel, "TextPrimary")
 
 	-- [ Tabs Container ] in Top Bar Area (Clips & Scrolls horizontally when tabs exceed width)
+	local scrollLeftBtn = Instance.new("TextButton")
+	scrollLeftBtn.Name = "ScrollLeftBtn"
+	scrollLeftBtn.Size = UDim2.new(0, 16, 1, 0)
+	scrollLeftBtn.Position = UDim2.new(0, 64, 0, 0)
+	scrollLeftBtn.BackgroundColor3 = UI.Theme.Container
+	scrollLeftBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
+	scrollLeftBtn.BorderSizePixel = 0
+	scrollLeftBtn.Text = "<"
+	scrollLeftBtn.TextColor3 = UI.Theme.TextSecondary
+	scrollLeftBtn.Font = UI.Fonts.Header
+	scrollLeftBtn.TextSize = 10
+	scrollLeftBtn.Parent = topbar
+	UI.registerThemeElement(scrollLeftBtn, "Container")
+	UI.registerThemeElement(scrollLeftBtn, "TextSecondary")
+
+	local scrollLeftStroke = Instance.new("UIStroke")
+	scrollLeftStroke.Color = UI.Theme.Border
+	scrollLeftStroke.Thickness = 1.0
+	scrollLeftStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	scrollLeftStroke.Parent = scrollLeftBtn
+	UI.registerThemeElement(scrollLeftStroke, "Border")
+
+	local scrollRightBtn = Instance.new("TextButton")
+	scrollRightBtn.Name = "ScrollRightBtn"
+	scrollRightBtn.Size = UDim2.new(0, 16, 1, 0)
+	scrollRightBtn.Position = UDim2.new(1, -208, 0, 0)
+	scrollRightBtn.BackgroundColor3 = UI.Theme.Container
+	scrollRightBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
+	scrollRightBtn.BorderSizePixel = 0
+	scrollRightBtn.Text = ">"
+	scrollRightBtn.TextColor3 = UI.Theme.TextSecondary
+	scrollRightBtn.Font = UI.Fonts.Header
+	scrollRightBtn.TextSize = 10
+	scrollRightBtn.Parent = topbar
+	UI.registerThemeElement(scrollRightBtn, "Container")
+	UI.registerThemeElement(scrollRightBtn, "TextSecondary")
+
+	local scrollRightStroke = Instance.new("UIStroke")
+	scrollRightStroke.Color = UI.Theme.Border
+	scrollRightStroke.Thickness = 1.0
+	scrollRightStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	scrollRightStroke.Parent = scrollRightBtn
+	UI.registerThemeElement(scrollRightStroke, "Border")
+
 	local sidebar = Instance.new("ScrollingFrame")
 	sidebar.Name = "Sidebar"
-	sidebar.Size = UDim2.new(1, -260, 1, 0)
-	sidebar.Position = UDim2.new(0, 66, 0, 0)
+	sidebar.Size = UDim2.new(1, -296, 1, 0)
+	sidebar.Position = UDim2.new(0, 84, 0, 0)
 	sidebar.BackgroundTransparency = 1
 	sidebar.BorderSizePixel = 0
 	sidebar.ScrollBarThickness = 2
@@ -488,20 +532,30 @@ function UI.createWindow(titleText: string)
 	sidebar.Parent = topbar
 	UI.registerThemeElement(sidebar, "Accent")
 
+	local function scrollSidebar(deltaX: number)
+		local maxScroll = math.max(0, sidebar.AbsoluteCanvasSize.X - sidebar.AbsoluteSize.X)
+		local newX = math.clamp(sidebar.CanvasPosition.X + deltaX, 0, maxScroll)
+		TweenService:Create(sidebar, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			CanvasPosition = Vector2.new(newX, 0)
+		}):Play()
+	end
+
+	scrollLeftBtn.MouseButton1Click:Connect(function()
+		scrollSidebar(-120)
+	end)
+	scrollRightBtn.MouseButton1Click:Connect(function()
+		scrollSidebar(120)
+	end)
+
 	-- Smooth horizontal wheel scrolling support for tab strip
 	sidebar.InputChanged:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseWheel then
-			local delta = -input.Position.Z * 45
-			local maxScroll = math.max(0, sidebar.AbsoluteCanvasSize.X - sidebar.AbsoluteSize.X)
-			local newX = math.clamp(sidebar.CanvasPosition.X + delta, 0, maxScroll)
-			TweenService:Create(sidebar, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				CanvasPosition = Vector2.new(newX, 0)
-			}):Play()
+			scrollSidebar(-input.Position.Z * 60)
 		end
 	end)
 
 	local sideList = Instance.new("UIListLayout")
-	sideList.Padding = UDim.new(0, 6)
+	sideList.Padding = UDim.new(0, 5)
 	sideList.SortOrder = Enum.SortOrder.LayoutOrder
 	sideList.FillDirection = Enum.FillDirection.Horizontal
 	sideList.VerticalAlignment = Enum.VerticalAlignment.Center

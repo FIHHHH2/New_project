@@ -214,7 +214,7 @@ end
 function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 	local tabButton = Instance.new("TextButton")
 	tabButton.Name = name .. "TabBtn"
-	tabButton.Size = UDim2.new(0, 80, 1, 0)
+	tabButton.Size = UDim2.new(0, 0, 1, -2)
 	tabButton.AutomaticSize = Enum.AutomaticSize.X
 	tabButton.Position = UDim2.new(0, 0, 0, 0)
 	tabButton.BackgroundColor3 = UI.Theme.Container
@@ -223,8 +223,8 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 	tabButton.Text = name
 	tabButton.TextColor3 = UI.Theme.TextSecondary
 	tabButton.Font = UI.Fonts.Header
-	tabButton.TextSize = 11
-	tabButton.TextTruncate = Enum.TextTruncate.AtEnd
+	tabButton.TextSize = 10
+	tabButton.TextTruncate = Enum.TextTruncate.None
 	tabButton.ClipsDescendants = false
 	tabButton.LayoutOrder = #self.Tabs + 1
 	tabButton.Visible = not (isHiddenFromSidebar or false)
@@ -233,9 +233,21 @@ function CoreUI:CreateTab(name: string, isHiddenFromSidebar: boolean?)
 	UI.registerThemeElement(tabButton, "TextSecondary")
 
 	local tabPad = Instance.new("UIPadding")
-	tabPad.PaddingLeft = UDim.new(0, 10)
-	tabPad.PaddingRight = UDim.new(0, 10)
+	tabPad.PaddingLeft = UDim.new(0, 8)
+	tabPad.PaddingRight = UDim.new(0, 8)
 	tabPad.Parent = tabButton
+
+	-- Forward mouse wheel scrolling from tab buttons to sidebar container
+	tabButton.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseWheel and self.Sidebar then
+			local delta = -input.Position.Z * 60
+			local maxScroll = math.max(0, self.Sidebar.AbsoluteCanvasSize.X - self.Sidebar.AbsoluteSize.X)
+			local newX = math.clamp(self.Sidebar.CanvasPosition.X + delta, 0, maxScroll)
+			TweenService:Create(self.Sidebar, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				CanvasPosition = Vector2.new(newX, 0)
+			}):Play()
+		end
+	end)
 	
 	-- Active tab gradient overlay
 	local tabGrad = Instance.new("UIGradient")
@@ -340,8 +352,8 @@ function CoreUI:_UpdateTabSizing()
 	end
 
 	local count = #visibleTabs
-	local padX = if count > 7 then 5 else (if count > 4 then 7 else 10)
-	local textSize = if count > 7 then 9 else (if count > 5 then 10 else 11)
+	local padX = if count > 8 then 6 else (if count > 5 then 8 else 10)
+	local textSize = if count > 8 then 10 else 11
 
 	for _, tab in ipairs(visibleTabs) do
 		local pad = tab.Button:FindFirstChildWhichIsA("UIPadding")
@@ -355,7 +367,7 @@ function CoreUI:_UpdateTabSizing()
 	if self.Sidebar then
 		local layout = self.Sidebar:FindFirstChildWhichIsA("UIListLayout")
 		if layout then
-			layout.Padding = UDim.new(0, if count > 6 then 4 else 6)
+			layout.Padding = UDim.new(0, if count > 6 then 4 else 5)
 		end
 	end
 end
@@ -536,6 +548,21 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 	if parentPage:IsA("ScrollingFrame") then
 		parentPage.ScrollBarThickness = 0
 		parentPage.AutomaticCanvasSize = Enum.AutomaticSize.None
+		parentPage.CanvasSize = UDim2.new(0, 0, 0, 0)
+	end
+
+	-- Crucial: Remove parentPage UIListLayout so subTabBar and subPagesContainer
+	-- do not receive 10px list spacing that pushes subpage content off-screen!
+	local existingLayout = parentPage:FindFirstChildWhichIsA("UIListLayout")
+	if existingLayout then
+		existingLayout:Destroy()
+	end
+	local existingPad = parentPage:FindFirstChildWhichIsA("UIPadding")
+	if existingPad then
+		existingPad.PaddingTop = UDim.new(0, 0)
+		existingPad.PaddingBottom = UDim.new(0, 0)
+		existingPad.PaddingLeft = UDim.new(0, 2)
+		existingPad.PaddingRight = UDim.new(0, 2)
 	end
 
 	-- 1. Horizontal Sub-Tab Bar Container (LayoutOrder = 1)
@@ -576,12 +603,12 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 	-- 2. Sub-Pages Container (LayoutOrder = 2)
 	local subPagesContainer = Instance.new("Frame")
 	subPagesContainer.Name = "SubPagesContainer"
-	subPagesContainer.Size = UDim2.new(1, 0, 1, -28)
-	subPagesContainer.Position = UDim2.new(0, 0, 0, 28)
+	subPagesContainer.Size = UDim2.new(1, 0, 1, -27)
+	subPagesContainer.Position = UDim2.new(0, 0, 0, 27)
 	subPagesContainer.BackgroundTransparency = 1
 	subPagesContainer.BorderSizePixel = 0
 	subPagesContainer.LayoutOrder = 2
-	subPagesContainer.ClipsDescendants = true
+	subPagesContainer.ClipsDescendants = false
 	subPagesContainer.Parent = parentPage
 
 	local subTabs = {
@@ -598,7 +625,7 @@ function CoreUI:CreateSubTabs(parentTab: any, subTabNames: {string})
 
 	local numTabs = #subTabNames
 	local tabWidthScale = 1 / math.max(1, numTabs)
-	local spacingOffset = math.floor((4 * (numTabs - 1)) / numTabs)
+	local spacingOffset = math.floor((4 * (numTabs - 1) + 6) / numTabs)
 
 	for idx, name in ipairs(subTabNames) do
 		-- Sub-Tab Button
@@ -785,7 +812,7 @@ function CoreUI:CreateColumns(tabObj: any, leftTitle: string?, rightTitle: strin
 	columnsContainer.Position = UDim2.new(0, 0, 0, 0)
 	columnsContainer.BackgroundTransparency = 1
 	columnsContainer.BorderSizePixel = 0
-	columnsContainer.ClipsDescendants = true
+	columnsContainer.ClipsDescendants = false
 	columnsContainer.Parent = parentPage
 
 	-- ── Left Column Card (fills 50% width and full height) ───────────

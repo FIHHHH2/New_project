@@ -74,14 +74,14 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	local combatTab = window:CreateTab("Combat")
 	local visualsTab = window:CreateTab("Visuals")
 
-	-- Create Game Module Tabs (Current detected game is shown on start; all other game modules can be toggled/opened on demand)
-	local mm2Tab = window:CreateTab("Murder Mystery 2", gameTabTitle ~= "Murder Mystery 2")
-	local svhTab = window:CreateTab("Seeker vs Hider", gameTabTitle ~= "Seeker vs Hider")
-	local restTab = window:CreateTab("Restaurant Tycoon", gameTabTitle ~= "Restaurant Tycoon")
-	local luckyTab = window:CreateTab("Lucky Blocks", gameTabTitle ~= "Lucky Blocks")
-	local iceTab = window:CreateTab("Ice Tycoon", gameTabTitle ~= "Ice Tycoon")
-	local rnhTab = window:CreateTab("Run N Hide", gameTabTitle ~= "Run N Hide")
-	local disTab = window:CreateTab("Natural Disaster", gameTabTitle ~= "Natural Disaster")
+	-- Create Game Module Tabs (All game suites directly accessible in topbar tab strip)
+	local mm2Tab = window:CreateTab("Murder Mystery 2")
+	local svhTab = window:CreateTab("Seeker vs Hider")
+	local restTab = window:CreateTab("Restaurant Tycoon")
+	local luckyTab = window:CreateTab("Lucky Blocks")
+	local iceTab = window:CreateTab("Ice Tycoon")
+	local rnhTab = window:CreateTab("Run N Hide")
+	local disTab = window:CreateTab("Natural Disaster")
 
 	-- Create hidden dedicated settings and configs pages
 	local settingsTab = window:CreateTab("Settings", true)
@@ -2344,7 +2344,18 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		-- Left Column: Game Suite Modules (Execution / De-execution)
 		local gameModuleSection = window:AddSection(modLeftCol, "Game Suite Modules (Mount & Execute)")
 
-		window:AddToggle(gameModuleSection, "mod_exec_svh", "Seeker vs Hider Suite", gameTabTitle == "Seeker vs Hider", nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_mm2", "Murder Mystery 2 Suite", true, nil, function(enabled)
+			window:SetTabVisibility(mm2Tab, enabled)
+			if not enabled then
+				MurderMystery2.setKillAura(false)
+				MurderMystery2.setSilentAim(false)
+				MurderMystery2.setQuickShot(false)
+				MurderMystery2.setRoleESP(false)
+				MurderMystery2.setCoinFarm(false)
+			end
+		end)
+
+		window:AddToggle(gameModuleSection, "mod_exec_svh", "Seeker vs Hider Suite", true, nil, function(enabled)
 			window:SetTabVisibility(svhTab, enabled)
 			if not enabled then
 				SeekerVsHider.SilentAim = false
@@ -2354,7 +2365,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		window:AddToggle(gameModuleSection, "mod_exec_rt", "Restaurant Tycoon 3 Suite", gameTabTitle == "Restaurant Tycoon", nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_rt", "Restaurant Tycoon 3 Suite", true, nil, function(enabled)
 			window:SetTabVisibility(restTab, enabled)
 			if not enabled then
 				RestaurantTycoon.setAutoGrabCash(false)
@@ -2365,7 +2376,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		window:AddToggle(gameModuleSection, "mod_exec_lucky", "Lucky Blocks Battlegrounds Suite", gameTabTitle == "Lucky Blocks", nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_lucky", "Lucky Blocks Battlegrounds Suite", true, nil, function(enabled)
 			window:SetTabVisibility(luckyTab, enabled)
 			if not enabled then
 				LuckyBlocks.setAutoClaim(false)
@@ -2375,7 +2386,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		window:AddToggle(gameModuleSection, "mod_exec_ice", "Ice Tycoon 2 Suite", gameTabTitle == "Ice Tycoon", nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_ice", "Ice Tycoon 2 Suite", true, nil, function(enabled)
 			window:SetTabVisibility(iceTab, enabled)
 			if not enabled then
 				IceTycoon.setAutoCollect(false)
@@ -2387,7 +2398,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		window:AddToggle(gameModuleSection, "mod_exec_rnh", "Run N Hide Suite", gameTabTitle == "Run N Hide", nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_rnh", "Run N Hide Suite", true, nil, function(enabled)
 			window:SetTabVisibility(rnhTab, enabled)
 			if not enabled then
 				RunNHide.SilentGunAudio = false
@@ -2400,7 +2411,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		window:AddToggle(gameModuleSection, "mod_exec_nds", "Natural Disaster Survival Suite", gameTabTitle == "Natural Disaster", nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_nds", "Natural Disaster Survival Suite", true, nil, function(enabled)
 			window:SetTabVisibility(disTab, enabled)
 			if not enabled then
 				DisasterSurvival.DisasterTracker = false
@@ -2416,31 +2427,39 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		local actionSection = window:AddSection(modLeftCol, "Suite Batch Operations")
 
 		window:AddButton(actionSection, "Execute All Game Modules", function()
+			window:SetTabVisibility(mm2Tab, true)
+			window:SetTabVisibility(svhTab, true)
 			window:SetTabVisibility(restTab, true)
 			window:SetTabVisibility(luckyTab, true)
 			window:SetTabVisibility(iceTab, true)
 			window:SetTabVisibility(rnhTab, true)
 			window:SetTabVisibility(disTab, true)
+			FeatureManager.setFeatureState("mod_exec_mm2", true)
+			FeatureManager.setFeatureState("mod_exec_svh", true)
 			FeatureManager.setFeatureState("mod_exec_rt", true)
 			FeatureManager.setFeatureState("mod_exec_lucky", true)
 			FeatureManager.setFeatureState("mod_exec_ice", true)
 			FeatureManager.setFeatureState("mod_exec_rnh", true)
 			FeatureManager.setFeatureState("mod_exec_nds", true)
-			window:Notify("Modules Executed", "Mounted all 5 game suites to sidebar", 3)
+			window:Notify("Modules Executed", "Mounted all 7 game suites to topbar", 3)
 		end)
 
 		window:AddButton(actionSection, "De-execute Inactive Games", function()
+			window:SetTabVisibility(mm2Tab, gameTabTitle == "Murder Mystery 2")
+			window:SetTabVisibility(svhTab, gameTabTitle == "Seeker vs Hider")
 			window:SetTabVisibility(restTab, gameTabTitle == "Restaurant Tycoon")
 			window:SetTabVisibility(luckyTab, gameTabTitle == "Lucky Blocks")
 			window:SetTabVisibility(iceTab, gameTabTitle == "Ice Tycoon")
 			window:SetTabVisibility(rnhTab, gameTabTitle == "Run N Hide")
 			window:SetTabVisibility(disTab, gameTabTitle == "Natural Disaster")
+			FeatureManager.setFeatureState("mod_exec_mm2", gameTabTitle == "Murder Mystery 2")
+			FeatureManager.setFeatureState("mod_exec_svh", gameTabTitle == "Seeker vs Hider")
 			FeatureManager.setFeatureState("mod_exec_rt", gameTabTitle == "Restaurant Tycoon")
 			FeatureManager.setFeatureState("mod_exec_lucky", gameTabTitle == "Lucky Blocks")
 			FeatureManager.setFeatureState("mod_exec_ice", gameTabTitle == "Ice Tycoon")
 			FeatureManager.setFeatureState("mod_exec_rnh", gameTabTitle == "Run N Hide")
 			FeatureManager.setFeatureState("mod_exec_nds", gameTabTitle == "Natural Disaster")
-			window:Notify("Modules Cleaned", "Sidebar filtered to active game only", 3)
+			window:Notify("Modules Cleaned", "Topbar filtered to active game only", 3)
 		end)
 
 		-- Right Column: Core Modules & Peripheral HUDs
@@ -3006,6 +3025,27 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab)
 	setupVisualsTab(visualsTab)
 	setupSettingsAndConfigs(settingsTab, configsTab)
+
+	-- Auto-select active game tab on startup if recognized, otherwise Main tab
+	task.defer(function()
+		if gameTabTitle == "Murder Mystery 2" then
+			window:SelectTab(mm2Tab)
+		elseif gameTabTitle == "Seeker vs Hider" then
+			window:SelectTab(svhTab)
+		elseif gameTabTitle == "Restaurant Tycoon" then
+			window:SelectTab(restTab)
+		elseif gameTabTitle == "Lucky Blocks" then
+			window:SelectTab(luckyTab)
+		elseif gameTabTitle == "Ice Tycoon" then
+			window:SelectTab(iceTab)
+		elseif gameTabTitle == "Run N Hide" then
+			window:SelectTab(rnhTab)
+		elseif gameTabTitle == "Natural Disaster" then
+			window:SelectTab(disTab)
+		else
+			window:SelectTab(mainTab)
+		end
+	end)
 
 	-- Register global cleanup function for hot-reload and multi-execution safety
 	_G.__ModularSuite_Cleanup = function()

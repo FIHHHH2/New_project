@@ -480,6 +480,18 @@ function CoreUI:SelectTab(tabObj)
 		Position = UDim2.new(0, 0, 0, 0)
 	}):Play()
 
+	-- Ensure any sub-tab groups hosted on this page display their active sub-tab page
+	if self.SubTabGroups then
+		for _, subGroup in ipairs(self.SubTabGroups) do
+			if subGroup.Container and subGroup.Container.Parent == tabObj.Page then
+				if subGroup.ActiveSubTab and subGroup.ActiveSubTab.Page then
+					subGroup.ActiveSubTab.Page.Visible = true
+					subGroup.ActiveSubTab.Page.Position = UDim2.new(0, 0, 0, 0)
+				end
+			end
+		end
+	end
+
 	-- 3. Highlight Tab Button if present
 	if tabObj.Button and tabObj.Stroke then
 		tabObj.Button.BackgroundColor3 = UI.Theme.Accent

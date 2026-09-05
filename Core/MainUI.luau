@@ -358,60 +358,118 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		end)
 
 		local universalAntiFlingConn: RBXScriptConnection? = nil
+		local universalAntiFlingHeartbeatConn: RBXScriptConnection? = nil
 		local isUniversalAntiFlingAnchoring = false
-		local lastUniversalAntiFlingPass = 0
+		local heavyPhysicalProps = PhysicalProperties.new(100, 1.0, 0, 100, 100)
 
-		window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Impulse Absorption & No-Collide)", false, nil, function(enabled)
+		local function applyUniversalHeavyProps(char: Model, enable: boolean)
+			for _, part in ipairs(char:GetDescendants()) do
+				if part:IsA("BasePart") then
+					pcall(function()
+						if enable then
+							part.CustomPhysicalProperties = heavyPhysicalProps
+						else
+							part.CustomPhysicalProperties = nil
+						end
+					end)
+				end
+			end
+		end
+
+		window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Inertia Hardening & Impulse Nullification)", false, nil, function(enabled)
 			if enabled then
+				local char = localPlayer.Character
+				if char then applyUniversalHeavyProps(char, true) end
+
+				if char then
+					local hum = char:FindFirstChildOfClass("Humanoid")
+					if hum then
+						pcall(function()
+							hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+							hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+							hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
+						end)
+					end
+				end
+
+				-- Pre-physics Stepped pass
 				universalAntiFlingConn = RunService.Stepped:Connect(function()
-					local char = localPlayer.Character
-					local hrp  = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-					local hum  = char and char:FindFirstChildOfClass("Humanoid")
-					if not (char and hrp and hum and hum.Health > 0) then return end
-					if hum.Sit then return end
+					local curChar = localPlayer.Character
+					local hrp  = curChar and curChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+					local hum  = curChar and curChar:FindFirstChildOfClass("Humanoid")
+					if not (curChar and hrp and hum and hum.Health > 0) then return end
 
-					local linVel    = hrp.AssemblyLinearVelocity
-					local angVel    = hrp.AssemblyAngularVelocity
-					local flingOn   = isFlingModeActive
+					local flingOn = isFlingModeActive
 
-					-- 1. No-collide all other players' parts (throttled to 2Hz to prevent frame drops)
-					local now = os.clock()
-					if not flingOn and (now - lastUniversalAntiFlingPass > 0.5) then
-						lastUniversalAntiFlingPass = now
+					if not flingOn then
+						if hum.Sit then hum.Sit = false end
+						local state = hum:GetState()
+						if state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.FallingDown then
+							hum:ChangeState(Enum.HumanoidStateType.Running)
+						end
+					end
+
+					local linVel = hrp.AssemblyLinearVelocity
+					local angVel = hrp.AssemblyAngularVelocity
+
+					if not flingOn and angVel.Magnitude > 15 then
+						hrp.AssemblyAngularVelocity = Vector3.zero
+					end
+
+					local horizSpeed = math.sqrt(linVel.X * linVel.X + linVel.Z * linVel.Z)
+					if not flingOn and horizSpeed > 60 then
+						hrp.AssemblyLinearVelocity = Vector3.new(
+							math.clamp(linVel.X, -28, 28),
+							linVel.Y,
+							math.clamp(linVel.Z, -28, 28)
+						)
+					end
+
+					-- Proximity defuser for high-torque flingers nearby (within 15 studs)
+					if not flingOn then
+						local myPos = hrp.Position
 						for _, plr in ipairs(Players:GetPlayers()) do
 							if plr ~= localPlayer and plr.Character then
-								for _, part in ipairs(plr.Character:GetChildren()) do
-									if part:IsA("BasePart") and part.CanCollide then
-										part.CanCollide = false
+								local oppHrp = plr.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+								if oppHrp and (oppHrp.Position - myPos).Magnitude < 15 then
+									for _, p in ipairs(plr.Character:GetChildren()) do
+										if p:IsA("BasePart") and (p.AssemblyAngularVelocity.Magnitude > 30 or p.AssemblyLinearVelocity.Magnitude > 80) then
+											pcall(function()
+												p.AssemblyAngularVelocity = Vector3.zero
+												p.AssemblyLinearVelocity = Vector3.zero
+											end)
+										end
 									end
 								end
 							end
 						end
-						for _, part in ipairs(char:GetChildren()) do
-							if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.CanCollide then
-								part.CanCollide = false
-							end
-						end
 					end
+				end)
 
-					-- 2. Detect true fling spikes (horizontal speed > 120, vertical launch > 150 or < -300, or angular > 60)
+				-- Post-physics Heartbeat pass
+				universalAntiFlingHeartbeatConn = RunService.Heartbeat:Connect(function()
+					local curChar = localPlayer.Character
+					local hrp  = curChar and curChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+					local hum  = curChar and curChar:FindFirstChildOfClass("Humanoid")
+					if not (curChar and hrp and hum and hum.Health > 0) then return end
+
+					local flingOn = isFlingModeActive
+					if flingOn then return end
+
+					local linVel = hrp.AssemblyLinearVelocity
+					local angVel = hrp.AssemblyAngularVelocity
 					local horizSpeed = math.sqrt(linVel.X * linVel.X + linVel.Z * linVel.Z)
-					local isLinSpike = (horizSpeed > 120) or (linVel.Y > 150) or (linVel.Y < -300) or (linVel.Magnitude > 220)
-					local isAngSpike = if flingOn then false else (angVel.Magnitude > 60)
 
-					if isLinSpike or isAngSpike then
-						-- Absorb velocity in place: clamp to safe walking/falling bounds without snapping CFrame
+					local isSpike = (horizSpeed > 65) or (linVel.Y > 85) or (linVel.Y < -150) or (linVel.Magnitude > 100) or (angVel.Magnitude > 25)
+					if isSpike then
 						hrp.AssemblyLinearVelocity = Vector3.new(
 							math.clamp(linVel.X, -25, 25),
-							math.clamp(linVel.Y, -45, 35),
+							math.clamp(linVel.Y, -45, 30),
 							math.clamp(linVel.Z, -25, 25)
 						)
-						if not flingOn then
-							hrp.AssemblyAngularVelocity = Vector3.zero
-						end
+						hrp.AssemblyAngularVelocity = Vector3.zero
 
-						-- Single-frame anchor resets all accumulated momentum inside the physics solver (skip if fling mode is active)
-						if not flingOn and not isUniversalAntiFlingAnchoring then
+						if not isUniversalAntiFlingAnchoring then
 							isUniversalAntiFlingAnchoring = true
 							task.spawn(function()
 								if hrp and hrp.Parent then
@@ -426,16 +484,25 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 						end
 					end
 				end)
-			elseif universalAntiFlingConn then
-				universalAntiFlingConn:Disconnect()
-				universalAntiFlingConn = nil
-				-- Restore local character limb collisions
+			else
+				if universalAntiFlingConn then
+					universalAntiFlingConn:Disconnect()
+					universalAntiFlingConn = nil
+				end
+				if universalAntiFlingHeartbeatConn then
+					universalAntiFlingHeartbeatConn:Disconnect()
+					universalAntiFlingHeartbeatConn = nil
+				end
 				local char = localPlayer.Character
 				if char then
-					for _, part in ipairs(char:GetChildren()) do
-						if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-							part.CanCollide = true
-						end
+					applyUniversalHeavyProps(char, false)
+					local hum = char:FindFirstChildOfClass("Humanoid")
+					if hum then
+						pcall(function()
+							hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+							hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+							hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, true)
+						end)
 					end
 				end
 			end

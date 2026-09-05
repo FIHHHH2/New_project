@@ -735,7 +735,23 @@ function Hotbar.new(): HotbarWidget
 	end
 
 	-- Auto-compact assigned slots to shift items up so no gaps exist (1, 2, 3, 4 contiguous)
-	local function compa	-- ── 5. Full Hotbar Viewport Render Function (Only Runs on Inventory Change) ──
+	local function compactSlots()
+		local packed: {string} = {}
+		for i = 1, NUM_SLOTS do
+			local name = assignedSlotNames[i]
+			if name and name ~= "" and #getItemStack(name) > 0 then
+				table.insert(packed, name)
+			end
+			assignedSlotNames[i] = nil
+		end
+		for i, name in ipairs(packed) do
+			if i <= NUM_SLOTS then
+				assignedSlotNames[i] = name
+			end
+		end
+	end
+
+	-- ── 5. Full Hotbar Viewport Render Function (Only Runs on Inventory Change) ──
 	local function updateHotbarVisuals()
 		local uniqueNames = getUniqueInventoryNames()
 		local validNameSet: {[string]: boolean} = {}

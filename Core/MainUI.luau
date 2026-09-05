@@ -349,82 +349,80 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		end)
 
 		local universalAntiFlingConn: RBXScriptConnection? = nil
-		local otherPlayerPartsTracker: {[Player]: {BasePart}} = {}
+		local isUniversalAntiFlingAnchoring = false
 
-		local function trackOtherPlayerParts(plr: Player)
-			if plr == localPlayer then return end
-			local function onChar(char: Model)
-				local parts: {BasePart} = {}
-				for _, p in ipairs(char:GetDescendants()) do
-					if p:IsA("BasePart") then table.insert(parts, p) end
-				end
-				char.DescendantAdded:Connect(function(p)
-					if p:IsA("BasePart") then table.insert(parts, p) end
-				end)
-				otherPlayerPartsTracker[plr] = parts
-			end
-			if plr.Character then onChar(plr.Character) end
-			plr.CharacterAdded:Connect(onChar)
-		end
-
-		for _, plr in ipairs(Players:GetPlayers()) do trackOtherPlayerParts(plr) end
-		Players.PlayerAdded:Connect(trackOtherPlayerParts)
-		Players.PlayerRemoving:Connect(function(plr)
-			otherPlayerPartsTracker[plr] = nil
-		end)
-
-		window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (NDS CFrame Safe Anchor & No-Collide)", false, nil, function(enabled)
+		window:AddToggle(charPhysSection, "universal_anti_fling", "Anti-Fling (Impulse Absorption & No-Collide)", false, nil, function(enabled)
 			if enabled then
-				local lastSafeCF: CFrame? = nil
-				local lastSafeTime = 0
-
 				universalAntiFlingConn = RunService.Stepped:Connect(function()
 					local char = localPlayer.Character
 					local hrp  = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-					if not hrp then return end
+					local hum  = char and char:FindFirstChildOfClass("Humanoid")
+					if not (char and hrp and hum and hum.Health > 0) then return end
+					if hum.Sit then return end
 
 					local linVel    = hrp.AssemblyLinearVelocity
 					local angVel    = hrp.AssemblyAngularVelocity
-					local now       = tick()
 					local flingOn   = isFlingModeActive
 
-					-- Angular threshold: ignored when Walk Fling owns angular velocity
-					local angSpike  = if flingOn then false else (angVel.Magnitude > 10)
-					local linSpike  = linVel.Magnitude > 60
-
-					-- Record safe position when velocity is normal
-					if not linSpike and not angSpike then
-						if now - lastSafeTime > 0.25 then
-							lastSafeCF   = hrp.CFrame
-							lastSafeTime = now
+					-- 1. No-collide all other players' parts so they cannot transfer physics momentum
+					if not flingOn then
+						for _, plr in ipairs(Players:GetPlayers()) do
+							if plr ~= localPlayer and plr.Character then
+								for _, part in ipairs(plr.Character:GetDescendants()) do
+									if part:IsA("BasePart") and part.CanCollide then
+										part.CanCollide = false
+									end
+								end
+							end
 						end
-					elseif linSpike then
-						-- Snap + zero on linear spikes without fighting fling angular torque
-						if lastSafeCF then hrp.CFrame = lastSafeCF end
-						hrp.AssemblyLinearVelocity = Vector3.zero
-						if not flingOn then
-							hrp.AssemblyAngularVelocity = Vector3.zero
+						-- Also disable collision on local limbs (excluding HumanoidRootPart)
+						for _, part in ipairs(char:GetChildren()) do
+							if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.CanCollide then
+								part.CanCollide = false
+							end
 						end
 					end
 
-					-- Disable other player collision only when fling is OFF
-					-- When fling is ON, collisions must stay enabled so walking into players flings them
-					if not flingOn then
-						for _, parts in pairs(otherPlayerPartsTracker) do
-							for _, part in ipairs(parts) do
-								if part and part.Parent then
-									part.CanCollide = false
+					-- 2. Detect true fling spikes (horizontal speed > 120, vertical launch > 150 or < -300, or angular > 60)
+					local horizSpeed = math.sqrt(linVel.X * linVel.X + linVel.Z * linVel.Z)
+					local isLinSpike = (horizSpeed > 120) or (linVel.Y > 150) or (linVel.Y < -300) or (linVel.Magnitude > 220)
+					local isAngSpike = if flingOn then false else (angVel.Magnitude > 60)
+
+					if isLinSpike or isAngSpike then
+						-- Absorb velocity in place: clamp to safe walking/falling bounds without snapping CFrame
+						hrp.AssemblyLinearVelocity = Vector3.new(
+							math.clamp(linVel.X, -25, 25),
+							math.clamp(linVel.Y, -45, 35),
+							math.clamp(linVel.Z, -25, 25)
+						)
+						if not flingOn then
+							hrp.AssemblyAngularVelocity = Vector3.zero
+						end
+
+						-- Single-frame anchor resets all accumulated momentum inside the physics solver
+						if not isUniversalAntiFlingAnchoring then
+							isUniversalAntiFlingAnchoring = true
+							task.spawn(function()
+								if hrp and hrp.Parent then
+									hrp.Anchored = true
+									RunService.Heartbeat:Wait()
+									if hrp and hrp.Parent then
+										hrp.Anchored = false
+									end
 								end
-							end
+								isUniversalAntiFlingAnchoring = false
+							end)
 						end
 					end
 				end)
 			elseif universalAntiFlingConn then
 				universalAntiFlingConn:Disconnect()
 				universalAntiFlingConn = nil
-				for _, parts in pairs(otherPlayerPartsTracker) do
-					for _, part in ipairs(parts) do
-						if part and part.Parent and part.Name ~= "HumanoidRootPart" then
+				-- Restore local character limb collisions
+				local char = localPlayer.Character
+				if char then
+					for _, part in ipairs(char:GetChildren()) do
+						if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
 							part.CanCollide = true
 						end
 					end

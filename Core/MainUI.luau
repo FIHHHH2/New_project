@@ -32,6 +32,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	local LuckyBlocks      = require("Modules/LuckyBlocks.luau")
 	local RestaurantTycoon = require("Modules/RestaurantTycoon.luau")
 	local SeekerVsHider    = require("Modules/SeekerVsHider.luau")
+	local MurderMystery2   = require("Modules/MurderMystery2.luau")
 	local PlayerUtilities  = require("Modules/PlayerUtilities.luau")
 	local Notification     = require("UI/Notification.luau")
 	local MusicTracker     = require("UI/MusicTracker.luau")
@@ -49,7 +50,9 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		if placeId == 189707 or string.find(gameName, "disaster") or workspace:FindFirstChild("Structure") or game:GetService("ReplicatedStorage"):FindFirstChild("DisasterStatus") or (localPlayer and localPlayer:FindFirstChild("SurvivalTag")) then
+		if placeId == 142823291 or string.find(gameName, "murder mystery") or string.find(gameName, "mm2") or (workspace:FindFirstChild("Normal") and workspace.Normal:FindFirstChild("CoinContainer")) then
+			return "Murder Mystery 2"
+		elseif placeId == 189707 or string.find(gameName, "disaster") or workspace:FindFirstChild("Structure") or game:GetService("ReplicatedStorage"):FindFirstChild("DisasterStatus") or (localPlayer and localPlayer:FindFirstChild("SurvivalTag")) then
 			return "Natural Disaster"
 		elseif placeId == 18336470541 or string.find(gameName, "seeker") or string.find(gameName, "hider") or workspace:FindFirstChild("SPH_Workspace") then
 			return "Seeker vs Hider"
@@ -73,6 +76,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	local visualsTab = window:CreateTab("Visuals")
 
 	-- Create Game Module Tabs (Current detected game is shown on start; all other game modules can be toggled/opened on demand)
+	local mm2Tab = window:CreateTab("Murder Mystery 2", gameTabTitle ~= "Murder Mystery 2")
 	local svhTab = window:CreateTab("Seeker vs Hider", gameTabTitle ~= "Seeker vs Hider")
 	local restTab = window:CreateTab("Restaurant Tycoon", gameTabTitle ~= "Restaurant Tycoon")
 	local luckyTab = window:CreateTab("Lucky Blocks", gameTabTitle ~= "Lucky Blocks")
@@ -1314,7 +1318,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 
 	end
 
-	local function setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab)
+	local function setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab)
 		-- ============================================================
 		-- 3. UNIVERSAL GAME MODULE SUITES (LOADABLE IN EVERY GAME)
 		-- ============================================================
@@ -2002,6 +2006,156 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			window:AddButton(tpSection, "Lobby Safe Area", function()
 				if SeekerVsHider.teleportToLobby() then
 					window:Notify("Teleport", "Warped to Lobby", 2)
+				end
+			end)
+		end
+
+		-- ────── 7. MURDER MYSTERY 2 SUITE ────────────────────────────────────────────────────────
+		do
+			local mm2SubTabs = window:CreateSubTabs(mm2Tab, { "Murderer Suite", "Sheriff & Combat", "Role Intelligence", "Utilities & Farm" })
+			local mdrSubTab = mm2SubTabs["Murderer Suite"]
+			local shfSubTab = mm2SubTabs["Sheriff & Combat"]
+			local espSubTab = mm2SubTabs["Role Intelligence"]
+			local utilSubTab = mm2SubTabs["Utilities & Farm"]
+
+			-- SUB-TAB 1: MURDERER SUITE
+			local mdrLeftCol, mdrRightCol = window:CreateColumns(mdrSubTab)
+			local kaSection = window:AddSection(mdrLeftCol, "Knife KillAura Engine")
+
+			window:AddToggle(kaSection, "mm2_killaura", "Knife KillAura", false, nil, function(val)
+				MurderMystery2.KillAura = val
+			end)
+
+			window:AddToggle(kaSection, "mm2_killbox_vis", "Show 3D Kill Box", true, nil, function(val)
+				MurderMystery2.setKillBoxVisible(val)
+			end)
+
+			window:AddSlider(kaSection, "Kill Box Radius / Size", 8, 60, 25, function(val)
+				MurderMystery2.setKillBoxSize(val)
+			end)
+
+			window:AddSlider(kaSection, "Aura Attack Delay (s)", 0.02, 0.3, 0.08, function(val)
+				MurderMystery2.KillAuraDelay = val
+			end)
+
+			local targetFilterSection = window:AddSection(mdrRightCol, "Target Filters & Modifiers")
+
+			window:AddToggle(targetFilterSection, "mm2_target_innocents", "Target Innocents", true, nil, function(val)
+				MurderMystery2.TargetInnocents = val
+			end)
+
+			window:AddToggle(targetFilterSection, "mm2_target_sheriff", "Target Sheriff & Hero", true, nil, function(val)
+				MurderMystery2.TargetSheriff = val
+			end)
+
+			window:AddToggle(targetFilterSection, "mm2_expand_hitbox", "Expand Knife Handle Hitbox", true, nil, function(val)
+				MurderMystery2.ExpandKnifeHitbox = val
+			end)
+
+			-- SUB-TAB 2: SHERIFF & COMBAT
+			local shfLeftCol, shfRightCol = window:CreateColumns(shfSubTab)
+			local silentAimSection = window:AddSection(shfLeftCol, "Sheriff Silent Aim")
+
+			window:AddToggle(silentAimSection, "mm2_silent_aim", "Silent Aim (Bullet Directs to Murderer)", true, nil, function(val)
+				MurderMystery2.SilentAim = val
+			end)
+
+			window:AddToggle(silentAimSection, "mm2_wall_check", "Wall Check (Visible Line of Sight)", false, nil, function(val)
+				MurderMystery2.WallCheck = val
+			end)
+
+			window:AddDropdown(silentAimSection, "Target Hit Part", { "HumanoidRootPart", "Head" }, "HumanoidRootPart", function(selected)
+				MurderMystery2.HitPart = selected
+			end)
+
+			window:AddSlider(silentAimSection, "Prediction Lead Factor", 0.0, 0.1, 0.045, function(val)
+				MurderMystery2.Prediction = val
+			end)
+
+			local quickShotSection = window:AddSection(shfRightCol, "QuickShot & Auto Mechanics")
+
+			window:AddToggle(quickShotSection, "mm2_quick_shot", "QuickShot (Zero Equip / Fire Delay)", true, nil, function(val)
+				MurderMystery2.QuickShot = val
+			end)
+
+			window:AddToggle(quickShotSection, "mm2_auto_shoot_draw", "Auto Shoot on Murderer Knife Draw", false, nil, function(val)
+				MurderMystery2.AutoShootMurderer = val
+			end)
+
+			window:AddButton(quickShotSection, "Quick Fire at Murderer (Keybind: Q)", function()
+				MurderMystery2.shootMurderer()
+			end)
+
+			-- SUB-TAB 3: ROLE INTELLIGENCE
+			local espLeftCol, espRightCol = window:CreateColumns(espSubTab)
+			local roleEspSection = window:AddSection(espLeftCol, "Role Visuals & Chams")
+
+			window:AddToggle(roleEspSection, "mm2_role_esp", "Role ESP (Murderer / Sheriff / Hero)", false, nil, function(val)
+				MurderMystery2.RoleESP = val
+			end)
+
+			window:AddToggle(roleEspSection, "mm2_show_gun_drop", "Dropped Gun 3D Beacon ESP", true, nil, function(val)
+				MurderMystery2.ShowDroppedGun = val
+			end)
+
+			window:AddToggle(roleEspSection, "mm2_radar_alert", "Murderer Threat Proximity Radar", true, nil, function(val)
+				MurderMystery2.RadarAlert = val
+			end)
+
+			local grabSection = window:AddSection(espRightCol, "Dropped Gun Automation")
+
+			window:AddToggle(grabSection, "mm2_auto_grab_gun", "Auto Grab Dropped Gun", false, nil, function(val)
+				MurderMystery2.AutoGrabGun = val
+			end)
+
+			window:AddSlider(grabSection, "Max Grab Range (studs)", 50, 600, 300, function(val)
+				MurderMystery2.AutoGrabDistance = val
+			end)
+
+			window:AddButton(grabSection, "Teleport to Dropped Gun", function()
+				local gun = MurderMystery2.locateDroppedGun()
+				if gun then
+					local handle = (gun:FindFirstChild("Handle") or (gun:IsA("BasePart") and gun)) :: BasePart?
+					local char = localPlayer.Character
+					local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+					if handle and hrp then
+						hrp.CFrame = handle.CFrame + Vector3.new(0, 2, 0)
+						window:Notify("MM2", "Teleported to Dropped Gun", 2)
+					end
+				else
+					window:Notify("MM2", "No dropped gun found on map", 2)
+				end
+			end)
+
+			-- SUB-TAB 4: UTILITIES & FARM
+			local utilLeftCol, utilRightCol = window:CreateColumns(utilSubTab)
+			local farmSection = window:AddSection(utilLeftCol, "Map Utilities & Teleports")
+
+			window:AddButton(farmSection, "Warp Behind Murderer", function()
+				local m = MurderMystery2.CurrentMurderer
+				local mChar = m and m.Character
+				local mHrp = mChar and mChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+				local char = localPlayer.Character
+				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if mHrp and hrp then
+					hrp.CFrame = mHrp.CFrame * CFrame.new(0, 0, 4)
+					window:Notify("MM2", "Warped behind Murderer: " .. m.DisplayName, 2)
+				else
+					window:Notify("MM2", "Murderer not detected or dead", 2)
+				end
+			end)
+
+			window:AddButton(farmSection, "Warp to Sheriff", function()
+				local s = MurderMystery2.CurrentSheriff or MurderMystery2.CurrentHero
+				local sChar = s and s.Character
+				local sHrp = sChar and sChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+				local char = localPlayer.Character
+				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if sHrp and hrp then
+					hrp.CFrame = sHrp.CFrame * CFrame.new(0, 0, 3)
+					window:Notify("MM2", "Warped to Sheriff: " .. s.DisplayName, 2)
+				else
+					window:Notify("MM2", "Sheriff not found or dead", 2)
 				end
 			end)
 		end
@@ -2964,7 +3118,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 
 	setupMainTab(mainTab)
 	setupCombatTab(combatTab)
-	setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab)
+	setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab)
 	setupVisualsTab(visualsTab)
 	setupSettingsAndConfigs(settingsTab, configsTab)
 
@@ -2972,6 +3126,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	_G.__ModularSuite_Cleanup = function()
 		pcall(function() Visuals.removeAllVisuals() end)
 		pcall(function() Combat.resetHitboxes() end)
+		pcall(function() MurderMystery2.Destroy() end)
 		pcall(function() window:Destroy() end)
 		pcall(function() Notification:Destroy() end)
 		pcall(function() PlayerList:Destroy() end)

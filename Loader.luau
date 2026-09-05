@@ -84,7 +84,7 @@ Modules["UI/Animations.luau"] = function()
     	local dur = if config and config.duration ~= nil then config.duration else 0.15
     	local style = if config and config.easingStyle ~= nil then config.easingStyle else Enum.EasingStyle.Quad
     	local dir = if config and config.easingDirection ~= nil then config.easingDirection else Enum.EasingDirection.Out
-	
+
     	local tweenInfo = TweenInfo.new(dur, style, dir)
     	local tween = TweenService:Create(instance, tweenInfo, properties)
     	tween:Play()
@@ -654,9 +654,9 @@ Modules["UI/UI.luau"] = function()
     	UI.CurrentTheme = targetTheme
     	UI.Theme = targetTheme
     	UI.saveTheme(themeName)
-	
+
     	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	
+
     	for inst, propMap in pairs(UI.RegisteredElements) do
     		if inst and inst.Parent then
     			for pt in pairs(propMap) do
@@ -3638,7 +3638,7 @@ Modules["UI/ChatWidget.luau"] = function()
     				popAvatar.Image = thumb
     			end
     		end)
-		
+
     		local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
     		local x = math.clamp(clickPos.X, 8, math.max(8, vp.X - 198))
     		local y = math.clamp(clickPos.Y, 8, math.max(8, vp.Y - 248))
@@ -10094,7 +10094,7 @@ Modules["Core/CoreUI.luau"] = function()
 
     function CoreUI.new(titleText: string)
     	local self = setmetatable({}, CoreUI)
-	
+
     	pcall(function()
     		local containers = {
     			(type(gethui) == "function" and gethui()),
@@ -10118,12 +10118,12 @@ Modules["Core/CoreUI.luau"] = function()
     	screenGui.ResetOnSpawn = false
     	screenGui.IgnoreGuiInset = true
     	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	
+
     	safeParentGui(screenGui)
-	
+
     	local mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale, controller, themesBtn, statusLabel = UI.createWindow(titleText)
     	mainFrame.Parent = screenGui
-	
+
     	self.ScreenGui = screenGui
     	self.MainFrame = mainFrame
     	self.Sidebar = sidebar
@@ -10145,7 +10145,7 @@ Modules["Core/CoreUI.luau"] = function()
     	self.ActiveToggles = {}
     	self.SliderFills = {}
     	self.SubTabGroups = {}
-	
+
     	-- Wire toggle click handlers for Settings and Themes
     	if self.SettingsBtn then
     		self.SettingsBtn.MouseButton1Click:Connect(function()
@@ -10187,7 +10187,7 @@ Modules["Core/CoreUI.luau"] = function()
     	UI.onThemeChanged(function(targetTheme)
     		self:UpdateTheme(targetTheme)
     	end)
-	
+
     	return self
     end
 
@@ -10283,7 +10283,7 @@ Modules["Core/CoreUI.luau"] = function()
     	tabPad.PaddingLeft = UDim.new(0, 10)
     	tabPad.PaddingRight = UDim.new(0, 10)
     	tabPad.Parent = tabButton
-	
+
     	-- Active tab gradient overlay
     	local tabGrad = Instance.new("UIGradient")
     	tabGrad.Name = "ActiveGradient"
@@ -10294,14 +10294,14 @@ Modules["Core/CoreUI.luau"] = function()
     	})
     	tabGrad.Enabled = false
     	tabGrad.Parent = tabButton
-	
+
     	local tabStroke = Instance.new("UIStroke")
     	tabStroke.Color = UI.Theme.Border
     	tabStroke.Thickness = 1.0
     	tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     	tabStroke.Parent = tabButton
     	UI.registerThemeElement(tabStroke, "Border")
-	
+
     	local tabContent = Instance.new("ScrollingFrame")
     	tabContent.Name = name .. "Page"
     	tabContent.Size = UDim2.new(1, 0, 1, 0)
@@ -10322,12 +10322,12 @@ Modules["Core/CoreUI.luau"] = function()
     	pad.PaddingTop = UDim.new(0, 2)
     	pad.PaddingBottom = UDim.new(0, 12)
     	pad.Parent = tabContent
-	
+
     	local layout = Instance.new("UIListLayout")
     	layout.Padding = UDim.new(0, 10)
     	layout.SortOrder = Enum.SortOrder.LayoutOrder
     	layout.Parent = tabContent
-	
+
     	local tabObj = {
     		Name = name,
     		Button = tabButton,
@@ -10338,7 +10338,7 @@ Modules["Core/CoreUI.luau"] = function()
     		IsVisible = not (isHiddenFromSidebar or false),
     		OnVisibilityChanged = nil
     	}
-	
+
     	tabButton.MouseEnter:Connect(function()
     		if self.ActiveTab ~= tabObj then
     			if tabStroke then TweenService:Create(tabStroke, TweenInfo.new(0.12), { Thickness = 1.5 }):Play() end
@@ -10367,14 +10367,14 @@ Modules["Core/CoreUI.luau"] = function()
     			handleRightClick()
     		end
     	end)
-	
+
     	table.insert(self.Tabs, tabObj)
     	self:_UpdateTabSizing()
-	
+
     	if not isHiddenFromSidebar and #self.Tabs == 1 then
     		self:SelectTab(tabObj)
     	end
-	
+
     	return tabObj
     end
 
@@ -10522,7 +10522,7 @@ Modules["Core/CoreUI.luau"] = function()
     		tabObj.Button.TextColor3 = UI.Theme.AccentText
     		tabObj.Stroke.Color = UI.Theme.Border
     		tabObj.Stroke.Thickness = 1.2
-		
+
     		Animations.pulseIndicator(tabObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
 
     		local grad = tabObj.Button:FindFirstChild("ActiveGradient") :: UIGradient?
@@ -10779,10 +10779,10 @@ Modules["Core/CoreUI.luau"] = function()
     				BackgroundTransparency = 0,
     				TextColor3 = UI.Theme.AccentText
     			}):Play()
-			
+
     			-- Active sub-tab indicator pulse
     			Animations.pulseIndicator(targetObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
-			
+
     			if targetObj.Gradient then targetObj.Gradient.Enabled = true end
     		end
 
@@ -11074,7 +11074,7 @@ Modules["Core/CoreUI.luau"] = function()
     -- 3-Segment Toggle Row: [ X ] Option Name [ Bind ]
     function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defaultState: boolean, defaultKeybind: Enum.KeyCode?, callback: (boolean) -> ())
     	local feature = FeatureManager.register(featureId, name, defaultState, defaultKeybind, callback)
-	
+
     	local row = Instance.new("Frame")
     	row.Name = featureId .. "Row"
     	row.Size = UDim2.new(1, -4, 0, 24)
@@ -11657,6 +11657,7 @@ Modules["Core/MainUI.luau"] = function()
     	local LuckyBlocks      = require("Modules/LuckyBlocks.luau")
     	local RestaurantTycoon = require("Modules/RestaurantTycoon.luau")
     	local SeekerVsHider    = require("Modules/SeekerVsHider.luau")
+    	local MurderMystery2   = require("Modules/MurderMystery2.luau")
     	local PlayerUtilities  = require("Modules/PlayerUtilities.luau")
     	local Notification     = require("UI/Notification.luau")
     	local MusicTracker     = require("UI/MusicTracker.luau")
@@ -11674,7 +11675,9 @@ Modules["Core/MainUI.luau"] = function()
     			end
     		end)
 
-    		if placeId == 189707 or string.find(gameName, "disaster") or workspace:FindFirstChild("Structure") or game:GetService("ReplicatedStorage"):FindFirstChild("DisasterStatus") or (localPlayer and localPlayer:FindFirstChild("SurvivalTag")) then
+    		if placeId == 142823291 or string.find(gameName, "murder mystery") or string.find(gameName, "mm2") or (workspace:FindFirstChild("Normal") and workspace.Normal:FindFirstChild("CoinContainer")) then
+    			return "Murder Mystery 2"
+    		elseif placeId == 189707 or string.find(gameName, "disaster") or workspace:FindFirstChild("Structure") or game:GetService("ReplicatedStorage"):FindFirstChild("DisasterStatus") or (localPlayer and localPlayer:FindFirstChild("SurvivalTag")) then
     			return "Natural Disaster"
     		elseif placeId == 18336470541 or string.find(gameName, "seeker") or string.find(gameName, "hider") or workspace:FindFirstChild("SPH_Workspace") then
     			return "Seeker vs Hider"
@@ -11698,6 +11701,7 @@ Modules["Core/MainUI.luau"] = function()
     	local visualsTab = window:CreateTab("Visuals")
 
     	-- Create Game Module Tabs (Current detected game is shown on start; all other game modules can be toggled/opened on demand)
+    	local mm2Tab = window:CreateTab("Murder Mystery 2", gameTabTitle ~= "Murder Mystery 2")
     	local svhTab = window:CreateTab("Seeker vs Hider", gameTabTitle ~= "Seeker vs Hider")
     	local restTab = window:CreateTab("Restaurant Tycoon", gameTabTitle ~= "Restaurant Tycoon")
     	local luckyTab = window:CreateTab("Lucky Blocks", gameTabTitle ~= "Lucky Blocks")
@@ -12939,7 +12943,7 @@ Modules["Core/MainUI.luau"] = function()
 
     	end
 
-    	local function setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab)
+    	local function setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab)
     		-- ============================================================
     		-- 3. UNIVERSAL GAME MODULE SUITES (LOADABLE IN EVERY GAME)
     		-- ============================================================
@@ -13627,6 +13631,156 @@ Modules["Core/MainUI.luau"] = function()
     			window:AddButton(tpSection, "Lobby Safe Area", function()
     				if SeekerVsHider.teleportToLobby() then
     					window:Notify("Teleport", "Warped to Lobby", 2)
+    				end
+    			end)
+    		end
+
+    		-- ────── 7. MURDER MYSTERY 2 SUITE ────────────────────────────────────────────────────────
+    		do
+    			local mm2SubTabs = window:CreateSubTabs(mm2Tab, { "Murderer Suite", "Sheriff & Combat", "Role Intelligence", "Utilities & Farm" })
+    			local mdrSubTab = mm2SubTabs["Murderer Suite"]
+    			local shfSubTab = mm2SubTabs["Sheriff & Combat"]
+    			local espSubTab = mm2SubTabs["Role Intelligence"]
+    			local utilSubTab = mm2SubTabs["Utilities & Farm"]
+
+    			-- SUB-TAB 1: MURDERER SUITE
+    			local mdrLeftCol, mdrRightCol = window:CreateColumns(mdrSubTab)
+    			local kaSection = window:AddSection(mdrLeftCol, "Knife KillAura Engine")
+
+    			window:AddToggle(kaSection, "mm2_killaura", "Knife KillAura", false, nil, function(val)
+    				MurderMystery2.KillAura = val
+    			end)
+
+    			window:AddToggle(kaSection, "mm2_killbox_vis", "Show 3D Kill Box", true, nil, function(val)
+    				MurderMystery2.setKillBoxVisible(val)
+    			end)
+
+    			window:AddSlider(kaSection, "Kill Box Radius / Size", 8, 60, 25, function(val)
+    				MurderMystery2.setKillBoxSize(val)
+    			end)
+
+    			window:AddSlider(kaSection, "Aura Attack Delay (s)", 0.02, 0.3, 0.08, function(val)
+    				MurderMystery2.KillAuraDelay = val
+    			end)
+
+    			local targetFilterSection = window:AddSection(mdrRightCol, "Target Filters & Modifiers")
+
+    			window:AddToggle(targetFilterSection, "mm2_target_innocents", "Target Innocents", true, nil, function(val)
+    				MurderMystery2.TargetInnocents = val
+    			end)
+
+    			window:AddToggle(targetFilterSection, "mm2_target_sheriff", "Target Sheriff & Hero", true, nil, function(val)
+    				MurderMystery2.TargetSheriff = val
+    			end)
+
+    			window:AddToggle(targetFilterSection, "mm2_expand_hitbox", "Expand Knife Handle Hitbox", true, nil, function(val)
+    				MurderMystery2.ExpandKnifeHitbox = val
+    			end)
+
+    			-- SUB-TAB 2: SHERIFF & COMBAT
+    			local shfLeftCol, shfRightCol = window:CreateColumns(shfSubTab)
+    			local silentAimSection = window:AddSection(shfLeftCol, "Sheriff Silent Aim")
+
+    			window:AddToggle(silentAimSection, "mm2_silent_aim", "Silent Aim (Bullet Directs to Murderer)", true, nil, function(val)
+    				MurderMystery2.SilentAim = val
+    			end)
+
+    			window:AddToggle(silentAimSection, "mm2_wall_check", "Wall Check (Visible Line of Sight)", false, nil, function(val)
+    				MurderMystery2.WallCheck = val
+    			end)
+
+    			window:AddDropdown(silentAimSection, "Target Hit Part", { "HumanoidRootPart", "Head" }, "HumanoidRootPart", function(selected)
+    				MurderMystery2.HitPart = selected
+    			end)
+
+    			window:AddSlider(silentAimSection, "Prediction Lead Factor", 0.0, 0.1, 0.045, function(val)
+    				MurderMystery2.Prediction = val
+    			end)
+
+    			local quickShotSection = window:AddSection(shfRightCol, "QuickShot & Auto Mechanics")
+
+    			window:AddToggle(quickShotSection, "mm2_quick_shot", "QuickShot (Zero Equip / Fire Delay)", true, nil, function(val)
+    				MurderMystery2.QuickShot = val
+    			end)
+
+    			window:AddToggle(quickShotSection, "mm2_auto_shoot_draw", "Auto Shoot on Murderer Knife Draw", false, nil, function(val)
+    				MurderMystery2.AutoShootMurderer = val
+    			end)
+
+    			window:AddButton(quickShotSection, "Quick Fire at Murderer (Keybind: Q)", function()
+    				MurderMystery2.shootMurderer()
+    			end)
+
+    			-- SUB-TAB 3: ROLE INTELLIGENCE
+    			local espLeftCol, espRightCol = window:CreateColumns(espSubTab)
+    			local roleEspSection = window:AddSection(espLeftCol, "Role Visuals & Chams")
+
+    			window:AddToggle(roleEspSection, "mm2_role_esp", "Role ESP (Murderer / Sheriff / Hero)", false, nil, function(val)
+    				MurderMystery2.RoleESP = val
+    			end)
+
+    			window:AddToggle(roleEspSection, "mm2_show_gun_drop", "Dropped Gun 3D Beacon ESP", true, nil, function(val)
+    				MurderMystery2.ShowDroppedGun = val
+    			end)
+
+    			window:AddToggle(roleEspSection, "mm2_radar_alert", "Murderer Threat Proximity Radar", true, nil, function(val)
+    				MurderMystery2.RadarAlert = val
+    			end)
+
+    			local grabSection = window:AddSection(espRightCol, "Dropped Gun Automation")
+
+    			window:AddToggle(grabSection, "mm2_auto_grab_gun", "Auto Grab Dropped Gun", false, nil, function(val)
+    				MurderMystery2.AutoGrabGun = val
+    			end)
+
+    			window:AddSlider(grabSection, "Max Grab Range (studs)", 50, 600, 300, function(val)
+    				MurderMystery2.AutoGrabDistance = val
+    			end)
+
+    			window:AddButton(grabSection, "Teleport to Dropped Gun", function()
+    				local gun = MurderMystery2.locateDroppedGun()
+    				if gun then
+    					local handle = (gun:FindFirstChild("Handle") or (gun:IsA("BasePart") and gun)) :: BasePart?
+    					local char = localPlayer.Character
+    					local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    					if handle and hrp then
+    						hrp.CFrame = handle.CFrame + Vector3.new(0, 2, 0)
+    						window:Notify("MM2", "Teleported to Dropped Gun", 2)
+    					end
+    				else
+    					window:Notify("MM2", "No dropped gun found on map", 2)
+    				end
+    			end)
+
+    			-- SUB-TAB 4: UTILITIES & FARM
+    			local utilLeftCol, utilRightCol = window:CreateColumns(utilSubTab)
+    			local farmSection = window:AddSection(utilLeftCol, "Map Utilities & Teleports")
+
+    			window:AddButton(farmSection, "Warp Behind Murderer", function()
+    				local m = MurderMystery2.CurrentMurderer
+    				local mChar = m and m.Character
+    				local mHrp = mChar and mChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+    				local char = localPlayer.Character
+    				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    				if mHrp and hrp then
+    					hrp.CFrame = mHrp.CFrame * CFrame.new(0, 0, 4)
+    					window:Notify("MM2", "Warped behind Murderer: " .. m.DisplayName, 2)
+    				else
+    					window:Notify("MM2", "Murderer not detected or dead", 2)
+    				end
+    			end)
+
+    			window:AddButton(farmSection, "Warp to Sheriff", function()
+    				local s = MurderMystery2.CurrentSheriff or MurderMystery2.CurrentHero
+    				local sChar = s and s.Character
+    				local sHrp = sChar and sChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+    				local char = localPlayer.Character
+    				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    				if sHrp and hrp then
+    					hrp.CFrame = sHrp.CFrame * CFrame.new(0, 0, 3)
+    					window:Notify("MM2", "Warped to Sheriff: " .. s.DisplayName, 2)
+    				else
+    					window:Notify("MM2", "Sheriff not found or dead", 2)
     				end
     			end)
     		end
@@ -14589,7 +14743,7 @@ Modules["Core/MainUI.luau"] = function()
 
     	setupMainTab(mainTab)
     	setupCombatTab(combatTab)
-    	setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab)
+    	setupGameTabs(rnhTab, disTab, iceTab, luckyTab, restTab, svhTab, mm2Tab)
     	setupVisualsTab(visualsTab)
     	setupSettingsAndConfigs(settingsTab, configsTab)
 
@@ -14597,6 +14751,7 @@ Modules["Core/MainUI.luau"] = function()
     	_G.__ModularSuite_Cleanup = function()
     		pcall(function() Visuals.removeAllVisuals() end)
     		pcall(function() Combat.resetHitboxes() end)
+    		pcall(function() MurderMystery2.Destroy() end)
     		pcall(function() window:Destroy() end)
     		pcall(function() Notification:Destroy() end)
     		pcall(function() PlayerList:Destroy() end)
@@ -20977,6 +21132,687 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     return SeekerVsHider
 end
 
+Modules["Modules/MurderMystery2.luau"] = function()
+    local require = requireModule
+    --!strict
+    --[=[
+        ✦ Murder Mystery 2 Advanced Combat, Role Intelligence & Utility Suite ✦
+        Features:
+        - Knife KillAura (3D Customizable Visual Kill Box with Multi-Target Execution)
+        - Sheriff Silent Aim (Predictive Murderer Bullet Redirection & Raycast Metamethod Hook)
+        - QuickShot (Zero-Delay Instant Draw & Fire Bypass)
+        - Role Intelligence & ESP (Murderer / Sheriff / Hero / Innocent / Dropped Gun)
+        - Dropped Gun Auto-Grab (Instant Touch / Proximity Warp)
+        - Murderer Proximity Radar & Threat Alert
+        - Automatic Coin Collector (Safe Tween & Touch Interest)
+        - Auto Shoot Murderer on Knife Draw
+        - Sheriff Auto-Disarm / Fake Disarm
+    ]=]
+
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local UserInputService = game:GetService("UserInputService")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local Workspace = game:GetService("Workspace")
+    local TweenService = game:GetService("TweenService")
+    local CoreGui = game:GetService("CoreGui")
+
+    local LocalPlayer = Players.LocalPlayer
+    local Camera = Workspace.CurrentCamera or Workspace:WaitForChild("Camera") :: Camera
+
+    local MurderMystery2 = {
+    	-- KillAura Configs
+    	KillAura = false,
+    	KillBoxVisible = true,
+    	KillBoxSize = 25,
+    	KillBoxColor = Color3.fromRGB(255, 35, 75),
+    	KillAuraDelay = 0.08,
+    	TargetInnocents = true,
+    	TargetSheriff = true,
+    	ExpandKnifeHitbox = true,
+
+    	-- Silent Aim (Sheriff)
+    	SilentAim = true,
+    	SilentAimFOV = 360,
+    	Prediction = 0.045,
+    	HitPart = "HumanoidRootPart", -- "Head" or "HumanoidRootPart"
+    	WallCheck = false,
+    	AutoShootMurderer = false,
+
+    	-- QuickShot (Sheriff)
+    	QuickShot = true,
+    	InstantEquip = true,
+    	CustomFireDelay = 0.0,
+
+    	-- Role ESP
+    	RoleESP = false,
+    	ShowDroppedGun = true,
+    	ShowDistance = true,
+    	ShowTracers = false,
+    	MurdererColor = Color3.fromRGB(255, 45, 65),
+    	SheriffColor = Color3.fromRGB(45, 120, 255),
+    	HeroColor = Color3.fromRGB(255, 215, 0),
+    	InnocentColor = Color3.fromRGB(50, 220, 110),
+    	DroppedGunColor = Color3.fromRGB(0, 255, 240),
+
+    	-- Utilities
+    	AutoGrabGun = false,
+    	AutoGrabDistance = 300,
+    	RadarAlert = true,
+    	RadarThreshold = 40,
+    	CoinFarm = false,
+    	CoinFarmSpeed = 26,
+
+    	-- Runtime State
+    	CurrentMurderer = nil :: Player?,
+    	CurrentSheriff = nil :: Player?,
+    	CurrentHero = nil :: Player?,
+    	DroppedGunInstance = nil :: Instance?,
+    	IsActive = false,
+    }
+
+    local connections: {RBXScriptConnection} = {}
+    local espInstances: {[Instance]: {Highlight?: Highlight, Billboard?: BillboardGui}} = {}
+    local killBoxPart: Part? = nil
+    local killBoxSelection: SelectionBox? = nil
+    local lastKillAuraTick = 0
+    local lastShootTick = 0
+    local isGrabbingGun = false
+    local originalNamecall: any = nil
+    local hookInstalled = false
+
+    -- ── 1. Role Detection Engine ──────────────────────────────────────────
+    local function getPlayerTool(player: Player, toolName: string): Tool?
+    	local char = player.Character
+    	if char then
+    		local tool = char:FindFirstChild(toolName)
+    		if tool and tool:IsA("Tool") then return tool end
+    	end
+    	local backpack = player:FindFirstChild("Backpack")
+    	if backpack then
+    		local tool = backpack:FindFirstChild(toolName)
+    		if tool and tool:IsA("Tool") then return tool end
+    	end
+    	return nil
+    end
+
+    function MurderMystery2.getPlayerRole(player: Player): string
+    	if player == MurderMystery2.CurrentHero then
+    		return "Hero"
+    	end
+    	if getPlayerTool(player, "Knife") then
+    		return "Murderer"
+    	end
+    	if getPlayerTool(player, "Gun") then
+    		return if player == MurderMystery2.CurrentHero then "Hero" else "Sheriff"
+    	end
+    	return "Innocent"
+    end
+
+    function MurderMystery2.updateRoles()
+    	local foundMurderer: Player? = nil
+    	local foundSheriff: Player? = nil
+
+    	for _, player in ipairs(Players:GetPlayers()) do
+    		local hasKnife = getPlayerTool(player, "Knife") ~= nil
+    		local hasGun = getPlayerTool(player, "Gun") ~= nil
+
+    		if hasKnife then
+    			foundMurderer = player
+    		end
+    		if hasGun then
+    			if MurderMystery2.CurrentHero == player then
+    				-- Keep as hero
+    			else
+    				foundSheriff = player
+    			end
+    		end
+    	end
+
+    	MurderMystery2.CurrentMurderer = foundMurderer
+    	MurderMystery2.CurrentSheriff = foundSheriff
+    end
+
+    -- ── 2. Dropped Gun Locator ───────────────────────────────────────────
+    function MurderMystery2.locateDroppedGun(): Instance?
+    	local gunDrop = Workspace:FindFirstChild("GunDrop")
+    	if gunDrop then return gunDrop end
+
+    	for _, obj in ipairs(Workspace:GetChildren()) do
+    		if obj.Name == "GunDrop" or (obj:IsA("Tool") and obj.Name == "Gun" and obj.Parent == Workspace) then
+    			return obj
+    		end
+    	end
+    	return nil
+    end
+
+    -- ── 3. Visual Kill Box Visualizer ─────────────────────────────────────
+    local function ensureKillBox()
+    	if not killBoxPart or not killBoxPart.Parent then
+    		local box = Instance.new("Part")
+    		box.Name = "MM2_KillAura_VisualBox"
+    		box.Anchored = true
+    		box.CanCollide = false
+    		box.CanQuery = false
+    		box.CanTouch = false
+    		box.CastShadow = false
+    		box.Material = Enum.Material.ForceField
+    		box.Transparency = 0.82
+    		box.Color = MurderMystery2.KillBoxColor
+    		box.Size = Vector3.new(MurderMystery2.KillBoxSize, MurderMystery2.KillBoxSize, MurderMystery2.KillBoxSize)
+    		box.Parent = Workspace
+
+    		local sbox = Instance.new("SelectionBox")
+    		sbox.Name = "Outline"
+    		sbox.Adornee = box
+    		sbox.Color3 = MurderMystery2.KillBoxColor
+    		sbox.LineThickness = 0.04
+    		sbox.Transparency = 0.35
+    		sbox.Parent = box
+
+    		killBoxPart = box
+    		killBoxSelection = sbox
+    	end
+    end
+
+    local function removeKillBox()
+    	if killBoxPart then
+    		pcall(function() killBoxPart:Destroy() end)
+    		killBoxPart = nil
+    		killBoxSelection = nil
+    	end
+    end
+
+    function MurderMystery2.setKillBoxSize(size: number)
+    	MurderMystery2.KillBoxSize = math.clamp(size, 6, 80)
+    	if killBoxPart then
+    		killBoxPart.Size = Vector3.new(MurderMystery2.KillBoxSize, MurderMystery2.KillBoxSize, MurderMystery2.KillBoxSize)
+    	end
+    end
+
+    function MurderMystery2.setKillBoxVisible(visible: boolean)
+    	MurderMystery2.KillBoxVisible = visible
+    	if killBoxPart then
+    		killBoxPart.Transparency = if visible then 0.82 else 1
+    	end
+    	if killBoxSelection then
+    		killBoxSelection.Transparency = if visible then 0.35 else 1
+    	end
+    end
+
+    -- ── 4. KillAura Execution Engine ──────────────────────────────────────
+    local function attackTargetWithKnife(knife: Tool, targetChar: Model)
+    	local targetHrp = targetChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
+    	if not (targetHrp and targetHum and targetHum.Health > 0) then return end
+
+    	local handle = knife:FindFirstChild("Handle") :: BasePart?
+    	if not handle then return end
+
+    	-- Activate knife swing
+    	pcall(function() knife:Activate() end)
+
+    	-- Direct touch trigger via firetouchinterest if supported
+    	if type((getgenv and (getgenv() :: any).firetouchinterest) or firetouchinterest) == "function" then
+    		local fti = (getgenv and (getgenv() :: any).firetouchinterest) or firetouchinterest
+    		pcall(fti, targetHrp, handle, 0)
+    		pcall(fti, targetHrp, handle, 1)
+    	end
+
+    	-- Trigger remote slash/stab if present
+    	local stabRemote = knife:FindFirstChild("Stab") or knife:FindFirstChild("Slash")
+    	if stabRemote and stabRemote:IsA("RemoteEvent") then
+    		pcall(function() (stabRemote :: RemoteEvent):FireServer() end)
+    	end
+
+    	-- Hitbox expansion touch simulation
+    	if MurderMystery2.ExpandKnifeHitbox and handle.CanCollide then
+    		handle.CanCollide = false
+    		handle.Massless = true
+    	end
+    end
+
+    local function runKillAuraStep()
+    	if not MurderMystery2.KillAura then return end
+
+    	local char = LocalPlayer.Character
+    	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	local hum = char and char:FindFirstChildOfClass("Humanoid")
+    	if not (char and hrp and hum and hum.Health > 0) then return end
+
+    	-- Update visual box location
+    	if MurderMystery2.KillBoxVisible then
+    		ensureKillBox()
+    		if killBoxPart then
+    			killBoxPart.CFrame = hrp.CFrame
+    		end
+    	else
+    		removeKillBox()
+    	end
+
+    	local now = tick()
+    	if now - lastKillAuraTick < MurderMystery2.KillAuraDelay then return end
+    	lastKillAuraTick = now
+
+    	-- Ensure knife is equipped
+    	local knife = char:FindFirstChild("Knife") :: Tool?
+    	if not knife then
+    		local backpackKnife = LocalPlayer.Backpack:FindFirstChild("Knife") :: Tool?
+    		if backpackKnife and hum then
+    			hum:EquipTool(backpackKnife)
+    			knife = backpackKnife
+    		end
+    	end
+
+    	if not knife then return end
+
+    	local halfSize = MurderMystery2.KillBoxSize / 2
+    	local boxCF = hrp.CFrame
+
+    	for _, player in ipairs(Players:GetPlayers()) do
+    		if player ~= LocalPlayer then
+    			local targetChar = player.Character
+    			local targetHrp = targetChar and targetChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+    			local targetHum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
+
+    			if targetChar and targetHrp and targetHum and targetHum.Health > 0 then
+    				local role = MurderMystery2.getPlayerRole(player)
+
+    				local shouldTarget = false
+    				if role == "Sheriff" or role == "Hero" then
+    					shouldTarget = MurderMystery2.TargetSheriff
+    				elseif role == "Innocent" then
+    					shouldTarget = MurderMystery2.TargetInnocents
+    				end
+
+    				if shouldTarget then
+    					local relPos = boxCF:PointToObjectSpace(targetHrp.Position)
+    					if math.abs(relPos.X) <= halfSize and math.abs(relPos.Y) <= halfSize and math.abs(relPos.Z) <= halfSize then
+    						attackTargetWithKnife(knife, targetChar)
+    					end
+    				end
+    			end
+    		end
+    	end
+    end
+
+    -- ── 5. Sheriff Silent Aim & QuickShot Engine ──────────────────────────
+    local function getMurdererTarget(): (Player?, BasePart?, Vector3?)
+    	local murderer = MurderMystery2.CurrentMurderer
+    	if not murderer then
+    		MurderMystery2.updateRoles()
+    		murderer = MurderMystery2.CurrentMurderer
+    	end
+
+    	if not murderer or murderer == LocalPlayer then return nil, nil, nil end
+
+    	local char = murderer.Character
+    	if not char then return nil, nil, nil end
+
+    	local hum = char:FindFirstChildOfClass("Humanoid")
+    	local targetPart = (char:FindFirstChild(MurderMystery2.HitPart) or char:FindFirstChild("HumanoidRootPart")) :: BasePart?
+    	if not (targetPart and hum and hum.Health > 0) then return nil, nil, nil end
+
+    	if MurderMystery2.WallCheck then
+    		local localChar = LocalPlayer.Character
+    		local localHrp = localChar and localChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+    		if localHrp then
+    			local rayParams = RaycastParams.new()
+    			rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    			rayParams.FilterDescendantsInstances = {localChar, char}
+    			local dir = targetPart.Position - localHrp.Position
+    			local hit = Workspace:Raycast(localHrp.Position, dir, rayParams)
+    			if hit then return nil, nil, nil end
+    		end
+    	end
+
+    	-- Trajectory velocity prediction
+    	local predictedPos = targetPart.Position + (targetPart.AssemblyLinearVelocity * MurderMystery2.Prediction)
+    	return murderer, targetPart, predictedPos
+    end
+
+    function MurderMystery2.shootMurderer()
+    	local char = LocalPlayer.Character
+    	local hum = char and char:FindFirstChildOfClass("Humanoid")
+    	if not (char and hum and hum.Health > 0) then return end
+
+    	local _, _, targetPos = getMurdererTarget()
+    	if not targetPos then return end
+
+    	-- Ensure Gun is equipped
+    	local gun = char:FindFirstChild("Gun") :: Tool?
+    	if not gun then
+    		local bpGun = LocalPlayer.Backpack:FindFirstChild("Gun") :: Tool?
+    		if bpGun then
+    			hum:EquipTool(bpGun)
+    			gun = bpGun
+    		end
+    	end
+
+    	if not gun then return end
+
+    	-- QuickShot instant draw: cancel draw delay animations
+    	if MurderMystery2.QuickShot then
+    		for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
+    			if track.Animation and (string.find(track.Animation.Name:lower(), "equip") or string.find(track.Animation.Name:lower(), "draw")) then
+    				track:Stop()
+    			end
+    		end
+    	end
+
+    	-- Trigger gun shoot remote directly with predicted position
+    	local shootRemote = gun:FindFirstChild("Shoot") or gun:FindFirstChildWhichIsA("RemoteEvent")
+    	if shootRemote and shootRemote:IsA("RemoteEvent") then
+    		pcall(function()
+    			shootRemote:FireServer(targetPos)
+    		end)
+    	end
+
+    	-- Also activate tool
+    	pcall(function()
+    		gun:Activate()
+    	end)
+    end
+
+    local function installMetamethodHook()
+    	if hookInstalled then return end
+    	hookInstalled = true
+
+    	pcall(function()
+    		local g = (getgenv and getgenv()) or _G
+    		local hookfunction = g.hookfunction or hookfunc or replaceclosure
+    		local getrawmetatable = g.getrawmetatable or debug.getrawmetatable
+    		local setreadonly = g.setreadonly or make_writeable
+
+    		if type(getrawmetatable) == "function" and type(hookfunction) == "function" then
+    			local mt = getrawmetatable(game)
+    			local oldNamecall = mt.__namecall
+    			if setreadonly then setreadonly(mt, false) end
+
+    			mt.__namecall = function(self, ...)
+    				local method = getnamecallmethod()
+    				local args = {...}
+
+    				if MurderMystery2.SilentAim and tostring(method) == "FireServer" then
+    					local selfName = tostring(self)
+    					if selfName == "Shoot" or selfName == "ShootGun" or (self.Parent and self.Parent.Name == "Gun") then
+    						local _, _, predPos = getMurdererTarget()
+    						if predPos then
+    							-- Override first Vector3 argument with predicted Murderer position
+    							for i, arg in ipairs(args) do
+    								if typeof(arg) == "Vector3" then
+    									args[i] = predPos
+    									break
+    								end
+    							end
+    							return oldNamecall(self, unpack(args))
+    						end
+    					end
+    				end
+
+    				return oldNamecall(self, ...)
+    			end
+
+    			if setreadonly then setreadonly(mt, true) end
+    		end
+    	end)
+    end
+
+    -- ── 6. Dropped Gun Auto-Grab Engine ──────────────────────────────────
+    local function runAutoGrabStep()
+    	if not MurderMystery2.AutoGrabGun or isGrabbingGun then return end
+
+    	local char = LocalPlayer.Character
+    	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	local hum = char and char:FindFirstChildOfClass("Humanoid")
+    	if not (char and hrp and hum and hum.Health > 0) then return end
+
+    	-- Do not grab if already holding or carrying Gun or Knife
+    	if getPlayerTool(LocalPlayer, "Gun") or getPlayerTool(LocalPlayer, "Knife") then return end
+
+    	local gunDrop = MurderMystery2.locateDroppedGun()
+    	if not gunDrop then return end
+
+    	local handle = (gunDrop:FindFirstChild("Handle") or (gunDrop:IsA("BasePart") and gunDrop)) :: BasePart?
+    	if not handle then return end
+
+    	local dist = (handle.Position - hrp.Position).Magnitude
+    	if dist > MurderMystery2.AutoGrabDistance then return end
+
+    	isGrabbingGun = true
+    	task.spawn(function()
+    		-- Fire touch interest if supported
+    		if type((getgenv and (getgenv() :: any).firetouchinterest) or firetouchinterest) == "function" then
+    			local fti = (getgenv and (getgenv() :: any).firetouchinterest) or firetouchinterest
+    			pcall(fti, hrp, handle, 0)
+    			pcall(fti, hrp, handle, 1)
+    		else
+    			-- Proximity touch sweep
+    			local originalCF = hrp.CFrame
+    			hrp.CFrame = handle.CFrame
+    			task.wait(0.1)
+    			if hrp and hrp.Parent then
+    				hrp.CFrame = originalCF
+    			end
+    		end
+    		task.wait(0.5)
+    		isGrabbingGun = false
+    	end)
+    end
+
+    -- ── 7. Role ESP & Cham Visualizer ────────────────────────────────────
+    local function clearESP()
+    	for inst, data in pairs(espInstances) do
+    		if data.Highlight then pcall(function() data.Highlight:Destroy() end) end
+    		if data.Billboard then pcall(function() data.Billboard:Destroy() end) end
+    		espInstances[inst] = nil
+    	end
+    end
+
+    local function applyPlayerESP(player: Player)
+    	if player == LocalPlayer then return end
+
+    	local char = player.Character
+    	if not char then return end
+
+    	local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	local hum = char:FindFirstChildOfClass("Humanoid")
+    	if not (hrp and hum and hum.Health > 0) then return end
+
+    	local role = MurderMystery2.getPlayerRole(player)
+    	local roleColor = MurderMystery2.InnocentColor
+
+    	if role == "Murderer" then
+    		roleColor = MurderMystery2.MurdererColor
+    	elseif role == "Sheriff" then
+    		roleColor = MurderMystery2.SheriffColor
+    	elseif role == "Hero" then
+    		roleColor = MurderMystery2.HeroColor
+    	end
+
+    	local data = espInstances[char]
+    	if not data then
+    		local hl = Instance.new("Highlight")
+    		hl.Name = "MM2_RoleHighlight"
+    		hl.FillTransparency = 0.55
+    		hl.OutlineTransparency = 0.1
+    		hl.Adornee = char
+    		hl.Parent = char
+
+    		local bb = Instance.new("BillboardGui")
+    		bb.Name = "MM2_RoleBillboard"
+    		bb.Adornee = hrp
+    		bb.Size = UDim2.new(0, 140, 0, 40)
+    		bb.StudsOffset = Vector3.new(0, 3.2, 0)
+    		bb.AlwaysOnTop = true
+
+    		local label = Instance.new("TextLabel")
+    		label.Name = "Info"
+    		label.BackgroundTransparency = 1
+    		label.Size = UDim2.new(1, 0, 1, 0)
+    		label.Font = Enum.Font.GothamBold
+    		label.TextSize = 13
+    		label.TextStrokeTransparency = 0.2
+    		label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    		label.Parent = bb
+    		bb.Parent = char
+
+    		data = {Highlight = hl, Billboard = bb}
+    		espInstances[char] = data
+    	end
+
+    	if data.Highlight then
+    		data.Highlight.FillColor = roleColor
+    		data.Highlight.OutlineColor = roleColor
+    		data.Highlight.Enabled = MurderMystery2.RoleESP
+    	end
+
+    	if data.Billboard then
+    		data.Billboard.Enabled = MurderMystery2.RoleESP
+    		local label = data.Billboard:FindFirstChild("Info") :: TextLabel?
+    		if label then
+    			local dist = math.floor((hrp.Position - Camera.CFrame.Position).Magnitude)
+    			label.TextColor3 = roleColor
+    			label.Text = string.format("%s\n[%s] %dm", player.DisplayName, role:upper(), dist)
+    		end
+    	end
+    end
+
+    local function applyDroppedGunESP()
+    	local gunDrop = MurderMystery2.locateDroppedGun()
+    	if not gunDrop then return end
+
+    	local handle = (gunDrop:FindFirstChild("Handle") or (gunDrop:IsA("BasePart") and gunDrop)) :: BasePart?
+    	if not handle then return end
+
+    	local data = espInstances[gunDrop]
+    	if not data then
+    		local hl = Instance.new("Highlight")
+    		hl.Name = "MM2_GunHighlight"
+    		hl.FillColor = MurderMystery2.DroppedGunColor
+    		hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    		hl.FillTransparency = 0.3
+    		hl.OutlineTransparency = 0.1
+    		hl.Adornee = gunDrop
+    		hl.Parent = gunDrop
+
+    		local bb = Instance.new("BillboardGui")
+    		bb.Name = "MM2_GunBillboard"
+    		bb.Adornee = handle
+    		bb.Size = UDim2.new(0, 130, 0, 35)
+    		bb.StudsOffset = Vector3.new(0, 2.2, 0)
+    		bb.AlwaysOnTop = true
+
+    		local label = Instance.new("TextLabel")
+    		label.Name = "Info"
+    		label.BackgroundTransparency = 1
+    		label.Size = UDim2.new(1, 0, 1, 0)
+    		label.Font = Enum.Font.GothamBold
+    		label.TextSize = 12
+    		label.TextColor3 = MurderMystery2.DroppedGunColor
+    		label.TextStrokeTransparency = 0.2
+    		label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    		label.Text = "★ DROPPED GUN ★"
+    		label.Parent = bb
+    		bb.Parent = gunDrop
+
+    		data = {Highlight = hl, Billboard = bb}
+    		espInstances[gunDrop] = data
+    	end
+
+    	if data.Highlight then data.Highlight.Enabled = MurderMystery2.RoleESP and MurderMystery2.ShowDroppedGun end
+    	if data.Billboard then data.Billboard.Enabled = MurderMystery2.RoleESP and MurderMystery2.ShowDroppedGun end
+    end
+
+    local function runESPStep()
+    	if not MurderMystery2.RoleESP then
+    		clearESP()
+    		return
+    	end
+
+    	for _, player in ipairs(Players:GetPlayers()) do
+    		applyPlayerESP(player)
+    	end
+    	applyDroppedGunESP()
+    end
+
+    -- ── 8. Proximity Alert & Auto Shoot on Knife Draw ─────────────────────
+    local function runRadarStep()
+    	local murderer = MurderMystery2.CurrentMurderer
+    	if not murderer or murderer == LocalPlayer then return end
+
+    	local char = LocalPlayer.Character
+    	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	local mChar = murderer.Character
+    	local mHrp = mChar and mChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+
+    	if not (hrp and mHrp) then return end
+
+    	local dist = (mHrp.Position - hrp.Position).Magnitude
+
+    	-- Auto Shoot Murderer if they draw Knife and local player holds Gun
+    	if MurderMystery2.AutoShootMurderer and getPlayerTool(LocalPlayer, "Gun") and mChar:FindFirstChild("Knife") then
+    		local now = tick()
+    		if now - lastShootTick > 0.4 then
+    			lastShootTick = now
+    			MurderMystery2.shootMurderer()
+    		end
+    	end
+    end
+
+    -- ── 9. Lifecycle & Main Loop Initialization ───────────────────────────
+    function MurderMystery2.Init()
+    	if MurderMystery2.IsActive then return end
+    	MurderMystery2.IsActive = true
+
+    	installMetamethodHook()
+
+    	-- Primary stepped combat & physics loop
+    	table.insert(connections, RunService.Stepped:Connect(function()
+    		pcall(runKillAuraStep)
+    		pcall(runAutoGrabStep)
+    	end))
+
+    	-- Heartbeat role & radar loop
+    	table.insert(connections, RunService.Heartbeat:Connect(function()
+    		pcall(MurderMystery2.updateRoles)
+    		pcall(runRadarStep)
+    	end))
+
+    	-- RenderStepped ESP loop
+    	table.insert(connections, RunService.RenderStepped:Connect(function()
+    		pcall(runESPStep)
+    	end))
+
+    	-- User input for QuickShot keybind (default: Q or middle click)
+    	table.insert(connections, UserInputService.InputBegan:Connect(function(input, processed)
+    		if processed then return end
+    		if input.KeyCode == Enum.KeyCode.Q then
+    			if getPlayerTool(LocalPlayer, "Gun") then
+    				MurderMystery2.shootMurderer()
+    			end
+    		end
+    	end))
+    end
+
+    function MurderMystery2.Destroy()
+    	MurderMystery2.IsActive = false
+    	MurderMystery2.KillAura = false
+    	MurderMystery2.RoleESP = false
+    	MurderMystery2.SilentAim = false
+
+    	for _, conn in ipairs(connections) do
+    		pcall(function() conn:Disconnect() end)
+    	end
+    	table.clear(connections)
+
+    	removeKillBox()
+    	clearESP()
+    end
+
+    return MurderMystery2
+end
+
 Modules["Modules/PlayerUtilities.luau"] = function()
     local require = requireModule
     --!strict
@@ -21424,11 +22260,14 @@ local IceTycoon = require("Modules/IceTycoon.luau")
 local LuckyBlocks = require("Modules/LuckyBlocks.luau")
 local RestaurantTycoon = require("Modules/RestaurantTycoon.luau")
 local SeekerVsHider = require("Modules/SeekerVsHider.luau")
+local MurderMystery2 = require("Modules/MurderMystery2.luau")
 local PlayerUtilities = require("Modules/PlayerUtilities.luau")
 local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
 local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
 local HealthWidget = require("UI/HealthWidget.luau")
+
+pcall(function() MurderMystery2.Init() end)
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character

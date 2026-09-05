@@ -29,11 +29,14 @@ local IceTycoon = require("Modules/IceTycoon.luau")
 local LuckyBlocks = require("Modules/LuckyBlocks.luau")
 local RestaurantTycoon = require("Modules/RestaurantTycoon.luau")
 local SeekerVsHider = require("Modules/SeekerVsHider.luau")
+local MurderMystery2 = require("Modules/MurderMystery2.luau")
 local PlayerUtilities = require("Modules/PlayerUtilities.luau")
 local Hotbar = require("UI/Hotbar.luau")
 local Notification = require("UI/Notification.luau")
 local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
 local HealthWidget = require("UI/HealthWidget.luau")
+
+pcall(function() MurderMystery2.Init() end)
 
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character

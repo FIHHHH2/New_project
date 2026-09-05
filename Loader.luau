@@ -3458,10 +3458,52 @@ Modules["UI/ChatWidget.luau"] = function()
     	local closeProfilePopup: () -> ()
     	local closeQuickPopup: () -> ()
 
+    	local isMinimized = false
+    	local savedHeight = DEFAULT_H
+
+    	local function expandWidget()
+    		if not isMinimized or not isOpen then return end
+    		isMinimized = false
+    		minBtn.Text = "—"
+    		local targetH = if savedHeight and savedHeight > (TOPBAR_H + 20) then savedHeight else DEFAULT_H
+    		local tween = TweenService:Create(widget, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    			Size = UDim2.new(0, widget.AbsoluteSize.X, 0, targetH)
+    		})
+    		tween:Play()
+    		task.delay(0.06, function()
+    			if not isMinimized and isOpen then
+    				container.Visible = true
+    				bottomBar.Visible = true
+    				resizeGrip.Visible = true
+    			end
+    		end)
+    	end
+
+    	local function minimizeWidget()
+    		if isMinimized or not isOpen or isTransitioning then return end
+    		isMinimized = true
+    		dropdown.Visible = false
+    		if closeProfilePopup then closeProfilePopup() end
+    		if closeQuickPopup then closeQuickPopup() end
+    		if widget.AbsoluteSize.Y > (TOPBAR_H + 20) then
+    			savedHeight = widget.AbsoluteSize.Y
+    		end
+    		container.Visible = false
+    		bottomBar.Visible = false
+    		resizeGrip.Visible = false
+    		minBtn.Text = "+"
+    		TweenService:Create(widget, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    			Size = UDim2.new(0, widget.AbsoluteSize.X, 0, TOPBAR_H + 12)
+    		}):Play()
+    	end
+
     	local function openWidget(selfOrOnComplete: any, maybeOnComplete: any)
     		local onComplete = if type(selfOrOnComplete) == "function" then selfOrOnComplete elseif type(maybeOnComplete) == "function" then maybeOnComplete else nil
     		resetInactivity()
     		if isOpen then
+    			if isMinimized then
+    				expandWidget()
+    			end
     			if onComplete then onComplete() end
     			return
     		end
@@ -3470,6 +3512,9 @@ Modules["UI/ChatWidget.luau"] = function()
     		Animations.openWindow(widget, uiScale, function()
     			isOpen = true
     			isTransitioning = false
+    			if isMinimized then
+    				expandWidget()
+    			end
     			resetInactivity()
     			if onComplete then onComplete() end
     		end)
@@ -4016,7 +4061,9 @@ Modules["UI/ChatWidget.luau"] = function()
 
     		if not isHistorical then
     			resetInactivity()
-    			if not isOpen and not isTransitioning and isWidgetEnabled then
+    			if isMinimized then
+    				expandWidget()
+    			elseif not isOpen and not isTransitioning and isWidgetEnabled then
     				openWidget()
     			end
 
@@ -4259,26 +4306,12 @@ Modules["UI/ChatWidget.luau"] = function()
     		end
     	end)
 
-    	local minimized = false
     	minBtn.MouseButton1Click:Connect(function()
-    		minimized = not minimized
-    		dropdown.Visible = false
-    		if closeProfilePopup then closeProfilePopup() end
-    		if closeQuickPopup then closeQuickPopup() end
-    		if minimized then
-    			container.Visible = false
-    			bottomBar.Visible = false
-    			resizeGrip.Visible = false
-    			TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-    				Size = UDim2.new(0, widget.AbsoluteSize.X, 0, TOPBAR_H)
-    			}):Play()
+    		resetInactivity()
+    		if isMinimized then
+    			expandWidget()
     		else
-    			container.Visible = true
-    			bottomBar.Visible = true
-    			resizeGrip.Visible = true
-    			TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-    				Size = UDim2.new(0, widget.AbsoluteSize.X, 0, DEFAULT_H)
-    			}):Play()
+    			minimizeWidget()
     		end
     	end)
 
@@ -4329,7 +4362,9 @@ Modules["UI/ChatWidget.luau"] = function()
     	textBox.Focused:Connect(function()
     		isInputFocused = true
     		resetInactivity()
-    		if not isOpen and not isTransitioning and isWidgetEnabled then
+    		if isMinimized then
+    			expandWidget()
+    		elseif not isOpen and not isTransitioning and isWidgetEnabled then
     			openWidget()
     		end
     	end)
@@ -4372,7 +4407,9 @@ Modules["UI/ChatWidget.luau"] = function()
     				if not isMouseHovered then
     					isMouseHovered = true
     					resetInactivity()
-    					if not isOpen and not isTransitioning and isWidgetEnabled then
+    					if isMinimized then
+    						expandWidget()
+    					elseif not isOpen and not isTransitioning and isWidgetEnabled then
     						openWidget()
     					end
     				else
@@ -4390,7 +4427,9 @@ Modules["UI/ChatWidget.luau"] = function()
     	widget.MouseEnter:Connect(function()
     		isMouseHovered = true
     		resetInactivity()
-    		if not isOpen and not isTransitioning and isWidgetEnabled then
+    		if isMinimized then
+    			expandWidget()
+    		elseif not isOpen and not isTransitioning and isWidgetEnabled then
     			openWidget()
     		end
     	end)
@@ -4404,13 +4443,13 @@ Modules["UI/ChatWidget.luau"] = function()
     		resetInactivity()
     	end)
 
-    	-- Auto-hide chat loop when inactive
+    	-- Auto-minimize chat loop when inactive
     	task.spawn(function()
     		while true do
     			task.wait(0.5)
-    			if isOpen and not isTransitioning and not isInputFocused and not isMouseHovered and not isProfileOpen and not isQuickOpen and not dragging and not isResizing and isWidgetEnabled then
+    			if isOpen and not isMinimized and not isTransitioning and not isInputFocused and not isMouseHovered and not isProfileOpen and not isQuickOpen and not dragging and not isResizing and isWidgetEnabled then
     				if (os.clock() - lastActivityTick) >= INACTIVITY_TIMEOUT then
-    					closeWidget()
+    					minimizeWidget()
     				end
     			end
     		end
@@ -4424,6 +4463,9 @@ Modules["UI/ChatWidget.luau"] = function()
     			if focused and focused ~= textBox then return end
 
     			resetInactivity()
+    			if isMinimized then
+    				expandWidget()
+    			end
     			if not isOpen then
     				openWidget(function()
     					textBox.Text = ""
@@ -4436,13 +4478,6 @@ Modules["UI/ChatWidget.luau"] = function()
     					textBox.Text = ""
     					textBox:CaptureFocus()
     				end)
-    			end
-    			if minimized then
-    				minimized = false
-    				container.Visible = true
-    				bottomBar.Visible = true
-    				resizeGrip.Visible = true
-    				widget.Size = UDim2.new(0, widget.AbsoluteSize.X, 0, DEFAULT_H)
     			end
     		end
     	end)
@@ -4514,7 +4549,9 @@ Modules["UI/ChatWidget.luau"] = function()
     		SendBtn = sendBtn,
     		QuickBtn = quickBtn,
     		UiScale = uiScale,
-    		IsMinimized = false,
+    		IsMinimized = function() return isMinimized end,
+    		Minimize = minimizeWidget,
+    		Expand = expandWidget,
     		Visible = true,
     		IsEnabled = true,
     		IsOpen = function() return isOpen end,

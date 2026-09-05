@@ -5771,13 +5771,18 @@ Modules["UI/Hotbar.luau"] = function()
     	-- A large green line across the toolbar that smoothly drops by HP
     	local healthBarContainer = Instance.new("Frame")
     	healthBarContainer.Name = "ToolbarHealthBar"
-    	healthBarContainer.Size = UDim2.new(1, 0, 0, 6)
-    	healthBarContainer.Position = UDim2.new(0, 0, 0, -10)
+    	healthBarContainer.Size = UDim2.new(0, totalWidth, 0, 5)
+    	healthBarContainer.Position = UDim2.new(0.5, -totalWidth / 2, 1, -(SLOT_SIZE + 24 + 8))
     	healthBarContainer.BackgroundColor3 = Color3.fromRGB(15, 25, 18)
     	healthBarContainer.BackgroundTransparency = 0.25
     	healthBarContainer.BorderSizePixel = 0
     	healthBarContainer.ClipsDescendants = true
-    	healthBarContainer.Parent = hotbarFrame
+    	healthBarContainer.ZIndex = 10
+    	healthBarContainer.Parent = screenGui
+
+    	local healthBarCorner = Instance.new("UICorner")
+    	healthBarCorner.CornerRadius = UDim.new(0, 2)
+    	healthBarCorner.Parent = healthBarContainer
 
     	local healthBarStroke = Instance.new("UIStroke")
     	healthBarStroke.Color = UI.Theme.Border
@@ -5792,7 +5797,12 @@ Modules["UI/Hotbar.luau"] = function()
     	healthBarFill.Position = UDim2.new(0, 0, 0, 0)
     	healthBarFill.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
     	healthBarFill.BorderSizePixel = 0
+    	healthBarFill.ZIndex = 11
     	healthBarFill.Parent = healthBarContainer
+
+    	local healthFillCorner = Instance.new("UICorner")
+    	healthFillCorner.CornerRadius = UDim.new(0, 2)
+    	healthFillCorner.Parent = healthBarFill
 
     	local healthGrad = Instance.new("UIGradient")
     	healthGrad.Color = ColorSequence.new({
@@ -6952,11 +6962,13 @@ Modules["UI/Hotbar.luau"] = function()
     			isHotbarEnabled = val
     			if widgetObj then widgetObj.IsEnabled = val end
     			hotbarFrame.Visible = val
+    			healthBarContainer.Visible = val
     			if not val then
     				isBackpackOpen = false
     				bpWindow.Visible = false
     			end
     		end,
+    		ToolbarHealthBar = healthBarContainer,
     		ToggleBackpack = toggleBackpack,
     		IsOpen = function() return isBackpackOpen end,
     		Refresh = function()
@@ -8325,7 +8337,7 @@ Modules["UI/HealthWidget.luau"] = function()
     		ScreenGui = screenGui,
     		SetVisible = function(selfOrVal: any, maybeVal: any)
     			local val = if typeof(selfOrVal) == "boolean" then selfOrVal else maybeVal
-    			hudFrame.Visible = val
+    			hudFrame.Visible = false
     		end,
     		ToggleDamageNumbers = function(enabled: boolean)
     			damageNumbersEnabled = enabled
@@ -13384,8 +13396,11 @@ Modules["Core/MainUI.luau"] = function()
     			end
 
     			FeatureManager.setFeatureState("hud_healthbar", enabled)
+    			if hotbarWidget and (hotbarWidget :: any).ToolbarHealthBar then
+    				(hotbarWidget :: any).ToolbarHealthBar.Visible = enabled
+    			end
     			healthWidget.IsEnabled = enabled
-    			healthWidget.SetVisible(enabled)
+    			healthWidget.SetVisible(false)
 
     			FeatureManager.setFeatureState("hud_damage_indicators", enabled)
     			healthWidget.ToggleDamageNumbers(enabled)
@@ -13449,9 +13464,12 @@ Modules["Core/MainUI.luau"] = function()
     		-- Right Column: Player & Combat Visual HUDs & Shortcuts
     		local combatHudSection = window:AddSection(wRightCol, "Player & Combat Visual HUDs")
 
-    		window:AddToggle(combatHudSection, "hud_healthbar", "Health Bar HUD Widget", true, nil, function(enabled)
+    		window:AddToggle(combatHudSection, "hud_healthbar", "Toolbar Health Bar Line", true, nil, function(enabled)
+    			if hotbarWidget and (hotbarWidget :: any).ToolbarHealthBar then
+    				(hotbarWidget :: any).ToolbarHealthBar.Visible = enabled
+    			end
     			healthWidget.IsEnabled = enabled
-    			healthWidget.SetVisible(enabled)
+    			healthWidget.SetVisible(false)
     		end)
 
     		window:AddToggle(combatHudSection, "hud_damage_indicators", "3D Floating Damage Numbers", true, nil, function(enabled)

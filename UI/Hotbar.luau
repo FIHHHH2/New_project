@@ -301,13 +301,18 @@ function Hotbar.new(): HotbarWidget
 	-- A large green line across the toolbar that smoothly drops by HP
 	local healthBarContainer = Instance.new("Frame")
 	healthBarContainer.Name = "ToolbarHealthBar"
-	healthBarContainer.Size = UDim2.new(1, 0, 0, 6)
-	healthBarContainer.Position = UDim2.new(0, 0, 0, -10)
+	healthBarContainer.Size = UDim2.new(0, totalWidth, 0, 5)
+	healthBarContainer.Position = UDim2.new(0.5, -totalWidth / 2, 1, -(SLOT_SIZE + 24 + 8))
 	healthBarContainer.BackgroundColor3 = Color3.fromRGB(15, 25, 18)
 	healthBarContainer.BackgroundTransparency = 0.25
 	healthBarContainer.BorderSizePixel = 0
 	healthBarContainer.ClipsDescendants = true
-	healthBarContainer.Parent = hotbarFrame
+	healthBarContainer.ZIndex = 10
+	healthBarContainer.Parent = screenGui
+
+	local healthBarCorner = Instance.new("UICorner")
+	healthBarCorner.CornerRadius = UDim.new(0, 2)
+	healthBarCorner.Parent = healthBarContainer
 
 	local healthBarStroke = Instance.new("UIStroke")
 	healthBarStroke.Color = UI.Theme.Border
@@ -322,7 +327,12 @@ function Hotbar.new(): HotbarWidget
 	healthBarFill.Position = UDim2.new(0, 0, 0, 0)
 	healthBarFill.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
 	healthBarFill.BorderSizePixel = 0
+	healthBarFill.ZIndex = 11
 	healthBarFill.Parent = healthBarContainer
+
+	local healthFillCorner = Instance.new("UICorner")
+	healthFillCorner.CornerRadius = UDim.new(0, 2)
+	healthFillCorner.Parent = healthBarFill
 
 	local healthGrad = Instance.new("UIGradient")
 	healthGrad.Color = ColorSequence.new({
@@ -1482,11 +1492,13 @@ function Hotbar.new(): HotbarWidget
 			isHotbarEnabled = val
 			if widgetObj then widgetObj.IsEnabled = val end
 			hotbarFrame.Visible = val
+			healthBarContainer.Visible = val
 			if not val then
 				isBackpackOpen = false
 				bpWindow.Visible = false
 			end
 		end,
+		ToolbarHealthBar = healthBarContainer,
 		ToggleBackpack = toggleBackpack,
 		IsOpen = function() return isBackpackOpen end,
 		Refresh = function()

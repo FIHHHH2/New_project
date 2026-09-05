@@ -2113,8 +2113,11 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 
 			FeatureManager.setFeatureState("hud_healthbar", enabled)
+			if hotbarWidget and (hotbarWidget :: any).ToolbarHealthBar then
+				(hotbarWidget :: any).ToolbarHealthBar.Visible = enabled
+			end
 			healthWidget.IsEnabled = enabled
-			healthWidget.SetVisible(enabled)
+			healthWidget.SetVisible(false)
 
 			FeatureManager.setFeatureState("hud_damage_indicators", enabled)
 			healthWidget.ToggleDamageNumbers(enabled)
@@ -2178,9 +2181,12 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		-- Right Column: Player & Combat Visual HUDs & Shortcuts
 		local combatHudSection = window:AddSection(wRightCol, "Player & Combat Visual HUDs")
 
-		window:AddToggle(combatHudSection, "hud_healthbar", "Health Bar HUD Widget", true, nil, function(enabled)
+		window:AddToggle(combatHudSection, "hud_healthbar", "Toolbar Health Bar Line", true, nil, function(enabled)
+			if hotbarWidget and (hotbarWidget :: any).ToolbarHealthBar then
+				(hotbarWidget :: any).ToolbarHealthBar.Visible = enabled
+			end
 			healthWidget.IsEnabled = enabled
-			healthWidget.SetVisible(enabled)
+			healthWidget.SetVisible(false)
 		end)
 
 		window:AddToggle(combatHudSection, "hud_damage_indicators", "3D Floating Damage Numbers", true, nil, function(enabled)

@@ -406,7 +406,7 @@ function HealthWidget.new(): HealthWidgetInstance
 		ScreenGui = screenGui,
 		SetVisible = function(selfOrVal: any, maybeVal: any)
 			local val = if typeof(selfOrVal) == "boolean" then selfOrVal else maybeVal
-			hudFrame.Visible = val
+			hudFrame.Visible = false
 		end,
 		ToggleDamageNumbers = function(enabled: boolean)
 			damageNumbersEnabled = enabled

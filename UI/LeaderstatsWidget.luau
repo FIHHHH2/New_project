@@ -273,10 +273,6 @@ function LeaderstatsWidget.new()
 	liveDot.BorderSizePixel = 0
 	liveDot.Parent = titleBox
 
-	local dotCorner = Instance.new("UICorner")
-	dotCorner.CornerRadius = UDim.new(1, 0)
-	dotCorner.Parent = liveDot
-
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Size = UDim2.new(1, -20, 1, 0)
 	titleLabel.Position = UDim2.new(0, 16, 0, 0)

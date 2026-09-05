@@ -329,18 +329,6 @@ function PlayerList.new(): PlayerListWidget
 		closeWidget()
 	end)
 
-	-- ── Full-Screen Dismiss Overlay (Clicking anywhere outside closes the profile) ──
-	local dismissOverlay = Instance.new("TextButton")
-	dismissOverlay.Name = "PlayerProfileDismissOverlay"
-	dismissOverlay.Size = UDim2.new(1, 0, 1, 0)
-	dismissOverlay.Position = UDim2.new(0, 0, 0, 0)
-	dismissOverlay.BackgroundTransparency = 1
-	dismissOverlay.Text = ""
-	dismissOverlay.AutoButtonColor = false
-	dismissOverlay.Visible = false
-	dismissOverlay.ZIndex = 95
-	dismissOverlay.Parent = screenGui
-
 	-- ── Floating Player Extended Profile & Leaderstats Popup ─────────
 	popupFrame = Instance.new("Frame")
 	popupFrame.Name = "PlayerContextMenu"
@@ -641,14 +629,9 @@ function PlayerList.new(): PlayerListWidget
 	closeContextMenu = function()
 		if not isPopupOpen then return end
 		isPopupOpen = false
-		dismissOverlay.Visible = false
 		clearStatConns()
 		Animations.popOut(popupFrame, popupScale)
 	end
-
-	dismissOverlay.MouseButton1Click:Connect(function()
-		closeContextMenu()
-	end)
 
 	-- Dismiss when clicking anywhere on screen outside popup
 	UserInputService.InputBegan:Connect(function(input)
@@ -709,10 +692,6 @@ function PlayerList.new(): PlayerListWidget
 				sRow.BackgroundTransparency = 0.55
 				sRow.BorderSizePixel = 0
 				sRow.Parent = statsContainer
-
-				local sCorner = Instance.new("UICorner")
-				sCorner.CornerRadius = UDim.new(0, 2)
-				sCorner.Parent = sRow
 
 				local nameLbl = Instance.new("TextLabel")
 				nameLbl.Size = UDim2.new(0.55, -4, 1, 0)
@@ -785,7 +764,6 @@ function PlayerList.new(): PlayerListWidget
 		posX = math.clamp(posX, margin, math.max(margin, vpSize.X - POPUP_W - margin))
 
 		popupFrame.Position = UDim2.new(0, posX, 0, posY)
-		dismissOverlay.Visible = true
 		isPopupOpen = true
 		Animations.popIn(popupFrame, popupScale)
 	end

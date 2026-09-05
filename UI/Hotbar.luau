@@ -304,17 +304,13 @@ function Hotbar.new(): HotbarWidget
 	healthBarContainer.Name = "ToolbarHealthBar"
 	healthBarContainer.Size = UDim2.new(0, totalWidth, 0, 14)
 	healthBarContainer.AnchorPoint = Vector2.new(0.5, 1)
-	healthBarContainer.Position = UDim2.new(0.5, 0, 1, -(SLOT_SIZE + 10 + 16 + 4))
+	healthBarContainer.Position = UDim2.new(0.5, 0, 1, -(SLOT_SIZE + 10 + 16 + 10))
 	healthBarContainer.BackgroundColor3 = Color3.fromRGB(15, 22, 18)
 	healthBarContainer.BackgroundTransparency = 0.2
 	healthBarContainer.BorderSizePixel = 0
 	healthBarContainer.ClipsDescendants = true
 	healthBarContainer.ZIndex = 10
 	healthBarContainer.Parent = screenGui
-
-	local healthBarCorner = Instance.new("UICorner")
-	healthBarCorner.CornerRadius = UDim.new(0, 3)
-	healthBarCorner.Parent = healthBarContainer
 
 	local healthBarStroke = Instance.new("UIStroke")
 	healthBarStroke.Color = UI.Theme.Border
@@ -331,10 +327,6 @@ function Hotbar.new(): HotbarWidget
 	healthBarFill.BorderSizePixel = 0
 	healthBarFill.ZIndex = 11
 	healthBarFill.Parent = healthBarContainer
-
-	local healthFillCorner = Instance.new("UICorner")
-	healthFillCorner.CornerRadius = UDim.new(0, 3)
-	healthFillCorner.Parent = healthBarFill
 
 	local healthGrad = Instance.new("UIGradient")
 	healthGrad.Color = ColorSequence.new({

@@ -304,19 +304,41 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
                 )
             end
 
-            -- 4. Proximity Kinetic Defuser for incoming flingers (within 15 studs)
+            -- 4. Selective Flinger Collision Disabler
+            -- Detect players with high linear velocity (>50 studs/s) or high angular spin (>20 rad/s)
+            -- Disable THEIR collisions so they pass harmlessly through you and others.
+            -- Normal players are untouched and keep their collisions!
             if not flingOn then
-                local myPos = hrp.Position
                 for plr, parts in pairs(otherPlayerParts) do
                     if plr ~= LocalPlayer and plr.Character then
                         local oppHrp = plr.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-                        if oppHrp and (oppHrp.Position - myPos).Magnitude < 15 then
+                        local isFlinging = false
+                        if oppHrp then
+                            local lin = oppHrp.AssemblyLinearVelocity.Magnitude
+                            local ang = oppHrp.AssemblyAngularVelocity.Magnitude
+                            if lin > 50 or ang > 20 then
+                                isFlinging = true
+                            end
+                        end
+                        if not isFlinging then
                             for _, p in ipairs(parts) do
-                                if p.AssemblyAngularVelocity.Magnitude > 30 or p.AssemblyLinearVelocity.Magnitude > 80 then
-                                    pcall(function()
-                                        p.AssemblyAngularVelocity = Vector3.zero
-                                        p.AssemblyLinearVelocity = Vector3.zero
-                                    end)
+                                if p.AssemblyLinearVelocity.Magnitude > 60 or p.AssemblyAngularVelocity.Magnitude > 25 then
+                                    isFlinging = true
+                                    break
+                                end
+                            end
+                        end
+
+                        if isFlinging then
+                            -- Flinger detected: disable their collisions
+                            for _, p in ipairs(parts) do
+                                pcall(function() p.CanCollide = false end)
+                            end
+                        else
+                            -- Normal player: leave them be (restore normal collisions on torso/head/root)
+                            for _, p in ipairs(parts) do
+                                if p.Name == "HumanoidRootPart" or p.Name == "Torso" or p.Name == "UpperTorso" or p.Name == "LowerTorso" or p.Name == "Head" then
+                                    pcall(function() p.CanCollide = true end)
                                 end
                             end
                         end
@@ -377,6 +399,14 @@ function DisasterSurvival.setAntiFling(enabled: boolean)
                     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
                     hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, true)
                 end)
+            end
+        end
+
+        for plr, parts in pairs(otherPlayerParts) do
+            for _, p in ipairs(parts) do
+                if p.Name == "HumanoidRootPart" or p.Name == "Torso" or p.Name == "UpperTorso" or p.Name == "LowerTorso" or p.Name == "Head" then
+                    pcall(function() p.CanCollide = true end)
+                end
             end
         end
     end
@@ -561,7 +591,7 @@ local function isDraggable(part: BasePart): boolean
         if plr.Character and part:IsDescendantOf(plr.Character) then return false end
     end
     if part:IsDescendantOf(Workspace.Terrain) then return false end
-    if part.Name == "Baseplate" or part.Name == "Terrain" or part.Name == "SpawnLocation" then return false end
+    if part.Name == "Baseplate" or part.Name == "Terrain" or part.Name == "SpawnLocation" or part.Name == "Grass" or part.Name == "Island" then return false end
     return part:IsDescendantOf(Workspace)
 end
 
@@ -590,6 +620,9 @@ local function getTargetFromMouse(): BasePart?
     return nil
 end
 
+local dragBP: BodyPosition? = nil
+local dragBG: BodyGyro? = nil
+
 local function clearDragTarget()
     for _, ncc in ipairs(dragNoCollisions) do
         if ncc and ncc.Parent then
@@ -598,10 +631,20 @@ local function clearDragTarget()
     end
     table.clear(dragNoCollisions)
 
+    if dragBP and dragBP.Parent then
+        pcall(function() dragBP:Destroy() end)
+    end
+    dragBP = nil
+
+    if dragBG and dragBG.Parent then
+        pcall(function() dragBG:Destroy() end)
+    end
+    dragBG = nil
+
     if dragTarget and dragTarget.Parent then
         pcall(function()
             dragTarget.AssemblyLinearVelocity = throwVelocity
-            dragTarget.AssemblyAngularVelocity = Vector3.zero
+            dragTarget.AssemblyAngularVelocity = Vector3.new(math.random(-15, 15), math.random(-15, 15), math.random(-15, 15))
         end)
     end
 
@@ -632,19 +675,63 @@ local function grabObject(part: BasePart)
     lastDragTime = os.clock()
     throwVelocity = Vector3.zero
 
-    -- 1. Free piece from any grounded assembly welds
+    -- 1. Free piece from any grounded assembly welds & parent model welds
+    for _, j in ipairs(part:GetJoints()) do
+        pcall(function() j:Destroy() end)
+    end
+    local parentModel = part:FindFirstAncestorOfClass("Model")
+    if parentModel then
+        for _, desc in ipairs(parentModel:GetDescendants()) do
+            if desc:IsA("Weld") or desc:IsA("WeldConstraint") or desc:IsA("ManualWeld") or desc:IsA("Snap") or desc:IsA("Motor6D") then
+                if desc.Part0 == part or desc.Part1 == part then
+                    pcall(function() desc:Destroy() end)
+                end
+            end
+        end
+    end
     pcall(function() part:BreakJoints() end)
 
-    -- 2. Claim network ownership
+    -- 2. Expand SimulationRadius to maximum for local physics authority
     pcall(function()
-        if type(sethiddenproperty) == "function" then
-            sethiddenproperty(part, "NetworkOwnershipRule", Enum.NetworkOwnership.Manual)
+        if sethiddenproperty then
+            sethiddenproperty(LocalPlayer, "SimulationRadius", 1000000)
+            sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 1000000)
         end
-        part:SetNetworkOwner(LocalPlayer)
+        settings().Physics.AllowSleep = false
     end)
 
-    -- 3. Prevent self-collision (never pushes or hits player)
-    local char = Players.LocalPlayer and Players.LocalPlayer.Character
+    -- 3. Touch interest with character root part to claim physics ownership
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    if hrp and type(firetouchinterest) == "function" then
+        pcall(function()
+            firetouchinterest(hrp, part, 0)
+            task.defer(function()
+                pcall(function() firetouchinterest(hrp, part, 1) end)
+            end)
+        end)
+    end
+
+    -- 4. Create BodyPosition & BodyGyro for smooth responsive physics dragging
+    local bp = Instance.new("BodyPosition")
+    bp.Name = "__DragBodyPosition"
+    bp.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+    bp.P = 60000
+    bp.D = 900
+    bp.Position = part.Position
+    bp.Parent = part
+    dragBP = bp
+
+    local bg = Instance.new("BodyGyro")
+    bg.Name = "__DragBodyGyro"
+    bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+    bg.P = 60000
+    bg.D = 900
+    bg.CFrame = part.CFrame
+    bg.Parent = part
+    dragBG = bg
+
+    -- 5. Prevent self-collision (never pushes or hits player)
     if char then
         for _, cPart in ipairs(char:GetDescendants()) do
             if cPart:IsA("BasePart") then
@@ -678,11 +765,21 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
                     local targetPos = Camera.CFrame.Position + (ray.Direction * dragDepth)
 
                     pcall(function()
+                        if sethiddenproperty then
+                            sethiddenproperty(LocalPlayer, "SimulationRadius", 1000000)
+                        end
                         local curPos = dragTarget.Position
                         local delta = targetPos - curPos
                         local vel = if dt > 0.001 then (delta / dt) else Vector3.zero
                         if vel.Magnitude > 450 then vel = vel.Unit * 450 end
                         throwVelocity = vel
+
+                        if dragBP and dragBP.Parent then
+                            dragBP.Position = targetPos
+                        end
+                        if dragBG and dragBG.Parent then
+                            dragBG.CFrame = CFrame.new(targetPos) * dragTargetRot
+                        end
 
                         dragTarget.CFrame = CFrame.new(targetPos) * dragTargetRot
                         dragTarget.AssemblyLinearVelocity = vel
@@ -707,9 +804,9 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
             end
         end)
 
-        -- Mouse wheel: push/pull distance
+        -- Mouse wheel: push/pull distance (does not block if textbox is not focused)
         dragWheelConn = UserInputService.InputChanged:Connect(function(input, gp)
-            if gp then return end
+            if UserInputService:GetFocusedTextBox() then return end
             if input.UserInputType == Enum.UserInputType.MouseWheel then
                 if dragTarget then
                     dragDepth = math.clamp(dragDepth + (input.Position.Z * 6), 4, DRAG_MAX_RANGE)
@@ -717,9 +814,9 @@ function DisasterSurvival.setObjectDrag(enabled: boolean)
             end
         end)
 
-        -- LMB: grab hovered object
+        -- LMB: grab hovered object (avoids being swallowed by camera controller gp)
         dragInputConn = UserInputService.InputBegan:Connect(function(input, gp)
-            if gp then return end
+            if UserInputService:GetFocusedTextBox() then return end
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 local target = hoverTarget or getTargetFromMouse()
                 if target and target.Parent then

@@ -13,6 +13,11 @@ if _G.__ModularSuite_Cleanup then
 	_G.__ModularSuite_Cleanup = nil
 end
 
+if _G.__ModularHotbar_Cleanup then
+	pcall(_G.__ModularHotbar_Cleanup)
+	_G.__ModularHotbar_Cleanup = nil
+end
+
 if _G.__ModularSuite_TopBarEnforcer then
 	pcall(task.cancel, _G.__ModularSuite_TopBarEnforcer)
 	_G.__ModularSuite_TopBarEnforcer = nil
@@ -6290,6 +6295,7 @@ Modules["UI/Hotbar.luau"] = function()
     	local isDraggingActive = false
     	local justFinishedDrag = false
     	local equipOrToggleTool: ((Tool) -> ())
+    	local executeSlotToggle: ((number) -> ())
 
     	local function getAllTools(): {Tool}
     		local tools: {Tool} = {}
@@ -7001,10 +7007,10 @@ Modules["UI/Hotbar.luau"] = function()
     					tool = allTools[i]
     					if tool then assignedSlots[i] = tool end
     				end
-    				Animations.buttonClickPop(slotBtn)
     				if tool and tool.Parent then
-    					equipOrToggleTool(tool)
+    					executeSlotToggle(i)
     				else
+    					Animations.buttonClickPop(slotBtn)
     					if toggleBackpack then toggleBackpack() end
     				end
     			end
@@ -7109,9 +7115,35 @@ Modules["UI/Hotbar.luau"] = function()
     		bpWindow.Visible = false
     	end))
 
-    	-- ── 10. High-Priority Keybind Engine (ContextActionService + InputBegan) ──
-    	local lastKeyActionTick = 0
-    	local HOTBAR_ACTION_PRIORITY = 3000
+    	-- ── 10. Direct Hardware Keybind Engine (Top Row 1-0 & Keypad 1-0) ──
+    	for slotIdx = 1, NUM_SLOTS do
+    		pcall(function()
+    			ContextActionService:UnbindAction("ProjectFih_HotbarSlot_" .. tostring(slotIdx))
+    		end)
+    	end
+
+    	executeSlotToggle = function(slotNum: number)
+    		local tool = assignedSlots[slotNum]
+    		if not tool or not tool.Parent then
+    			local allTools = getAllTools()
+    			tool = allTools[slotNum]
+    			if tool then
+    				assignedSlots[slotNum] = tool
+    			end
+    		end
+
+    		local btn = slotFrames[slotNum]
+    		if btn then Animations.buttonClickPop(btn) end
+
+    		if tool and tool.Parent then
+    			equipOrToggleTool(tool)
+    		else
+    			local char = LocalPlayer.Character
+    			local hum = char and char:FindFirstChildOfClass("Humanoid")
+    			if hum then hum:UnequipTools() end
+    			updateSlotHighlightsOnly()
+    		end
+    	end
 
     	local KEY_TO_SLOT: {[Enum.KeyCode]: number} = {
     		[Enum.KeyCode.One] = 1,
@@ -7136,60 +7168,7 @@ Modules["UI/Hotbar.luau"] = function()
     		[Enum.KeyCode.KeypadZero] = 10,
     	}
 
-    	local function executeSlotToggle(slotNum: number)
-    		local tool = assignedSlots[slotNum]
-    		if not tool or not tool.Parent then
-    			local allTools = getAllTools()
-    			tool = allTools[slotNum]
-    			if tool then
-    				assignedSlots[slotNum] = tool
-    			end
-    		end
-
-    		local btn = slotFrames[slotNum]
-    		if btn then Animations.buttonClickPop(btn) end
-
-    		if tool and tool.Parent then
-    			equipOrToggleTool(tool)
-    		else
-    			local char = LocalPlayer.Character
-    			local hum = char and char:FindFirstChildOfClass("Humanoid")
-    			if hum then hum:UnequipTools() end
-    			updateSlotHighlightsOnly()
-    		end
-    	end
-
-    	local function handleSlotAction(actionName: string, inputState: Enum.UserInputState, _inputObject: InputObject)
-    		if inputState ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Pass end
-    		if not isHotbarEnabled then return Enum.ContextActionResult.Pass end
-
-    		local focused = UserInputService:GetFocusedTextBox()
-    		if focused then return Enum.ContextActionResult.Pass end
-
-    		local slotNumStr = actionName:match("(%d+)$")
-    		local slotNum = tonumber(slotNumStr)
-    		if not slotNum or slotNum < 1 or slotNum > NUM_SLOTS then return Enum.ContextActionResult.Pass end
-
-    		lastKeyActionTick = os.clock()
-    		executeSlotToggle(slotNum)
-    		return Enum.ContextActionResult.Sink
-    	end
-
-    	for slotNum = 1, NUM_SLOTS do
-    		local key = KEYCODES[slotNum]
-    		local padKey = KEYPAD_CODES[slotNum]
-    		local actionName = "ProjectFih_HotbarSlot_" .. tostring(slotNum)
-    		ContextActionService:BindActionAtPriority(
-    			actionName,
-    			handleSlotAction,
-    			false,
-    			HOTBAR_ACTION_PRIORITY,
-    			key,
-    			padKey
-    		)
-    	end
-
-    	-- Secondary fallback for Backquote & unhandled keystrokes
+    	local lastKeyActionTick = 0
     	table.insert(activeConnections, UserInputService.InputBegan:Connect(function(input, _gameProcessed)
     		if not isHotbarEnabled then return end
     		local focused = UserInputService:GetFocusedTextBox()
@@ -7203,8 +7182,9 @@ Modules["UI/Hotbar.luau"] = function()
 
     			local targetSlot = KEY_TO_SLOT[input.KeyCode]
     			if targetSlot then
-    				if (os.clock() - lastKeyActionTick) < 0.04 then return end
-    				lastKeyActionTick = os.clock()
+    				local now = os.clock()
+    				if (now - lastKeyActionTick) < 0.08 then return end
+    				lastKeyActionTick = now
     				executeSlotToggle(targetSlot)
     			end
     		end
@@ -7399,6 +7379,7 @@ Modules["UI/Hotbar.luau"] = function()
     			pcall(function() conn:Disconnect() end)
     		end
     		table.clear(activeConnections)
+    		pcall(function() screenGui:Destroy() end)
     	end
 
     	-- Initial render
@@ -7428,10 +7409,23 @@ Modules["UI/Hotbar.luau"] = function()
     		IsOpen = function() return isBackpackOpen end,
     		Refresh = function()
     			queueInventoryRefresh()
+    		end,
+    		Destroy = function()
+    			if _G.__ModularHotbar_Cleanup then
+    				pcall(_G.__ModularHotbar_Cleanup)
+    				_G.__ModularHotbar_Cleanup = nil
+    			end
     		end
     	}
 
     	return widgetObj
+    end
+
+    function Hotbar.Destroy()
+    	if _G.__ModularHotbar_Cleanup then
+    		pcall(_G.__ModularHotbar_Cleanup)
+    		_G.__ModularHotbar_Cleanup = nil
+    	end
     end
 
     return Hotbar
@@ -14221,7 +14215,8 @@ Modules["Core/MainUI.luau"] = function()
     		pcall(function() PlayerList:Destroy() end)
     		pcall(function() ChatWidget:Destroy() end)
     		pcall(function() MusicTracker:Destroy() end)
-    		pcall(function() Hotbar:Destroy() end)
+    		pcall(function() Hotbar.Destroy() end)
+    		if _G.__ModularHotbar_Cleanup then pcall(_G.__ModularHotbar_Cleanup) end
     		pcall(function() LeaderstatsWidget:Destroy() end)
     		pcall(function() HealthWidget:Destroy() end)
     	end

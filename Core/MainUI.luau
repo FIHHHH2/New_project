@@ -3064,7 +3064,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		pcall(function() PlayerList:Destroy() end)
 		pcall(function() ChatWidget:Destroy() end)
 		pcall(function() MusicTracker:Destroy() end)
-		pcall(function() Hotbar:Destroy() end)
+		pcall(function() Hotbar.Destroy() end)
+		if _G.__ModularHotbar_Cleanup then pcall(_G.__ModularHotbar_Cleanup) end
 		pcall(function() LeaderstatsWidget:Destroy() end)
 		pcall(function() HealthWidget:Destroy() end)
 	end

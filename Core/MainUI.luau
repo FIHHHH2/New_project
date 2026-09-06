@@ -2237,6 +2237,11 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				window:Notify("TBOD^2", string.format("Delivered wheat to processor (%d actions)", count), 2.5)
 			end)
 
+			window:AddButton(farmSection, "Collect Wheat Seeds Now", function()
+				local count = TBODSquared.collectSeedsNow()
+				window:Notify("TBOD^2", string.format("Collected %d seed sources", count), 2.5)
+			end)
+
 			-- Tycoon Teleports & Status
 			local statusSection = window:AddSection(tbodRightCol, "Tycoon Teleports & Cache")
 

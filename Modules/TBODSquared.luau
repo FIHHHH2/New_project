@@ -433,6 +433,88 @@ local function getObeliskRebirthPart(): BasePart?
 	return obelisk:FindFirstChildWhichIsA("BasePart", true)
 end
 
+-- ── INTERACTION TRIGGER UTILITIES (PROMPT, CLICK, TOUCH COLLISION) ───
+
+local function triggerPrompt(prompt: ProximityPrompt): boolean
+	if not (prompt and prompt.Enabled and prompt.Parent) then return false end
+	local fpp = (fireproximityprompt :: any) or (getgenv and getgenv().fireproximityprompt)
+	if type(fpp) == "function" then
+		pcall(function() fpp(prompt) end)
+		return true
+	end
+	if prompt.InputHoldBegin then
+		pcall(function()
+			prompt:InputHoldBegin()
+			task.wait(prompt.HoldDuration + 0.05)
+			prompt:InputHoldEnd()
+		end)
+		return true
+	end
+	return false
+end
+
+local function triggerClick(cd: ClickDetector): boolean
+	if not (cd and cd.Parent) then return false end
+	local fcd = (fireclickdetector :: any) or (getgenv and getgenv().fireclickdetector)
+	if type(fcd) == "function" then
+		pcall(function() fcd(cd) end)
+		return true
+	end
+	return false
+end
+
+local function triggerTouch(targetPart: BasePart, hrp: BasePart?): boolean
+	if not (targetPart and targetPart:IsA("BasePart") and targetPart.Parent) then return false end
+	local char = localPlayer.Character
+	local root = hrp or (char and char:FindFirstChild("HumanoidRootPart") :: BasePart?)
+	if not root then return false end
+
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+
+	local fti = (firetouchinterest :: any) or (getgenv and getgenv().firetouchinterest)
+	if type(fti) == "function" then
+		pcall(function()
+			fti(root, targetPart, 0)
+			fti(targetPart, root, 0)
+		end)
+		task.wait(0.01)
+		pcall(function()
+			fti(root, targetPart, 1)
+			fti(targetPart, root, 1)
+		end)
+
+		if char then
+			for _, limbName in ipairs({"RightFoot", "LeftFoot", "Right Leg", "Left Leg", "LowerTorso", "Torso", "RightUpperLeg", "LeftUpperLeg"}) do
+				local limb = char:FindFirstChild(limbName)
+				if limb and limb:IsA("BasePart") then
+					pcall(function()
+						fti(limb, targetPart, 0)
+						fti(targetPart, limb, 0)
+					end)
+					task.wait(0.005)
+					pcall(function()
+						fti(limb, targetPart, 1)
+						fti(targetPart, limb, 1)
+					end)
+				end
+			end
+		end
+		return true
+	end
+	return false
+end
+
+local function physicallyTouch(targetPart: BasePart, hrp: BasePart)
+	if not (hrp and targetPart and targetPart.Parent) then return end
+	hrp.CFrame = targetPart.CFrame
+	hrp.AssemblyLinearVelocity = Vector3.zero
+	hrp.AssemblyAngularVelocity = Vector3.zero
+
+	triggerTouch(targetPart, hrp)
+	task.wait(0.05)
+end
+
 -- Prompt the Obelisk to open the Rebirth Dialog
 local function promptRebirth(): boolean
 	local part = getObeliskRebirthPart()
@@ -706,7 +788,60 @@ local function getTycoonContainers(): {Instance}
 	return containers
 end
 
--- 1. Harvest Completed / Mature Wheat from Farms (with proximity validation)
+-- Count seed tools currently in backpack and character
+local function countSeedsInInventory(): number
+	local count = 0
+	local char = localPlayer.Character
+	if char then
+		for _, item in ipairs(char:GetChildren()) do
+			if item:IsA("Tool") and string.find(string.lower(item.Name), "seed") then
+				count += 1
+			end
+		end
+	end
+	local bp = localPlayer:FindFirstChild("Backpack")
+	if bp then
+		for _, item in ipairs(bp:GetChildren()) do
+			if item:IsA("Tool") and string.find(string.lower(item.Name), "seed") then
+				count += 1
+			end
+		end
+	end
+	return count
+end
+
+-- Identify if an instance is a seed dispenser, spawner, crate, box, or seed drop
+local function isSeedDispenserOrItem(obj: Instance): boolean
+	local nameLower = string.lower(obj.Name)
+	-- Skip if it's a farm plot (unless it is a seed giver/box)
+	if isFarmRelated(nameLower) and not (string.find(nameLower, "seed") or string.find(nameLower, "dispenser") or string.find(nameLower, "box") or string.find(nameLower, "crate") or string.find(nameLower, "giver")) then
+		return false
+	end
+	if isProcessorRelated(nameLower) then
+		return false
+	end
+
+	if string.find(nameLower, "seed") ~= nil then
+		return true
+	end
+	if string.find(nameLower, "wheatbox") 
+		or string.find(nameLower, "wheatspawner") 
+		or string.find(nameLower, "wheatcrate") 
+		or string.find(nameLower, "wheatgiver") 
+		or string.find(nameLower, "wheatdispenser") then
+		return true
+	end
+	if obj:IsA("ProximityPrompt") then
+		local a = string.lower(obj.ActionText or "")
+		local o = string.lower(obj.ObjectText or "")
+		if string.find(a, "seed") or string.find(o, "seed") then
+			return true
+		end
+	end
+	return false
+end
+
+-- 1. Harvest Completed / Mature Wheat from Farms (with physical touch & proximity validation)
 local function harvestCompletedWheat(containers: {Instance}, hrp: BasePart): number
 	if not autoHarvestWheat then return 0 end
 	local harvested = 0
@@ -723,7 +858,7 @@ local function harvestCompletedWheat(containers: {Instance}, hrp: BasePart): num
 					or (string.find(action, "collect") and (string.find(objText, "wheat") or string.find(objText, "crop") or string.find(objText, "farm")))
 
 				if isHarvestPrompt and desc.Parent and desc.Parent:IsA("BasePart") then
-					approachTarget(desc.Parent, hrp)
+					physicallyTouch(desc.Parent, hrp)
 					if triggerPrompt(desc) then
 						harvested += 1
 						task.wait(0.04)
@@ -741,7 +876,7 @@ local function harvestCompletedWheat(containers: {Instance}, hrp: BasePart): num
 					if isMature then
 						local targetPart = if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart", true)
 						if targetPart then
-							approachTarget(targetPart, hrp)
+							physicallyTouch(targetPart, hrp)
 							local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
 							if prompt and triggerPrompt(prompt) then
 								harvested += 1
@@ -749,7 +884,7 @@ local function harvestCompletedWheat(containers: {Instance}, hrp: BasePart): num
 								local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
 								if cd and triggerClick(cd) then
 									harvested += 1
-								elseif triggerTouch(targetPart) then
+								else
 									harvested += 1
 								end
 							end
@@ -764,7 +899,7 @@ local function harvestCompletedWheat(containers: {Instance}, hrp: BasePart): num
 	return harvested
 end
 
--- 2. Automatically Process Harvested Wheat (Deliver to Separator / Mill with proximity)
+-- 2. Automatically Process Harvested Wheat (Deliver to Separator / Mill with physical touch)
 local function processHarvestedWheat(containers: {Instance}, hrp: BasePart): number
 	if not autoProcessWheat then return 0 end
 	local processed = 0
@@ -786,13 +921,13 @@ local function processHarvestedWheat(containers: {Instance}, hrp: BasePart): num
 					or (if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart", true))
 
 				if hopperPart and hopperPart:IsA("BasePart") then
-					approachTarget(hopperPart, hrp)
-
 					-- Equip harvested wheat
 					if not equipToolNamed("wheat") and not equipToolNamed("grain") then
 						equipToolNamed("harvest")
 					end
-					task.wait(0.03)
+					task.wait(0.02)
+
+					physicallyTouch(hopperPart, hrp)
 
 					local prompt = if desc:IsA("ProximityPrompt") then desc else desc:FindFirstChildWhichIsA("ProximityPrompt", true)
 					if prompt then
@@ -807,52 +942,8 @@ local function processHarvestedWheat(containers: {Instance}, hrp: BasePart): num
 						local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
 						if cd and triggerClick(cd) then
 							processed += 1
-						elseif triggerTouch(hopperPart) then
+						else
 							processed += 1
-						end
-					end
-					task.wait(0.05)
-				end
-			end
-		end
-	end
-
-	return processed
-end
-
--- 3. Collect Wheat Seeds from Seed Box / Spawner (with proximity)
-local function collectWheatSeeds(containers: {Instance}, hrp: BasePart): number
-	if not autoCollectWheat then return 0 end
-	local collected = 0
-
-	-- If already holding seeds, no need to over-collect
-	if hasToolNamed("seed") then
-		return 0
-	end
-
-	for _, container in ipairs(containers) do
-		for _, desc in ipairs(container:GetDescendants()) do
-			local nameLower = string.lower(desc.Name)
-			local isSeedBox = (string.find(nameLower, "seed") and string.find(nameLower, "box"))
-				or string.find(nameLower, "wheatbox")
-				or string.find(nameLower, "wheatspawner")
-				or string.find(nameLower, "seeddispenser")
-				or string.find(nameLower, "seedcrate")
-				or (desc:IsA("ProximityPrompt") and (string.find(string.lower(desc.ActionText), "seed") or string.find(string.lower(desc.ObjectText), "seed")))
-
-			if isSeedBox then
-				local targetPart = (if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart", true))
-				if targetPart then
-					approachTarget(targetPart, hrp)
-					local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
-					if prompt and triggerPrompt(prompt) then
-						collected += 1
-					else
-						local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
-						if cd and triggerClick(cd) then
-							collected += 1
-						elseif triggerTouch(targetPart) then
-							collected += 1
 						end
 					end
 					task.wait(0.04)
@@ -861,10 +952,107 @@ local function collectWheatSeeds(containers: {Instance}, hrp: BasePart): number
 		end
 	end
 
+	return processed
+end
+
+-- 3. Collect Wheat Seeds from Seed Box / Spawner / Loose Items (Physical Touch Engine)
+local function collectWheatSeeds(containers: {Instance}, hrp: BasePart, force: boolean?): number
+	if not autoCollectWheat and not force then return 0 end
+	local collected = 0
+
+	-- Don't over-collect if inventory already holds 10+ seeds, unless forced
+	if not force and countSeedsInInventory() >= 10 then
+		return 0
+	end
+
+	local allContainers: {Instance} = {}
+	for _, c in ipairs(containers) do
+		table.insert(allContainers, c)
+	end
+	for _, folderName in ipairs({"Drops", "Debris", "Items", "Tools", "Spawns", "Seeds", "WheatSeeds", "Collectibles"}) do
+		local folder = Workspace:FindFirstChild(folderName)
+		if folder then
+			table.insert(allContainers, folder)
+		end
+	end
+	for _, obj in ipairs(Workspace:GetChildren()) do
+		if obj:IsA("Tool") or (obj:IsA("Model") and isSeedDispenserOrItem(obj)) then
+			table.insert(allContainers, obj)
+		end
+	end
+
+	local touchedParts: {[BasePart]: boolean} = {}
+
+	for _, container in ipairs(allContainers) do
+		-- If the container itself is a Tool
+		if container:IsA("Tool") and isSeedDispenserOrItem(container) then
+			local hum = localPlayer.Character and localPlayer.Character:FindFirstChildOfClass("Humanoid")
+			if hum then pcall(function() hum:EquipTool(container) end) end
+			local handle = container:FindFirstChild("Handle")
+			if handle and handle:IsA("BasePart") and not touchedParts[handle] then
+				touchedParts[handle] = true
+				physicallyTouch(handle, hrp)
+				collected += 1
+			end
+		end
+
+		for _, desc in ipairs(container:GetDescendants()) do
+			if isSeedDispenserOrItem(desc) then
+				if desc:IsA("Tool") then
+					local hum = localPlayer.Character and localPlayer.Character:FindFirstChildOfClass("Humanoid")
+					if hum then pcall(function() hum:EquipTool(desc) end) end
+					local handle = desc:FindFirstChild("Handle")
+					if handle and handle:IsA("BasePart") and not touchedParts[handle] then
+						touchedParts[handle] = true
+						physicallyTouch(handle, hrp)
+						collected += 1
+					end
+				elseif desc:IsA("Model") or desc:IsA("Folder") then
+					-- Collect and touch every BasePart in the seed dispenser model
+					for _, child in ipairs(desc:GetDescendants()) do
+						if child:IsA("BasePart") and not touchedParts[child] then
+							touchedParts[child] = true
+							physicallyTouch(child, hrp)
+							local pp = child:FindFirstChildWhichIsA("ProximityPrompt", true)
+							if pp then triggerPrompt(pp) end
+							local cd = child:FindFirstChildWhichIsA("ClickDetector", true)
+							if cd then triggerClick(cd) end
+							collected += 1
+						end
+					end
+				elseif desc:IsA("BasePart") then
+					if not touchedParts[desc] then
+						touchedParts[desc] = true
+						physicallyTouch(desc, hrp)
+						local pp = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+						if pp then triggerPrompt(pp) end
+						local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
+						if cd then triggerClick(cd) end
+						collected += 1
+					end
+				elseif desc:IsA("ProximityPrompt") then
+					if desc.Parent and desc.Parent:IsA("BasePart") and not touchedParts[desc.Parent] then
+						touchedParts[desc.Parent] = true
+						physicallyTouch(desc.Parent, hrp)
+						triggerPrompt(desc)
+						collected += 1
+					end
+				elseif desc:IsA("ClickDetector") then
+					if desc.Parent and desc.Parent:IsA("BasePart") and not touchedParts[desc.Parent] then
+						touchedParts[desc.Parent] = true
+						physicallyTouch(desc.Parent, hrp)
+						triggerClick(desc)
+						collected += 1
+					end
+				end
+			end
+		end
+	end
+
 	return collected
 end
 
--- 4. Place / Plant Wheat in Empty Farm Plots (with proximity)
+-- 4. Place / Plant Wheat in Empty Farm Plots (with physical touch & proximity)
 local function placeWheatInFarms(containers: {Instance}, hrp: BasePart, hum: Humanoid): number
 	if not autoPlantWheat then return 0 end
 	local planted = 0
@@ -884,13 +1072,13 @@ local function placeWheatInFarms(containers: {Instance}, hrp: BasePart, hum: Hum
 				if not isPlanted then
 					local soilPart = if desc:IsA("BasePart") then desc else (desc:FindFirstChild("Soil") or desc:FindFirstChild("PlantSpot") or desc:FindFirstChildWhichIsA("BasePart", true))
 					if soilPart and soilPart:IsA("BasePart") then
-						approachTarget(soilPart, hrp)
-
 						-- Ensure seed tool is equipped
 						if not equipToolNamed("seed") then
 							equipToolNamed("wheat")
 						end
-						task.wait(0.03)
+						task.wait(0.02)
+
+						physicallyTouch(soilPart, hrp)
 
 						local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
 						if prompt then
@@ -904,7 +1092,7 @@ local function placeWheatInFarms(containers: {Instance}, hrp: BasePart, hum: Hum
 							local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
 							if cd and triggerClick(cd) then
 								planted += 1
-							elseif triggerTouch(soilPart) then
+							else
 								planted += 1
 							end
 						end
@@ -1092,6 +1280,22 @@ function TBODSquared.processWheatNow(): number
 	local containers = getTycoonContainers()
 	local count = processHarvestedWheat(containers, hrp)
 	TBODSquared.Metrics.wheatProcessed += count
+	if count > 0 and autoReturnHome and hrp and hrp.Parent then
+		hrp.CFrame = homeCF
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+	end
+	return count
+end
+
+function TBODSquared.collectSeedsNow(): number
+	local char = localPlayer.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return 0 end
+	local homeCF = hrp.CFrame
+	local containers = getTycoonContainers()
+	local count = collectWheatSeeds(containers, hrp, true)
+	TBODSquared.Metrics.wheatCollected += count
 	if count > 0 and autoReturnHome and hrp and hrp.Parent then
 		hrp.CFrame = homeCF
 		hrp.AssemblyLinearVelocity = Vector3.zero

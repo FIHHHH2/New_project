@@ -2203,7 +2203,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				window:Notify("TBOD^2", if val then "Wheat AutoFarm started (Collect -> Plant -> Harvest -> Process)" else "Wheat AutoFarm stopped", 3)
 			end)
 
-			window:AddToggle(farmSection, "tbod_farm_collect_seeds", "Auto Collect Wheat Seeds", true, nil, function(val)
+			window:AddToggle(farmSection, "tbod_farm_collect_seeds", "Auto Collect Seeds (When 4/4 Full)", true, nil, function(val)
 				TBODSquared.setAutoCollectWheat(val)
 			end)
 

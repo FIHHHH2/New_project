@@ -166,6 +166,23 @@ end
 function TBODSquared.getPendingEssence(): number
 	local pg = localPlayer:FindFirstChild("PlayerGui")
 	if pg then
+		-- Check System or Main HUD for Essence text
+		local systemGui = pg:FindFirstChild("System") or pg:FindFirstChild("Main")
+		if systemGui then
+			for _, desc in ipairs(systemGui:GetDescendants()) do
+				if desc:IsA("TextLabel") and desc.Visible then
+					local nameLower = string.lower(desc.Name)
+					if nameLower == "essencetext" or nameLower == "essence" then
+						local val = parseFormattedNumber(desc.Text)
+						if val > 0 then
+							TBODSquared.Metrics.currentEssence = desc.Text
+							return val
+						end
+					end
+				end
+			end
+		end
+
 		local essLabel = pg:FindFirstChild("Main")
 			and pg.Main:FindFirstChild("Rebirth")
 			and pg.Main.Rebirth:FindFirstChild("Main")
@@ -176,14 +193,38 @@ function TBODSquared.getPendingEssence(): number
 			return parseFormattedNumber(essLabel.Text)
 		end
 	end
+
+	local leaderstats = localPlayer:FindFirstChild("leaderstats")
+	if leaderstats then
+		local essVal = leaderstats:FindFirstChild("Essence") or leaderstats:FindFirstChild("RebirthEssence")
+		if essVal and essVal:IsA("ValueBase") then
+			return tonumber((essVal :: any).Value) or 0
+		end
+	end
+
 	return 0
 end
 
 -- Check if essence is currently capped
 function TBODSquared.isEssenceCapped(): (boolean, string)
-	local pg = localPlayer:FindFirstChild("PlayerGui")
+	local currentEssence = TBODSquared.getPendingEssence()
+	if currentEssence <= 0 then
+		return false, "No Essence Available"
+	end
 
-	-- 1. Scan Rebirth GUI labels for explicit "MAX", "CAP", or "X / Y" syntax
+	-- 1. Attribute / Value check on player and leaderstats
+	local attrCap = localPlayer:GetAttribute("EssenceCap") 
+		or localPlayer:GetAttribute("MaxEssence")
+		or localPlayer:GetAttribute("RebirthCap")
+	if attrCap and tonumber(attrCap) then
+		local capNum = tonumber(attrCap)
+		if capNum and capNum > 0 and currentEssence >= capNum then
+			return true, string.format("Reached Attribute Cap (%d)", capNum)
+		end
+	end
+
+	-- 2. Check Rebirth GUI if it happens to be open
+	local pg = localPlayer:FindFirstChild("PlayerGui")
 	if pg then
 		local rebirthGui = pg:FindFirstChild("Main") and pg.Main:FindFirstChild("Rebirth")
 		if rebirthGui and rebirthGui.Visible then
@@ -192,12 +233,12 @@ function TBODSquared.isEssenceCapped(): (boolean, string)
 					local text = desc.Text or ""
 					local upper = string.upper(text)
 
-					-- Check for explicit CAPPED, MAX, or LIMIT keywords
-					if string.find(upper, "CAPPED") or string.find(upper, "MAX") or string.find(upper, "LIMIT") then
+					-- Match explicit cap keywords ONLY: "CAPPED", "ESSENCE CAPPED", "CAP REACHED"
+					if upper == "CAPPED" or string.find(upper, "ESSENCE CAPPED") or string.find(upper, "CAP REACHED") or string.find(upper, "MAX ESSENCE REACHED") then
 						return true, "UI indicates " .. text
 					end
 
-					-- Check for "current / max" format e.g. "50 / 50" or "+25 / 25"
+					-- Match fraction: e.g. "50 / 50" or "+50 / 50"
 					local curStr, maxStr = string.match(text, "([%d%.]+%s*[%a]*)%s*/%s*([%d%.]+%s*[%a]*)")
 					if curStr and maxStr then
 						local curNum = parseFormattedNumber(curStr)
@@ -209,33 +250,6 @@ function TBODSquared.isEssenceCapped(): (boolean, string)
 				end
 			end
 		end
-	end
-
-	local currentEssence = TBODSquared.getPendingEssence()
-	if currentEssence <= 0 then
-		return false, "No Essence Available"
-	end
-
-	-- 2. Attribute / Value check on player and leaderstats
-	local attrCap = localPlayer:GetAttribute("EssenceCap") 
-		or localPlayer:GetAttribute("MaxEssence")
-		or localPlayer:GetAttribute("RebirthCap")
-	if attrCap and tonumber(attrCap) then
-		if currentEssence >= tonumber(attrCap) then
-			return true, string.format("Reached Attribute Cap (%d)", tonumber(attrCap))
-		end
-	end
-
-	-- 3. Dynamic plateau detection: if essence has stayed identical for plateau duration while cash is flowing
-	if currentEssence == lastObservedEssence and currentEssence > 0 then
-		essencePlateauTicks += 1
-		-- If essence hasn't moved for 3 checks (1.5 seconds) and player has sufficient cash/progress
-		if essencePlateauTicks >= 3 then
-			return true, string.format("Essence Plateau at +%s", tostring(currentEssence))
-		end
-	else
-		lastObservedEssence = currentEssence
-		essencePlateauTicks = 0
 	end
 
 	return false, "Not capped"
@@ -546,25 +560,7 @@ end
 local function startRebirthLoop()
 	if rebirthThread then return end
 	rebirthThread = task.spawn(function()
-		local checkTicks = 0
 		while autoRebirthEnabled or autoRebirthOnCapped do
-			local pg = localPlayer:FindFirstChild("PlayerGui")
-			local mainGui = pg and pg:FindFirstChild("Main")
-			local rebirthGui = mainGui and mainGui:FindFirstChild("Rebirth")
-			local isGuiOpen = rebirthGui and rebirthGui.Visible == true
-
-			-- If GUI is closed, periodically prompt the Obelisk to open/refresh the Rebirth dialog
-			checkTicks += 1
-			if not isGuiOpen and checkTicks >= 5 then -- Every ~2.5 seconds
-				checkTicks = 0
-				promptRebirth()
-				task.wait(0.25)
-				pg = localPlayer:FindFirstChild("PlayerGui")
-				mainGui = pg and pg:FindFirstChild("Main")
-				rebirthGui = mainGui and mainGui:FindFirstChild("Rebirth")
-				isGuiOpen = rebirthGui and rebirthGui.Visible == true
-			end
-
 			local shouldRebirth = false
 			local rebirthReason = ""
 
@@ -588,10 +584,9 @@ local function startRebirthLoop()
 				local pending = TBODSquared.getPendingEssence()
 				TBODSquared.Metrics.lastRebirthEssence = pending
 				executeRebirth()
-				task.wait(3.0) -- Debounce to allow plot reload & rebirth animation
-				checkTicks = 0
+				task.wait(6.0) -- Generous debounce to allow plot reload, despawn & rebirth animation
 			end
-			task.wait(0.5)
+			task.wait(1.0)
 		end
 		rebirthThread = nil
 	end)

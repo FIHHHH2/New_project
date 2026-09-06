@@ -863,4 +863,6 @@ function DisasterSurvival.cleanup()
     end
 end
 
+DisasterSurvival.Destroy = DisasterSurvival.cleanup
+
 return DisasterSurvival

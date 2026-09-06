@@ -1291,7 +1291,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			local wepLeftCol, wepRightCol = window:CreateColumns(weaponSubTab)
 			local weaponMechSection = window:AddSection(wepLeftCol, "Weapon Mechanisms")
 
-			window:AddToggle(weaponMechSection, "rnh_silent_audio", "Silent Gun Audio (Mute)", true, nil, function(val)
+			window:AddToggle(weaponMechSection, "rnh_silent_audio", "Silent Gun Audio (Mute)", false, nil, function(val)
 				RunNHide.SilentGunAudio = val
 				RunNHide.updateWeapons(true)
 			end)
@@ -1559,7 +1559,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				IceTycoon.setAutoBuy(enabled)
 			end)
 
-			window:AddToggle(buySection, "ice_smart_buy", "Smart Priority Buy (Droppers/Upgrades 1st)", true, nil, function(enabled)
+			window:AddToggle(buySection, "ice_smart_buy", "Smart Priority Buy (Droppers/Upgrades 1st)", false, nil, function(enabled)
 				IceTycoon.SmartPriorityBuy = enabled
 			end)
 
@@ -1782,18 +1782,18 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 
 			local dineSection = window:AddSection(sRightCol, "Restaurant Security")
 
-			window:AddToggle(dineSection, "rt_catch_dine_dash", "Auto-Catch Dine & Dashers", true, nil, function(enabled)
+			window:AddToggle(dineSection, "rt_catch_dine_dash", "Auto-Catch Dine & Dashers", false, nil, function(enabled)
 				RestaurantTycoon.setAutoCatchDineAndDash(enabled)
 			end)
 
 			local rLeftCol, rRightCol = window:CreateColumns(revSubTab)
 			local cashSection = window:AddSection(rLeftCol, "Cash & Table Bills Collector")
 
-			window:AddToggle(cashSection, "rt_auto_grab_cash", "Auto-Grab Cash & Table Bills", true, nil, function(enabled)
+			window:AddToggle(cashSection, "rt_auto_grab_cash", "Auto-Grab Cash & Table Bills", false, nil, function(enabled)
 				RestaurantTycoon.setAutoGrabCash(enabled)
 			end)
 
-			window:AddToggle(cashSection, "rt_auto_collect_tips", "Auto-Collect Customer Tips", true, nil, function(enabled)
+			window:AddToggle(cashSection, "rt_auto_collect_tips", "Auto-Collect Customer Tips", false, nil, function(enabled)
 				RestaurantTycoon.setAutoCollectTips(enabled)
 			end)
 
@@ -1857,7 +1857,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			local aLeftCol, aRightCol = window:CreateColumns(aimSubTab)
 			local aimSection = window:AddSection(aLeftCol, "FastCast Silent Aim Engine")
 
-			window:AddToggle(aimSection, "svh_silent_aim", "True Silent Aim (Vector Redirection)", true, nil, function(enabled)
+			window:AddToggle(aimSection, "svh_silent_aim", "True Silent Aim (Vector Redirection)", false, nil, function(enabled)
 				SeekerVsHider.SilentAim = enabled
 			end)
 
@@ -1897,22 +1897,22 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			local wLeftCol, wRightCol = window:CreateColumns(wepSubTab)
 			local modSection = window:AddSection(wLeftCol, "Weapon Mechanism Overrides")
 
-			window:AddToggle(modSection, "svh_no_recoil", "Zero Recoil & Kickback", true, nil, function(enabled)
+			window:AddToggle(modSection, "svh_no_recoil", "Zero Recoil & Kickback", false, nil, function(enabled)
 				SeekerVsHider.NoRecoil = enabled
 				SeekerVsHider.applyWeaponConfigs()
 			end)
 
-			window:AddToggle(modSection, "svh_no_spread", "Zero Spread (Laser Accuracy)", true, nil, function(enabled)
+			window:AddToggle(modSection, "svh_no_spread", "Zero Spread (Laser Accuracy)", false, nil, function(enabled)
 				SeekerVsHider.NoSpread = enabled
 				SeekerVsHider.applyWeaponConfigs()
 			end)
 
-			window:AddToggle(modSection, "svh_full_auto", "Full Auto Mode (All Guns)", true, nil, function(enabled)
+			window:AddToggle(modSection, "svh_full_auto", "Full Auto Mode (All Guns)", false, nil, function(enabled)
 				SeekerVsHider.FullAuto = enabled
 				SeekerVsHider.applyWeaponConfigs()
 			end)
 
-			window:AddToggle(modSection, "svh_no_drop", "Zero Bullet Drop (Instant Trajectory)", true, nil, function(enabled)
+			window:AddToggle(modSection, "svh_no_drop", "Zero Bullet Drop (Instant Trajectory)", false, nil, function(enabled)
 				SeekerVsHider.NoBulletDrop = enabled
 				SeekerVsHider.applyWeaponConfigs()
 			end)
@@ -2014,7 +2014,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			local shfLeftCol, shfRightCol = window:CreateColumns(shfSubTab)
 			local silentAimSection = window:AddSection(shfLeftCol, "Sheriff Silent Aim")
 
-			window:AddToggle(silentAimSection, "mm2_silent_aim", "Silent Aim (Bullet Directs to Murderer)", true, nil, function(val)
+			window:AddToggle(silentAimSection, "mm2_silent_aim", "Silent Aim (Bullet Directs to Murderer)", false, nil, function(val)
 				MurderMystery2.SilentAim = val
 			end)
 
@@ -2032,7 +2032,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 
 			local quickShotSection = window:AddSection(shfRightCol, "QuickShot & Auto Mechanics")
 
-			window:AddToggle(quickShotSection, "mm2_quick_shot", "QuickShot (Zero Equip / Fire Delay)", true, nil, function(val)
+			window:AddToggle(quickShotSection, "mm2_quick_shot", "QuickShot (Zero Equip / Fire Delay)", false, nil, function(val)
 				MurderMystery2.QuickShot = val
 			end)
 
@@ -2052,11 +2052,11 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				MurderMystery2.RoleESP = val
 			end)
 
-			window:AddToggle(roleEspSection, "mm2_show_gun_drop", "Dropped Gun 3D Beacon ESP", true, nil, function(val)
+			window:AddToggle(roleEspSection, "mm2_show_gun_drop", "Dropped Gun 3D Beacon ESP", false, nil, function(val)
 				MurderMystery2.ShowDroppedGun = val
 			end)
 
-			window:AddToggle(roleEspSection, "mm2_radar_alert", "Murderer Threat Proximity Radar", true, nil, function(val)
+			window:AddToggle(roleEspSection, "mm2_radar_alert", "Murderer Threat Proximity Radar", false, nil, function(val)
 				MurderMystery2.RadarAlert = val
 			end)
 
@@ -2546,11 +2546,10 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		window:AddToggle(gameModuleSection, "mod_exec_mm2", "Murder Mystery 2 Suite", isMM2, nil, function(enabled)
 			window:SetTabVisibility(mm2Tab, enabled)
 			if not enabled then
-				MurderMystery2.setKillAura(false)
-				MurderMystery2.setSilentAim(false)
-				MurderMystery2.setQuickShot(false)
-				MurderMystery2.setRoleESP(false)
-				MurderMystery2.setCoinFarm(false)
+				pcall(function()
+					if MurderMystery2.cleanup then MurderMystery2.cleanup()
+					elseif MurderMystery2.Destroy then MurderMystery2.Destroy() end
+				end)
 			else
 				pcall(function() MurderMystery2.Init() end)
 			end

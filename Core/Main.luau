@@ -71,11 +71,6 @@ end
 if isRNH then
 	pcall(function() RunNHide.init() end)
 end
-if isLucky and LuckyBlocks and LuckyBlocks.AntiVoid then
-	pcall(function()
-		LuckyBlocks.setAntiVoid(true)
-	end)
-end
 
 local mainConns: {RBXScriptConnection} = {}
 local mainThreads: {thread} = {}
@@ -466,6 +461,14 @@ local function mainCleanup()
 		_G.__ModularSuite_TopBarEnforcer = nil
 	end
 	table.clear(cachedCharacterParts)
+
+	-- Ensure all modules are wiped clean on teardown
+	pcall(function() if LuckyBlocks and type(LuckyBlocks.cleanup) == "function" then LuckyBlocks.cleanup() end end)
+	pcall(function() if RestaurantTycoon and type(RestaurantTycoon.cleanup) == "function" then RestaurantTycoon.cleanup() end end)
+	pcall(function() if SeekerVsHider and type(SeekerVsHider.cleanup) == "function" then SeekerVsHider.cleanup() end end)
+	pcall(function() if IceTycoon and type(IceTycoon.cleanup) == "function" then IceTycoon.cleanup() end end)
+	pcall(function() if DisasterSurvival and type(DisasterSurvival.cleanup) == "function" then DisasterSurvival.cleanup() end end)
+	pcall(function() if RunNHide and type(RunNHide.cleanup) == "function" then RunNHide.cleanup() end end)
 end
 
 genv.__ModularMain_Cleanup = mainCleanup

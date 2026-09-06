@@ -557,50 +557,35 @@ function SeekerVsHider.teleportBehindNearestEnemy(): boolean
 	return false
 end
 
--- Initialize FastCast & BulletHandler hooks
-installBulletHook()
-task.spawn(function()
-	task.wait(0.5)
-	SeekerVsHider.applyWeaponConfigs()
-end)
-
 -- Store connections for clean reload
 local svhCharAddedConn: RBXScriptConnection? = nil
 local svhChildAddedConn: RBXScriptConnection? = nil
 
--- Hook character/backpack added to re-apply weapon configs on weapon equip (Zero per-frame loop)
-if LocalPlayer.Character then
-	svhChildAddedConn = LocalPlayer.Character.ChildAdded:Connect(function()
-		task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
+function SeekerVsHider.init()
+	if SeekerVsHider._initialized then return end
+	SeekerVsHider._initialized = true
+
+	installBulletHook()
+	task.spawn(function()
+		task.wait(0.5)
+		SeekerVsHider.applyWeaponConfigs()
 	end)
-end
 
-svhCharAddedConn = LocalPlayer.CharacterAdded:Connect(function(char)
-	task.delay(0.5, SeekerVsHider.applyWeaponConfigs)
-	if svhChildAddedConn then svhChildAddedConn:Disconnect() end
-	svhChildAddedConn = char.ChildAdded:Connect(function()
-		task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
-	end)
-end)
-
--- Lightweight Anti-Ragdoll watcher (Only active when enabled)
-if weaponConfigConn then
-	weaponConfigConn:Disconnect()
-	weaponConfigConn = nil
-end
-
-weaponConfigConn = RunService.Heartbeat:Connect(function()
-	if SeekerVsHider.AntiRagdoll then
-		local char = LocalPlayer.Character
-		local hum = char and char:FindFirstChildOfClass("Humanoid")
-		if hum and hum.PlatformStand then
-			pcall(function()
-				hum.PlatformStand = false
-				hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-			end)
-		end
+	-- Hook character/backpack added to re-apply weapon configs on weapon equip
+	if LocalPlayer.Character then
+		svhChildAddedConn = LocalPlayer.Character.ChildAdded:Connect(function()
+			task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
+		end)
 	end
-end)
+
+	svhCharAddedConn = LocalPlayer.CharacterAdded:Connect(function(char)
+		task.delay(0.5, SeekerVsHider.applyWeaponConfigs)
+		if svhChildAddedConn then svhChildAddedConn:Disconnect() end
+		svhChildAddedConn = char.ChildAdded:Connect(function()
+			task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
+		end)
+	end)
+end
 
 function SeekerVsHider.cleanup()
 	if weaponConfigConn then
@@ -619,6 +604,7 @@ function SeekerVsHider.cleanup()
 		pcall(function() SeekerVsHider.VoidSafetyPlat:Destroy() end)
 		SeekerVsHider.VoidSafetyPlat = nil
 	end
+	SeekerVsHider._initialized = false
 end
 
 SeekerVsHider.Destroy = SeekerVsHider.cleanup

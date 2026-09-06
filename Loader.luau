@@ -86,6 +86,27 @@ end
 disconnectConnections(genv.__ModularSuite_Connections)
 disconnectConnections(_G.__ModularSuite_Connections)
 
+-- 4.5. Purge orphan executor connections on RunService events
+local RunService = game:GetService("RunService")
+local getconns = getconnections or (debug and debug.getconnections)
+local getinfo = debug and debug.getinfo
+if getconns and getinfo then
+	for _, sig in ipairs({RunService.Heartbeat, RunService.RenderStepped, RunService.Stepped}) do
+		pcall(function()
+			for _, c in ipairs(getconns(sig)) do
+				local fn = c.Function
+				if fn then
+					local inf = getinfo(fn)
+					if inf and (inf.source == "@" or inf.source == "" or string.find(inf.source, "loadstring")) then
+						pcall(function() c:Disable() end)
+						pcall(function() c:Disconnect() end)
+					end
+				end
+			end
+		end)
+	end
+end
+
 -- 5. Cancel topbar enforcer if running
 if genv.__ModularSuite_TopBarEnforcer then
 	pcall(task.cancel, genv.__ModularSuite_TopBarEnforcer)
@@ -13463,7 +13484,7 @@ Modules["Core/MainUI.luau"] = function()
     			local wepLeftCol, wepRightCol = window:CreateColumns(weaponSubTab)
     			local weaponMechSection = window:AddSection(wepLeftCol, "Weapon Mechanisms")
 
-    			window:AddToggle(weaponMechSection, "rnh_silent_audio", "Silent Gun Audio (Mute)", true, nil, function(val)
+    			window:AddToggle(weaponMechSection, "rnh_silent_audio", "Silent Gun Audio (Mute)", false, nil, function(val)
     				RunNHide.SilentGunAudio = val
     				RunNHide.updateWeapons(true)
     			end)
@@ -13731,7 +13752,7 @@ Modules["Core/MainUI.luau"] = function()
     				IceTycoon.setAutoBuy(enabled)
     			end)
 
-    			window:AddToggle(buySection, "ice_smart_buy", "Smart Priority Buy (Droppers/Upgrades 1st)", true, nil, function(enabled)
+    			window:AddToggle(buySection, "ice_smart_buy", "Smart Priority Buy (Droppers/Upgrades 1st)", false, nil, function(enabled)
     				IceTycoon.SmartPriorityBuy = enabled
     			end)
 
@@ -13954,18 +13975,18 @@ Modules["Core/MainUI.luau"] = function()
 
     			local dineSection = window:AddSection(sRightCol, "Restaurant Security")
 
-    			window:AddToggle(dineSection, "rt_catch_dine_dash", "Auto-Catch Dine & Dashers", true, nil, function(enabled)
+    			window:AddToggle(dineSection, "rt_catch_dine_dash", "Auto-Catch Dine & Dashers", false, nil, function(enabled)
     				RestaurantTycoon.setAutoCatchDineAndDash(enabled)
     			end)
 
     			local rLeftCol, rRightCol = window:CreateColumns(revSubTab)
     			local cashSection = window:AddSection(rLeftCol, "Cash & Table Bills Collector")
 
-    			window:AddToggle(cashSection, "rt_auto_grab_cash", "Auto-Grab Cash & Table Bills", true, nil, function(enabled)
+    			window:AddToggle(cashSection, "rt_auto_grab_cash", "Auto-Grab Cash & Table Bills", false, nil, function(enabled)
     				RestaurantTycoon.setAutoGrabCash(enabled)
     			end)
 
-    			window:AddToggle(cashSection, "rt_auto_collect_tips", "Auto-Collect Customer Tips", true, nil, function(enabled)
+    			window:AddToggle(cashSection, "rt_auto_collect_tips", "Auto-Collect Customer Tips", false, nil, function(enabled)
     				RestaurantTycoon.setAutoCollectTips(enabled)
     			end)
 
@@ -14029,7 +14050,7 @@ Modules["Core/MainUI.luau"] = function()
     			local aLeftCol, aRightCol = window:CreateColumns(aimSubTab)
     			local aimSection = window:AddSection(aLeftCol, "FastCast Silent Aim Engine")
 
-    			window:AddToggle(aimSection, "svh_silent_aim", "True Silent Aim (Vector Redirection)", true, nil, function(enabled)
+    			window:AddToggle(aimSection, "svh_silent_aim", "True Silent Aim (Vector Redirection)", false, nil, function(enabled)
     				SeekerVsHider.SilentAim = enabled
     			end)
 
@@ -14069,22 +14090,22 @@ Modules["Core/MainUI.luau"] = function()
     			local wLeftCol, wRightCol = window:CreateColumns(wepSubTab)
     			local modSection = window:AddSection(wLeftCol, "Weapon Mechanism Overrides")
 
-    			window:AddToggle(modSection, "svh_no_recoil", "Zero Recoil & Kickback", true, nil, function(enabled)
+    			window:AddToggle(modSection, "svh_no_recoil", "Zero Recoil & Kickback", false, nil, function(enabled)
     				SeekerVsHider.NoRecoil = enabled
     				SeekerVsHider.applyWeaponConfigs()
     			end)
 
-    			window:AddToggle(modSection, "svh_no_spread", "Zero Spread (Laser Accuracy)", true, nil, function(enabled)
+    			window:AddToggle(modSection, "svh_no_spread", "Zero Spread (Laser Accuracy)", false, nil, function(enabled)
     				SeekerVsHider.NoSpread = enabled
     				SeekerVsHider.applyWeaponConfigs()
     			end)
 
-    			window:AddToggle(modSection, "svh_full_auto", "Full Auto Mode (All Guns)", true, nil, function(enabled)
+    			window:AddToggle(modSection, "svh_full_auto", "Full Auto Mode (All Guns)", false, nil, function(enabled)
     				SeekerVsHider.FullAuto = enabled
     				SeekerVsHider.applyWeaponConfigs()
     			end)
 
-    			window:AddToggle(modSection, "svh_no_drop", "Zero Bullet Drop (Instant Trajectory)", true, nil, function(enabled)
+    			window:AddToggle(modSection, "svh_no_drop", "Zero Bullet Drop (Instant Trajectory)", false, nil, function(enabled)
     				SeekerVsHider.NoBulletDrop = enabled
     				SeekerVsHider.applyWeaponConfigs()
     			end)
@@ -14186,7 +14207,7 @@ Modules["Core/MainUI.luau"] = function()
     			local shfLeftCol, shfRightCol = window:CreateColumns(shfSubTab)
     			local silentAimSection = window:AddSection(shfLeftCol, "Sheriff Silent Aim")
 
-    			window:AddToggle(silentAimSection, "mm2_silent_aim", "Silent Aim (Bullet Directs to Murderer)", true, nil, function(val)
+    			window:AddToggle(silentAimSection, "mm2_silent_aim", "Silent Aim (Bullet Directs to Murderer)", false, nil, function(val)
     				MurderMystery2.SilentAim = val
     			end)
 
@@ -14204,7 +14225,7 @@ Modules["Core/MainUI.luau"] = function()
 
     			local quickShotSection = window:AddSection(shfRightCol, "QuickShot & Auto Mechanics")
 
-    			window:AddToggle(quickShotSection, "mm2_quick_shot", "QuickShot (Zero Equip / Fire Delay)", true, nil, function(val)
+    			window:AddToggle(quickShotSection, "mm2_quick_shot", "QuickShot (Zero Equip / Fire Delay)", false, nil, function(val)
     				MurderMystery2.QuickShot = val
     			end)
 
@@ -14224,11 +14245,11 @@ Modules["Core/MainUI.luau"] = function()
     				MurderMystery2.RoleESP = val
     			end)
 
-    			window:AddToggle(roleEspSection, "mm2_show_gun_drop", "Dropped Gun 3D Beacon ESP", true, nil, function(val)
+    			window:AddToggle(roleEspSection, "mm2_show_gun_drop", "Dropped Gun 3D Beacon ESP", false, nil, function(val)
     				MurderMystery2.ShowDroppedGun = val
     			end)
 
-    			window:AddToggle(roleEspSection, "mm2_radar_alert", "Murderer Threat Proximity Radar", true, nil, function(val)
+    			window:AddToggle(roleEspSection, "mm2_radar_alert", "Murderer Threat Proximity Radar", false, nil, function(val)
     				MurderMystery2.RadarAlert = val
     			end)
 
@@ -14718,11 +14739,10 @@ Modules["Core/MainUI.luau"] = function()
     		window:AddToggle(gameModuleSection, "mod_exec_mm2", "Murder Mystery 2 Suite", isMM2, nil, function(enabled)
     			window:SetTabVisibility(mm2Tab, enabled)
     			if not enabled then
-    				MurderMystery2.setKillAura(false)
-    				MurderMystery2.setSilentAim(false)
-    				MurderMystery2.setQuickShot(false)
-    				MurderMystery2.setRoleESP(false)
-    				MurderMystery2.setCoinFarm(false)
+    				pcall(function()
+    					if MurderMystery2.cleanup then MurderMystery2.cleanup()
+    					elseif MurderMystery2.Destroy then MurderMystery2.Destroy() end
+    				end)
     			else
     				pcall(function() MurderMystery2.Init() end)
     			end
@@ -18173,6 +18193,8 @@ Modules["Modules/DisasterSurvival.luau"] = function()
         end
     end
 
+    DisasterSurvival.Destroy = DisasterSurvival.cleanup
+
     return DisasterSurvival
 end
 
@@ -19021,6 +19043,8 @@ Modules["Modules/RunNHide.luau"] = function()
     		Config.Stamina.RegenDelay = originalStamina.RegenDelay
     	end
     end
+
+    RunNHide.Destroy = RunNHide.cleanup
 
     return RunNHide
 end
@@ -20566,6 +20590,7 @@ Modules["Modules/IceTycoon.luau"] = function()
     end
 
     _G.__ModularTycoon_Cleanup = IceTycoon.cleanup
+    IceTycoon.Destroy = IceTycoon.cleanup
 
     return IceTycoon
 end
@@ -20836,10 +20861,14 @@ Modules["Modules/LuckyBlocks.luau"] = function()
     end
 
     function LuckyBlocks.cleanup()
-    	LuckyBlocks.setAutoClaim(false)
-    	LuckyBlocks.setAutoOpen(false)
-    	LuckyBlocks.setFastSword(false)
-    	LuckyBlocks.setAntiVoid(false)
+    	LuckyBlocks.AutoClaimBlocks = false
+    	LuckyBlocks.AutoOpenBlocks = false
+    	LuckyBlocks.TurboSword = false
+    	LuckyBlocks.AntiVoid = false
+
+    	if claimThread then pcall(task.cancel, claimThread) claimThread = nil end
+    	if openThread then pcall(task.cancel, openThread) openThread = nil end
+    	if swordThread then pcall(task.cancel, swordThread) swordThread = nil end
     	if antiVoidConn then
     		pcall(function() antiVoidConn:Disconnect() end)
     		antiVoidConn = nil
@@ -20875,12 +20904,12 @@ Modules["Modules/RestaurantTycoon.luau"] = function()
     local LocalPlayer = Players.LocalPlayer
 
     local RestaurantTycoon = {
-    	AutoGrabCash = true,
-    	AutoCleanDishes = true,
-    	AutoTakeOrders = true,
-    	AutoCollectTips = true,
-    	AutoCatchDineAndDash = true,
-    	AutoClaimDailyRewards = true,
+    	AutoGrabCash = false,
+    	AutoCleanDishes = false,
+    	AutoTakeOrders = false,
+    	AutoCollectTips = false,
+    	AutoCatchDineAndDash = false,
+    	AutoClaimDailyRewards = false,
     	FastCooking = false,
     	ServiceInterval = 0.20,
     	CashInterval = 0.30,
@@ -21346,12 +21375,19 @@ Modules["Modules/RestaurantTycoon.luau"] = function()
     end
 
     function RestaurantTycoon.cleanup()
-    	RestaurantTycoon.setAutoCollectCash(false)
-    	RestaurantTycoon.setAutoClearDishes(false)
-    	RestaurantTycoon.setAutoTakeOrders(false)
-    	RestaurantTycoon.setAutoSeatCustomers(false)
-    	RestaurantTycoon.setAutoCollectTips(false)
-    	RestaurantTycoon.setInstantCooking(false)
+    	RestaurantTycoon.AutoGrabCash = false
+    	RestaurantTycoon.AutoCleanDishes = false
+    	RestaurantTycoon.AutoTakeOrders = false
+    	RestaurantTycoon.AutoCollectTips = false
+    	RestaurantTycoon.AutoCatchDineAndDash = false
+    	RestaurantTycoon.AutoClaimDailyRewards = false
+    	RestaurantTycoon.FastCooking = false
+
+    	if cashThread then pcall(task.cancel, cashThread) cashThread = nil end
+    	if orderThread then pcall(task.cancel, orderThread) orderThread = nil end
+    	if dishThread then pcall(task.cancel, dishThread) dishThread = nil end
+    	if tipsThread then pcall(task.cancel, tipsThread) tipsThread = nil end
+    	if dineThread then pcall(task.cancel, dineThread) dineThread = nil end
     	if cookingConn then
     		pcall(function() cookingConn:Disconnect() end)
     		cookingConn = nil
@@ -21924,50 +21960,35 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	return false
     end
 
-    -- Initialize FastCast & BulletHandler hooks
-    installBulletHook()
-    task.spawn(function()
-    	task.wait(0.5)
-    	SeekerVsHider.applyWeaponConfigs()
-    end)
-
     -- Store connections for clean reload
     local svhCharAddedConn: RBXScriptConnection? = nil
     local svhChildAddedConn: RBXScriptConnection? = nil
 
-    -- Hook character/backpack added to re-apply weapon configs on weapon equip (Zero per-frame loop)
-    if LocalPlayer.Character then
-    	svhChildAddedConn = LocalPlayer.Character.ChildAdded:Connect(function()
-    		task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
+    function SeekerVsHider.init()
+    	if SeekerVsHider._initialized then return end
+    	SeekerVsHider._initialized = true
+
+    	installBulletHook()
+    	task.spawn(function()
+    		task.wait(0.5)
+    		SeekerVsHider.applyWeaponConfigs()
     	end)
-    end
 
-    svhCharAddedConn = LocalPlayer.CharacterAdded:Connect(function(char)
-    	task.delay(0.5, SeekerVsHider.applyWeaponConfigs)
-    	if svhChildAddedConn then svhChildAddedConn:Disconnect() end
-    	svhChildAddedConn = char.ChildAdded:Connect(function()
-    		task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
-    	end)
-    end)
-
-    -- Lightweight Anti-Ragdoll watcher (Only active when enabled)
-    if weaponConfigConn then
-    	weaponConfigConn:Disconnect()
-    	weaponConfigConn = nil
-    end
-
-    weaponConfigConn = RunService.Heartbeat:Connect(function()
-    	if SeekerVsHider.AntiRagdoll then
-    		local char = LocalPlayer.Character
-    		local hum = char and char:FindFirstChildOfClass("Humanoid")
-    		if hum and hum.PlatformStand then
-    			pcall(function()
-    				hum.PlatformStand = false
-    				hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-    			end)
-    		end
+    	-- Hook character/backpack added to re-apply weapon configs on weapon equip
+    	if LocalPlayer.Character then
+    		svhChildAddedConn = LocalPlayer.Character.ChildAdded:Connect(function()
+    			task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
+    		end)
     	end
-    end)
+
+    	svhCharAddedConn = LocalPlayer.CharacterAdded:Connect(function(char)
+    		task.delay(0.5, SeekerVsHider.applyWeaponConfigs)
+    		if svhChildAddedConn then svhChildAddedConn:Disconnect() end
+    		svhChildAddedConn = char.ChildAdded:Connect(function()
+    			task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
+    		end)
+    	end)
+    end
 
     function SeekerVsHider.cleanup()
     	if weaponConfigConn then
@@ -21986,6 +22007,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     		pcall(function() SeekerVsHider.VoidSafetyPlat:Destroy() end)
     		SeekerVsHider.VoidSafetyPlat = nil
     	end
+    	SeekerVsHider._initialized = false
     end
 
     SeekerVsHider.Destroy = SeekerVsHider.cleanup
@@ -22819,6 +22841,8 @@ Modules["Modules/MurderMystery2.luau"] = function()
     	removeKillBox()
     	clearESP()
     end
+
+    MurderMystery2.cleanup = MurderMystery2.Destroy
 
     return MurderMystery2
 end
@@ -23667,11 +23691,6 @@ end
 if isRNH then
 	pcall(function() RunNHide.init() end)
 end
-if isLucky and LuckyBlocks and LuckyBlocks.AntiVoid then
-	pcall(function()
-		LuckyBlocks.setAntiVoid(true)
-	end)
-end
 
 local mainConns: {RBXScriptConnection} = {}
 local mainThreads: {thread} = {}
@@ -24062,6 +24081,14 @@ local function mainCleanup()
 		_G.__ModularSuite_TopBarEnforcer = nil
 	end
 	table.clear(cachedCharacterParts)
+
+	-- Ensure all modules are wiped clean on teardown
+	pcall(function() if LuckyBlocks and type(LuckyBlocks.cleanup) == "function" then LuckyBlocks.cleanup() end end)
+	pcall(function() if RestaurantTycoon and type(RestaurantTycoon.cleanup) == "function" then RestaurantTycoon.cleanup() end end)
+	pcall(function() if SeekerVsHider and type(SeekerVsHider.cleanup) == "function" then SeekerVsHider.cleanup() end end)
+	pcall(function() if IceTycoon and type(IceTycoon.cleanup) == "function" then IceTycoon.cleanup() end end)
+	pcall(function() if DisasterSurvival and type(DisasterSurvival.cleanup) == "function" then DisasterSurvival.cleanup() end end)
+	pcall(function() if RunNHide and type(RunNHide.cleanup) == "function" then RunNHide.cleanup() end end)
 end
 
 genv.__ModularMain_Cleanup = mainCleanup

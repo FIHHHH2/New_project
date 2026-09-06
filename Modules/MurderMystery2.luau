@@ -823,4 +823,6 @@ function MurderMystery2.Destroy()
 	clearESP()
 end
 
+MurderMystery2.cleanup = MurderMystery2.Destroy
+
 return MurderMystery2

@@ -20,12 +20,12 @@ local CollectionService = game:GetService("CollectionService")
 local LocalPlayer = Players.LocalPlayer
 
 local RestaurantTycoon = {
-	AutoGrabCash = true,
-	AutoCleanDishes = true,
-	AutoTakeOrders = true,
-	AutoCollectTips = true,
-	AutoCatchDineAndDash = true,
-	AutoClaimDailyRewards = true,
+	AutoGrabCash = false,
+	AutoCleanDishes = false,
+	AutoTakeOrders = false,
+	AutoCollectTips = false,
+	AutoCatchDineAndDash = false,
+	AutoClaimDailyRewards = false,
 	FastCooking = false,
 	ServiceInterval = 0.20,
 	CashInterval = 0.30,
@@ -491,12 +491,19 @@ function RestaurantTycoon.getTeleportLocations(): {string}
 end
 
 function RestaurantTycoon.cleanup()
-	RestaurantTycoon.setAutoCollectCash(false)
-	RestaurantTycoon.setAutoClearDishes(false)
-	RestaurantTycoon.setAutoTakeOrders(false)
-	RestaurantTycoon.setAutoSeatCustomers(false)
-	RestaurantTycoon.setAutoCollectTips(false)
-	RestaurantTycoon.setInstantCooking(false)
+	RestaurantTycoon.AutoGrabCash = false
+	RestaurantTycoon.AutoCleanDishes = false
+	RestaurantTycoon.AutoTakeOrders = false
+	RestaurantTycoon.AutoCollectTips = false
+	RestaurantTycoon.AutoCatchDineAndDash = false
+	RestaurantTycoon.AutoClaimDailyRewards = false
+	RestaurantTycoon.FastCooking = false
+
+	if cashThread then pcall(task.cancel, cashThread) cashThread = nil end
+	if orderThread then pcall(task.cancel, orderThread) orderThread = nil end
+	if dishThread then pcall(task.cancel, dishThread) dishThread = nil end
+	if tipsThread then pcall(task.cancel, tipsThread) tipsThread = nil end
+	if dineThread then pcall(task.cancel, dineThread) dineThread = nil end
 	if cookingConn then
 		pcall(function() cookingConn:Disconnect() end)
 		cookingConn = nil

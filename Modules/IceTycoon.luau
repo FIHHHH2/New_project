@@ -1537,5 +1537,6 @@ function IceTycoon.cleanup()
 end
 
 _G.__ModularTycoon_Cleanup = IceTycoon.cleanup
+IceTycoon.Destroy = IceTycoon.cleanup
 
 return IceTycoon

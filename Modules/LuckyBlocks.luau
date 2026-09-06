@@ -262,10 +262,14 @@ function LuckyBlocks.getLocations(): {string}
 end
 
 function LuckyBlocks.cleanup()
-	LuckyBlocks.setAutoClaim(false)
-	LuckyBlocks.setAutoOpen(false)
-	LuckyBlocks.setFastSword(false)
-	LuckyBlocks.setAntiVoid(false)
+	LuckyBlocks.AutoClaimBlocks = false
+	LuckyBlocks.AutoOpenBlocks = false
+	LuckyBlocks.TurboSword = false
+	LuckyBlocks.AntiVoid = false
+
+	if claimThread then pcall(task.cancel, claimThread) claimThread = nil end
+	if openThread then pcall(task.cancel, openThread) openThread = nil end
+	if swordThread then pcall(task.cancel, swordThread) swordThread = nil end
 	if antiVoidConn then
 		pcall(function() antiVoidConn:Disconnect() end)
 		antiVoidConn = nil

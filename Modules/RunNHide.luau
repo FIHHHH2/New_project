@@ -842,4 +842,6 @@ function RunNHide.cleanup()
 	end
 end
 
+RunNHide.Destroy = RunNHide.cleanup
+
 return RunNHide

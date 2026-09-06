@@ -24222,6 +24222,24 @@ Modules["Modules/TBODSquared.luau"] = function()
     	return containers
     end
 
+    -- Physically position player right at part and trigger touch simulation
+    local function physicallyTouch(targetPart: BasePart, hrp: BasePart)
+    	if not (targetPart and targetPart.Parent and hrp and hrp.Parent) then return end
+    	hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 1.2, 0))
+    	hrp.AssemblyLinearVelocity = Vector3.zero
+    	hrp.AssemblyAngularVelocity = Vector3.zero
+    	task.wait(0.04)
+
+    	local fti = (firetouchinterest :: any) or (getgenv and getgenv().firetouchinterest)
+    	if type(fti) == "function" then
+    		pcall(function()
+    			fti(hrp, targetPart, 0)
+    			task.wait(0.02)
+    			fti(hrp, targetPart, 1)
+    		end)
+    	end
+    end
+
     -- Count how many seeds are currently in the tycoon's seed basket/box (0 to 4)
     local function getBasketSeedCount(box: Instance): number
     	-- 1. Check BillboardGui on Display
@@ -24230,8 +24248,8 @@ Modules["Modules/TBODSquared.luau"] = function()
     		local bg = display:FindFirstChildWhichIsA("BillboardGui", true)
     		local tl = bg and bg:FindFirstChildWhichIsA("TextLabel", true)
     		if tl and tl.Text then
-    			local txt = tl.Text
-    			if string.find(txt, "4/4") ~= nil then
+    			local txt = string.lower(tl.Text)
+    			if string.find(txt, "full") ~= nil or string.find(txt, "4/4") ~= nil then
     				return 4
     			elseif string.find(txt, "3/4") ~= nil then
     				return 3
@@ -24239,19 +24257,19 @@ Modules["Modules/TBODSquared.luau"] = function()
     				return 2
     			elseif string.find(txt, "1/4") ~= nil then
     				return 1
-    			elseif string.find(string.lower(txt), "empty") ~= nil or string.find(txt, "0/4") ~= nil then
+    			elseif string.find(txt, "empty") ~= nil or string.find(txt, "0/4") ~= nil then
     				return 0
     			end
     		end
     	end
 
-    	-- 2. Inspect seed models for visible, touchable parts (transparency < 0.5, canTouch == true)
+    	-- 2. Inspect seed models for visible spawned parts (transparency < 0.5)
     	local solidCount = 0
     	for _, child in ipairs(box:GetChildren()) do
     		if string.find(string.lower(child.Name), "wheatseed") then
     			local isSolid = false
     			for _, p in ipairs(child:GetDescendants()) do
-    				if p:IsA("BasePart") and p.Transparency < 0.5 and p.CanTouch then
+    				if p:IsA("BasePart") and p.Transparency < 0.5 then
     					isSolid = true
     					break
     				end

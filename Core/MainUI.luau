@@ -2173,6 +2173,10 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				window:Notify("TBOD^2", if val then "Auto Rebirth threshold active" else "Auto Rebirth threshold stopped", 2)
 			end)
 
+			window:AddToggle(rebirthSection, "tbod_click_rebirth_on_open", "Auto Click Rebirth Button When Open", true, nil, function(val)
+				TBODSquared.setAutoClickRebirthOnOpen(val)
+			end)
+
 			window:AddSlider(rebirthSection, "Rebirth Essence Threshold", 5, 2000, 50, function(val)
 				TBODSquared.setRebirthEssenceTarget(val)
 			end)

@@ -1719,7 +1719,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				LuckyBlocks.setTurboSword(enabled)
 			end)
 
-			window:AddToggle(weaponSpamSection, "lb_anti_void", "Anti-Void Fall Rescue", true, nil, function(enabled)
+			window:AddToggle(weaponSpamSection, "lb_anti_void", "Anti-Void Fall Rescue", false, nil, function(enabled)
 				LuckyBlocks.setAntiVoid(enabled)
 			end)
 
@@ -2534,7 +2534,16 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		-- Left Column: Game Suite Modules (Execution / De-execution)
 		local gameModuleSection = window:AddSection(modLeftCol, "Game Suite Modules (Mount & Execute)")
 
-		window:AddToggle(gameModuleSection, "mod_exec_mm2", "Murder Mystery 2 Suite", true, nil, function(enabled)
+		local isMM2 = (gameTabTitle == "Murder Mystery 2")
+		local isSVH = (gameTabTitle == "Seeker vs Hider")
+		local isRT = (gameTabTitle == "Restaurant Tycoon")
+		local isLucky = (gameTabTitle == "Lucky Blocks")
+		local isIce = (gameTabTitle == "Ice Tycoon")
+		local isRNH = (gameTabTitle == "Run N Hide")
+		local isNDS = (gameTabTitle == "Natural Disaster")
+		local isTBOD = (gameTabTitle == "TBOD^2")
+
+		window:AddToggle(gameModuleSection, "mod_exec_mm2", "Murder Mystery 2 Suite", isMM2, nil, function(enabled)
 			window:SetTabVisibility(mm2Tab, enabled)
 			if not enabled then
 				MurderMystery2.setKillAura(false)
@@ -2547,13 +2556,10 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		window:AddToggle(gameModuleSection, "mod_exec_svh", "Seeker vs Hider Suite", true, nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_svh", "Seeker vs Hider Suite", isSVH, nil, function(enabled)
 			window:SetTabVisibility(svhTab, enabled)
 			if not enabled then
-				SeekerVsHider.SilentAim = false
-				SeekerVsHider.NoRecoil = false
-				SeekerVsHider.NoSpread = false
-				SeekerVsHider.FullAuto = false
+				SeekerVsHider.cleanup()
 			else
 				pcall(function()
 					if SeekerVsHider.Init then SeekerVsHider.Init() end
@@ -2561,14 +2567,10 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		window:AddToggle(gameModuleSection, "mod_exec_rt", "Restaurant Tycoon 3 Suite", true, nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_rt", "Restaurant Tycoon 3 Suite", isRT, nil, function(enabled)
 			window:SetTabVisibility(restTab, enabled)
 			if not enabled then
-				RestaurantTycoon.setAutoGrabCash(false)
-				RestaurantTycoon.setAutoServe(false)
-				RestaurantTycoon.setAutoCollectTips(false)
-				RestaurantTycoon.setAutoCatchDineAndDash(false)
-				RestaurantTycoon.setFastCooking(false)
+				RestaurantTycoon.cleanup()
 			else
 				pcall(function()
 					if RestaurantTycoon.Init then RestaurantTycoon.Init() end
@@ -2576,29 +2578,21 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		window:AddToggle(gameModuleSection, "mod_exec_lucky", "Lucky Blocks Battlegrounds Suite", true, nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_lucky", "Lucky Blocks Battlegrounds Suite", isLucky, nil, function(enabled)
 			window:SetTabVisibility(luckyTab, enabled)
 			if not enabled then
-				LuckyBlocks.setAutoClaim(false)
-				LuckyBlocks.setAutoOpen(false)
-				LuckyBlocks.setTurboSword(false)
-				LuckyBlocks.setAntiVoid(false)
+				LuckyBlocks.cleanup()
 			else
 				pcall(function()
-					if LuckyBlocks.setAntiVoid then LuckyBlocks.setAntiVoid(true) end
+					if LuckyBlocks.Init then LuckyBlocks.Init() end
 				end)
 			end
 		end)
 
-		window:AddToggle(gameModuleSection, "mod_exec_ice", "Ice Tycoon 2 Suite", true, nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_ice", "Ice Tycoon 2 Suite", isIce, nil, function(enabled)
 			window:SetTabVisibility(iceTab, enabled)
 			if not enabled then
-				IceTycoon.setAutoCollect(false)
-				IceTycoon.setAutoHarvestFlowers(false)
-				IceTycoon.setAutoBuy(false)
-				IceTycoon.setAutoFillWater(false)
-				IceTycoon.setFastConveyors(false)
-				IceTycoon.setFastGenerators(false)
+				IceTycoon.cleanup()
 			else
 				pcall(function()
 					if IceTycoon.Init then IceTycoon.Init() end
@@ -2606,31 +2600,19 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		window:AddToggle(gameModuleSection, "mod_exec_rnh", "Run N Hide Suite", true, nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_rnh", "Run N Hide Suite", isRNH, nil, function(enabled)
 			window:SetTabVisibility(rnhTab, enabled)
 			if not enabled then
-				RunNHide.SilentGunAudio = false
-				RunNHide.QuickReload = false
-				RunNHide.CompleteAuto = false
-				RunNHide.NoRecoil = false
-				RunNHide.FastFireRate = false
-				RunNHide.RemoveSpawnWalls = false
-				RunNHide.RemoveInvisibleWalls = false
+				RunNHide.cleanup()
 			else
 				pcall(function() RunNHide.init() end)
 			end
 		end)
 
-		window:AddToggle(gameModuleSection, "mod_exec_nds", "Natural Disaster Survival Suite", true, nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_nds", "Natural Disaster Survival Suite", isNDS, nil, function(enabled)
 			window:SetTabVisibility(disTab, enabled)
 			if not enabled then
-				DisasterSurvival.DisasterTracker = false
-				DisasterSurvival.setNoFallDamage(false)
-				DisasterSurvival.setFlight(false)
-				DisasterSurvival.setAntiFling(false)
-				DisasterSurvival.setFling(false)
-				DisasterSurvival.setCarDriving(false)
-				DisasterSurvival.setObjectDrag(false)
+				DisasterSurvival.cleanup()
 			else
 				pcall(function()
 					DisasterSurvival.init(function(msg)
@@ -2642,7 +2624,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			end
 		end)
 
-		window:AddToggle(gameModuleSection, "mod_exec_tbod", "TBOD^2 Tycoon Suite", true, nil, function(enabled)
+		window:AddToggle(gameModuleSection, "mod_exec_tbod", "TBOD^2 Tycoon Suite", isTBOD, nil, function(enabled)
 			window:SetTabVisibility(tbodTab, enabled)
 			if not enabled then
 				TBODSquared.stop()

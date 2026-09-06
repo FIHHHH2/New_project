@@ -7,6 +7,7 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local localPlayer = Players.LocalPlayer
 
@@ -19,13 +20,25 @@ local autoPurchaseEnabled = false
 local smartPurchaseEnabled = true
 local purchaseDelay = 0.3
 local autoRebirthEnabled = false
+local autoRebirthOnCapped = true
 local rebirthEssenceTarget = 50
+
+-- AutoFarm State
+local autoFarmWheatEnabled = false
+local autoCollectWheat = true
+local autoPlantWheat = true
+local autoHarvestWheat = true
+local autoProcessWheat = true
+local farmCycleDelay = 0.35
 
 -- Runtime references & connections
 local purchaseThread: thread? = nil
 local rebirthThread: thread? = nil
+local farmThread: thread? = nil
 local cachedTycoon: Model? = nil
 local cachedPlotName: string? = nil
+local lastObservedEssence = 0
+local essencePlateauTicks = 0
 
 -- Metrics
 TBODSquared.Metrics = {
@@ -33,7 +46,11 @@ TBODSquared.Metrics = {
 	rebirthsTriggered = 0,
 	lastRebirthEssence = 0,
 	currentCash = "$0",
-	currentEssence = "+0"
+	currentEssence = "+0",
+	wheatCollected = 0,
+	wheatPlanted = 0,
+	wheatHarvested = 0,
+	wheatProcessed = 0,
 }
 
 -- Helper: parse formatted currency string ("$3B", "150M", "+253", "$130") into raw number
@@ -61,6 +78,12 @@ local function parseFormattedNumber(str: string?): number
 		return num * multipliers[suffix]
 	end
 	return num
+end
+
+-- Clear cached plot and tycoon references
+function TBODSquared.clearCache()
+	cachedTycoon = nil
+	cachedPlotName = nil
 end
 
 -- Resolve the player's plot and matching Tycoon model in workspace
@@ -153,6 +176,68 @@ function TBODSquared.getPendingEssence(): number
 		end
 	end
 	return 0
+end
+
+-- Check if essence is currently capped
+function TBODSquared.isEssenceCapped(): (boolean, string)
+	local currentEssence = TBODSquared.getPendingEssence()
+	if currentEssence <= 0 then
+		return false, "No Essence Available"
+	end
+
+	local pg = localPlayer:FindFirstChild("PlayerGui")
+
+	-- 1. Scan Rebirth GUI labels for explicit "MAX", "CAP", or "X / Y" syntax
+	if pg then
+		local rebirthGui = pg:FindFirstChild("Main") and pg.Main:FindFirstChild("Rebirth")
+		if rebirthGui then
+			for _, desc in ipairs(rebirthGui:GetDescendants()) do
+				if desc:IsA("TextLabel") and desc.Visible then
+					local text = desc.Text or ""
+					local upper = string.upper(text)
+
+					-- Check for explicit CAPPED, MAX, or LIMIT keywords
+					if string.find(upper, "CAPPED") or string.find(upper, "MAX") or string.find(upper, "LIMIT") then
+						return true, "UI indicates " .. text
+					end
+
+					-- Check for "current / max" format e.g. "50 / 50" or "+25 / 25"
+					local curStr, maxStr = string.match(text, "([%d%.]+%s*[%a]*)%s*/%s*([%d%.]+%s*[%a]*)")
+					if curStr and maxStr then
+						local curNum = parseFormattedNumber(curStr)
+						local maxNum = parseFormattedNumber(maxStr)
+						if maxNum > 0 and curNum >= maxNum then
+							return true, string.format("Capped at %s/%s", curStr, maxStr)
+						end
+					end
+				end
+			end
+		end
+	end
+
+	-- 2. Attribute / Value check on player and leaderstats
+	local attrCap = localPlayer:GetAttribute("EssenceCap") 
+		or localPlayer:GetAttribute("MaxEssence")
+		or localPlayer:GetAttribute("RebirthCap")
+	if attrCap and tonumber(attrCap) then
+		if currentEssence >= tonumber(attrCap) then
+			return true, string.format("Reached Attribute Cap (%d)", tonumber(attrCap))
+		end
+	end
+
+	-- 3. Dynamic plateau detection: if essence has stayed identical for plateau duration while cash is flowing
+	if currentEssence == lastObservedEssence and currentEssence > 0 then
+		essencePlateauTicks += 1
+		-- If essence hasn't moved for 3 checks (1.5 seconds) and player has sufficient cash/progress
+		if essencePlateauTicks >= 3 then
+			return true, string.format("Essence Plateau at +%s", tostring(currentEssence))
+		end
+	else
+		lastObservedEssence = currentEssence
+		essencePlateauTicks = 0
+	end
+
+	return false, "Not capped"
 end
 
 -- Purchase a tycoon button via touch stimulation
@@ -265,13 +350,30 @@ local function executeRebirth(): boolean
 		and pg.Main.Rebirth.Main.Inner:FindFirstChild("Rebirth") :: GuiButton?
 
 	if rebBtn then
+		local clicked = false
 		local fs = (firesignal :: any) or (getgenv and getgenv().firesignal)
 		if type(fs) == "function" then
 			pcall(function()
 				fs(rebBtn.MouseButton1Click)
 				fs(rebBtn.Activated)
+				clicked = true
 			end)
 		end
+
+		if not clicked then
+			pcall(function()
+				local getconnections = (getconnections :: any) or (getgenv and getgenv().getconnections)
+				if type(getconnections) == "function" then
+					for _, conn in ipairs(getconnections(rebBtn.MouseButton1Click)) do
+						conn:Fire()
+					end
+					for _, conn in ipairs(getconnections(rebBtn.Activated)) do
+						conn:Fire()
+					end
+				end
+			end)
+		end
+
 		TBODSquared.Metrics.rebirthsTriggered += 1
 		cachedTycoon = nil -- Invalidate tycoon cache after rebirth reset
 		return true
@@ -279,13 +381,32 @@ local function executeRebirth(): boolean
 	return false
 end
 
--- Auto Rebirth Loop
+-- Auto Rebirth Loop (Supports threshold and automatic cap detection)
 local function startRebirthLoop()
 	if rebirthThread then return end
 	rebirthThread = task.spawn(function()
-		while autoRebirthEnabled do
-			local pending = TBODSquared.getPendingEssence()
-			if pending >= rebirthEssenceTarget and pending > 0 then
+		while autoRebirthEnabled or autoRebirthOnCapped do
+			local shouldRebirth = false
+			local rebirthReason = ""
+
+			if autoRebirthOnCapped then
+				local isCapped, capReason = TBODSquared.isEssenceCapped()
+				if isCapped then
+					shouldRebirth = true
+					rebirthReason = capReason
+				end
+			end
+
+			if not shouldRebirth and autoRebirthEnabled then
+				local pending = TBODSquared.getPendingEssence()
+				if pending >= rebirthEssenceTarget and pending > 0 then
+					shouldRebirth = true
+					rebirthReason = string.format("Reached Target Essence (%d >= %d)", pending, rebirthEssenceTarget)
+				end
+			end
+
+			if shouldRebirth then
+				local pending = TBODSquared.getPendingEssence()
 				TBODSquared.Metrics.lastRebirthEssence = pending
 				executeRebirth()
 				task.wait(2.5) -- Debounce to allow plot reload & rebirth animation
@@ -296,8 +417,389 @@ local function startRebirthLoop()
 	end)
 end
 
--- Conveyor Speed Boosting
--- Module Interface
+-- ── WHEAT AUTOFARM & HARVEST/PROCESSING ENGINE ───────────────────────
+
+-- Trigger ProximityPrompt with distance and hold duration bypass
+local function triggerPrompt(prompt: ProximityPrompt): boolean
+	if not prompt or not prompt.Parent then return false end
+
+	pcall(function()
+		prompt.RequiresLineOfSight = false
+		prompt.MaxActivationDistance = 9999
+		prompt.HoldDuration = 0
+	end)
+
+	local fpp = (fireproximityprompt :: any) or (getgenv and getgenv().fireproximityprompt)
+	if type(fpp) == "function" then
+		local ok = pcall(fpp, prompt)
+		if ok then return true end
+	end
+
+	pcall(function()
+		prompt:InputHoldBegin()
+		task.wait(0.02)
+		prompt:InputHoldEnd()
+	end)
+	return true
+end
+
+-- Trigger ClickDetector
+local function triggerClick(cd: ClickDetector): boolean
+	if not cd or not cd.Parent then return false end
+	local fcd = (fireclickdetector :: any) or (getgenv and getgenv().fireclickdetector)
+	if type(fcd) == "function" then
+		local ok = pcall(fcd, cd)
+		if ok then return true end
+	end
+	return false
+end
+
+-- Trigger Touch
+local function triggerTouch(part: BasePart): boolean
+	local char = localPlayer.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp or not part or not part.Parent then return false end
+
+	local fti = (firetouchinterest :: any) or (getgenv and getgenv().firetouchinterest)
+	if type(fti) == "function" then
+		pcall(function()
+			fti(hrp, part, 0)
+			task.wait(0.02)
+			fti(hrp, part, 1)
+		end)
+		return true
+	end
+
+	return false
+end
+
+-- Helper string predicates
+local function isWheatRelated(name: string): boolean
+	local lower = string.lower(name)
+	return string.find(lower, "wheat") ~= nil 
+		or string.find(lower, "seed") ~= nil
+		or string.find(lower, "grain") ~= nil
+		or string.find(lower, "crop") ~= nil
+end
+
+local function isFarmRelated(name: string): boolean
+	local lower = string.lower(name)
+	return string.find(lower, "farm") ~= nil 
+		or string.find(lower, "plot") ~= nil
+		or string.find(lower, "soil") ~= nil
+		or string.find(lower, "field") ~= nil
+		or string.find(lower, "garden") ~= nil
+end
+
+local function isProcessorRelated(name: string): boolean
+	local lower = string.lower(name)
+	return string.find(lower, "separator") ~= nil 
+		or string.find(lower, "process") ~= nil
+		or string.find(lower, "mill") ~= nil
+		or string.find(lower, "refin") ~= nil
+		or string.find(lower, "silo") ~= nil
+		or string.find(lower, "bakery") ~= nil
+		or string.find(lower, "deposit") ~= nil
+end
+
+-- Equip item tool by partial name
+local function equipToolNamed(pattern: string): boolean
+	local char = localPlayer.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not hum then return false end
+
+	-- Check if already equipped
+	for _, item in ipairs(char:GetChildren()) do
+		if item:IsA("Tool") and string.find(string.lower(item.Name), string.lower(pattern)) then
+			return true
+		end
+	end
+
+	-- Check backpack
+	local bp = localPlayer:FindFirstChild("Backpack")
+	if bp then
+		for _, item in ipairs(bp:GetChildren()) do
+			if item:IsA("Tool") and string.find(string.lower(item.Name), string.lower(pattern)) then
+				hum:EquipTool(item)
+				return true
+			end
+		end
+	end
+	return false
+end
+
+-- Resolve all active search containers for farms, seeds, and processors
+local function getTycoonContainers(): {Instance}
+	local containers: {Instance} = {}
+	local tyc = TBODSquared.getMyTycoon()
+	if tyc then
+		table.insert(containers, tyc)
+	end
+	
+	local plots = Workspace:FindFirstChild("Plots")
+	if plots and cachedPlotName then
+		local myPlot = plots:FindFirstChild(cachedPlotName)
+		if myPlot then
+			table.insert(containers, myPlot)
+		end
+	end
+
+	local wsFarms = Workspace:FindFirstChild("Farms") or Workspace:FindFirstChild("Farm")
+	if wsFarms then
+		table.insert(containers, wsFarms)
+	end
+
+	return containers
+end
+
+-- 1. Harvest Completed / Mature Wheat from Farms
+local function harvestCompletedWheat(containers: {Instance}, hrp: BasePart): number
+	if not autoHarvestWheat then return 0 end
+	local harvested = 0
+
+	for _, container in ipairs(containers) do
+		for _, desc in ipairs(container:GetDescendants()) do
+			-- Check for harvest/collect prompts
+			if desc:IsA("ProximityPrompt") then
+				local action = string.lower(desc.ActionText or "")
+				local objText = string.lower(desc.ObjectText or "")
+				local isHarvestPrompt = string.find(action, "harvest") 
+					or string.find(action, "pick") 
+					or string.find(action, "gather") 
+					or (string.find(action, "collect") and (string.find(objText, "wheat") or string.find(objText, "crop") or string.find(objText, "farm")))
+
+				if isHarvestPrompt then
+					if triggerPrompt(desc) then
+						harvested += 1
+					end
+				end
+			-- Check for mature crop parts or models
+			elseif desc:IsA("Model") or desc:IsA("BasePart") then
+				local nameLower = string.lower(desc.Name)
+				if isWheatRelated(nameLower) then
+					local isMature = desc:GetAttribute("Ready") == true 
+						or desc:GetAttribute("Mature") == true 
+						or desc:GetAttribute("Grown") == true
+						or (desc:IsA("BasePart") and desc.Transparency < 0.5 and desc.Parent and isFarmRelated(desc.Parent.Name))
+
+					if isMature then
+						local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+						if prompt and triggerPrompt(prompt) then
+							harvested += 1
+						else
+							local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
+							if cd and triggerClick(cd) then
+								harvested += 1
+							else
+								local part = if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart")
+								if part and triggerTouch(part) then
+									harvested += 1
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return harvested
+end
+
+-- 2. Automatically Process Harvested Wheat (Deliver to Separator / Mill)
+local function processHarvestedWheat(containers: {Instance}, hrp: BasePart): number
+	if not autoProcessWheat then return 0 end
+	local processed = 0
+
+	-- Equip harvested wheat if available in backpack
+	equipToolNamed("wheat") or equipToolNamed("grain") or equipToolNamed("harvest")
+
+	for _, container in ipairs(containers) do
+		for _, desc in ipairs(container:GetDescendants()) do
+			local nameLower = string.lower(desc.Name)
+			if isProcessorRelated(nameLower) then
+				local prompt = if desc:IsA("ProximityPrompt") then desc else desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+				if prompt then
+					local a = string.lower(prompt.ActionText or "")
+					local o = string.lower(prompt.ObjectText or "")
+					if string.find(a, "process") or string.find(a, "deposit") or string.find(a, "separate") or string.find(a, "refine") or string.find(a, "insert") or string.find(a, "feed") or string.find(a, "sell") or string.find(o, "wheat") or string.find(o, "separator") or string.find(o, "processor") then
+						if triggerPrompt(prompt) then
+							processed += 1
+						end
+					end
+				else
+					local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
+					if cd and triggerClick(cd) then
+						processed += 1
+					else
+						-- Touch the input hopper or main part of processor
+						local hopper = desc:FindFirstChild("Input") 
+							or desc:FindFirstChild("Hopper") 
+							or desc:FindFirstChild("Deposit") 
+							or desc:FindFirstChild("Drop") 
+							or desc:FindFirstChild("Pad")
+							or (if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart"))
+
+						if hopper and hopper:IsA("BasePart") and triggerTouch(hopper) then
+							processed += 1
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return processed
+end
+
+-- 3. Collect Wheat Seeds from Seed Box / Spawner
+local function collectWheatSeeds(containers: {Instance}, hrp: BasePart): number
+	if not autoCollectWheat then return 0 end
+	local collected = 0
+
+	for _, container in ipairs(containers) do
+		for _, desc in ipairs(container:GetDescendants()) do
+			local nameLower = string.lower(desc.Name)
+			local isSeedBox = (string.find(nameLower, "seed") and string.find(nameLower, "box"))
+				or string.find(nameLower, "wheatbox")
+				or string.find(nameLower, "wheatspawner")
+				or string.find(nameLower, "seeddispenser")
+				or string.find(nameLower, "seedcrate")
+				or (desc:IsA("ProximityPrompt") and (string.find(string.lower(desc.ActionText), "seed") or string.find(string.lower(desc.ObjectText), "seed")))
+
+			if isSeedBox then
+				if desc:IsA("ProximityPrompt") then
+					if triggerPrompt(desc) then
+						collected += 1
+					end
+				elseif desc:IsA("BasePart") or desc:IsA("Model") then
+					local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+					if prompt and triggerPrompt(prompt) then
+						collected += 1
+					else
+						local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
+						if cd and triggerClick(cd) then
+							collected += 1
+						else
+							local part = if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart")
+							if part and triggerTouch(part) then
+								collected += 1
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return collected
+end
+
+-- 4. Place / Plant Wheat in Empty Farm Plots
+local function placeWheatInFarms(containers: {Instance}, hrp: BasePart, hum: Humanoid): number
+	if not autoPlantWheat then return 0 end
+	local planted = 0
+
+	-- Ensure seed/wheat tool is equipped if available
+	equipToolNamed("seed") or equipToolNamed("wheat")
+
+	for _, container in ipairs(containers) do
+		for _, desc in ipairs(container:GetDescendants()) do
+			-- Check for prompts dedicated to planting
+			if desc:IsA("ProximityPrompt") then
+				local action = string.lower(desc.ActionText or "")
+				local objText = string.lower(desc.ObjectText or "")
+				if string.find(action, "plant") or string.find(action, "sow") or string.find(action, "place") or string.find(objText, "plant") then
+					if triggerPrompt(desc) then
+						planted += 1
+					end
+				end
+			-- Check for plot models/parts
+			elseif isFarmRelated(desc.Name) and (desc:IsA("Model") or desc:IsA("BasePart")) then
+				local isPlanted = desc:GetAttribute("Planted") == true 
+					or desc:GetAttribute("Occupied") == true 
+					or desc:GetAttribute("HasCrop") == true
+
+				if not isPlanted then
+					local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+					if prompt then
+						local a = string.lower(prompt.ActionText or "")
+						if string.find(a, "plant") or string.find(a, "place") or string.find(a, "sow") or string.find(a, "farm") then
+							if triggerPrompt(prompt) then
+								planted += 1
+							end
+						end
+					else
+						local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
+						if cd and triggerClick(cd) then
+							planted += 1
+						else
+							local soilPart = if desc:IsA("BasePart") then desc else (desc:FindFirstChild("Soil") or desc:FindFirstChild("PlantSpot") or desc:FindFirstChildWhichIsA("BasePart"))
+							if soilPart and soilPart:IsA("BasePart") and triggerTouch(soilPart) then
+								planted += 1
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return planted
+end
+
+-- AutoFarm Loop Execution Step
+local function runWheatFarmStep()
+	local char = localPlayer.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not (char and hrp and hum and hum.Health > 0) then return end
+
+	local containers = getTycoonContainers()
+	if #containers == 0 then return end
+
+	-- Step 1: Harvest completed/mature crops first to free up plot slots
+	local hCount = harvestCompletedWheat(containers, hrp)
+	if hCount > 0 then
+		TBODSquared.Metrics.wheatHarvested += hCount
+	end
+
+	-- Step 2: Automatically process/deliver harvested wheat to separator
+	local pCount = processHarvestedWheat(containers, hrp)
+	if pCount > 0 then
+		TBODSquared.Metrics.wheatProcessed += pCount
+	end
+
+	-- Step 3: Collect fresh wheat seeds from seed box / dispenser
+	local cCount = collectWheatSeeds(containers, hrp)
+	if cCount > 0 then
+		TBODSquared.Metrics.wheatCollected += cCount
+	end
+
+	-- Step 4: Place/plant wheat into empty farm plots
+	local plCount = placeWheatInFarms(containers, hrp, hum)
+	if plCount > 0 then
+		TBODSquared.Metrics.wheatPlanted += plCount
+	end
+end
+
+-- AutoFarm Worker Loop
+local function startFarmLoop()
+	if farmThread then return end
+	farmThread = task.spawn(function()
+		while autoFarmWheatEnabled do
+			local ok, err = pcall(runWheatFarmStep)
+			if not ok then
+				warn("[TBOD^2 AutoFarm] Error in farm cycle:", tostring(err))
+			end
+			task.wait(math.max(0.1, farmCycleDelay))
+		end
+		farmThread = nil
+	end)
+end
+
+-- ── MODULE API INTERFACES ─────────────────────────────────────────────
+
 function TBODSquared.setAutoPurchase(enabled: boolean)
 	autoPurchaseEnabled = enabled
 	if enabled then
@@ -318,9 +820,19 @@ end
 
 function TBODSquared.setAutoRebirth(enabled: boolean)
 	autoRebirthEnabled = enabled
-	if enabled then
+	if enabled or autoRebirthOnCapped then
 		startRebirthLoop()
-	elseif rebirthThread then
+	elseif not autoRebirthOnCapped and rebirthThread then
+		task.cancel(rebirthThread)
+		rebirthThread = nil
+	end
+end
+
+function TBODSquared.setAutoRebirthOnCapped(enabled: boolean)
+	autoRebirthOnCapped = enabled
+	if enabled or autoRebirthEnabled then
+		startRebirthLoop()
+	elseif not autoRebirthEnabled and rebirthThread then
 		task.cancel(rebirthThread)
 		rebirthThread = nil
 	end
@@ -334,9 +846,61 @@ function TBODSquared.manualRebirth(): boolean
 	return executeRebirth()
 end
 
+function TBODSquared.setAutoFarmWheat(enabled: boolean)
+	autoFarmWheatEnabled = enabled
+	if enabled then
+		startFarmLoop()
+	elseif farmThread then
+		task.cancel(farmThread)
+		farmThread = nil
+	end
+end
+
+function TBODSquared.setAutoCollectWheat(enabled: boolean)
+	autoCollectWheat = enabled
+end
+
+function TBODSquared.setAutoPlantWheat(enabled: boolean)
+	autoPlantWheat = enabled
+end
+
+function TBODSquared.setAutoHarvestWheat(enabled: boolean)
+	autoHarvestWheat = enabled
+end
+
+function TBODSquared.setAutoProcessWheat(enabled: boolean)
+	autoProcessWheat = enabled
+end
+
+function TBODSquared.setFarmCycleDelay(delayVal: number)
+	farmCycleDelay = math.clamp(delayVal, 0.05, 3.0)
+end
+
+function TBODSquared.harvestAllPlotsNow(): number
+	local char = localPlayer.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return 0 end
+	local containers = getTycoonContainers()
+	local count = harvestCompletedWheat(containers, hrp)
+	TBODSquared.Metrics.wheatHarvested += count
+	return count
+end
+
+function TBODSquared.processWheatNow(): number
+	local char = localPlayer.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return 0 end
+	local containers = getTycoonContainers()
+	local count = processHarvestedWheat(containers, hrp)
+	TBODSquared.Metrics.wheatProcessed += count
+	return count
+end
+
 function TBODSquared.stop()
 	TBODSquared.setAutoPurchase(false)
 	TBODSquared.setAutoRebirth(false)
+	TBODSquared.setAutoRebirthOnCapped(false)
+	TBODSquared.setAutoFarmWheat(false)
 	if purchaseThread then
 		task.cancel(purchaseThread)
 		purchaseThread = nil
@@ -345,7 +909,12 @@ function TBODSquared.stop()
 		task.cancel(rebirthThread)
 		rebirthThread = nil
 	end
+	if farmThread then
+		task.cancel(farmThread)
+		farmThread = nil
+	end
 	cachedTycoon = nil
+	cachedPlotName = nil
 end
 
 return TBODSquared

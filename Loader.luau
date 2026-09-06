@@ -6,179 +6,38 @@
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 
--- ── UNIFIED CROSS-EXECUTION LIFECYCLE CONTROLLER ─────────────────────
--- Uses both getgenv() and _G to guarantee discovery across all executor contexts
-local genv = (type(getgenv) == "function" and getgenv()) or _G
+if type(cleardrawcache) == "function" then pcall(cleardrawcache) end
 
-local function executeCleanup(fn: any)
-	if type(fn) == "function" then
-		pcall(fn)
-	elseif type(fn) == "table" then
-		if type(fn.Destroy) == "function" then
-			pcall(function() fn:Destroy() end)
-		elseif type(fn.cleanup) == "function" then
-			pcall(function() fn.cleanup() end)
-		end
-	end
-end
-
--- 1. Run prior suite teardown hooks
-if genv.__ModularSuite_Cleanup then
-	executeCleanup(genv.__ModularSuite_Cleanup)
-	genv.__ModularSuite_Cleanup = nil
-end
 if _G.__ModularSuite_Cleanup then
-	executeCleanup(_G.__ModularSuite_Cleanup)
+	pcall(_G.__ModularSuite_Cleanup)
 	_G.__ModularSuite_Cleanup = nil
 end
-if genv.__ModularMain_Cleanup then
-	executeCleanup(genv.__ModularMain_Cleanup)
-	genv.__ModularMain_Cleanup = nil
-end
-if _G.__ModularMain_Cleanup then
-	executeCleanup(_G.__ModularMain_Cleanup)
-	_G.__ModularMain_Cleanup = nil
-end
-if genv.__ModularHotbar_Cleanup then
-	executeCleanup(genv.__ModularHotbar_Cleanup)
-	genv.__ModularHotbar_Cleanup = nil
-end
+
 if _G.__ModularHotbar_Cleanup then
-	executeCleanup(_G.__ModularHotbar_Cleanup)
+	pcall(_G.__ModularHotbar_Cleanup)
 	_G.__ModularHotbar_Cleanup = nil
 end
 
--- 2. Execute any registered cleanups in global list
-if type(genv.__ModularSuite_Cleanups) == "table" then
-	for _, cl in ipairs(genv.__ModularSuite_Cleanups) do
-		executeCleanup(cl)
-	end
-	table.clear(genv.__ModularSuite_Cleanups)
-end
-if type(_G.__ModularSuite_Cleanups) == "table" then
-	for _, cl in ipairs(_G.__ModularSuite_Cleanups) do
-		executeCleanup(cl)
-	end
-	table.clear(_G.__ModularSuite_Cleanups)
-end
-
--- 3. Cancel prior background threads
-local function cancelThreads(thrList: any)
-	if type(thrList) == "table" then
-		for _, thr in ipairs(thrList) do
-			pcall(task.cancel, thr)
-		end
-		table.clear(thrList)
-	end
-end
-cancelThreads(genv.__ModularSuite_Threads)
-cancelThreads(_G.__ModularSuite_Threads)
-
--- 4. Disconnect prior global connections
-local function disconnectConnections(connList: any)
-	if type(connList) == "table" then
-		for _, conn in ipairs(connList) do
-			pcall(function() conn:Disconnect() end)
-		end
-		table.clear(connList)
-	end
-end
-disconnectConnections(genv.__ModularSuite_Connections)
-disconnectConnections(_G.__ModularSuite_Connections)
-
--- 4.5. Purge orphan executor connections on RunService events
-local RunService = game:GetService("RunService")
-local getconns = getconnections or (debug and debug.getconnections)
-local getinfo = debug and debug.getinfo
-if getconns and getinfo then
-	for _, sig in ipairs({RunService.Heartbeat, RunService.RenderStepped, RunService.Stepped}) do
-		pcall(function()
-			for _, c in ipairs(getconns(sig)) do
-				local fn = c.Function
-				if fn then
-					local inf = getinfo(fn)
-					if inf and (inf.source == "@" or inf.source == "" or string.find(inf.source, "loadstring")) then
-						pcall(function() c:Disable() end)
-						pcall(function() c:Disconnect() end)
-					end
-				end
-			end
-		end)
-	end
-end
-
--- 5. Cancel topbar enforcer if running
-if genv.__ModularSuite_TopBarEnforcer then
-	pcall(task.cancel, genv.__ModularSuite_TopBarEnforcer)
-	genv.__ModularSuite_TopBarEnforcer = nil
-end
 if _G.__ModularSuite_TopBarEnforcer then
 	pcall(task.cancel, _G.__ModularSuite_TopBarEnforcer)
 	_G.__ModularSuite_TopBarEnforcer = nil
 end
+_G.__ModularSuite_IsRobloxCoreHidden = false
 
--- 6. Clear raw drawing memory
-if type(cleardrawcache) == "function" then pcall(cleardrawcache) end
-
--- 7. Deep GUI Purge across all possible containers (gethui, CoreGui, PlayerGui)
-local function purgeSuiteGuis(container: Instance?)
-	if not container then return end
+local function purge(c)
+	if not c then return end
 	pcall(function()
-		for _, obj in ipairs(container:GetChildren()) do
-			if obj:IsA("ScreenGui") or obj:IsA("BillboardGui") or obj:IsA("Highlight") then
-				local name = string.lower(obj.Name)
-				if name:find("modular") or name:find("projectfih") or name:find("fih") or name:find("esp") or name:find("chams") then
-					pcall(function() obj:Destroy() end)
-				end
+		for _, ch in ipairs(c:GetDescendants()) do
+			if (ch:IsA("ScreenGui") or ch:IsA("BillboardGui") or ch:IsA("Highlight")) then
+				local n = ch.Name
+				if n:find("Modular") or n:find("ESP") or n:find("Chams") then pcall(function() ch:Destroy() end) end
 			end
 		end
 	end)
 end
-
-pcall(function() if type(gethui) == "function" then purgeSuiteGuis(gethui()) end end)
-pcall(function() purgeSuiteGuis(CoreGui) end)
-pcall(function() if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then purgeSuiteGuis(Players.LocalPlayer.PlayerGui) end end)
-
--- Reset Roblox CoreGui state
-_G.__ModularSuite_IsRobloxCoreHidden = false
-genv.__ModularSuite_IsRobloxCoreHidden = false
-
--- Fresh global lifecycle state for this execution instance
-local globalActiveThreads: {thread} = {}
-local globalActiveConnections: {RBXScriptConnection} = {}
-local globalActiveCleanups: {() -> ()} = {}
-
-genv.__ModularSuite_Threads = globalActiveThreads
-_G.__ModularSuite_Threads = globalActiveThreads
-genv.__ModularSuite_Connections = globalActiveConnections
-_G.__ModularSuite_Connections = globalActiveConnections
-genv.__ModularSuite_Cleanups = globalActiveCleanups
-_G.__ModularSuite_Cleanups = globalActiveCleanups
-
-local function rootTeardown()
-	for _, cl in ipairs(globalActiveCleanups) do
-		pcall(cl)
-	end
-	table.clear(globalActiveCleanups)
-
-	for _, conn in ipairs(globalActiveConnections) do
-		pcall(function() conn:Disconnect() end)
-	end
-	table.clear(globalActiveConnections)
-
-	for _, thr in ipairs(globalActiveThreads) do
-		pcall(task.cancel, thr)
-	end
-	table.clear(globalActiveThreads)
-
-	pcall(function() if type(gethui) == "function" then purgeSuiteGuis(gethui()) end end)
-	pcall(function() purgeSuiteGuis(CoreGui) end)
-	pcall(function() if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then purgeSuiteGuis(Players.LocalPlayer.PlayerGui) end end)
-	if type(cleardrawcache) == "function" then pcall(cleardrawcache) end
-end
-
-genv.__ModularSuite_Cleanup = rootTeardown
-_G.__ModularSuite_Cleanup = rootTeardown
+pcall(function() if type(gethui)=="function" then purge(gethui()) end end)
+pcall(function() purge(CoreGui) end)
+pcall(function() if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then purge(Players.LocalPlayer.PlayerGui) end end)
 
 local Modules: {[string]: () -> any} = {}
 local moduleCache: {[string]: any} = {}
@@ -230,7 +89,7 @@ Modules["UI/Animations.luau"] = function()
     	local dur = if config and config.duration ~= nil then config.duration else 0.15
     	local style = if config and config.easingStyle ~= nil then config.easingStyle else Enum.EasingStyle.Quad
     	local dir = if config and config.easingDirection ~= nil then config.easingDirection else Enum.EasingDirection.Out
-	
+
     	local tweenInfo = TweenInfo.new(dur, style, dir)
     	local tween = TweenService:Create(instance, tweenInfo, properties)
     	tween:Play()
@@ -800,9 +659,9 @@ Modules["UI/UI.luau"] = function()
     	UI.CurrentTheme = targetTheme
     	UI.Theme = targetTheme
     	UI.saveTheme(themeName)
-	
+
     	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	
+
     	for inst, propMap in pairs(UI.RegisteredElements) do
     		if inst and inst.Parent then
     			for pt in pairs(propMap) do
@@ -1760,7 +1619,7 @@ Modules["UI/Notification.luau"] = function()
     		notifGui.ResetOnSpawn = false
     		notifGui.DisplayOrder = 9999
     		notifGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		
+
     		pcall(function()
     			notifGui.Parent = CoreGui
     		end)
@@ -1783,7 +1642,7 @@ Modules["UI/Notification.luau"] = function()
     function Notification.show(title: string, message: string, duration: number?)
     	local gui = getNotificationGui()
     	local displayTime = duration or 3.8
-	
+
     	local card = Instance.new("Frame")
     	card.Name = "NotificationCard"
     	card.Size = UDim2.new(0, 260, 0, 74)
@@ -1794,7 +1653,7 @@ Modules["UI/Notification.luau"] = function()
     	card.ClipsDescendants = false
     	card.Parent = gui
     	UI.registerThemeElement(card, "Background")
-	
+
     	local bgGradient = Instance.new("UIGradient")
     	bgGradient.Rotation = 90
     	bgGradient.Color = ColorSequence.new({
@@ -1817,7 +1676,7 @@ Modules["UI/Notification.luau"] = function()
     	local cardScale = Instance.new("UIScale")
     	cardScale.Scale = 0.92
     	cardScale.Parent = card
-	
+
     	-- Inset Topbar
     	local topbar = Instance.new("Frame")
     	topbar.Name = "TopBar"
@@ -1843,7 +1702,7 @@ Modules["UI/Notification.luau"] = function()
     	topStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     	topStroke.Parent = topbar
     	UI.registerThemeElement(topStroke, "Border")
-	
+
     	local topTitle = Instance.new("TextLabel")
     	topTitle.Size = UDim2.new(1, -44, 1, 0)
     	topTitle.Position = UDim2.new(0, 6, 0, 0)
@@ -1855,7 +1714,7 @@ Modules["UI/Notification.luau"] = function()
     	topTitle.TextXAlignment = Enum.TextXAlignment.Left
     	topTitle.Parent = topbar
     	UI.registerThemeElement(topTitle, "TextPrimary")
-	
+
     	-- topbar icons: [-] and [□]
     	local minIcon = Instance.new("TextLabel")
     	minIcon.Size = UDim2.new(0, 14, 1, 0)
@@ -1867,7 +1726,7 @@ Modules["UI/Notification.luau"] = function()
     	minIcon.TextSize = 11
     	minIcon.Parent = topbar
     	UI.registerThemeElement(minIcon, "TextPrimary")
-	
+
     	local sqIcon = Instance.new("TextLabel")
     	sqIcon.Size = UDim2.new(0, 14, 1, 0)
     	sqIcon.Position = UDim2.new(1, -16, 0, 0)
@@ -1878,7 +1737,7 @@ Modules["UI/Notification.luau"] = function()
     	sqIcon.TextSize = 11
     	sqIcon.Parent = topbar
     	UI.registerThemeElement(sqIcon, "TextPrimary")
-	
+
     	-- message body
     	local bodyLabel = Instance.new("TextLabel")
     	bodyLabel.Name = "Message"
@@ -1892,10 +1751,10 @@ Modules["UI/Notification.luau"] = function()
     	bodyLabel.TextXAlignment = Enum.TextXAlignment.Center
     	bodyLabel.Parent = card
     	UI.registerThemeElement(bodyLabel, "TextPrimary")
-	
+
     	table.insert(activeCards, 1, card)
     	repositionCards()
-	
+
     	-- Slide in from right with snappy deceleration (0.94 -> 1.0)
     	card.Position = UDim2.new(1, 40, 1, -20 - 80)
     	TweenService:Create(cardScale, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -1904,7 +1763,7 @@ Modules["UI/Notification.luau"] = function()
     	TweenService:Create(card, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
     		Position = UDim2.new(1, -280, 1, -20 - 80)
     	}):Play()
-	
+
     	task.delay(displayTime, function()
     		if card and card.Parent then
     			local idx = table.find(activeCards, card)
@@ -1912,7 +1771,7 @@ Modules["UI/Notification.luau"] = function()
     				table.remove(activeCards, idx)
     			end
     			repositionCards()
-			
+
     			TweenService:Create(cardScale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
     				Scale = 0.94
     			}):Play()
@@ -4024,7 +3883,7 @@ Modules["UI/ChatWidget.luau"] = function()
     				popAvatar.Image = thumb
     			end
     		end)
-		
+
     		local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
     		local x = math.clamp(clickPos.X, 8, math.max(8, vp.X - 198))
     		local y = math.clamp(clickPos.Y, 8, math.max(8, vp.Y - 248))
@@ -9987,7 +9846,7 @@ Modules["Core/FeatureManager.luau"] = function()
     local function deleteConfigFile(name: string): boolean
     	ensureFolders()
     	local cleanName = name:gsub("^FihSuiteConfigs", ""):gsub("%.json$", "")
-	
+
     	configsIndex[cleanName] = nil
     	configsIndex[name] = nil
     	deletedConfigsSet[cleanName] = true
@@ -10052,9 +9911,9 @@ Modules["Core/FeatureManager.luau"] = function()
     			return
     		end
     	end
-	
+
     	if gameProcessed then return end
-	
+
     	if input.UserInputType == Enum.UserInputType.Keyboard then
     		local matching = keybindMap[input.KeyCode]
     		if matching then
@@ -10092,14 +9951,14 @@ Modules["Core/FeatureManager.luau"] = function()
     	}
     	registeredFeatures[id] = record
     	rebuildKeybindMap()
-	
+
     	task.spawn(function()
     		local success, err = pcall(callback, defaultState)
     		if not success then
     			warn(string.format("[FeatureManager] error initializing feature %s: %s", id, tostring(err)))
     		end
     	end)
-	
+
     	return record
     end
 
@@ -10152,7 +10011,7 @@ Modules["Core/FeatureManager.luau"] = function()
     	local feat = registeredFeatures[id]
     	if not feat then return end
     	if feat.state == state and not force then return end
-	
+
     	feat.state = state
     	if feat.onStateChanged then feat.onStateChanged(state) end
     	if feat.stateListeners then
@@ -10524,7 +10383,7 @@ Modules["Core/CoreUI.luau"] = function()
 
     function CoreUI.new(titleText: string)
     	local self = setmetatable({}, CoreUI)
-	
+
     	pcall(function()
     		local containers = {
     			(type(gethui) == "function" and gethui()),
@@ -10548,12 +10407,12 @@ Modules["Core/CoreUI.luau"] = function()
     	screenGui.ResetOnSpawn = false
     	screenGui.IgnoreGuiInset = true
     	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	
+
     	safeParentGui(screenGui)
-	
+
     	local mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale, controller, themesBtn, statusLabel = UI.createWindow(titleText)
     	mainFrame.Parent = screenGui
-	
+
     	self.ScreenGui = screenGui
     	self.MainFrame = mainFrame
     	self.Sidebar = sidebar
@@ -10575,7 +10434,7 @@ Modules["Core/CoreUI.luau"] = function()
     	self.ActiveToggles = {}
     	self.SliderFills = {}
     	self.SubTabGroups = {}
-	
+
     	-- Wire toggle click handlers for Settings and Themes
     	if self.SettingsBtn then
     		self.SettingsBtn.MouseButton1Click:Connect(function()
@@ -10617,7 +10476,7 @@ Modules["Core/CoreUI.luau"] = function()
     	UI.onThemeChanged(function(targetTheme)
     		self:UpdateTheme(targetTheme)
     	end)
-	
+
     	return self
     end
 
@@ -10725,7 +10584,7 @@ Modules["Core/CoreUI.luau"] = function()
     			}):Play()
     		end
     	end)
-	
+
     	-- Active tab gradient overlay
     	local tabGrad = Instance.new("UIGradient")
     	tabGrad.Name = "ActiveGradient"
@@ -10736,14 +10595,14 @@ Modules["Core/CoreUI.luau"] = function()
     	})
     	tabGrad.Enabled = false
     	tabGrad.Parent = tabButton
-	
+
     	local tabStroke = Instance.new("UIStroke")
     	tabStroke.Color = UI.Theme.Border
     	tabStroke.Thickness = 1.0
     	tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     	tabStroke.Parent = tabButton
     	UI.registerThemeElement(tabStroke, "Border")
-	
+
     	local tabContent = Instance.new("ScrollingFrame")
     	tabContent.Name = name .. "Page"
     	tabContent.Size = UDim2.new(1, 0, 1, 0)
@@ -10764,12 +10623,12 @@ Modules["Core/CoreUI.luau"] = function()
     	pad.PaddingTop = UDim.new(0, 2)
     	pad.PaddingBottom = UDim.new(0, 12)
     	pad.Parent = tabContent
-	
+
     	local layout = Instance.new("UIListLayout")
     	layout.Padding = UDim.new(0, 10)
     	layout.SortOrder = Enum.SortOrder.LayoutOrder
     	layout.Parent = tabContent
-	
+
     	local tabObj = {
     		Name = name,
     		Button = tabButton,
@@ -10780,7 +10639,7 @@ Modules["Core/CoreUI.luau"] = function()
     		IsVisible = not (isHiddenFromSidebar or false),
     		OnVisibilityChanged = nil
     	}
-	
+
     	tabButton.MouseEnter:Connect(function()
     		if self.ActiveTab ~= tabObj then
     			if tabStroke then TweenService:Create(tabStroke, TweenInfo.new(0.12), { Thickness = 1.5 }):Play() end
@@ -10809,14 +10668,14 @@ Modules["Core/CoreUI.luau"] = function()
     			handleRightClick()
     		end
     	end)
-	
+
     	table.insert(self.Tabs, tabObj)
     	self:_UpdateTabSizing()
-	
+
     	if not isHiddenFromSidebar and #self.Tabs == 1 then
     		self:SelectTab(tabObj)
     	end
-	
+
     	return tabObj
     end
 
@@ -10976,7 +10835,7 @@ Modules["Core/CoreUI.luau"] = function()
     		tabObj.Button.TextColor3 = UI.Theme.AccentText
     		tabObj.Stroke.Color = UI.Theme.Border
     		tabObj.Stroke.Thickness = 1.2
-		
+
     		Animations.pulseIndicator(tabObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
 
     		local grad = tabObj.Button:FindFirstChild("ActiveGradient") :: UIGradient?
@@ -11234,10 +11093,10 @@ Modules["Core/CoreUI.luau"] = function()
     				BackgroundTransparency = 0,
     				TextColor3 = UI.Theme.AccentText
     			}):Play()
-			
+
     			-- Active sub-tab indicator pulse
     			Animations.pulseIndicator(targetObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
-			
+
     			if targetObj.Gradient then targetObj.Gradient.Enabled = true end
     		end
 
@@ -11526,7 +11385,7 @@ Modules["Core/CoreUI.luau"] = function()
     -- 3-Segment Toggle Row: [ X ] Option Name [ Bind ]
     function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defaultState: boolean, defaultKeybind: Enum.KeyCode?, callback: (boolean) -> ())
     	local feature = FeatureManager.register(featureId, name, defaultState, defaultKeybind, callback)
-	
+
     	local row = Instance.new("Frame")
     	row.Name = featureId .. "Row"
     	row.Size = UDim2.new(1, -4, 0, 24)
@@ -14354,11 +14213,16 @@ Modules["Core/MainUI.luau"] = function()
     				TBODSquared.setPurchaseDelay(val)
     			end)
 
-    			local rebirthSection = window:AddSection(tbodLeftCol, "Rebirth Automation")
+    			local rebirthSection = window:AddSection(tbodLeftCol, "Rebirth & Essence Automation")
+
+    			window:AddToggle(rebirthSection, "tbod_auto_rebirth_capped", "Auto Rebirth on Essence Capped", true, nil, function(val)
+    				TBODSquared.setAutoRebirthOnCapped(val)
+    				window:Notify("TBOD^2", if val then "Auto Rebirth on Capped active" else "Auto Rebirth on Capped stopped", 2)
+    			end)
 
     			window:AddToggle(rebirthSection, "tbod_auto_rebirth", "Auto Rebirth (+Essence Threshold)", false, nil, function(val)
     				TBODSquared.setAutoRebirth(val)
-    				window:Notify("TBOD^2", if val then "Auto Rebirth active" else "Auto Rebirth stopped", 2)
+    				window:Notify("TBOD^2", if val then "Auto Rebirth threshold active" else "Auto Rebirth threshold stopped", 2)
     			end)
 
     			window:AddSlider(rebirthSection, "Rebirth Essence Threshold", 5, 2000, 50, function(val)
@@ -14374,8 +14238,46 @@ Modules["Core/MainUI.luau"] = function()
     				end
     			end)
 
-    			-- Right Column: Tycoon Teleports & Diagnostics
-    			local statusSection = window:AddSection(tbodRightCol, "Tycoon Status & Cache")
+    			-- Right Column: Wheat AutoFarm & Processing
+    			local farmSection = window:AddSection(tbodRightCol, "Wheat AutoFarm & Processing")
+
+    			window:AddToggle(farmSection, "tbod_autofarm_wheat", "Master Wheat AutoFarm", false, nil, function(val)
+    				TBODSquared.setAutoFarmWheat(val)
+    				window:Notify("TBOD^2", if val then "Wheat AutoFarm started (Collect -> Plant -> Harvest -> Process)" else "Wheat AutoFarm stopped", 3)
+    			end)
+
+    			window:AddToggle(farmSection, "tbod_farm_collect_seeds", "Auto Collect Wheat Seeds", true, nil, function(val)
+    				TBODSquared.setAutoCollectWheat(val)
+    			end)
+
+    			window:AddToggle(farmSection, "tbod_farm_plant", "Auto Place / Plant in Farms", true, nil, function(val)
+    				TBODSquared.setAutoPlantWheat(val)
+    			end)
+
+    			window:AddToggle(farmSection, "tbod_farm_harvest", "Auto Harvest Completed Wheat", true, nil, function(val)
+    				TBODSquared.setAutoHarvestWheat(val)
+    			end)
+
+    			window:AddToggle(farmSection, "tbod_farm_process", "Auto Process in Wheat Separator", true, nil, function(val)
+    				TBODSquared.setAutoProcessWheat(val)
+    			end)
+
+    			window:AddSlider(farmSection, "Farm Cycle Speed (s)", 0.1, 1.5, 0.35, function(val)
+    				TBODSquared.setFarmCycleDelay(val)
+    			end)
+
+    			window:AddButton(farmSection, "Harvest All Farm Plots Now", function()
+    				local count = TBODSquared.harvestAllPlotsNow()
+    				window:Notify("TBOD^2", string.format("Harvested %d mature crops", count), 2.5)
+    			end)
+
+    			window:AddButton(farmSection, "Process Inventory Wheat Now", function()
+    				local count = TBODSquared.processWheatNow()
+    				window:Notify("TBOD^2", string.format("Delivered wheat to processor (%d actions)", count), 2.5)
+    			end)
+
+    			-- Tycoon Teleports & Status
+    			local statusSection = window:AddSection(tbodRightCol, "Tycoon Teleports & Cache")
 
     			window:AddButton(statusSection, "Refresh Tycoon Cache", function()
     				TBODSquared.clearCache()
@@ -14387,10 +14289,7 @@ Modules["Core/MainUI.luau"] = function()
     				end
     			end)
 
-    			-- Teleport Section
-    			local tpSection = window:AddSection(tbodRightCol, "Quick Teleports")
-
-    			window:AddButton(tpSection, "Warp to My Tycoon", function()
+    			window:AddButton(statusSection, "Warp to My Tycoon", function()
     				local tyc = TBODSquared.getMyTycoon()
     				local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
     				if tyc and hrp then
@@ -14402,7 +14301,7 @@ Modules["Core/MainUI.luau"] = function()
     				end
     			end)
 
-    			window:AddButton(tpSection, "Warp to Rebirth Obelisk", function()
+    			window:AddButton(statusSection, "Warp to Rebirth Obelisk", function()
     				local obelisk = Workspace:FindFirstChild("Obelisk")
     				local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
     				if obelisk and hrp then
@@ -15727,25 +15626,25 @@ Modules["Modules/Movement.luau"] = function()
     function Movement.init(window: any)
     	local moveTab = window:CreateTab("Movement")
     	local leftCol, rightCol = window:CreateColumns(moveTab)
-	
+
     	-- Flight & Collision
     	local flightSection = window:AddSection(leftCol, "Flight & Collision")
-	
+
     	window:AddToggle(flightSection, "noclip_toggle", "Noclip", false, nil, function(enabled)
     		Movement.setNoclip(enabled)
     	end)
-	
+
     	window:AddToggle(flightSection, "inf_jump", "Infinite Jump", false, nil, function(enabled)
     		Movement.setInfiniteJump(enabled)
     	end)
-	
+
     	-- Physics & Gravity
     	local physicsSection = window:AddSection(rightCol, "World Physics")
-	
+
     	window:AddSlider(physicsSection, "Custom Gravity", 0, 196, 196, function(value)
     		Workspace.Gravity = value
     	end)
-	
+
     	window:AddSlider(physicsSection, "Hip Height Offset", 0, 20, 0, function(value)
     		if LocalPlayer.Character then
     			local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -15754,7 +15653,7 @@ Modules["Modules/Movement.luau"] = function()
     			end
     		end
     	end)
-	
+
     	window:SelectTab(moveTab)
     	return moveTab
     end
@@ -15820,19 +15719,19 @@ Modules["Modules/Visuals.luau"] = function()
     	Box2D = false,
     	BoxOutlines = false,
     	BoxColor = Color3.fromRGB(55, 175, 245),
-	
+
     	HealthBar = false,
-	
+
     	Tracers = false,
     	TracerOrigin = "Bottom" :: "Bottom" | "Center" | "Mouse",
     	TracerColor = Color3.fromRGB(255, 255, 255),
-	
+
     	Distance = false,
     	DistanceColor = Color3.fromRGB(240, 240, 240),
-	
+
     	Skeleton = false,
     	SkeletonColor = Color3.fromRGB(255, 200, 50),
-	
+
     	-- 3D Chams / Highlights Settings
     	Chams = false,
     	ChamsTransparency = 0.5,
@@ -15864,7 +15763,7 @@ Modules["Modules/Visuals.luau"] = function()
     			return obj
     		end
     	end
-	
+
     	if hasDrawing then
     		local success, obj = pcall(function()
     			return Drawing.new(drawingType)
@@ -15882,7 +15781,7 @@ Modules["Modules/Visuals.luau"] = function()
     function Visuals.releaseDrawing(drawingTypeOrObj: any, maybeObj: any?)
     	local drawingType: string?
     	local obj: any?
-	
+
     	if typeof(drawingTypeOrObj) == "string" then
     		drawingType = drawingTypeOrObj
     		obj = maybeObj
@@ -15892,13 +15791,13 @@ Modules["Modules/Visuals.luau"] = function()
     			drawingType = maybeObj
     		end
     	end
-	
+
     	if not obj then return end
-	
+
     	pcall(function()
     		obj.Visible = false
     	end)
-	
+
     	if drawingType and DrawingPool[drawingType] then
     		table.insert(DrawingPool[drawingType], obj)
     	else
@@ -15966,14 +15865,14 @@ Modules["Modules/Visuals.luau"] = function()
     		pv.Parts = nil
     		return
     	end
-	
+
     	local humanoid = character:FindFirstChildOfClass("Humanoid")
     	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") :: BasePart?
     	local head = character:FindFirstChild("Head") :: BasePart?
     	local torso = character:FindFirstChild("Torso") :: BasePart?
     	local upperTorso = character:FindFirstChild("UpperTorso") :: BasePart?
     	local lowerTorso = character:FindFirstChild("LowerTorso") :: BasePart?
-	
+
     	local boneMap: {[string]: BasePart?} = {}
     	for _, pair in ipairs(BONE_PAIRS) do
     		local p1Name = pair[1]
@@ -15985,7 +15884,7 @@ Modules["Modules/Visuals.luau"] = function()
     			boneMap[p2Name] = character:FindFirstChild(p2Name) :: BasePart?
     		end
     	end
-	
+
     	-- Fallback resolution for R6 character rigs
     	if not boneMap["UpperTorso"] and torso then
     		boneMap["UpperTorso"] = torso
@@ -16003,7 +15902,7 @@ Modules["Modules/Visuals.luau"] = function()
     	if not boneMap["RightUpperLeg"] then
     		boneMap["RightUpperLeg"] = character:FindFirstChild("Right Leg") :: BasePart?
     	end
-	
+
     	pv.Parts = {
     		Character = character,
     		Humanoid = humanoid,
@@ -16044,7 +15943,7 @@ Modules["Modules/Visuals.luau"] = function()
     		CharRemovingConn = nil,
     		ChildAddedConn = nil,
     	}
-	
+
     	if hasDrawing then
     		-- Box Outline (Secondary black square for high contrast, Thickness = 3.5)
     		local boxOutline = Visuals.acquireDrawing("Square")
@@ -16071,7 +15970,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.Box = box
     		end
-		
+
     		-- Health Bar BG
     		local hbBg = Visuals.acquireDrawing("Square")
     		if hbBg then
@@ -16084,7 +15983,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.HealthBarBg = hbBg
     		end
-		
+
     		-- Health Bar Fill
     		local hbFill = Visuals.acquireDrawing("Square")
     		if hbFill then
@@ -16097,7 +15996,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.HealthBarFill = hbFill
     		end
-		
+
     		-- Tracer line
     		local tracer = Visuals.acquireDrawing("Line")
     		if tracer then
@@ -16109,7 +16008,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.Tracer = tracer
     		end
-		
+
     		-- Distance tag (3D stud distance text positioned below bounding box)
     		local distTag = Visuals.acquireDrawing("Text")
     		if distTag then
@@ -16140,7 +16039,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.NameTag = nameTag
     		end
-		
+
     		-- Skeleton bones (14 bone segments)
     		for i = 1, #BONE_PAIRS do
     			local bone = Visuals.acquireDrawing("Line")
@@ -16155,12 +16054,12 @@ Modules["Modules/Visuals.luau"] = function()
     			end
     		end
     	end
-	
+
     	-- Cache character parts and listen for character lifecycle
     	if player.Character then
     		cachePlayerParts(pv, player.Character)
     	end
-	
+
     	pv.CharAddedConn = player.CharacterAdded:Connect(function(char)
     		cachePlayerParts(pv, char)
     		if pv.ChildAddedConn then
@@ -16173,7 +16072,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end
     		end)
     	end)
-	
+
     	pv.CharRemovingConn = player.CharacterRemoving:Connect(function()
     		pv.Parts = nil
     		pv.LastDistance = nil
@@ -16183,7 +16082,7 @@ Modules["Modules/Visuals.luau"] = function()
     		end
     		hideAll(pv)
     	end)
-	
+
     	return pv
     end
 
@@ -16200,12 +16099,12 @@ Modules["Modules/Visuals.luau"] = function()
     		pv.ChildAddedConn:Disconnect()
     		pv.ChildAddedConn = nil
     	end
-	
+
     	if pv.Highlight then
     		pcall(function() pv.Highlight:Destroy() end)
     		pv.Highlight = nil
     	end
-	
+
     	if pv.BoxOutline then
     		Visuals.releaseDrawing("Square", pv.BoxOutline)
     		pv.BoxOutline = nil
@@ -16256,29 +16155,29 @@ Modules["Modules/Visuals.luau"] = function()
     		hideAll(pv)
     		return
     	end
-	
+
     	-- Verify and update cached character parts if needed
     	local parts = pv.Parts
     	if not parts or parts.Character ~= character or not parts.RootPart or not parts.Humanoid then
     		cachePlayerParts(pv, character)
     		parts = pv.Parts
     	end
-	
+
     	if not parts or not parts.Humanoid or not parts.RootPart or parts.Humanoid.Health <= 0 then
     		hideAll(pv)
     		return
     	end
-	
+
     	local humanoid = parts.Humanoid
     	local rootPart = parts.RootPart
-	
+
     	-- 3D Chams / Highlight
     	if Visuals.Chams then
     		local fillColor = Visuals.ChamsFillColor or Visuals.ChamsColor or Color3.fromRGB(180, 70, 255)
     		local outlineColor = Visuals.ChamsOutlineColor or Color3.fromRGB(255, 255, 255)
     		local fillTransparency = Visuals.ChamsTransparency or 0.5
     		local outlineTransparency = Visuals.ChamsOutlineTransparency or 0.2
-		
+
     		if not pv.Highlight or pv.Highlight.Parent ~= character then
     			if pv.Highlight then
     				pcall(function() pv.Highlight:Destroy() end)
@@ -16308,7 +16207,7 @@ Modules["Modules/Visuals.luau"] = function()
     	elseif pv.Highlight then
     		pv.Highlight.Enabled = false
     	end
-	
+
     	-- 2D Calculations
     	local rootPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
     	if not onScreen or not hasDrawing then
@@ -16322,19 +16221,19 @@ Modules["Modules/Visuals.luau"] = function()
     		for _, bone in ipairs(pv.Bones) do bone.Visible = false end
     		return
     	end
-	
+
     	-- Bounding Box size estimation
     	local head = parts.Head
     	local headPos = if head then Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0)) else Vector3.new(rootPos.X, rootPos.Y - 30, 0)
     	local legPos = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
-	
+
     	local boxHeight = math.abs(legPos.Y - headPos.Y)
     	local boxWidth = boxHeight * 0.65
     	local boxX = rootPos.X - (boxWidth * 0.5)
     	local boxY = headPos.Y
     	local boxSize = Vector2.new(boxWidth, boxHeight)
     	local boxPosition = Vector2.new(boxX, boxY)
-	
+
     	-- Render Player Name Tag (Above Head / Box for both 2D ESP & 3D Chams)
     	local shouldShowNames = Visuals.Names and (Visuals.Box2D or Visuals.Chams)
     	if shouldShowNames and pv.NameTag then
@@ -16373,18 +16272,18 @@ Modules["Modules/Visuals.luau"] = function()
     		if pv.Box then pv.Box.Visible = false end
     		if pv.BoxOutline then pv.BoxOutline.Visible = false end
     	end
-	
+
     	-- Render Health Bar next to 2D Box
     	if Visuals.HealthBar and pv.HealthBarBg and pv.HealthBarFill then
     		local barWidth = 3
     		local barX = boxX - 6
     		local healthRatio = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
     		local fillHeight = boxHeight * healthRatio
-		
+
     		pv.HealthBarBg.Size = Vector2.new(barWidth + 2, boxHeight + 2)
     		pv.HealthBarBg.Position = Vector2.new(barX - 1, boxY - 1)
     		pv.HealthBarBg.Visible = true
-		
+
     		pv.HealthBarFill.Size = Vector2.new(barWidth, fillHeight)
     		pv.HealthBarFill.Position = Vector2.new(barX, boxY + (boxHeight - fillHeight))
     		pv.HealthBarFill.Color = Color3.fromHSV(healthRatio * 0.33, 0.9, 0.9)
@@ -16393,12 +16292,12 @@ Modules["Modules/Visuals.luau"] = function()
     		if pv.HealthBarBg then pv.HealthBarBg.Visible = false end
     		if pv.HealthBarFill then pv.HealthBarFill.Visible = false end
     	end
-	
+
     	-- Render Tracer with Origin Selector ("Bottom", "Center", "Mouse")
     	if Visuals.Tracers and pv.Tracer then
     		local tracerOrigin = Visuals.TracerOrigin or "Bottom"
     		local fromPos: Vector2
-		
+
     		if tracerOrigin == "Center" then
     			fromPos = screenCenter
     		elseif tracerOrigin == "Mouse" then
@@ -16406,7 +16305,7 @@ Modules["Modules/Visuals.luau"] = function()
     		else -- "Bottom" or default fallback
     			fromPos = screenBottom
     		end
-		
+
     		pv.Tracer.From = fromPos
     		pv.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
     		pv.Tracer.Color = Visuals.TracerColor
@@ -16414,25 +16313,25 @@ Modules["Modules/Visuals.luau"] = function()
     	elseif pv.Tracer then
     		pv.Tracer.Visible = false
     	end
-	
+
     	-- Render Distance Tag (3D stud distance calculation with delta threshold cache)
     	if Visuals.Distance and pv.DistanceTag then
     		local myPos = if myRootPart then myRootPart.Position else Camera.CFrame.Position
     		local targetPos = rootPart.Position
     		local dist = math.floor((targetPos - myPos).Magnitude)
-		
+
     		if not pv.LastDistance or math.abs(dist - pv.LastDistance) >= 1 then
     			pv.LastDistance = dist
     			pv.DistanceTag.Text = tostring(dist) .. "m"
     		end
-		
+
     		pv.DistanceTag.Position = Vector2.new(boxX + (boxWidth * 0.5), boxY + boxHeight + 2)
     		pv.DistanceTag.Color = Visuals.DistanceColor or Color3.fromRGB(240, 240, 240)
     		pv.DistanceTag.Visible = true
     	elseif pv.DistanceTag then
     		pv.DistanceTag.Visible = false
     	end
-	
+
     	-- Render Skeleton ESP
     	if Visuals.Skeleton and #pv.Bones > 0 and parts then
     		local boneMap = parts.BoneMap
@@ -16477,7 +16376,7 @@ Modules["Modules/Visuals.luau"] = function()
     		return
     	end
     	wasAnyVisualEnabled = true
-	
+
     	-- Cache viewport dimensions and origin vectors once per frame
     	local viewportSize = Camera.ViewportSize
     	local screenCenter = Vector2.new(viewportSize.X * 0.5, viewportSize.Y * 0.5)
@@ -16486,10 +16385,10 @@ Modules["Modules/Visuals.luau"] = function()
     	if Visuals.Tracers and Visuals.TracerOrigin == "Mouse" then
     		mousePos = UserInputService:GetMouseLocation()
     	end
-	
+
     	local localChar = LocalPlayer.Character
     	local myRootPart: BasePart? = if localChar then (localChar:FindFirstChild("HumanoidRootPart") or localChar:FindFirstChild("Torso") or localChar:FindFirstChild("UpperTorso")) :: BasePart? else nil
-	
+
     	for _, player in ipairs(Players:GetPlayers()) do
     		if player ~= LocalPlayer then
     			local pv = playerVisuals[player]
@@ -16635,7 +16534,7 @@ Modules["Modules/Visuals.luau"] = function()
     		cleanPlayerVisual(pv)
     	end
     	playerVisuals = {}
-	
+
     	-- 2. Drain and permanently remove all pooled Drawing instances
     	for typeName, pool in pairs(DrawingPool) do
     		for _, obj in ipairs(pool) do
@@ -16645,7 +16544,7 @@ Modules["Modules/Visuals.luau"] = function()
     		end
     		DrawingPool[typeName] = {}
     	end
-	
+
     	-- 3. Disconnect all module-level connections
     	for _, conn in ipairs(moduleConnections) do
     		pcall(function()
@@ -21444,7 +21343,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	WallCheck = false,
     	TeamCheck = false,
     	Prediction = 0.035,
-	
+
     	-- Weapon Configs
     	NoRecoil = true,
     	NoSpread = true,
@@ -21863,7 +21762,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     			local mat = obj.Material
     			local name = obj.Name:lower()
     			local isGlass = (mat == Enum.Material.Glass or mat == Enum.Material.Foil or mat == Enum.Material.Ice or mat == Enum.Material.ForceField or name:find("glass") or name:find("window") or name:find("pane"))
-			
+
     			if isGlass and not (cam and obj:IsDescendantOf(cam)) and not (myChar and obj:IsDescendantOf(myChar)) then
     				if bg then
     					pcall(function()
@@ -23271,6 +23170,7 @@ Modules["Modules/TBODSquared.luau"] = function()
     local Workspace = game:GetService("Workspace")
     local RunService = game:GetService("RunService")
     local HttpService = game:GetService("HttpService")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
     local localPlayer = Players.LocalPlayer
 
@@ -23283,13 +23183,25 @@ Modules["Modules/TBODSquared.luau"] = function()
     local smartPurchaseEnabled = true
     local purchaseDelay = 0.3
     local autoRebirthEnabled = false
+    local autoRebirthOnCapped = true
     local rebirthEssenceTarget = 50
+
+    -- AutoFarm State
+    local autoFarmWheatEnabled = false
+    local autoCollectWheat = true
+    local autoPlantWheat = true
+    local autoHarvestWheat = true
+    local autoProcessWheat = true
+    local farmCycleDelay = 0.35
 
     -- Runtime references & connections
     local purchaseThread: thread? = nil
     local rebirthThread: thread? = nil
+    local farmThread: thread? = nil
     local cachedTycoon: Model? = nil
     local cachedPlotName: string? = nil
+    local lastObservedEssence = 0
+    local essencePlateauTicks = 0
 
     -- Metrics
     TBODSquared.Metrics = {
@@ -23297,7 +23209,11 @@ Modules["Modules/TBODSquared.luau"] = function()
     	rebirthsTriggered = 0,
     	lastRebirthEssence = 0,
     	currentCash = "$0",
-    	currentEssence = "+0"
+    	currentEssence = "+0",
+    	wheatCollected = 0,
+    	wheatPlanted = 0,
+    	wheatHarvested = 0,
+    	wheatProcessed = 0,
     }
 
     -- Helper: parse formatted currency string ("$3B", "150M", "+253", "$130") into raw number
@@ -23325,6 +23241,12 @@ Modules["Modules/TBODSquared.luau"] = function()
     		return num * multipliers[suffix]
     	end
     	return num
+    end
+
+    -- Clear cached plot and tycoon references
+    function TBODSquared.clearCache()
+    	cachedTycoon = nil
+    	cachedPlotName = nil
     end
 
     -- Resolve the player's plot and matching Tycoon model in workspace
@@ -23417,6 +23339,68 @@ Modules["Modules/TBODSquared.luau"] = function()
     		end
     	end
     	return 0
+    end
+
+    -- Check if essence is currently capped
+    function TBODSquared.isEssenceCapped(): (boolean, string)
+    	local currentEssence = TBODSquared.getPendingEssence()
+    	if currentEssence <= 0 then
+    		return false, "No Essence Available"
+    	end
+
+    	local pg = localPlayer:FindFirstChild("PlayerGui")
+
+    	-- 1. Scan Rebirth GUI labels for explicit "MAX", "CAP", or "X / Y" syntax
+    	if pg then
+    		local rebirthGui = pg:FindFirstChild("Main") and pg.Main:FindFirstChild("Rebirth")
+    		if rebirthGui then
+    			for _, desc in ipairs(rebirthGui:GetDescendants()) do
+    				if desc:IsA("TextLabel") and desc.Visible then
+    					local text = desc.Text or ""
+    					local upper = string.upper(text)
+
+    					-- Check for explicit CAPPED, MAX, or LIMIT keywords
+    					if string.find(upper, "CAPPED") or string.find(upper, "MAX") or string.find(upper, "LIMIT") then
+    						return true, "UI indicates " .. text
+    					end
+
+    					-- Check for "current / max" format e.g. "50 / 50" or "+25 / 25"
+    					local curStr, maxStr = string.match(text, "([%d%.]+%s*[%a]*)%s*/%s*([%d%.]+%s*[%a]*)")
+    					if curStr and maxStr then
+    						local curNum = parseFormattedNumber(curStr)
+    						local maxNum = parseFormattedNumber(maxStr)
+    						if maxNum > 0 and curNum >= maxNum then
+    							return true, string.format("Capped at %s/%s", curStr, maxStr)
+    						end
+    					end
+    				end
+    			end
+    		end
+    	end
+
+    	-- 2. Attribute / Value check on player and leaderstats
+    	local attrCap = localPlayer:GetAttribute("EssenceCap") 
+    		or localPlayer:GetAttribute("MaxEssence")
+    		or localPlayer:GetAttribute("RebirthCap")
+    	if attrCap and tonumber(attrCap) then
+    		if currentEssence >= tonumber(attrCap) then
+    			return true, string.format("Reached Attribute Cap (%d)", tonumber(attrCap))
+    		end
+    	end
+
+    	-- 3. Dynamic plateau detection: if essence has stayed identical for plateau duration while cash is flowing
+    	if currentEssence == lastObservedEssence and currentEssence > 0 then
+    		essencePlateauTicks += 1
+    		-- If essence hasn't moved for 3 checks (1.5 seconds) and player has sufficient cash/progress
+    		if essencePlateauTicks >= 3 then
+    			return true, string.format("Essence Plateau at +%s", tostring(currentEssence))
+    		end
+    	else
+    		lastObservedEssence = currentEssence
+    		essencePlateauTicks = 0
+    	end
+
+    	return false, "Not capped"
     end
 
     -- Purchase a tycoon button via touch stimulation
@@ -23529,13 +23513,30 @@ Modules["Modules/TBODSquared.luau"] = function()
     		and pg.Main.Rebirth.Main.Inner:FindFirstChild("Rebirth") :: GuiButton?
 
     	if rebBtn then
+    		local clicked = false
     		local fs = (firesignal :: any) or (getgenv and getgenv().firesignal)
     		if type(fs) == "function" then
     			pcall(function()
     				fs(rebBtn.MouseButton1Click)
     				fs(rebBtn.Activated)
+    				clicked = true
     			end)
     		end
+
+    		if not clicked then
+    			pcall(function()
+    				local getconnections = (getconnections :: any) or (getgenv and getgenv().getconnections)
+    				if type(getconnections) == "function" then
+    					for _, conn in ipairs(getconnections(rebBtn.MouseButton1Click)) do
+    						conn:Fire()
+    					end
+    					for _, conn in ipairs(getconnections(rebBtn.Activated)) do
+    						conn:Fire()
+    					end
+    				end
+    			end)
+    		end
+
     		TBODSquared.Metrics.rebirthsTriggered += 1
     		cachedTycoon = nil -- Invalidate tycoon cache after rebirth reset
     		return true
@@ -23543,13 +23544,32 @@ Modules["Modules/TBODSquared.luau"] = function()
     	return false
     end
 
-    -- Auto Rebirth Loop
+    -- Auto Rebirth Loop (Supports threshold and automatic cap detection)
     local function startRebirthLoop()
     	if rebirthThread then return end
     	rebirthThread = task.spawn(function()
-    		while autoRebirthEnabled do
-    			local pending = TBODSquared.getPendingEssence()
-    			if pending >= rebirthEssenceTarget and pending > 0 then
+    		while autoRebirthEnabled or autoRebirthOnCapped do
+    			local shouldRebirth = false
+    			local rebirthReason = ""
+
+    			if autoRebirthOnCapped then
+    				local isCapped, capReason = TBODSquared.isEssenceCapped()
+    				if isCapped then
+    					shouldRebirth = true
+    					rebirthReason = capReason
+    				end
+    			end
+
+    			if not shouldRebirth and autoRebirthEnabled then
+    				local pending = TBODSquared.getPendingEssence()
+    				if pending >= rebirthEssenceTarget and pending > 0 then
+    					shouldRebirth = true
+    					rebirthReason = string.format("Reached Target Essence (%d >= %d)", pending, rebirthEssenceTarget)
+    				end
+    			end
+
+    			if shouldRebirth then
+    				local pending = TBODSquared.getPendingEssence()
     				TBODSquared.Metrics.lastRebirthEssence = pending
     				executeRebirth()
     				task.wait(2.5) -- Debounce to allow plot reload & rebirth animation
@@ -23560,8 +23580,389 @@ Modules["Modules/TBODSquared.luau"] = function()
     	end)
     end
 
-    -- Conveyor Speed Boosting
-    -- Module Interface
+    -- ── WHEAT AUTOFARM & HARVEST/PROCESSING ENGINE ───────────────────────
+
+    -- Trigger ProximityPrompt with distance and hold duration bypass
+    local function triggerPrompt(prompt: ProximityPrompt): boolean
+    	if not prompt or not prompt.Parent then return false end
+
+    	pcall(function()
+    		prompt.RequiresLineOfSight = false
+    		prompt.MaxActivationDistance = 9999
+    		prompt.HoldDuration = 0
+    	end)
+
+    	local fpp = (fireproximityprompt :: any) or (getgenv and getgenv().fireproximityprompt)
+    	if type(fpp) == "function" then
+    		local ok = pcall(fpp, prompt)
+    		if ok then return true end
+    	end
+
+    	pcall(function()
+    		prompt:InputHoldBegin()
+    		task.wait(0.02)
+    		prompt:InputHoldEnd()
+    	end)
+    	return true
+    end
+
+    -- Trigger ClickDetector
+    local function triggerClick(cd: ClickDetector): boolean
+    	if not cd or not cd.Parent then return false end
+    	local fcd = (fireclickdetector :: any) or (getgenv and getgenv().fireclickdetector)
+    	if type(fcd) == "function" then
+    		local ok = pcall(fcd, cd)
+    		if ok then return true end
+    	end
+    	return false
+    end
+
+    -- Trigger Touch
+    local function triggerTouch(part: BasePart): boolean
+    	local char = localPlayer.Character
+    	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	if not hrp or not part or not part.Parent then return false end
+
+    	local fti = (firetouchinterest :: any) or (getgenv and getgenv().firetouchinterest)
+    	if type(fti) == "function" then
+    		pcall(function()
+    			fti(hrp, part, 0)
+    			task.wait(0.02)
+    			fti(hrp, part, 1)
+    		end)
+    		return true
+    	end
+
+    	return false
+    end
+
+    -- Helper string predicates
+    local function isWheatRelated(name: string): boolean
+    	local lower = string.lower(name)
+    	return string.find(lower, "wheat") ~= nil 
+    		or string.find(lower, "seed") ~= nil
+    		or string.find(lower, "grain") ~= nil
+    		or string.find(lower, "crop") ~= nil
+    end
+
+    local function isFarmRelated(name: string): boolean
+    	local lower = string.lower(name)
+    	return string.find(lower, "farm") ~= nil 
+    		or string.find(lower, "plot") ~= nil
+    		or string.find(lower, "soil") ~= nil
+    		or string.find(lower, "field") ~= nil
+    		or string.find(lower, "garden") ~= nil
+    end
+
+    local function isProcessorRelated(name: string): boolean
+    	local lower = string.lower(name)
+    	return string.find(lower, "separator") ~= nil 
+    		or string.find(lower, "process") ~= nil
+    		or string.find(lower, "mill") ~= nil
+    		or string.find(lower, "refin") ~= nil
+    		or string.find(lower, "silo") ~= nil
+    		or string.find(lower, "bakery") ~= nil
+    		or string.find(lower, "deposit") ~= nil
+    end
+
+    -- Equip item tool by partial name
+    local function equipToolNamed(pattern: string): boolean
+    	local char = localPlayer.Character
+    	local hum = char and char:FindFirstChildOfClass("Humanoid")
+    	if not hum then return false end
+
+    	-- Check if already equipped
+    	for _, item in ipairs(char:GetChildren()) do
+    		if item:IsA("Tool") and string.find(string.lower(item.Name), string.lower(pattern)) then
+    			return true
+    		end
+    	end
+
+    	-- Check backpack
+    	local bp = localPlayer:FindFirstChild("Backpack")
+    	if bp then
+    		for _, item in ipairs(bp:GetChildren()) do
+    			if item:IsA("Tool") and string.find(string.lower(item.Name), string.lower(pattern)) then
+    				hum:EquipTool(item)
+    				return true
+    			end
+    		end
+    	end
+    	return false
+    end
+
+    -- Resolve all active search containers for farms, seeds, and processors
+    local function getTycoonContainers(): {Instance}
+    	local containers: {Instance} = {}
+    	local tyc = TBODSquared.getMyTycoon()
+    	if tyc then
+    		table.insert(containers, tyc)
+    	end
+
+    	local plots = Workspace:FindFirstChild("Plots")
+    	if plots and cachedPlotName then
+    		local myPlot = plots:FindFirstChild(cachedPlotName)
+    		if myPlot then
+    			table.insert(containers, myPlot)
+    		end
+    	end
+
+    	local wsFarms = Workspace:FindFirstChild("Farms") or Workspace:FindFirstChild("Farm")
+    	if wsFarms then
+    		table.insert(containers, wsFarms)
+    	end
+
+    	return containers
+    end
+
+    -- 1. Harvest Completed / Mature Wheat from Farms
+    local function harvestCompletedWheat(containers: {Instance}, hrp: BasePart): number
+    	if not autoHarvestWheat then return 0 end
+    	local harvested = 0
+
+    	for _, container in ipairs(containers) do
+    		for _, desc in ipairs(container:GetDescendants()) do
+    			-- Check for harvest/collect prompts
+    			if desc:IsA("ProximityPrompt") then
+    				local action = string.lower(desc.ActionText or "")
+    				local objText = string.lower(desc.ObjectText or "")
+    				local isHarvestPrompt = string.find(action, "harvest") 
+    					or string.find(action, "pick") 
+    					or string.find(action, "gather") 
+    					or (string.find(action, "collect") and (string.find(objText, "wheat") or string.find(objText, "crop") or string.find(objText, "farm")))
+
+    				if isHarvestPrompt then
+    					if triggerPrompt(desc) then
+    						harvested += 1
+    					end
+    				end
+    			-- Check for mature crop parts or models
+    			elseif desc:IsA("Model") or desc:IsA("BasePart") then
+    				local nameLower = string.lower(desc.Name)
+    				if isWheatRelated(nameLower) then
+    					local isMature = desc:GetAttribute("Ready") == true 
+    						or desc:GetAttribute("Mature") == true 
+    						or desc:GetAttribute("Grown") == true
+    						or (desc:IsA("BasePart") and desc.Transparency < 0.5 and desc.Parent and isFarmRelated(desc.Parent.Name))
+
+    					if isMature then
+    						local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+    						if prompt and triggerPrompt(prompt) then
+    							harvested += 1
+    						else
+    							local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
+    							if cd and triggerClick(cd) then
+    								harvested += 1
+    							else
+    								local part = if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart")
+    								if part and triggerTouch(part) then
+    									harvested += 1
+    								end
+    							end
+    						end
+    					end
+    				end
+    			end
+    		end
+    	end
+
+    	return harvested
+    end
+
+    -- 2. Automatically Process Harvested Wheat (Deliver to Separator / Mill)
+    local function processHarvestedWheat(containers: {Instance}, hrp: BasePart): number
+    	if not autoProcessWheat then return 0 end
+    	local processed = 0
+
+    	-- Equip harvested wheat if available in backpack
+    	equipToolNamed("wheat") or equipToolNamed("grain") or equipToolNamed("harvest")
+
+    	for _, container in ipairs(containers) do
+    		for _, desc in ipairs(container:GetDescendants()) do
+    			local nameLower = string.lower(desc.Name)
+    			if isProcessorRelated(nameLower) then
+    				local prompt = if desc:IsA("ProximityPrompt") then desc else desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+    				if prompt then
+    					local a = string.lower(prompt.ActionText or "")
+    					local o = string.lower(prompt.ObjectText or "")
+    					if string.find(a, "process") or string.find(a, "deposit") or string.find(a, "separate") or string.find(a, "refine") or string.find(a, "insert") or string.find(a, "feed") or string.find(a, "sell") or string.find(o, "wheat") or string.find(o, "separator") or string.find(o, "processor") then
+    						if triggerPrompt(prompt) then
+    							processed += 1
+    						end
+    					end
+    				else
+    					local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
+    					if cd and triggerClick(cd) then
+    						processed += 1
+    					else
+    						-- Touch the input hopper or main part of processor
+    						local hopper = desc:FindFirstChild("Input") 
+    							or desc:FindFirstChild("Hopper") 
+    							or desc:FindFirstChild("Deposit") 
+    							or desc:FindFirstChild("Drop") 
+    							or desc:FindFirstChild("Pad")
+    							or (if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart"))
+
+    						if hopper and hopper:IsA("BasePart") and triggerTouch(hopper) then
+    							processed += 1
+    						end
+    					end
+    				end
+    			end
+    		end
+    	end
+
+    	return processed
+    end
+
+    -- 3. Collect Wheat Seeds from Seed Box / Spawner
+    local function collectWheatSeeds(containers: {Instance}, hrp: BasePart): number
+    	if not autoCollectWheat then return 0 end
+    	local collected = 0
+
+    	for _, container in ipairs(containers) do
+    		for _, desc in ipairs(container:GetDescendants()) do
+    			local nameLower = string.lower(desc.Name)
+    			local isSeedBox = (string.find(nameLower, "seed") and string.find(nameLower, "box"))
+    				or string.find(nameLower, "wheatbox")
+    				or string.find(nameLower, "wheatspawner")
+    				or string.find(nameLower, "seeddispenser")
+    				or string.find(nameLower, "seedcrate")
+    				or (desc:IsA("ProximityPrompt") and (string.find(string.lower(desc.ActionText), "seed") or string.find(string.lower(desc.ObjectText), "seed")))
+
+    			if isSeedBox then
+    				if desc:IsA("ProximityPrompt") then
+    					if triggerPrompt(desc) then
+    						collected += 1
+    					end
+    				elseif desc:IsA("BasePart") or desc:IsA("Model") then
+    					local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+    					if prompt and triggerPrompt(prompt) then
+    						collected += 1
+    					else
+    						local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
+    						if cd and triggerClick(cd) then
+    							collected += 1
+    						else
+    							local part = if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart")
+    							if part and triggerTouch(part) then
+    								collected += 1
+    							end
+    						end
+    					end
+    				end
+    			end
+    		end
+    	end
+
+    	return collected
+    end
+
+    -- 4. Place / Plant Wheat in Empty Farm Plots
+    local function placeWheatInFarms(containers: {Instance}, hrp: BasePart, hum: Humanoid): number
+    	if not autoPlantWheat then return 0 end
+    	local planted = 0
+
+    	-- Ensure seed/wheat tool is equipped if available
+    	equipToolNamed("seed") or equipToolNamed("wheat")
+
+    	for _, container in ipairs(containers) do
+    		for _, desc in ipairs(container:GetDescendants()) do
+    			-- Check for prompts dedicated to planting
+    			if desc:IsA("ProximityPrompt") then
+    				local action = string.lower(desc.ActionText or "")
+    				local objText = string.lower(desc.ObjectText or "")
+    				if string.find(action, "plant") or string.find(action, "sow") or string.find(action, "place") or string.find(objText, "plant") then
+    					if triggerPrompt(desc) then
+    						planted += 1
+    					end
+    				end
+    			-- Check for plot models/parts
+    			elseif isFarmRelated(desc.Name) and (desc:IsA("Model") or desc:IsA("BasePart")) then
+    				local isPlanted = desc:GetAttribute("Planted") == true 
+    					or desc:GetAttribute("Occupied") == true 
+    					or desc:GetAttribute("HasCrop") == true
+
+    				if not isPlanted then
+    					local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+    					if prompt then
+    						local a = string.lower(prompt.ActionText or "")
+    						if string.find(a, "plant") or string.find(a, "place") or string.find(a, "sow") or string.find(a, "farm") then
+    							if triggerPrompt(prompt) then
+    								planted += 1
+    							end
+    						end
+    					else
+    						local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
+    						if cd and triggerClick(cd) then
+    							planted += 1
+    						else
+    							local soilPart = if desc:IsA("BasePart") then desc else (desc:FindFirstChild("Soil") or desc:FindFirstChild("PlantSpot") or desc:FindFirstChildWhichIsA("BasePart"))
+    							if soilPart and soilPart:IsA("BasePart") and triggerTouch(soilPart) then
+    								planted += 1
+    							end
+    						end
+    					end
+    				end
+    			end
+    		end
+    	end
+
+    	return planted
+    end
+
+    -- AutoFarm Loop Execution Step
+    local function runWheatFarmStep()
+    	local char = localPlayer.Character
+    	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	local hum = char and char:FindFirstChildOfClass("Humanoid")
+    	if not (char and hrp and hum and hum.Health > 0) then return end
+
+    	local containers = getTycoonContainers()
+    	if #containers == 0 then return end
+
+    	-- Step 1: Harvest completed/mature crops first to free up plot slots
+    	local hCount = harvestCompletedWheat(containers, hrp)
+    	if hCount > 0 then
+    		TBODSquared.Metrics.wheatHarvested += hCount
+    	end
+
+    	-- Step 2: Automatically process/deliver harvested wheat to separator
+    	local pCount = processHarvestedWheat(containers, hrp)
+    	if pCount > 0 then
+    		TBODSquared.Metrics.wheatProcessed += pCount
+    	end
+
+    	-- Step 3: Collect fresh wheat seeds from seed box / dispenser
+    	local cCount = collectWheatSeeds(containers, hrp)
+    	if cCount > 0 then
+    		TBODSquared.Metrics.wheatCollected += cCount
+    	end
+
+    	-- Step 4: Place/plant wheat into empty farm plots
+    	local plCount = placeWheatInFarms(containers, hrp, hum)
+    	if plCount > 0 then
+    		TBODSquared.Metrics.wheatPlanted += plCount
+    	end
+    end
+
+    -- AutoFarm Worker Loop
+    local function startFarmLoop()
+    	if farmThread then return end
+    	farmThread = task.spawn(function()
+    		while autoFarmWheatEnabled do
+    			local ok, err = pcall(runWheatFarmStep)
+    			if not ok then
+    				warn("[TBOD^2 AutoFarm] Error in farm cycle:", tostring(err))
+    			end
+    			task.wait(math.max(0.1, farmCycleDelay))
+    		end
+    		farmThread = nil
+    	end)
+    end
+
+    -- ── MODULE API INTERFACES ─────────────────────────────────────────────
+
     function TBODSquared.setAutoPurchase(enabled: boolean)
     	autoPurchaseEnabled = enabled
     	if enabled then
@@ -23582,9 +23983,19 @@ Modules["Modules/TBODSquared.luau"] = function()
 
     function TBODSquared.setAutoRebirth(enabled: boolean)
     	autoRebirthEnabled = enabled
-    	if enabled then
+    	if enabled or autoRebirthOnCapped then
     		startRebirthLoop()
-    	elseif rebirthThread then
+    	elseif not autoRebirthOnCapped and rebirthThread then
+    		task.cancel(rebirthThread)
+    		rebirthThread = nil
+    	end
+    end
+
+    function TBODSquared.setAutoRebirthOnCapped(enabled: boolean)
+    	autoRebirthOnCapped = enabled
+    	if enabled or autoRebirthEnabled then
+    		startRebirthLoop()
+    	elseif not autoRebirthEnabled and rebirthThread then
     		task.cancel(rebirthThread)
     		rebirthThread = nil
     	end
@@ -23598,9 +24009,61 @@ Modules["Modules/TBODSquared.luau"] = function()
     	return executeRebirth()
     end
 
+    function TBODSquared.setAutoFarmWheat(enabled: boolean)
+    	autoFarmWheatEnabled = enabled
+    	if enabled then
+    		startFarmLoop()
+    	elseif farmThread then
+    		task.cancel(farmThread)
+    		farmThread = nil
+    	end
+    end
+
+    function TBODSquared.setAutoCollectWheat(enabled: boolean)
+    	autoCollectWheat = enabled
+    end
+
+    function TBODSquared.setAutoPlantWheat(enabled: boolean)
+    	autoPlantWheat = enabled
+    end
+
+    function TBODSquared.setAutoHarvestWheat(enabled: boolean)
+    	autoHarvestWheat = enabled
+    end
+
+    function TBODSquared.setAutoProcessWheat(enabled: boolean)
+    	autoProcessWheat = enabled
+    end
+
+    function TBODSquared.setFarmCycleDelay(delayVal: number)
+    	farmCycleDelay = math.clamp(delayVal, 0.05, 3.0)
+    end
+
+    function TBODSquared.harvestAllPlotsNow(): number
+    	local char = localPlayer.Character
+    	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	if not hrp then return 0 end
+    	local containers = getTycoonContainers()
+    	local count = harvestCompletedWheat(containers, hrp)
+    	TBODSquared.Metrics.wheatHarvested += count
+    	return count
+    end
+
+    function TBODSquared.processWheatNow(): number
+    	local char = localPlayer.Character
+    	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+    	if not hrp then return 0 end
+    	local containers = getTycoonContainers()
+    	local count = processHarvestedWheat(containers, hrp)
+    	TBODSquared.Metrics.wheatProcessed += count
+    	return count
+    end
+
     function TBODSquared.stop()
     	TBODSquared.setAutoPurchase(false)
     	TBODSquared.setAutoRebirth(false)
+    	TBODSquared.setAutoRebirthOnCapped(false)
+    	TBODSquared.setAutoFarmWheat(false)
     	if purchaseThread then
     		task.cancel(purchaseThread)
     		purchaseThread = nil
@@ -23609,7 +24072,12 @@ Modules["Modules/TBODSquared.luau"] = function()
     		task.cancel(rebirthThread)
     		rebirthThread = nil
     	end
+    	if farmThread then
+    		task.cancel(farmThread)
+    		farmThread = nil
+    	end
     	cachedTycoon = nil
+    	cachedPlotName = nil
     end
 
     return TBODSquared

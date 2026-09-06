@@ -2161,11 +2161,16 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				TBODSquared.setPurchaseDelay(val)
 			end)
 
-			local rebirthSection = window:AddSection(tbodLeftCol, "Rebirth Automation")
+			local rebirthSection = window:AddSection(tbodLeftCol, "Rebirth & Essence Automation")
+
+			window:AddToggle(rebirthSection, "tbod_auto_rebirth_capped", "Auto Rebirth on Essence Capped", true, nil, function(val)
+				TBODSquared.setAutoRebirthOnCapped(val)
+				window:Notify("TBOD^2", if val then "Auto Rebirth on Capped active" else "Auto Rebirth on Capped stopped", 2)
+			end)
 
 			window:AddToggle(rebirthSection, "tbod_auto_rebirth", "Auto Rebirth (+Essence Threshold)", false, nil, function(val)
 				TBODSquared.setAutoRebirth(val)
-				window:Notify("TBOD^2", if val then "Auto Rebirth active" else "Auto Rebirth stopped", 2)
+				window:Notify("TBOD^2", if val then "Auto Rebirth threshold active" else "Auto Rebirth threshold stopped", 2)
 			end)
 
 			window:AddSlider(rebirthSection, "Rebirth Essence Threshold", 5, 2000, 50, function(val)
@@ -2181,8 +2186,46 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				end
 			end)
 
-			-- Right Column: Tycoon Teleports & Diagnostics
-			local statusSection = window:AddSection(tbodRightCol, "Tycoon Status & Cache")
+			-- Right Column: Wheat AutoFarm & Processing
+			local farmSection = window:AddSection(tbodRightCol, "Wheat AutoFarm & Processing")
+
+			window:AddToggle(farmSection, "tbod_autofarm_wheat", "Master Wheat AutoFarm", false, nil, function(val)
+				TBODSquared.setAutoFarmWheat(val)
+				window:Notify("TBOD^2", if val then "Wheat AutoFarm started (Collect -> Plant -> Harvest -> Process)" else "Wheat AutoFarm stopped", 3)
+			end)
+
+			window:AddToggle(farmSection, "tbod_farm_collect_seeds", "Auto Collect Wheat Seeds", true, nil, function(val)
+				TBODSquared.setAutoCollectWheat(val)
+			end)
+
+			window:AddToggle(farmSection, "tbod_farm_plant", "Auto Place / Plant in Farms", true, nil, function(val)
+				TBODSquared.setAutoPlantWheat(val)
+			end)
+
+			window:AddToggle(farmSection, "tbod_farm_harvest", "Auto Harvest Completed Wheat", true, nil, function(val)
+				TBODSquared.setAutoHarvestWheat(val)
+			end)
+
+			window:AddToggle(farmSection, "tbod_farm_process", "Auto Process in Wheat Separator", true, nil, function(val)
+				TBODSquared.setAutoProcessWheat(val)
+			end)
+
+			window:AddSlider(farmSection, "Farm Cycle Speed (s)", 0.1, 1.5, 0.35, function(val)
+				TBODSquared.setFarmCycleDelay(val)
+			end)
+
+			window:AddButton(farmSection, "Harvest All Farm Plots Now", function()
+				local count = TBODSquared.harvestAllPlotsNow()
+				window:Notify("TBOD^2", string.format("Harvested %d mature crops", count), 2.5)
+			end)
+
+			window:AddButton(farmSection, "Process Inventory Wheat Now", function()
+				local count = TBODSquared.processWheatNow()
+				window:Notify("TBOD^2", string.format("Delivered wheat to processor (%d actions)", count), 2.5)
+			end)
+
+			-- Tycoon Teleports & Status
+			local statusSection = window:AddSection(tbodRightCol, "Tycoon Teleports & Cache")
 
 			window:AddButton(statusSection, "Refresh Tycoon Cache", function()
 				TBODSquared.clearCache()
@@ -2194,10 +2237,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				end
 			end)
 
-			-- Teleport Section
-			local tpSection = window:AddSection(tbodRightCol, "Quick Teleports")
-
-			window:AddButton(tpSection, "Warp to My Tycoon", function()
+			window:AddButton(statusSection, "Warp to My Tycoon", function()
 				local tyc = TBODSquared.getMyTycoon()
 				local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 				if tyc and hrp then
@@ -2209,7 +2249,7 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				end
 			end)
 
-			window:AddButton(tpSection, "Warp to Rebirth Obelisk", function()
+			window:AddButton(statusSection, "Warp to Rebirth Obelisk", function()
 				local obelisk = Workspace:FindFirstChild("Obelisk")
 				local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 				if obelisk and hrp then

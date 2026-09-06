@@ -6,38 +6,158 @@
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 
-if type(cleardrawcache) == "function" then pcall(cleardrawcache) end
+-- ── UNIFIED CROSS-EXECUTION LIFECYCLE CONTROLLER ─────────────────────
+-- Uses both getgenv() and _G to guarantee discovery across all executor contexts
+local genv = (type(getgenv) == "function" and getgenv()) or _G
 
-if _G.__ModularSuite_Cleanup then
-	pcall(_G.__ModularSuite_Cleanup)
-	_G.__ModularSuite_Cleanup = nil
+local function executeCleanup(fn: any)
+	if type(fn) == "function" then
+		pcall(fn)
+	elseif type(fn) == "table" then
+		if type(fn.Destroy) == "function" then
+			pcall(function() fn:Destroy() end)
+		elseif type(fn.cleanup) == "function" then
+			pcall(function() fn.cleanup() end)
+		end
+	end
 end
 
+-- 1. Run prior suite teardown hooks
+if genv.__ModularSuite_Cleanup then
+	executeCleanup(genv.__ModularSuite_Cleanup)
+	genv.__ModularSuite_Cleanup = nil
+end
+if _G.__ModularSuite_Cleanup then
+	executeCleanup(_G.__ModularSuite_Cleanup)
+	_G.__ModularSuite_Cleanup = nil
+end
+if genv.__ModularMain_Cleanup then
+	executeCleanup(genv.__ModularMain_Cleanup)
+	genv.__ModularMain_Cleanup = nil
+end
+if _G.__ModularMain_Cleanup then
+	executeCleanup(_G.__ModularMain_Cleanup)
+	_G.__ModularMain_Cleanup = nil
+end
+if genv.__ModularHotbar_Cleanup then
+	executeCleanup(genv.__ModularHotbar_Cleanup)
+	genv.__ModularHotbar_Cleanup = nil
+end
 if _G.__ModularHotbar_Cleanup then
-	pcall(_G.__ModularHotbar_Cleanup)
+	executeCleanup(_G.__ModularHotbar_Cleanup)
 	_G.__ModularHotbar_Cleanup = nil
 end
 
+-- 2. Execute any registered cleanups in global list
+if type(genv.__ModularSuite_Cleanups) == "table" then
+	for _, cl in ipairs(genv.__ModularSuite_Cleanups) do
+		executeCleanup(cl)
+	end
+	table.clear(genv.__ModularSuite_Cleanups)
+end
+if type(_G.__ModularSuite_Cleanups) == "table" then
+	for _, cl in ipairs(_G.__ModularSuite_Cleanups) do
+		executeCleanup(cl)
+	end
+	table.clear(_G.__ModularSuite_Cleanups)
+end
+
+-- 3. Cancel prior background threads
+local function cancelThreads(thrList: any)
+	if type(thrList) == "table" then
+		for _, thr in ipairs(thrList) do
+			pcall(task.cancel, thr)
+		end
+		table.clear(thrList)
+	end
+end
+cancelThreads(genv.__ModularSuite_Threads)
+cancelThreads(_G.__ModularSuite_Threads)
+
+-- 4. Disconnect prior global connections
+local function disconnectConnections(connList: any)
+	if type(connList) == "table" then
+		for _, conn in ipairs(connList) do
+			pcall(function() conn:Disconnect() end)
+		end
+		table.clear(connList)
+	end
+end
+disconnectConnections(genv.__ModularSuite_Connections)
+disconnectConnections(_G.__ModularSuite_Connections)
+
+-- 5. Cancel topbar enforcer if running
+if genv.__ModularSuite_TopBarEnforcer then
+	pcall(task.cancel, genv.__ModularSuite_TopBarEnforcer)
+	genv.__ModularSuite_TopBarEnforcer = nil
+end
 if _G.__ModularSuite_TopBarEnforcer then
 	pcall(task.cancel, _G.__ModularSuite_TopBarEnforcer)
 	_G.__ModularSuite_TopBarEnforcer = nil
 end
-_G.__ModularSuite_IsRobloxCoreHidden = false
 
-local function purge(c)
-	if not c then return end
+-- 6. Clear raw drawing memory
+if type(cleardrawcache) == "function" then pcall(cleardrawcache) end
+
+-- 7. Deep GUI Purge across all possible containers (gethui, CoreGui, PlayerGui)
+local function purgeSuiteGuis(container: Instance?)
+	if not container then return end
 	pcall(function()
-		for _, ch in ipairs(c:GetDescendants()) do
-			if (ch:IsA("ScreenGui") or ch:IsA("BillboardGui") or ch:IsA("Highlight")) then
-				local n = ch.Name
-				if n:find("Modular") or n:find("ESP") or n:find("Chams") then pcall(function() ch:Destroy() end) end
+		for _, obj in ipairs(container:GetChildren()) do
+			if obj:IsA("ScreenGui") or obj:IsA("BillboardGui") or obj:IsA("Highlight") then
+				local name = string.lower(obj.Name)
+				if name:find("modular") or name:find("projectfih") or name:find("fih") or name:find("esp") or name:find("chams") then
+					pcall(function() obj:Destroy() end)
+				end
 			end
 		end
 	end)
 end
-pcall(function() if type(gethui)=="function" then purge(gethui()) end end)
-pcall(function() purge(CoreGui) end)
-pcall(function() if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then purge(Players.LocalPlayer.PlayerGui) end end)
+
+pcall(function() if type(gethui) == "function" then purgeSuiteGuis(gethui()) end end)
+pcall(function() purgeSuiteGuis(CoreGui) end)
+pcall(function() if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then purgeSuiteGuis(Players.LocalPlayer.PlayerGui) end end)
+
+-- Reset Roblox CoreGui state
+_G.__ModularSuite_IsRobloxCoreHidden = false
+genv.__ModularSuite_IsRobloxCoreHidden = false
+
+-- Fresh global lifecycle state for this execution instance
+local globalActiveThreads: {thread} = {}
+local globalActiveConnections: {RBXScriptConnection} = {}
+local globalActiveCleanups: {() -> ()} = {}
+
+genv.__ModularSuite_Threads = globalActiveThreads
+_G.__ModularSuite_Threads = globalActiveThreads
+genv.__ModularSuite_Connections = globalActiveConnections
+_G.__ModularSuite_Connections = globalActiveConnections
+genv.__ModularSuite_Cleanups = globalActiveCleanups
+_G.__ModularSuite_Cleanups = globalActiveCleanups
+
+local function rootTeardown()
+	for _, cl in ipairs(globalActiveCleanups) do
+		pcall(cl)
+	end
+	table.clear(globalActiveCleanups)
+
+	for _, conn in ipairs(globalActiveConnections) do
+		pcall(function() conn:Disconnect() end)
+	end
+	table.clear(globalActiveConnections)
+
+	for _, thr in ipairs(globalActiveThreads) do
+		pcall(task.cancel, thr)
+	end
+	table.clear(globalActiveThreads)
+
+	pcall(function() if type(gethui) == "function" then purgeSuiteGuis(gethui()) end end)
+	pcall(function() purgeSuiteGuis(CoreGui) end)
+	pcall(function() if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then purgeSuiteGuis(Players.LocalPlayer.PlayerGui) end end)
+	if type(cleardrawcache) == "function" then pcall(cleardrawcache) end
+end
+
+genv.__ModularSuite_Cleanup = rootTeardown
+_G.__ModularSuite_Cleanup = rootTeardown
 
 local Modules: {[string]: () -> any} = {}
 local moduleCache: {[string]: any} = {}
@@ -6328,6 +6448,11 @@ Modules["UI/Hotbar.luau"] = function()
 
     function Hotbar.new(): HotbarWidget
     	-- Disconnect previous instance connections to prevent ghost listener collisions
+    	local genv = (type(getgenv) == "function" and getgenv()) or _G
+    	if genv.__ModularHotbar_Cleanup then
+    		pcall(genv.__ModularHotbar_Cleanup)
+    		genv.__ModularHotbar_Cleanup = nil
+    	end
     	if _G.__ModularHotbar_Cleanup then
     		pcall(_G.__ModularHotbar_Cleanup)
     		_G.__ModularHotbar_Cleanup = nil
@@ -8052,7 +8177,7 @@ Modules["UI/Hotbar.luau"] = function()
     		end
     	end)
 
-    	_G.__ModularHotbar_Cleanup = function()
+    	local hotbarCleanup = function()
     		for slotIdx = 1, NUM_SLOTS do
     			pcall(function()
     				ContextActionService:UnbindAction("ProjectFih_HotbarSlot_" .. tostring(slotIdx))
@@ -8063,6 +8188,12 @@ Modules["UI/Hotbar.luau"] = function()
     		end
     		table.clear(activeConnections)
     		pcall(function() screenGui:Destroy() end)
+    	end
+
+    	genv.__ModularHotbar_Cleanup = hotbarCleanup
+    	_G.__ModularHotbar_Cleanup = hotbarCleanup
+    	if type(genv.__ModularSuite_Cleanups) == "table" then
+    		table.insert(genv.__ModularSuite_Cleanups, hotbarCleanup)
     	end
 
     	-- Initial render
@@ -12017,6 +12148,23 @@ Modules["Core/CoreUI.luau"] = function()
     	end
     end
 
+    function CoreUI:Destroy()
+    	if self.ScreenGui then
+    		pcall(function() self.ScreenGui:Destroy() end)
+    		self.ScreenGui = nil
+    	end
+    	self.IsOpen = false
+    	self.IsTransitioning = false
+    	self.ActiveTab = nil
+    	self.PreviousTab = nil
+    	self.Tabs = {}
+    	self.ActiveToggles = {}
+    	self.SliderFills = {}
+    	self.SubTabGroups = {}
+    end
+
+    CoreUI.cleanup = CoreUI.Destroy
+
     return CoreUI
 end
 
@@ -15378,7 +15526,12 @@ Modules["Core/MainUI.luau"] = function()
     	end)
 
     	-- Register global cleanup function for hot-reload and multi-execution safety
-    	_G.__ModularSuite_Cleanup = function()
+    	local genv = (type(getgenv) == "function" and getgenv()) or _G
+    	local suiteCleanup = function()
+    		if genv.__ModularMain_Cleanup then
+    			pcall(genv.__ModularMain_Cleanup)
+    			genv.__ModularMain_Cleanup = nil
+    		end
     		if _G.__ModularMain_Cleanup then
     			pcall(_G.__ModularMain_Cleanup)
     			_G.__ModularMain_Cleanup = nil
@@ -15416,7 +15569,8 @@ Modules["Core/MainUI.luau"] = function()
     			local HB = require("UI/Hotbar.luau")
     			if HB and HB.Destroy then HB.Destroy() end
     		end)
-    		if _G.__ModularHotbar_Cleanup then pcall(_G.__ModularHotbar_Cleanup) end
+    		if genv.__ModularHotbar_Cleanup then pcall(genv.__ModularHotbar_Cleanup) genv.__ModularHotbar_Cleanup = nil end
+    		if _G.__ModularHotbar_Cleanup then pcall(_G.__ModularHotbar_Cleanup) _G.__ModularHotbar_Cleanup = nil end
     		pcall(function() if leaderstatsWidget and leaderstatsWidget.Destroy then leaderstatsWidget:Destroy() end end)
     		pcall(function()
     			local LW = require("UI/LeaderstatsWidget.luau")
@@ -15427,6 +15581,12 @@ Modules["Core/MainUI.luau"] = function()
     			local HW = require("UI/HealthWidget.luau")
     			if HW and HW.Destroy then HW:Destroy() end
     		end)
+    	end
+
+    	genv.__ModularSuite_Cleanup = suiteCleanup
+    	_G.__ModularSuite_Cleanup = suiteCleanup
+    	if type(genv.__ModularSuite_Cleanups) == "table" then
+    		table.insert(genv.__ModularSuite_Cleanups, suiteCleanup)
     	end
     end
 end
@@ -23490,25 +23650,45 @@ local Notification = require("UI/Notification.luau")
 local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
 local HealthWidget = require("UI/HealthWidget.luau")
 
-pcall(function() MurderMystery2.Init() end)
-pcall(function()
-	DisasterSurvival.init(function(msg)
-		if _G.__ModularSuite_Window and typeof(_G.__ModularSuite_Window.Notify) == "function" then
-			_G.__ModularSuite_Window:Notify("Natural Disaster", msg, 4)
-		end
-	end)
-end)
-pcall(function() RunNHide.init() end)
-pcall(function()
-	if LuckyBlocks and LuckyBlocks.AntiVoid then
-		LuckyBlocks.setAntiVoid(true)
-	end
-end)
+local genv = (type(getgenv) == "function" and getgenv()) or _G
 
 -- Clean up previous execution lifecycle if active
+if genv.__ModularMain_Cleanup then
+	pcall(genv.__ModularMain_Cleanup)
+	genv.__ModularMain_Cleanup = nil
+end
 if _G.__ModularMain_Cleanup then
 	pcall(_G.__ModularMain_Cleanup)
 	_G.__ModularMain_Cleanup = nil
+end
+
+-- Only initialize game-specific mechanics if the player is currently in that game
+local placeId = game.PlaceId
+local gameName = string.lower(game.Name)
+local isMM2 = (placeId == 142823291) or gameName:find("murder mystery") or gameName:find("mm2")
+local isNDS = (placeId == 189707) or gameName:find("disaster")
+local isRNH = (placeId == 12901416348) or gameName:find("run and hide") or gameName:find("demise")
+local isLucky = (placeId == 662417684) or gameName:find("lucky block")
+
+if isMM2 then
+	pcall(function() MurderMystery2.Init() end)
+end
+if isNDS then
+	pcall(function()
+		DisasterSurvival.init(function(msg)
+			if _G.__ModularSuite_Window and typeof(_G.__ModularSuite_Window.Notify) == "function" then
+				_G.__ModularSuite_Window:Notify("Natural Disaster", msg, 4)
+			end
+		end)
+	end)
+end
+if isRNH then
+	pcall(function() RunNHide.init() end)
+end
+if isLucky and LuckyBlocks and LuckyBlocks.AntiVoid then
+	pcall(function()
+		LuckyBlocks.setAntiVoid(true)
+	end)
 end
 
 local mainConns: {RBXScriptConnection} = {}
@@ -23872,7 +24052,7 @@ local tabKeyConn = UserInputService.InputBegan:Connect(function(input, gameProce
 end)
 table.insert(mainConns, tabKeyConn)
 
-_G.__ModularMain_Cleanup = function()
+local function mainCleanup()
 	for _, conn in ipairs(mainConns) do
 		pcall(function() conn:Disconnect() end)
 	end
@@ -23891,11 +24071,21 @@ _G.__ModularMain_Cleanup = function()
 		charDescendantRemovingConn:Disconnect()
 		charDescendantRemovingConn = nil
 	end
+	if genv.__ModularSuite_TopBarEnforcer then
+		pcall(task.cancel, genv.__ModularSuite_TopBarEnforcer)
+		genv.__ModularSuite_TopBarEnforcer = nil
+	end
 	if _G.__ModularSuite_TopBarEnforcer then
 		pcall(task.cancel, _G.__ModularSuite_TopBarEnforcer)
 		_G.__ModularSuite_TopBarEnforcer = nil
 	end
 	table.clear(cachedCharacterParts)
+end
+
+genv.__ModularMain_Cleanup = mainCleanup
+_G.__ModularMain_Cleanup = mainCleanup
+if type(genv.__ModularSuite_Cleanups) == "table" then
+	table.insert(genv.__ModularSuite_Cleanups, mainCleanup)
 end
 
 local sharedEnv = {

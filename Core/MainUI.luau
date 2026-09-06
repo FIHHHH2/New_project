@@ -3354,7 +3354,12 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	end)
 
 	-- Register global cleanup function for hot-reload and multi-execution safety
-	_G.__ModularSuite_Cleanup = function()
+	local genv = (type(getgenv) == "function" and getgenv()) or _G
+	local suiteCleanup = function()
+		if genv.__ModularMain_Cleanup then
+			pcall(genv.__ModularMain_Cleanup)
+			genv.__ModularMain_Cleanup = nil
+		end
 		if _G.__ModularMain_Cleanup then
 			pcall(_G.__ModularMain_Cleanup)
 			_G.__ModularMain_Cleanup = nil
@@ -3392,7 +3397,8 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			local HB = require("UI/Hotbar.luau")
 			if HB and HB.Destroy then HB.Destroy() end
 		end)
-		if _G.__ModularHotbar_Cleanup then pcall(_G.__ModularHotbar_Cleanup) end
+		if genv.__ModularHotbar_Cleanup then pcall(genv.__ModularHotbar_Cleanup) genv.__ModularHotbar_Cleanup = nil end
+		if _G.__ModularHotbar_Cleanup then pcall(_G.__ModularHotbar_Cleanup) _G.__ModularHotbar_Cleanup = nil end
 		pcall(function() if leaderstatsWidget and leaderstatsWidget.Destroy then leaderstatsWidget:Destroy() end end)
 		pcall(function()
 			local LW = require("UI/LeaderstatsWidget.luau")
@@ -3403,5 +3409,11 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			local HW = require("UI/HealthWidget.luau")
 			if HW and HW.Destroy then HW:Destroy() end
 		end)
+	end
+
+	genv.__ModularSuite_Cleanup = suiteCleanup
+	_G.__ModularSuite_Cleanup = suiteCleanup
+	if type(genv.__ModularSuite_Cleanups) == "table" then
+		table.insert(genv.__ModularSuite_Cleanups, suiteCleanup)
 	end
 end

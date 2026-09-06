@@ -234,6 +234,11 @@ end
 
 function Hotbar.new(): HotbarWidget
 	-- Disconnect previous instance connections to prevent ghost listener collisions
+	local genv = (type(getgenv) == "function" and getgenv()) or _G
+	if genv.__ModularHotbar_Cleanup then
+		pcall(genv.__ModularHotbar_Cleanup)
+		genv.__ModularHotbar_Cleanup = nil
+	end
 	if _G.__ModularHotbar_Cleanup then
 		pcall(_G.__ModularHotbar_Cleanup)
 		_G.__ModularHotbar_Cleanup = nil
@@ -1958,7 +1963,7 @@ function Hotbar.new(): HotbarWidget
 		end
 	end)
 
-	_G.__ModularHotbar_Cleanup = function()
+	local hotbarCleanup = function()
 		for slotIdx = 1, NUM_SLOTS do
 			pcall(function()
 				ContextActionService:UnbindAction("ProjectFih_HotbarSlot_" .. tostring(slotIdx))
@@ -1969,6 +1974,12 @@ function Hotbar.new(): HotbarWidget
 		end
 		table.clear(activeConnections)
 		pcall(function() screenGui:Destroy() end)
+	end
+
+	genv.__ModularHotbar_Cleanup = hotbarCleanup
+	_G.__ModularHotbar_Cleanup = hotbarCleanup
+	if type(genv.__ModularSuite_Cleanups) == "table" then
+		table.insert(genv.__ModularSuite_Cleanups, hotbarCleanup)
 	end
 
 	-- Initial render

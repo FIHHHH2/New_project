@@ -1692,4 +1692,21 @@ function CoreUI:SetVisible(state: boolean, onComplete: (() -> ())?)
 	end
 end
 
+function CoreUI:Destroy()
+	if self.ScreenGui then
+		pcall(function() self.ScreenGui:Destroy() end)
+		self.ScreenGui = nil
+	end
+	self.IsOpen = false
+	self.IsTransitioning = false
+	self.ActiveTab = nil
+	self.PreviousTab = nil
+	self.Tabs = {}
+	self.ActiveToggles = {}
+	self.SliderFills = {}
+	self.SubTabGroups = {}
+end
+
+CoreUI.cleanup = CoreUI.Destroy
+
 return CoreUI

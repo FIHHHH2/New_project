@@ -36,25 +36,45 @@ local Notification = require("UI/Notification.luau")
 local LeaderstatsWidget = require("UI/LeaderstatsWidget.luau")
 local HealthWidget = require("UI/HealthWidget.luau")
 
-pcall(function() MurderMystery2.Init() end)
-pcall(function()
-	DisasterSurvival.init(function(msg)
-		if _G.__ModularSuite_Window and typeof(_G.__ModularSuite_Window.Notify) == "function" then
-			_G.__ModularSuite_Window:Notify("Natural Disaster", msg, 4)
-		end
-	end)
-end)
-pcall(function() RunNHide.init() end)
-pcall(function()
-	if LuckyBlocks and LuckyBlocks.AntiVoid then
-		LuckyBlocks.setAntiVoid(true)
-	end
-end)
+local genv = (type(getgenv) == "function" and getgenv()) or _G
 
 -- Clean up previous execution lifecycle if active
+if genv.__ModularMain_Cleanup then
+	pcall(genv.__ModularMain_Cleanup)
+	genv.__ModularMain_Cleanup = nil
+end
 if _G.__ModularMain_Cleanup then
 	pcall(_G.__ModularMain_Cleanup)
 	_G.__ModularMain_Cleanup = nil
+end
+
+-- Only initialize game-specific mechanics if the player is currently in that game
+local placeId = game.PlaceId
+local gameName = string.lower(game.Name)
+local isMM2 = (placeId == 142823291) or gameName:find("murder mystery") or gameName:find("mm2")
+local isNDS = (placeId == 189707) or gameName:find("disaster")
+local isRNH = (placeId == 12901416348) or gameName:find("run and hide") or gameName:find("demise")
+local isLucky = (placeId == 662417684) or gameName:find("lucky block")
+
+if isMM2 then
+	pcall(function() MurderMystery2.Init() end)
+end
+if isNDS then
+	pcall(function()
+		DisasterSurvival.init(function(msg)
+			if _G.__ModularSuite_Window and typeof(_G.__ModularSuite_Window.Notify) == "function" then
+				_G.__ModularSuite_Window:Notify("Natural Disaster", msg, 4)
+			end
+		end)
+	end)
+end
+if isRNH then
+	pcall(function() RunNHide.init() end)
+end
+if isLucky and LuckyBlocks and LuckyBlocks.AntiVoid then
+	pcall(function()
+		LuckyBlocks.setAntiVoid(true)
+	end)
 end
 
 local mainConns: {RBXScriptConnection} = {}
@@ -418,7 +438,7 @@ local tabKeyConn = UserInputService.InputBegan:Connect(function(input, gameProce
 end)
 table.insert(mainConns, tabKeyConn)
 
-_G.__ModularMain_Cleanup = function()
+local function mainCleanup()
 	for _, conn in ipairs(mainConns) do
 		pcall(function() conn:Disconnect() end)
 	end
@@ -437,11 +457,21 @@ _G.__ModularMain_Cleanup = function()
 		charDescendantRemovingConn:Disconnect()
 		charDescendantRemovingConn = nil
 	end
+	if genv.__ModularSuite_TopBarEnforcer then
+		pcall(task.cancel, genv.__ModularSuite_TopBarEnforcer)
+		genv.__ModularSuite_TopBarEnforcer = nil
+	end
 	if _G.__ModularSuite_TopBarEnforcer then
 		pcall(task.cancel, _G.__ModularSuite_TopBarEnforcer)
 		_G.__ModularSuite_TopBarEnforcer = nil
 	end
 	table.clear(cachedCharacterParts)
+end
+
+genv.__ModularMain_Cleanup = mainCleanup
+_G.__ModularMain_Cleanup = mainCleanup
+if type(genv.__ModularSuite_Cleanups) == "table" then
+	table.insert(genv.__ModularSuite_Cleanups, mainCleanup)
 end
 
 local sharedEnv = {

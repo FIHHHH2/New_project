@@ -2186,6 +2186,15 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				end
 			end)
 
+			window:AddButton(rebirthSection, "Prompt Rebirth Interface", function()
+				local ok = TBODSquared.promptRebirth()
+				if ok then
+					window:Notify("TBOD^2", "Prompted Rebirth Obelisk", 2.0)
+				else
+					window:Notify("TBOD^2", "Could not locate Obelisk", 2.0)
+				end
+			end)
+
 			-- Right Column: Wheat AutoFarm & Processing
 			local farmSection = window:AddSection(tbodRightCol, "Wheat AutoFarm & Processing")
 

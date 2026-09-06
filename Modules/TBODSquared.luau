@@ -180,17 +180,12 @@ end
 
 -- Check if essence is currently capped
 function TBODSquared.isEssenceCapped(): (boolean, string)
-	local currentEssence = TBODSquared.getPendingEssence()
-	if currentEssence <= 0 then
-		return false, "No Essence Available"
-	end
-
 	local pg = localPlayer:FindFirstChild("PlayerGui")
 
 	-- 1. Scan Rebirth GUI labels for explicit "MAX", "CAP", or "X / Y" syntax
 	if pg then
 		local rebirthGui = pg:FindFirstChild("Main") and pg.Main:FindFirstChild("Rebirth")
-		if rebirthGui then
+		if rebirthGui and rebirthGui.Visible then
 			for _, desc in ipairs(rebirthGui:GetDescendants()) do
 				if desc:IsA("TextLabel") and desc.Visible then
 					local text = desc.Text or ""
@@ -213,6 +208,11 @@ function TBODSquared.isEssenceCapped(): (boolean, string)
 				end
 			end
 		end
+	end
+
+	local currentEssence = TBODSquared.getPendingEssence()
+	if currentEssence <= 0 then
+		return false, "No Essence Available"
 	end
 
 	-- 2. Attribute / Value check on player and leaderstats
@@ -320,104 +320,7 @@ local function startPurchaseLoop()
 	end)
 end
 
--- Trigger Rebirth Sequence
-local function executeRebirth(): boolean
-	local obelisk = Workspace:FindFirstChild("Obelisk")
-	local clickPart = obelisk and obelisk:FindFirstChild("RebirthButton") and obelisk.RebirthButton:FindFirstChild("Click") :: BasePart?
-	if not clickPart then return false end
-
-	-- Open Rebirth Interface via Obelisk Button
-	local fcd = (fireclickdetector :: any) or (getgenv and getgenv().fireclickdetector)
-	local cd = clickPart:FindFirstChildWhichIsA("ClickDetector")
-	if cd and type(fcd) == "function" then
-		pcall(fcd, cd)
-	end
-
-	local fpp = (fireproximityprompt :: any) or (getgenv and getgenv().fireproximityprompt)
-	local pp = clickPart:FindFirstChildWhichIsA("ProximityPrompt")
-	if pp and type(fpp) == "function" then
-		pcall(fpp, pp)
-	end
-
-	-- Wait for UI to show
-	task.wait(0.2)
-
-	local pg = localPlayer:FindFirstChild("PlayerGui")
-	local rebBtn = pg and pg:FindFirstChild("Main")
-		and pg.Main:FindFirstChild("Rebirth")
-		and pg.Main.Rebirth:FindFirstChild("Main")
-		and pg.Main.Rebirth.Main:FindFirstChild("Inner")
-		and pg.Main.Rebirth.Main.Inner:FindFirstChild("Rebirth") :: GuiButton?
-
-	if rebBtn then
-		local clicked = false
-		local fs = (firesignal :: any) or (getgenv and getgenv().firesignal)
-		if type(fs) == "function" then
-			pcall(function()
-				fs(rebBtn.MouseButton1Click)
-				fs(rebBtn.Activated)
-				clicked = true
-			end)
-		end
-
-		if not clicked then
-			pcall(function()
-				local getconnections = (getconnections :: any) or (getgenv and getgenv().getconnections)
-				if type(getconnections) == "function" then
-					for _, conn in ipairs(getconnections(rebBtn.MouseButton1Click)) do
-						conn:Fire()
-					end
-					for _, conn in ipairs(getconnections(rebBtn.Activated)) do
-						conn:Fire()
-					end
-				end
-			end)
-		end
-
-		TBODSquared.Metrics.rebirthsTriggered += 1
-		cachedTycoon = nil -- Invalidate tycoon cache after rebirth reset
-		return true
-	end
-	return false
-end
-
--- Auto Rebirth Loop (Supports threshold and automatic cap detection)
-local function startRebirthLoop()
-	if rebirthThread then return end
-	rebirthThread = task.spawn(function()
-		while autoRebirthEnabled or autoRebirthOnCapped do
-			local shouldRebirth = false
-			local rebirthReason = ""
-
-			if autoRebirthOnCapped then
-				local isCapped, capReason = TBODSquared.isEssenceCapped()
-				if isCapped then
-					shouldRebirth = true
-					rebirthReason = capReason
-				end
-			end
-
-			if not shouldRebirth and autoRebirthEnabled then
-				local pending = TBODSquared.getPendingEssence()
-				if pending >= rebirthEssenceTarget and pending > 0 then
-					shouldRebirth = true
-					rebirthReason = string.format("Reached Target Essence (%d >= %d)", pending, rebirthEssenceTarget)
-				end
-			end
-
-			if shouldRebirth then
-				local pending = TBODSquared.getPendingEssence()
-				TBODSquared.Metrics.lastRebirthEssence = pending
-				executeRebirth()
-				task.wait(2.5) -- Debounce to allow plot reload & rebirth animation
-			end
-			task.wait(0.5)
-		end
-		rebirthThread = nil
-	end)
-end
-
--- ── WHEAT AUTOFARM & HARVEST/PROCESSING ENGINE ───────────────────────
+-- ── INTERACTION HELPERS ───────────────────────────────────────────────
 
 -- Trigger ProximityPrompt with distance and hold duration bypass
 local function triggerPrompt(prompt: ProximityPrompt): boolean
@@ -472,6 +375,228 @@ local function triggerTouch(part: BasePart): boolean
 
 	return false
 end
+
+-- ── OBELISK REBIRTH ENGINE ───────────────────────────────────────────
+
+-- Deep lookup for the Obelisk Rebirth interaction part
+local function getObeliskRebirthPart(): BasePart?
+	local obelisk = Workspace:FindFirstChild("Obelisk")
+	if not obelisk then
+		for _, obj in ipairs(Workspace:GetChildren()) do
+			if string.find(string.lower(obj.Name), "obelisk") then
+				obelisk = obj
+				break
+			end
+		end
+	end
+	if not obelisk then return nil end
+
+	-- 1. Check for RebirthButton part or model
+	local rb = obelisk:FindFirstChild("RebirthButton") 
+		or obelisk:FindFirstChild("Rebirth")
+		or obelisk:FindFirstChild("Button")
+	if rb then
+		if rb:IsA("BasePart") then return rb end
+		local click = rb:FindFirstChild("Click") 
+			or rb:FindFirstChild("Hitbox") 
+			or rb:FindFirstChild("Button") 
+			or rb:FindFirstChildWhichIsA("BasePart", true)
+		if click and click:IsA("BasePart") then return click end
+	end
+
+	-- 2. Check for any ProximityPrompt or ClickDetector in obelisk
+	local pp = obelisk:FindFirstChildWhichIsA("ProximityPrompt", true)
+	if pp and pp.Parent and pp.Parent:IsA("BasePart") then
+		return pp.Parent
+	end
+
+	local cd = obelisk:FindFirstChildWhichIsA("ClickDetector", true)
+	if cd and cd.Parent and cd.Parent:IsA("BasePart") then
+		return cd.Parent
+	end
+
+	return obelisk:FindFirstChildWhichIsA("BasePart", true)
+end
+
+-- Prompt the Obelisk to open the Rebirth Dialog
+local function promptRebirth(): boolean
+	local part = getObeliskRebirthPart()
+	if not part then return false end
+
+	local char = localPlayer.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return false end
+
+	local origCF = hrp.CFrame
+	local dist = (hrp.Position - part.Position).Magnitude
+	local pulsed = false
+
+	-- If farther than 20 studs, pulse to button so server validates proximity
+	if dist > 20 then
+		pulsed = true
+		hrp.CFrame = CFrame.new(part.Position + Vector3.new(0, 3, 2))
+		task.wait(0.05)
+	end
+
+	-- 1. ProximityPrompt with bypass
+	local pp = part:FindFirstChildWhichIsA("ProximityPrompt", true)
+		or (part.Parent and part.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
+	if pp then
+		triggerPrompt(pp)
+	end
+
+	-- 2. ClickDetector
+	local cd = part:FindFirstChildWhichIsA("ClickDetector", true)
+		or (part.Parent and part.Parent:FindFirstChildWhichIsA("ClickDetector", true))
+	if cd then
+		triggerClick(cd)
+	end
+
+	-- 3. Touch
+	triggerTouch(part)
+
+	if pulsed then
+		task.wait(0.12)
+		if hrp and hrp.Parent then
+			hrp.CFrame = origCF
+		end
+	end
+
+	return true
+end
+
+-- Find the Confirm button inside Rebirth GUI
+local function findRebirthConfirmButton(rebirthGui: Instance): GuiButton?
+	local exact = rebirthGui:FindFirstChild("Main")
+		and rebirthGui.Main:FindFirstChild("Inner")
+		and rebirthGui.Main.Inner:FindFirstChild("Rebirth")
+	if exact and exact:IsA("GuiButton") then return exact end
+
+	for _, desc in ipairs(rebirthGui:GetDescendants()) do
+		if desc:IsA("GuiButton") and desc.Visible then
+			local nameLower = string.lower(desc.Name)
+			local text = (desc:IsA("TextButton") and string.lower(desc.Text)) or ""
+			if nameLower == "rebirth" or nameLower == "confirm" or string.find(text, "rebirth") or string.find(text, "confirm") or string.find(text, "yes") then
+				return desc
+			end
+		end
+	end
+	return nil
+end
+
+-- Trigger Full Rebirth Sequence (Prompt Obelisk + Confirm Rebirth)
+local function executeRebirth(): boolean
+	-- Step 1: Prompt the Obelisk to open the dialog
+	promptRebirth()
+	task.wait(0.3)
+
+	local pg = localPlayer:FindFirstChild("PlayerGui")
+	if not pg then return false end
+
+	local mainGui = pg:FindFirstChild("Main")
+	local rebirthGui = mainGui and mainGui:FindFirstChild("Rebirth")
+	if not (rebirthGui and rebirthGui.Visible) then
+		-- Retry prompt once more if not visible yet
+		promptRebirth()
+		task.wait(0.3)
+		mainGui = pg:FindFirstChild("Main")
+		rebirthGui = mainGui and mainGui:FindFirstChild("Rebirth")
+	end
+
+	if not (rebirthGui and rebirthGui.Visible) then
+		return false
+	end
+
+	-- Step 2: Confirm rebirth via the GUI button
+	local rebBtn = findRebirthConfirmButton(rebirthGui)
+	if rebBtn then
+		local clicked = false
+		local fs = (firesignal :: any) or (getgenv and getgenv().firesignal)
+		if type(fs) == "function" then
+			pcall(function()
+				fs(rebBtn.MouseButton1Click)
+				fs(rebBtn.Activated)
+				clicked = true
+			end)
+		end
+
+		if not clicked then
+			pcall(function()
+				local getconnections = (getconnections :: any) or (getgenv and getgenv().getconnections)
+				if type(getconnections) == "function" then
+					for _, conn in ipairs(getconnections(rebBtn.MouseButton1Click)) do
+						conn:Fire()
+					end
+					for _, conn in ipairs(getconnections(rebBtn.Activated)) do
+						conn:Fire()
+					end
+				end
+			end)
+		end
+
+		TBODSquared.Metrics.rebirthsTriggered += 1
+		cachedTycoon = nil -- Invalidate tycoon cache after rebirth reset
+		return true
+	end
+	return false
+end
+
+-- Auto Rebirth Loop (Supports threshold and automatic cap detection)
+local function startRebirthLoop()
+	if rebirthThread then return end
+	rebirthThread = task.spawn(function()
+		local checkTicks = 0
+		while autoRebirthEnabled or autoRebirthOnCapped do
+			local pg = localPlayer:FindFirstChild("PlayerGui")
+			local mainGui = pg and pg:FindFirstChild("Main")
+			local rebirthGui = mainGui and mainGui:FindFirstChild("Rebirth")
+			local isGuiOpen = rebirthGui and rebirthGui.Visible == true
+
+			-- If GUI is closed, periodically prompt the Obelisk to open/refresh the Rebirth dialog
+			checkTicks += 1
+			if not isGuiOpen and checkTicks >= 5 then -- Every ~2.5 seconds
+				checkTicks = 0
+				promptRebirth()
+				task.wait(0.25)
+				pg = localPlayer:FindFirstChild("PlayerGui")
+				mainGui = pg and pg:FindFirstChild("Main")
+				rebirthGui = mainGui and mainGui:FindFirstChild("Rebirth")
+				isGuiOpen = rebirthGui and rebirthGui.Visible == true
+			end
+
+			local shouldRebirth = false
+			local rebirthReason = ""
+
+			if autoRebirthOnCapped then
+				local isCapped, capReason = TBODSquared.isEssenceCapped()
+				if isCapped then
+					shouldRebirth = true
+					rebirthReason = capReason
+				end
+			end
+
+			if not shouldRebirth and autoRebirthEnabled then
+				local pending = TBODSquared.getPendingEssence()
+				if pending >= rebirthEssenceTarget and pending > 0 then
+					shouldRebirth = true
+					rebirthReason = string.format("Reached Target Essence (%d >= %d)", pending, rebirthEssenceTarget)
+				end
+			end
+
+			if shouldRebirth then
+				local pending = TBODSquared.getPendingEssence()
+				TBODSquared.Metrics.lastRebirthEssence = pending
+				executeRebirth()
+				task.wait(3.0) -- Debounce to allow plot reload & rebirth animation
+				checkTicks = 0
+			end
+			task.wait(0.5)
+		end
+		rebirthThread = nil
+	end)
+end
+
+-- ── WHEAT AUTOFARM & HARVEST/PROCESSING ENGINE ───────────────────────
 
 -- Helper string predicates
 local function isWheatRelated(name: string): boolean
@@ -848,6 +973,10 @@ end
 
 function TBODSquared.manualRebirth(): boolean
 	return executeRebirth()
+end
+
+function TBODSquared.promptRebirth(): boolean
+	return promptRebirth()
 end
 
 function TBODSquared.setAutoFarmWheat(enabled: boolean)

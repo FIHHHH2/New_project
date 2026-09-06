@@ -32,10 +32,15 @@ local autoProcessWheat = true
 local autoReturnHome = true
 local farmCycleDelay = 0.35
 
+-- Vendor / Merchant State
+local autoBuyVendorEnabled = false
+local lastVendorPurchaseTime = 0
+
 -- Runtime references & connections
 local purchaseThread: thread? = nil
 local rebirthThread: thread? = nil
 local farmThread: thread? = nil
+local vendorThread: thread? = nil
 local cachedTycoon: Model? = nil
 local cachedPlotName: string? = nil
 local lastObservedEssence = 0
@@ -52,6 +57,7 @@ TBODSquared.Metrics = {
 	wheatPlanted = 0,
 	wheatHarvested = 0,
 	wheatProcessed = 0,
+	vendorCardsPurchased = 0,
 }
 
 -- Helper: parse formatted currency string ("$3B", "150M", "+253", "$130") into raw number
@@ -214,49 +220,33 @@ function TBODSquared.isEssenceCapped(): (boolean, string)
 
 	local pg = localPlayer:FindFirstChild("PlayerGui")
 	if pg then
-		-- 1. Check System.RebirthProgress (Always on HUD, shows COMPLETE when capped)
-		local rp = pg:FindFirstChild("System") and pg.System:FindFirstChild("RebirthProgress", true)
-		if rp then
-			local progressFrame = rp:FindFirstChild("Progress")
-			if progressFrame then
-				local tl = progressFrame:FindFirstChildWhichIsA("TextLabel")
-				if tl and string.find(string.upper(tl.Text), "COMPLETE") then
-					return true, "RebirthProgress HUD is COMPLETE"
-				end
-				local bar = progressFrame:FindFirstChild("Bar")
-				if bar and bar:IsA("GuiObject") and bar.Size.X.Scale >= 0.98 then
-					return true, "RebirthProgress bar is 100%"
-				end
-			end
-		end
-
-		-- 2. Check System.Notifications for RebirthNotification
-		local noti = pg:FindFirstChild("System") 
-			and pg.System:FindFirstChild("Notifications")
-			and pg.System.Notifications:FindFirstChild("NotiHolder")
-			and pg.System.Notifications.NotiHolder:FindFirstChild("RebirthNotification")
-		if noti then
-			return true, "Rebirth notification active (Able to Rebirth)"
-		end
-
-		-- 3. Check Main.Rebirth Inner labels (can be read even before frame tweens in)
+		-- 1. Strictly check if the explicit Capped label in Rebirth dialog is VISIBLE
 		local inner = pg:FindFirstChild("Main")
 			and pg.Main:FindFirstChild("Rebirth")
 			and pg.Main.Rebirth:FindFirstChild("Main")
 			and pg.Main.Rebirth.Main:FindFirstChild("Inner")
 		if inner then
 			local capped = inner:FindFirstChild("Capped")
-			if capped and capped:IsA("TextLabel") and string.find(string.upper(capped.Text), "CAPPED") then
+			if capped and capped:IsA("TextLabel") and capped.Visible and string.find(string.upper(capped.Text), "CAPPED") ~= nil then
 				return true, "Rebirth dialog indicates (Capped)"
 			end
-			local prog = inner:FindFirstChild("Progress") and inner.Progress:FindFirstChildWhichIsA("TextLabel")
-			if prog and string.find(string.upper(prog.Text), "COMPLETE") then
-				return true, "Rebirth dialog progress is COMPLETE"
+		end
+
+		-- 2. Check HUD for any explicitly VISIBLE label indicating capped
+		local system = pg:FindFirstChild("System")
+		if system then
+			for _, desc in ipairs(system:GetDescendants()) do
+				if desc:IsA("TextLabel") and desc.Visible then
+					local textUpper = string.upper(desc.Text or "")
+					if string.find(textUpper, "ESSENCE CAPPED") or string.find(textUpper, "(CAPPED)") then
+						return true, "HUD indicates " .. desc.Text
+					end
+				end
 			end
 		end
 	end
 
-	-- 4. Attribute / Value check on player and leaderstats
+	-- 3. Attribute / Value check on player and leaderstats
 	local attrCap = localPlayer:GetAttribute("EssenceCap") 
 		or localPlayer:GetAttribute("MaxEssence")
 		or localPlayer:GetAttribute("RebirthCap")
@@ -684,15 +674,21 @@ local function setupRebirthGuiWatcher()
 
 		local isClicking = false
 		local function handleGuiOpen()
-			if isClicking or not autoClickRebirthOnOpen then return end
+			if isClicking then return end
+			-- Confirm if user wants auto-click on open, OR if any auto-rebirth mode is enabled
+			if not (autoClickRebirthOnOpen or autoRebirthEnabled or autoRebirthOnCapped) then return end
 			isClicking = true
-			task.wait(0.18) -- Wait for on-screen tween to settle
+			task.wait(0.25) -- Wait for on-screen tween to settle
 
-			local rebBtn = findRebirthConfirmButton(rebirthFrame)
-			if rebBtn then
-				clickRebirthConfirmButton(rebBtn)
-				TBODSquared.Metrics.rebirthsTriggered += 1
-				cachedTycoon = nil
+			for attempt = 1, 3 do
+				local rebBtn = findRebirthConfirmButton(rebirthFrame)
+				if rebBtn and rebBtn.Visible then
+					clickRebirthConfirmButton(rebBtn)
+					TBODSquared.Metrics.rebirthsTriggered += 1
+					cachedTycoon = nil
+					break
+				end
+				task.wait(0.2)
 			end
 			task.wait(1.0)
 			isClicking = false
@@ -887,16 +883,47 @@ local function getTycoonContainers(): {Instance}
 	return containers
 end
 
--- Count how many seeds are currently in the tycoon's seed basket/box
+-- Count how many seeds are currently in the tycoon's seed basket/box (0 to 4)
 local function getBasketSeedCount(box: Instance): number
-	local count = 0
-	for _, child in ipairs(box:GetChildren()) do
-		local nameLower = string.lower(child.Name)
-		if string.find(nameLower, "wheatseed") or (string.find(nameLower, "seed") and not string.find(nameLower, "plot")) then
-			count += 1
+	-- 1. Check BillboardGui on Display
+	local display = box:FindFirstChild("Display")
+	if display then
+		local bg = display:FindFirstChildWhichIsA("BillboardGui", true)
+		local tl = bg and bg:FindFirstChildWhichIsA("TextLabel", true)
+		if tl and tl.Text then
+			local txt = tl.Text
+			if string.find(txt, "4/4") ~= nil then
+				return 4
+			elseif string.find(txt, "3/4") ~= nil then
+				return 3
+			elseif string.find(txt, "2/4") ~= nil then
+				return 2
+			elseif string.find(txt, "1/4") ~= nil then
+				return 1
+			elseif string.find(string.lower(txt), "empty") ~= nil or string.find(txt, "0/4") ~= nil then
+				return 0
+			end
 		end
 	end
-	return count
+
+	-- 2. Inspect seed models for visible, touchable parts (transparency < 0.5, canTouch == true)
+	local solidCount = 0
+	for _, child in ipairs(box:GetChildren()) do
+		if string.find(string.lower(child.Name), "wheatseed") then
+			local isSolid = false
+			for _, p in ipairs(child:GetDescendants()) do
+				if p:IsA("BasePart") and p.Transparency < 0.5 and p.CanTouch then
+					isSolid = true
+					break
+				end
+			end
+			if isSolid then
+				solidCount += 1
+			end
+		end
+	end
+
+	return solidCount
 end
 
 -- 1. Harvest Completed / Mature Wheat from Farms
@@ -1297,11 +1324,213 @@ function TBODSquared.collectSeedsNow(): number
 	return count
 end
 
+-- ── VENDOR / MERCHANT AUTOMATION ─────────────────────────────────────────
+
+-- Find player's closest vendor/bits shop
+local function getMyBitsShop(): Model?
+	local bs = Workspace:FindFirstChild("BitsShops")
+	if not bs then return nil end
+
+	local tyc = TBODSquared.getMyTycoon()
+	local refPos: Vector3? = nil
+	if tyc then
+		local cf, _ = tyc:GetBoundingBox()
+		refPos = cf.Position
+	elseif localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+		refPos = (localPlayer.Character.HumanoidRootPart :: BasePart).Position
+	end
+
+	local bestShop: Model? = nil
+	local bestDist = math.huge
+
+	for _, child in ipairs(bs:GetChildren()) do
+		if child:IsA("Model") then
+			local cf, _ = child:GetBoundingBox()
+			local dist = refPos and (refPos - cf.Position).Magnitude or 0
+			if dist < bestDist then
+				bestDist = dist
+				bestShop = child
+			end
+		end
+	end
+
+	return bestShop
+end
+
+-- Inspect and attempt to purchase the best affordable card from the vendor
+function TBODSquared.buyBestVendorCardNow(): (boolean, string)
+	local shop = getMyBitsShop()
+	if not shop then
+		return false, "Vendor shop not found"
+	end
+
+	local cardsFolder = shop:FindFirstChild("Cards")
+	if not cardsFolder or #cardsFolder:GetChildren() == 0 then
+		return false, "No cards available at vendor (Merchant absent)"
+	end
+
+	local currentCash = TBODSquared.getPlayerCash()
+
+	type CardOption = {
+		model: Instance,
+		bits: number,
+		price: number,
+		targetPart: BasePart?,
+		prompt: ProximityPrompt?,
+		click: ClickDetector?,
+	}
+
+	local candidates: {CardOption} = {}
+
+	for _, cardModel in ipairs(cardsFolder:GetChildren()) do
+		local bitsVal = 0
+		local priceVal = 0
+
+		-- 1. Check Model Attributes
+		local attrBits = cardModel:GetAttribute("Bits") or cardModel:GetAttribute("Value")
+		if attrBits and tonumber(attrBits) then
+			bitsVal = tonumber(attrBits) or 0
+		end
+
+		local attrPrice = cardModel:GetAttribute("Price") 
+			or cardModel:GetAttribute("DiscountedPrice") 
+			or cardModel:GetAttribute("Cost")
+		if attrPrice and tonumber(attrPrice) then
+			priceVal = tonumber(attrPrice) or 0
+		end
+
+		-- 2. Check SurfaceGui labels
+		for _, desc in ipairs(cardModel:GetDescendants()) do
+			if desc:IsA("TextLabel") then
+				local nameLower = string.lower(desc.Name)
+				if nameLower == "bitsdisplay" or (string.find(nameLower, "bits") and not string.find(nameLower, "dash")) then
+					local parsed = parseFormattedNumber(desc.Text)
+					if parsed > bitsVal then bitsVal = parsed end
+				elseif nameLower == "pricedisplay" or (string.find(nameLower, "price") and not string.find(nameLower, "dash")) then
+					local parsed = parseFormattedNumber(desc.Text)
+					if parsed > priceVal then priceVal = parsed end
+				end
+			end
+		end
+
+		-- 3. Resolve interaction triggers
+		local prompt = cardModel:FindFirstChildWhichIsA("ProximityPrompt", true)
+		local click = cardModel:FindFirstChildWhichIsA("ClickDetector", true)
+		local targetPart = (prompt and prompt.Parent:IsA("BasePart") and prompt.Parent :: BasePart)
+			or (click and click.Parent:IsA("BasePart") and click.Parent :: BasePart)
+			or (cardModel:IsA("Model") and cardModel.PrimaryPart)
+			or cardModel:FindFirstChildWhichIsA("BasePart", true)
+
+		table.insert(candidates, {
+			model = cardModel,
+			bits = bitsVal,
+			price = priceVal,
+			targetPart = targetPart,
+			prompt = prompt,
+			click = click,
+		})
+	end
+
+	if #candidates == 0 then
+		return false, "No valid cards detected"
+	end
+
+	-- Filter to affordable cards: if currentCash > 0, price must be <= currentCash
+	local affordable: {CardOption} = {}
+	for _, cand in ipairs(candidates) do
+		if currentCash <= 0 or cand.price <= currentCash or cand.price == 0 then
+			table.insert(affordable, cand)
+		end
+	end
+
+	if #affordable == 0 then
+		return false, string.format("Cannot afford any cards (Balance: $%d, Lowest: $%d)", 
+			currentCash, candidates[1].price)
+	end
+
+	-- Sort by best value: highest bits first; if equal or 0, highest price first
+	table.sort(affordable, function(a, b)
+		if a.bits ~= b.bits then
+			return a.bits > b.bits
+		end
+		return a.price > b.price
+	end)
+
+	local best = affordable[1]
+	local char = localPlayer.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return false, "No HumanoidRootPart" end
+
+	local origCF = hrp.CFrame
+	local didBuy = false
+
+	if best.targetPart then
+		-- Position character right at card
+		hrp.CFrame = CFrame.new(best.targetPart.Position + Vector3.new(0, 2.5, 2.0))
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+		task.wait(0.06)
+
+		if best.prompt then
+			triggerPrompt(best.prompt)
+			didBuy = true
+		end
+		if best.click then
+			triggerClick(best.click)
+			didBuy = true
+		end
+		triggerTouch(best.targetPart, hrp)
+		didBuy = true
+
+		task.wait(0.15)
+		if hrp and hrp.Parent then
+			hrp.CFrame = origCF
+			hrp.AssemblyLinearVelocity = Vector3.zero
+			hrp.AssemblyAngularVelocity = Vector3.zero
+		end
+	end
+
+	if didBuy then
+		TBODSquared.Metrics.vendorCardsPurchased += 1
+		lastVendorPurchaseTime = os.clock()
+		return true, string.format("Purchased best card (Bits: %d, Cost: $%d)", best.bits, best.price)
+	end
+
+	return false, "Failed to interact with card"
+end
+
+local function startVendorLoop()
+	if vendorThread then return end
+	vendorThread = task.spawn(function()
+		while autoBuyVendorEnabled do
+			local now = os.clock()
+			if now - lastVendorPurchaseTime >= 3.0 then
+				pcall(function()
+					TBODSquared.buyBestVendorCardNow()
+				end)
+			end
+			task.wait(2.5)
+		end
+		vendorThread = nil
+	end)
+end
+
+function TBODSquared.setAutoBuyVendor(enabled: boolean)
+	autoBuyVendorEnabled = enabled
+	if enabled then
+		startVendorLoop()
+	elseif vendorThread then
+		task.cancel(vendorThread)
+		vendorThread = nil
+	end
+end
+
 function TBODSquared.stop()
 	TBODSquared.setAutoPurchase(false)
 	TBODSquared.setAutoRebirth(false)
 	TBODSquared.setAutoRebirthOnCapped(false)
 	TBODSquared.setAutoFarmWheat(false)
+	TBODSquared.setAutoBuyVendor(false)
 	if purchaseThread then
 		task.cancel(purchaseThread)
 		purchaseThread = nil
@@ -1313,6 +1542,10 @@ function TBODSquared.stop()
 	if farmThread then
 		task.cancel(farmThread)
 		farmThread = nil
+	end
+	if vendorThread then
+		task.cancel(vendorThread)
+		vendorThread = nil
 	end
 	cachedTycoon = nil
 	cachedPlotName = nil

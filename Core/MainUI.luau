@@ -2199,6 +2199,19 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				end
 			end)
 
+			-- Left Column: Merchant / Vendor Automation
+			local vendorSection = window:AddSection(tbodLeftCol, "Merchant / Vendor Automation")
+
+			window:AddToggle(vendorSection, "tbod_autobuy_vendor", "Auto Buy Best Merchant Card", false, nil, function(val)
+				TBODSquared.setAutoBuyVendor(val)
+				window:Notify("TBOD^2", if val then "Auto Buy Best Card active" else "Auto Buy Best Card stopped", 2)
+			end)
+
+			window:AddButton(vendorSection, "Buy Best Card Now", function()
+				local ok, msg = TBODSquared.buyBestVendorCardNow()
+				window:Notify("TBOD^2", msg or (if ok then "Purchased best card" else "No affordable cards"), 2.5)
+			end)
+
 			-- Right Column: Wheat AutoFarm & Processing
 			local farmSection = window:AddSection(tbodRightCol, "Wheat AutoFarm & Processing")
 

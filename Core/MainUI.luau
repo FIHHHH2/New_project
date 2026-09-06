@@ -2219,6 +2219,10 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				TBODSquared.setAutoProcessWheat(val)
 			end)
 
+			window:AddToggle(farmSection, "tbod_farm_return_home", "Return to Origin after Farm Cycle", true, nil, function(val)
+				TBODSquared.setAutoReturnHome(val)
+			end)
+
 			window:AddSlider(farmSection, "Farm Cycle Speed (s)", 0.1, 1.5, 0.35, function(val)
 				TBODSquared.setFarmCycleDelay(val)
 			end)

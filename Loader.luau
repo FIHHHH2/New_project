@@ -14412,6 +14412,10 @@ Modules["Core/MainUI.luau"] = function()
     				TBODSquared.setAutoProcessWheat(val)
     			end)
 
+    			window:AddToggle(farmSection, "tbod_farm_return_home", "Return to Origin after Farm Cycle", true, nil, function(val)
+    				TBODSquared.setAutoReturnHome(val)
+    			end)
+
     			window:AddSlider(farmSection, "Farm Cycle Speed (s)", 0.1, 1.5, 0.35, function(val)
     				TBODSquared.setFarmCycleDelay(val)
     			end)
@@ -23342,6 +23346,7 @@ Modules["Modules/TBODSquared.luau"] = function()
     local autoPlantWheat = true
     local autoHarvestWheat = true
     local autoProcessWheat = true
+    local autoReturnHome = true
     local farmCycleDelay = 0.35
 
     -- Runtime references & connections
@@ -23966,6 +23971,39 @@ Modules["Modules/TBODSquared.luau"] = function()
     	return false
     end
 
+    -- Check if player holds or carries a tool matching pattern
+    local function hasToolNamed(pattern: string): boolean
+    	local char = localPlayer.Character
+    	if char then
+    		for _, item in ipairs(char:GetChildren()) do
+    			if item:IsA("Tool") and string.find(string.lower(item.Name), string.lower(pattern)) then
+    				return true
+    			end
+    		end
+    	end
+    	local bp = localPlayer:FindFirstChild("Backpack")
+    	if bp then
+    		for _, item in ipairs(bp:GetChildren()) do
+    			if item:IsA("Tool") and string.find(string.lower(item.Name), string.lower(pattern)) then
+    				return true
+    			end
+    		end
+    	end
+    	return false
+    end
+
+    -- Bring player within server proximity threshold of a target part
+    local function approachTarget(targetPart: BasePart, hrp: BasePart)
+    	if not (hrp and targetPart and targetPart.Parent) then return end
+    	local targetPos = targetPart.Position
+    	if (hrp.Position - targetPos).Magnitude > 6 then
+    		hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 2.5, 0))
+    		hrp.AssemblyLinearVelocity = Vector3.zero
+    		hrp.AssemblyAngularVelocity = Vector3.zero
+    		task.wait(0.04)
+    	end
+    end
+
     -- Resolve all active search containers for farms, seeds, and processors
     local function getTycoonContainers(): {Instance}
     	local containers: {Instance} = {}
@@ -23990,7 +24028,7 @@ Modules["Modules/TBODSquared.luau"] = function()
     	return containers
     end
 
-    -- 1. Harvest Completed / Mature Wheat from Farms
+    -- 1. Harvest Completed / Mature Wheat from Farms (with proximity validation)
     local function harvestCompletedWheat(containers: {Instance}, hrp: BasePart): number
     	if not autoHarvestWheat then return 0 end
     	local harvested = 0
@@ -24006,9 +24044,11 @@ Modules["Modules/TBODSquared.luau"] = function()
     					or string.find(action, "gather") 
     					or (string.find(action, "collect") and (string.find(objText, "wheat") or string.find(objText, "crop") or string.find(objText, "farm")))
 
-    				if isHarvestPrompt then
+    				if isHarvestPrompt and desc.Parent and desc.Parent:IsA("BasePart") then
+    					approachTarget(desc.Parent, hrp)
     					if triggerPrompt(desc) then
     						harvested += 1
+    						task.wait(0.04)
     					end
     				end
     			-- Check for mature crop parts or models
@@ -24021,19 +24061,21 @@ Modules["Modules/TBODSquared.luau"] = function()
     						or (desc:IsA("BasePart") and desc.Transparency < 0.5 and desc.Parent and isFarmRelated(desc.Parent.Name))
 
     					if isMature then
-    						local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
-    						if prompt and triggerPrompt(prompt) then
-    							harvested += 1
-    						else
-    							local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
-    							if cd and triggerClick(cd) then
+    						local targetPart = if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart", true)
+    						if targetPart then
+    							approachTarget(targetPart, hrp)
+    							local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+    							if prompt and triggerPrompt(prompt) then
     								harvested += 1
     							else
-    								local part = if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart")
-    								if part and triggerTouch(part) then
+    								local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
+    								if cd and triggerClick(cd) then
+    									harvested += 1
+    								elseif triggerTouch(targetPart) then
     									harvested += 1
     								end
     							end
+    							task.wait(0.04)
     						end
     					end
     				end
@@ -24044,46 +24086,54 @@ Modules["Modules/TBODSquared.luau"] = function()
     	return harvested
     end
 
-    -- 2. Automatically Process Harvested Wheat (Deliver to Separator / Mill)
+    -- 2. Automatically Process Harvested Wheat (Deliver to Separator / Mill with proximity)
     local function processHarvestedWheat(containers: {Instance}, hrp: BasePart): number
     	if not autoProcessWheat then return 0 end
     	local processed = 0
 
-    	-- Equip harvested wheat if available in backpack
-    	if not equipToolNamed("wheat") and not equipToolNamed("grain") then
-    		equipToolNamed("harvest")
+    	-- Ensure player carries harvested wheat or grain
+    	if not (hasToolNamed("wheat") or hasToolNamed("grain") or hasToolNamed("harvest")) then
+    		return 0
     	end
 
     	for _, container in ipairs(containers) do
     		for _, desc in ipairs(container:GetDescendants()) do
     			local nameLower = string.lower(desc.Name)
     			if isProcessorRelated(nameLower) then
-    				local prompt = if desc:IsA("ProximityPrompt") then desc else desc:FindFirstChildWhichIsA("ProximityPrompt", true)
-    				if prompt then
-    					local a = string.lower(prompt.ActionText or "")
-    					local o = string.lower(prompt.ObjectText or "")
-    					if string.find(a, "process") or string.find(a, "deposit") or string.find(a, "separate") or string.find(a, "refine") or string.find(a, "insert") or string.find(a, "feed") or string.find(a, "sell") or string.find(o, "wheat") or string.find(o, "separator") or string.find(o, "processor") then
-    						if triggerPrompt(prompt) then
-    							processed += 1
-    						end
-    					end
-    				else
-    					local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
-    					if cd and triggerClick(cd) then
-    						processed += 1
-    					else
-    						-- Touch the input hopper or main part of processor
-    						local hopper = desc:FindFirstChild("Input") 
-    							or desc:FindFirstChild("Hopper") 
-    							or desc:FindFirstChild("Deposit") 
-    							or desc:FindFirstChild("Drop") 
-    							or desc:FindFirstChild("Pad")
-    							or (if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart"))
+    				local hopperPart = desc:FindFirstChild("Input") 
+    					or desc:FindFirstChild("Hopper") 
+    					or desc:FindFirstChild("Deposit") 
+    					or desc:FindFirstChild("Drop") 
+    					or desc:FindFirstChild("Pad")
+    					or (if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart", true))
 
-    						if hopper and hopper:IsA("BasePart") and triggerTouch(hopper) then
+    				if hopperPart and hopperPart:IsA("BasePart") then
+    					approachTarget(hopperPart, hrp)
+
+    					-- Equip harvested wheat
+    					if not equipToolNamed("wheat") and not equipToolNamed("grain") then
+    						equipToolNamed("harvest")
+    					end
+    					task.wait(0.03)
+
+    					local prompt = if desc:IsA("ProximityPrompt") then desc else desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+    					if prompt then
+    						local a = string.lower(prompt.ActionText or "")
+    						local o = string.lower(prompt.ObjectText or "")
+    						if string.find(a, "process") or string.find(a, "deposit") or string.find(a, "separate") or string.find(a, "refine") or string.find(a, "insert") or string.find(a, "feed") or string.find(a, "sell") or string.find(o, "wheat") or string.find(o, "separator") or string.find(o, "processor") then
+    							if triggerPrompt(prompt) then
+    								processed += 1
+    							end
+    						end
+    					else
+    						local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
+    						if cd and triggerClick(cd) then
+    							processed += 1
+    						elseif triggerTouch(hopperPart) then
     							processed += 1
     						end
     					end
+    					task.wait(0.05)
     				end
     			end
     		end
@@ -24092,10 +24142,15 @@ Modules["Modules/TBODSquared.luau"] = function()
     	return processed
     end
 
-    -- 3. Collect Wheat Seeds from Seed Box / Spawner
+    -- 3. Collect Wheat Seeds from Seed Box / Spawner (with proximity)
     local function collectWheatSeeds(containers: {Instance}, hrp: BasePart): number
     	if not autoCollectWheat then return 0 end
     	local collected = 0
+
+    	-- If already holding seeds, no need to over-collect
+    	if hasToolNamed("seed") then
+    		return 0
+    	end
 
     	for _, container in ipairs(containers) do
     		for _, desc in ipairs(container:GetDescendants()) do
@@ -24108,11 +24163,9 @@ Modules["Modules/TBODSquared.luau"] = function()
     				or (desc:IsA("ProximityPrompt") and (string.find(string.lower(desc.ActionText), "seed") or string.find(string.lower(desc.ObjectText), "seed")))
 
     			if isSeedBox then
-    				if desc:IsA("ProximityPrompt") then
-    					if triggerPrompt(desc) then
-    						collected += 1
-    					end
-    				elseif desc:IsA("BasePart") or desc:IsA("Model") then
+    				local targetPart = (if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart", true))
+    				if targetPart then
+    					approachTarget(targetPart, hrp)
     					local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
     					if prompt and triggerPrompt(prompt) then
     						collected += 1
@@ -24120,13 +24173,11 @@ Modules["Modules/TBODSquared.luau"] = function()
     						local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
     						if cd and triggerClick(cd) then
     							collected += 1
-    						else
-    							local part = if desc:IsA("BasePart") then desc else desc:FindFirstChildWhichIsA("BasePart")
-    							if part and triggerTouch(part) then
-    								collected += 1
-    							end
+    						elseif triggerTouch(targetPart) then
+    							collected += 1
     						end
     					end
+    					task.wait(0.04)
     				end
     			end
     		end
@@ -24135,52 +24186,51 @@ Modules["Modules/TBODSquared.luau"] = function()
     	return collected
     end
 
-    -- 4. Place / Plant Wheat in Empty Farm Plots
+    -- 4. Place / Plant Wheat in Empty Farm Plots (with proximity)
     local function placeWheatInFarms(containers: {Instance}, hrp: BasePart, hum: Humanoid): number
     	if not autoPlantWheat then return 0 end
     	local planted = 0
 
-    	-- Ensure seed/wheat tool is equipped if available
-    	if not equipToolNamed("seed") then
-    		equipToolNamed("wheat")
+    	-- Ensure seed/wheat tool is in inventory
+    	if not (hasToolNamed("seed") or hasToolNamed("wheat")) then
+    		return 0
     	end
 
     	for _, container in ipairs(containers) do
     		for _, desc in ipairs(container:GetDescendants()) do
-    			-- Check for prompts dedicated to planting
-    			if desc:IsA("ProximityPrompt") then
-    				local action = string.lower(desc.ActionText or "")
-    				local objText = string.lower(desc.ObjectText or "")
-    				if string.find(action, "plant") or string.find(action, "sow") or string.find(action, "place") or string.find(objText, "plant") then
-    					if triggerPrompt(desc) then
-    						planted += 1
-    					end
-    				end
-    			-- Check for plot models/parts
-    			elseif isFarmRelated(desc.Name) and (desc:IsA("Model") or desc:IsA("BasePart")) then
+    			if isFarmRelated(desc.Name) and (desc:IsA("Model") or desc:IsA("BasePart")) then
     				local isPlanted = desc:GetAttribute("Planted") == true 
     					or desc:GetAttribute("Occupied") == true 
     					or desc:GetAttribute("HasCrop") == true
 
     				if not isPlanted then
-    					local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
-    					if prompt then
-    						local a = string.lower(prompt.ActionText or "")
-    						if string.find(a, "plant") or string.find(a, "place") or string.find(a, "sow") or string.find(a, "farm") then
-    							if triggerPrompt(prompt) then
-    								planted += 1
-    							end
+    					local soilPart = if desc:IsA("BasePart") then desc else (desc:FindFirstChild("Soil") or desc:FindFirstChild("PlantSpot") or desc:FindFirstChildWhichIsA("BasePart", true))
+    					if soilPart and soilPart:IsA("BasePart") then
+    						approachTarget(soilPart, hrp)
+
+    						-- Ensure seed tool is equipped
+    						if not equipToolNamed("seed") then
+    							equipToolNamed("wheat")
     						end
-    					else
-    						local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
-    						if cd and triggerClick(cd) then
-    							planted += 1
+    						task.wait(0.03)
+
+    						local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+    						if prompt then
+    							local a = string.lower(prompt.ActionText or "")
+    							if string.find(a, "plant") or string.find(a, "place") or string.find(a, "sow") or string.find(a, "farm") then
+    								if triggerPrompt(prompt) then
+    									planted += 1
+    								end
+    							end
     						else
-    							local soilPart = if desc:IsA("BasePart") then desc else (desc:FindFirstChild("Soil") or desc:FindFirstChild("PlantSpot") or desc:FindFirstChildWhichIsA("BasePart"))
-    							if soilPart and soilPart:IsA("BasePart") and triggerTouch(soilPart) then
+    							local cd = desc:FindFirstChildWhichIsA("ClickDetector", true)
+    							if cd and triggerClick(cd) then
+    								planted += 1
+    							elseif triggerTouch(soilPart) then
     								planted += 1
     							end
     						end
+    						task.wait(0.04)
     					end
     				end
     			end
@@ -24200,28 +24250,42 @@ Modules["Modules/TBODSquared.luau"] = function()
     	local containers = getTycoonContainers()
     	if #containers == 0 then return end
 
+    	local homeCF = hrp.CFrame
+    	local actionsTaken = 0
+
     	-- Step 1: Harvest completed/mature crops first to free up plot slots
     	local hCount = harvestCompletedWheat(containers, hrp)
     	if hCount > 0 then
     		TBODSquared.Metrics.wheatHarvested += hCount
+    		actionsTaken += hCount
     	end
 
     	-- Step 2: Automatically process/deliver harvested wheat to separator
     	local pCount = processHarvestedWheat(containers, hrp)
     	if pCount > 0 then
     		TBODSquared.Metrics.wheatProcessed += pCount
+    		actionsTaken += pCount
     	end
 
     	-- Step 3: Collect fresh wheat seeds from seed box / dispenser
     	local cCount = collectWheatSeeds(containers, hrp)
     	if cCount > 0 then
     		TBODSquared.Metrics.wheatCollected += cCount
+    		actionsTaken += cCount
     	end
 
     	-- Step 4: Place/plant wheat into empty farm plots
     	local plCount = placeWheatInFarms(containers, hrp, hum)
     	if plCount > 0 then
     		TBODSquared.Metrics.wheatPlanted += plCount
+    		actionsTaken += plCount
+    	end
+
+    	-- Restore origin CFrame if actions were performed and return-home is enabled
+    	if actionsTaken > 0 and autoReturnHome and hrp and hrp.Parent then
+    		hrp.CFrame = homeCF
+    		hrp.AssemblyLinearVelocity = Vector3.zero
+    		hrp.AssemblyAngularVelocity = Vector3.zero
     	end
     end
 
@@ -24322,13 +24386,23 @@ Modules["Modules/TBODSquared.luau"] = function()
     	farmCycleDelay = math.clamp(delayVal, 0.05, 3.0)
     end
 
+    function TBODSquared.setAutoReturnHome(enabled: boolean)
+    	autoReturnHome = enabled
+    end
+
     function TBODSquared.harvestAllPlotsNow(): number
     	local char = localPlayer.Character
     	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
     	if not hrp then return 0 end
+    	local homeCF = hrp.CFrame
     	local containers = getTycoonContainers()
     	local count = harvestCompletedWheat(containers, hrp)
     	TBODSquared.Metrics.wheatHarvested += count
+    	if count > 0 and autoReturnHome and hrp and hrp.Parent then
+    		hrp.CFrame = homeCF
+    		hrp.AssemblyLinearVelocity = Vector3.zero
+    		hrp.AssemblyAngularVelocity = Vector3.zero
+    	end
     	return count
     end
 
@@ -24336,9 +24410,15 @@ Modules["Modules/TBODSquared.luau"] = function()
     	local char = localPlayer.Character
     	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
     	if not hrp then return 0 end
+    	local homeCF = hrp.CFrame
     	local containers = getTycoonContainers()
     	local count = processHarvestedWheat(containers, hrp)
     	TBODSquared.Metrics.wheatProcessed += count
+    	if count > 0 and autoReturnHome and hrp and hrp.Parent then
+    		hrp.CFrame = homeCF
+    		hrp.AssemblyLinearVelocity = Vector3.zero
+    		hrp.AssemblyAngularVelocity = Vector3.zero
+    	end
     	return count
     end
 

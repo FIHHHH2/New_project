@@ -612,7 +612,9 @@ local function processHarvestedWheat(containers: {Instance}, hrp: BasePart): num
 	local processed = 0
 
 	-- Equip harvested wheat if available in backpack
-	equipToolNamed("wheat") or equipToolNamed("grain") or equipToolNamed("harvest")
+	if not equipToolNamed("wheat") and not equipToolNamed("grain") then
+		equipToolNamed("harvest")
+	end
 
 	for _, container in ipairs(containers) do
 		for _, desc in ipairs(container:GetDescendants()) do
@@ -701,7 +703,9 @@ local function placeWheatInFarms(containers: {Instance}, hrp: BasePart, hum: Hum
 	local planted = 0
 
 	-- Ensure seed/wheat tool is equipped if available
-	equipToolNamed("seed") or equipToolNamed("wheat")
+	if not equipToolNamed("seed") then
+		equipToolNamed("wheat")
+	end
 
 	for _, container in ipairs(containers) do
 		for _, desc in ipairs(container:GetDescendants()) do

@@ -14,6 +14,7 @@ def sync():
         "UI/Animations.luau",
         "UI/UI.luau",
         "UI/Notification.luau",
+        "Core/ThemeManager.luau",
         "Core/CoreUI.luau",
         "Core/FeatureManager.luau",
         "Core/MainUI.luau",

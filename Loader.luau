@@ -6,38 +6,179 @@
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 
-if type(cleardrawcache) == "function" then pcall(cleardrawcache) end
+-- ── UNIFIED CROSS-EXECUTION LIFECYCLE CONTROLLER ─────────────────────
+-- Uses both getgenv() and _G to guarantee discovery across all executor contexts
+local genv = (type(getgenv) == "function" and getgenv()) or _G
 
-if _G.__ModularSuite_Cleanup then
-	pcall(_G.__ModularSuite_Cleanup)
-	_G.__ModularSuite_Cleanup = nil
+local function executeCleanup(fn: any)
+	if type(fn) == "function" then
+		pcall(fn)
+	elseif type(fn) == "table" then
+		if type(fn.Destroy) == "function" then
+			pcall(function() fn:Destroy() end)
+		elseif type(fn.cleanup) == "function" then
+			pcall(function() fn.cleanup() end)
+		end
+	end
 end
 
+-- 1. Run prior suite teardown hooks
+if genv.__ModularSuite_Cleanup then
+	executeCleanup(genv.__ModularSuite_Cleanup)
+	genv.__ModularSuite_Cleanup = nil
+end
+if _G.__ModularSuite_Cleanup then
+	executeCleanup(_G.__ModularSuite_Cleanup)
+	_G.__ModularSuite_Cleanup = nil
+end
+if genv.__ModularMain_Cleanup then
+	executeCleanup(genv.__ModularMain_Cleanup)
+	genv.__ModularMain_Cleanup = nil
+end
+if _G.__ModularMain_Cleanup then
+	executeCleanup(_G.__ModularMain_Cleanup)
+	_G.__ModularMain_Cleanup = nil
+end
+if genv.__ModularHotbar_Cleanup then
+	executeCleanup(genv.__ModularHotbar_Cleanup)
+	genv.__ModularHotbar_Cleanup = nil
+end
 if _G.__ModularHotbar_Cleanup then
-	pcall(_G.__ModularHotbar_Cleanup)
+	executeCleanup(_G.__ModularHotbar_Cleanup)
 	_G.__ModularHotbar_Cleanup = nil
 end
 
+-- 2. Execute any registered cleanups in global list
+if type(genv.__ModularSuite_Cleanups) == "table" then
+	for _, cl in ipairs(genv.__ModularSuite_Cleanups) do
+		executeCleanup(cl)
+	end
+	table.clear(genv.__ModularSuite_Cleanups)
+end
+if type(_G.__ModularSuite_Cleanups) == "table" then
+	for _, cl in ipairs(_G.__ModularSuite_Cleanups) do
+		executeCleanup(cl)
+	end
+	table.clear(_G.__ModularSuite_Cleanups)
+end
+
+-- 3. Cancel prior background threads
+local function cancelThreads(thrList: any)
+	if type(thrList) == "table" then
+		for _, thr in ipairs(thrList) do
+			pcall(task.cancel, thr)
+		end
+		table.clear(thrList)
+	end
+end
+cancelThreads(genv.__ModularSuite_Threads)
+cancelThreads(_G.__ModularSuite_Threads)
+
+-- 4. Disconnect prior global connections
+local function disconnectConnections(connList: any)
+	if type(connList) == "table" then
+		for _, conn in ipairs(connList) do
+			pcall(function() conn:Disconnect() end)
+		end
+		table.clear(connList)
+	end
+end
+disconnectConnections(genv.__ModularSuite_Connections)
+disconnectConnections(_G.__ModularSuite_Connections)
+
+-- 4.5. Purge orphan executor connections on RunService events
+local RunService = game:GetService("RunService")
+local getconns = getconnections or (debug and debug.getconnections)
+local getinfo = debug and debug.getinfo
+if getconns and getinfo then
+	for _, sig in ipairs({RunService.Heartbeat, RunService.RenderStepped, RunService.Stepped}) do
+		pcall(function()
+			for _, c in ipairs(getconns(sig)) do
+				local fn = c.Function
+				if fn then
+					local inf = getinfo(fn)
+					if inf and (inf.source == "@" or inf.source == "" or string.find(inf.source, "loadstring")) then
+						pcall(function() c:Disable() end)
+						pcall(function() c:Disconnect() end)
+					end
+				end
+			end
+		end)
+	end
+end
+
+-- 5. Cancel topbar enforcer if running
+if genv.__ModularSuite_TopBarEnforcer then
+	pcall(task.cancel, genv.__ModularSuite_TopBarEnforcer)
+	genv.__ModularSuite_TopBarEnforcer = nil
+end
 if _G.__ModularSuite_TopBarEnforcer then
 	pcall(task.cancel, _G.__ModularSuite_TopBarEnforcer)
 	_G.__ModularSuite_TopBarEnforcer = nil
 end
-_G.__ModularSuite_IsRobloxCoreHidden = false
 
-local function purge(c)
-	if not c then return end
+-- 6. Clear raw drawing memory
+if type(cleardrawcache) == "function" then pcall(cleardrawcache) end
+
+-- 7. Deep GUI Purge across all possible containers (gethui, CoreGui, PlayerGui)
+local function purgeSuiteGuis(container: Instance?)
+	if not container then return end
 	pcall(function()
-		for _, ch in ipairs(c:GetDescendants()) do
-			if (ch:IsA("ScreenGui") or ch:IsA("BillboardGui") or ch:IsA("Highlight")) then
-				local n = ch.Name
-				if n:find("Modular") or n:find("ESP") or n:find("Chams") then pcall(function() ch:Destroy() end) end
+		for _, obj in ipairs(container:GetChildren()) do
+			if obj:IsA("ScreenGui") or obj:IsA("BillboardGui") or obj:IsA("Highlight") then
+				local name = string.lower(obj.Name)
+				if name:find("modular") or name:find("projectfih") or name:find("fih") or name:find("esp") or name:find("chams") then
+					pcall(function() obj:Destroy() end)
+				end
 			end
 		end
 	end)
 end
-pcall(function() if type(gethui)=="function" then purge(gethui()) end end)
-pcall(function() purge(CoreGui) end)
-pcall(function() if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then purge(Players.LocalPlayer.PlayerGui) end end)
+
+pcall(function() if type(gethui) == "function" then purgeSuiteGuis(gethui()) end end)
+pcall(function() purgeSuiteGuis(CoreGui) end)
+pcall(function() if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then purgeSuiteGuis(Players.LocalPlayer.PlayerGui) end end)
+
+-- Reset Roblox CoreGui state
+_G.__ModularSuite_IsRobloxCoreHidden = false
+genv.__ModularSuite_IsRobloxCoreHidden = false
+
+-- Fresh global lifecycle state for this execution instance
+local globalActiveThreads: {thread} = {}
+local globalActiveConnections: {RBXScriptConnection} = {}
+local globalActiveCleanups: {() -> ()} = {}
+
+genv.__ModularSuite_Threads = globalActiveThreads
+_G.__ModularSuite_Threads = globalActiveThreads
+genv.__ModularSuite_Connections = globalActiveConnections
+_G.__ModularSuite_Connections = globalActiveConnections
+genv.__ModularSuite_Cleanups = globalActiveCleanups
+_G.__ModularSuite_Cleanups = globalActiveCleanups
+
+local function rootTeardown()
+	for _, cl in ipairs(globalActiveCleanups) do
+		pcall(cl)
+	end
+	table.clear(globalActiveCleanups)
+
+	for _, conn in ipairs(globalActiveConnections) do
+		pcall(function() conn:Disconnect() end)
+	end
+	table.clear(globalActiveConnections)
+
+	for _, thr in ipairs(globalActiveThreads) do
+		pcall(task.cancel, thr)
+	end
+	table.clear(globalActiveThreads)
+
+	pcall(function() if type(gethui) == "function" then purgeSuiteGuis(gethui()) end end)
+	pcall(function() purgeSuiteGuis(CoreGui) end)
+	pcall(function() if Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui") then purgeSuiteGuis(Players.LocalPlayer.PlayerGui) end end)
+	if type(cleardrawcache) == "function" then pcall(cleardrawcache) end
+end
+
+genv.__ModularSuite_Cleanup = rootTeardown
+_G.__ModularSuite_Cleanup = rootTeardown
 
 local Modules: {[string]: () -> any} = {}
 local moduleCache: {[string]: any} = {}
@@ -23775,7 +23916,9 @@ Modules["Modules/TBODSquared.luau"] = function()
     	local processed = 0
 
     	-- Equip harvested wheat if available in backpack
-    	equipToolNamed("wheat") or equipToolNamed("grain") or equipToolNamed("harvest")
+    	if not equipToolNamed("wheat") and not equipToolNamed("grain") then
+    		equipToolNamed("harvest")
+    	end
 
     	for _, container in ipairs(containers) do
     		for _, desc in ipairs(container:GetDescendants()) do
@@ -23864,7 +24007,9 @@ Modules["Modules/TBODSquared.luau"] = function()
     	local planted = 0
 
     	-- Ensure seed/wheat tool is equipped if available
-    	equipToolNamed("seed") or equipToolNamed("wheat")
+    	if not equipToolNamed("seed") then
+    		equipToolNamed("wheat")
+    	end
 
     	for _, container in ipairs(containers) do
     		for _, desc in ipairs(container:GetDescendants()) do

@@ -58,7 +58,74 @@ end
 if LocalPlayer.Character then
 	updateCachedParts(LocalPlayer.Character)
 end
-LocalPlayer.CharacterAdded:Connect(updateCachedParts)
+local charAddedConn: RBXScriptConnection? = nil
+charAddedConn = LocalPlayer.CharacterAdded:Connect(updateCachedParts)
+
+local noclipConn: RBXScriptConnection? = nil
+local infJumpConn: RBXScriptConnection? = nil
+
+function Movement.setNoclip(enabled: boolean)
+	if noclipConn then
+		noclipConn:Disconnect()
+		noclipConn = nil
+	end
+	if enabled then
+		noclipConn = RunService.Stepped:Connect(function()
+			for _, part in ipairs(cachedCharacterParts) do
+				part.CanCollide = false
+			end
+		end)
+	else
+		if LocalPlayer.Character then
+			local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+			if hum then
+				hum:ChangeState(Enum.HumanoidStateType.Running)
+			end
+			for _, part in ipairs(cachedCharacterParts) do
+				if part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Torso" or part.Name == "CollisionPart" or part.Name == "Head" then
+					part.CanCollide = true
+				end
+			end
+		end
+	end
+end
+
+function Movement.setInfiniteJump(enabled: boolean)
+	if infJumpConn then
+		infJumpConn:Disconnect()
+		infJumpConn = nil
+	end
+	if enabled then
+		infJumpConn = UserInputService.JumpRequest:Connect(function()
+			if LocalPlayer.Character then
+				local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+				if hum then
+					hum:ChangeState(Enum.HumanoidStateType.Jumping)
+				end
+			end
+		end)
+	end
+end
+
+function Movement.cleanup()
+	Movement.setNoclip(false)
+	Movement.setInfiniteJump(false)
+	if charAddedConn then
+		charAddedConn:Disconnect()
+		charAddedConn = nil
+	end
+	if charDescendantAddedConn then
+		charDescendantAddedConn:Disconnect()
+		charDescendantAddedConn = nil
+	end
+	if charDescendantRemovingConn then
+		charDescendantRemovingConn:Disconnect()
+		charDescendantRemovingConn = nil
+	end
+	table.clear(cachedCharacterParts)
+end
+
+Movement.Destroy = Movement.cleanup
 
 function Movement.init(window: any)
 	local moveTab = window:CreateTab("Movement")
@@ -67,46 +134,12 @@ function Movement.init(window: any)
 	-- Flight & Collision
 	local flightSection = window:AddSection(leftCol, "Flight & Collision")
 	
-	local noclipConn: RBXScriptConnection? = nil
 	window:AddToggle(flightSection, "noclip_toggle", "Noclip", false, nil, function(enabled)
-		if enabled then
-			noclipConn = RunService.Stepped:Connect(function()
-				for _, part in ipairs(cachedCharacterParts) do
-					part.CanCollide = false
-				end
-			end)
-		elseif noclipConn then
-			noclipConn:Disconnect()
-			noclipConn = nil
-			if LocalPlayer.Character then
-				local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-				if hum then
-					hum:ChangeState(Enum.HumanoidStateType.Running)
-				end
-				for _, part in ipairs(cachedCharacterParts) do
-					if part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Torso" or part.Name == "CollisionPart" or part.Name == "Head" then
-						part.CanCollide = true
-					end
-				end
-			end
-		end
+		Movement.setNoclip(enabled)
 	end)
 	
-	local infJumpConn: RBXScriptConnection? = nil
 	window:AddToggle(flightSection, "inf_jump", "Infinite Jump", false, nil, function(enabled)
-		if enabled then
-			infJumpConn = UserInputService.JumpRequest:Connect(function()
-				if LocalPlayer.Character then
-					local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-					if hum then
-						hum:ChangeState(Enum.HumanoidStateType.Jumping)
-					end
-				end
-			end)
-		elseif infJumpConn then
-			infJumpConn:Disconnect()
-			infJumpConn = nil
-		end
+		Movement.setInfiniteJump(enabled)
 	end)
 	
 	-- Physics & Gravity

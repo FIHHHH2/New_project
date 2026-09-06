@@ -51,6 +51,15 @@ pcall(function()
 	end
 end)
 
+-- Clean up previous execution lifecycle if active
+if _G.__ModularMain_Cleanup then
+	pcall(_G.__ModularMain_Cleanup)
+	_G.__ModularMain_Cleanup = nil
+end
+
+local mainConns: {RBXScriptConnection} = {}
+local mainThreads: {thread} = {}
+
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character
 local humanoid: Humanoid? = if character then character:FindFirstChildOfClass("Humanoid") else nil
@@ -98,11 +107,12 @@ if character then
 	updateCachedCharacterParts(character)
 end
 
-localPlayer.CharacterAdded:Connect(function(char)
+local charMainConn = localPlayer.CharacterAdded:Connect(function(char)
 	character = char
 	humanoid = char:WaitForChild("Humanoid", 5) :: Humanoid?
 	updateCachedCharacterParts(char)
 end)
+table.insert(mainConns, charMainConn)
 
 -- Disable overlapping default CoreGui elements and native Roblox TopBarApp
 local coreGuiOverlays = {
@@ -283,7 +293,7 @@ end
 task.spawn(disableCoreGuis)
 task.spawn(purgeBlackoutScreens)
 
-task.spawn(function()
+local pguiWatcherThread = task.spawn(function()
 	local pgui = localPlayer:WaitForChild("PlayerGui", 10)
 	if pgui then
 		for _, child in ipairs(pgui:GetChildren()) do
@@ -292,7 +302,7 @@ task.spawn(function()
 			end
 		end
 
-		pgui.ChildAdded:Connect(function(child)
+		local childConn = pgui.ChildAdded:Connect(function(child)
 			if isBlackoutObject(child) or child.Name:lower():find("elevator") or child.Name:lower():find("transition") then
 				task.defer(function() pcall(function() child:Destroy() end) end)
 			elseif child:IsA("ScreenGui") then
@@ -310,10 +320,12 @@ task.spawn(function()
 				end)
 			end
 		end)
+		table.insert(mainConns, childConn)
 	end
 end)
+table.insert(mainThreads, pguiWatcherThread)
 
-task.spawn(function()
+local blackoutLoopThread = task.spawn(function()
 	while true do
 		task.wait(0.35)
 		local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
@@ -333,8 +345,9 @@ task.spawn(function()
 		end
 	end
 end)
+table.insert(mainThreads, blackoutLoopThread)
 
-localPlayer.CharacterAdded:Connect(function(char)
+local charGuiConn = localPlayer.CharacterAdded:Connect(function(char)
 	task.spawn(function()
 		if isRobloxCoreHidden then
 			disableCoreGuis()
@@ -346,6 +359,7 @@ localPlayer.CharacterAdded:Connect(function(char)
 		hidePlayerGameGuis(isGameGuisHidden)
 	end)
 end)
+table.insert(mainConns, charGuiConn)
 
 
 -- Clean up previous enforcer if it exists
@@ -389,7 +403,7 @@ end
 
 _G.__ModularSuite_Window = window
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
+local tabKeyConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	local focused = UserInputService:GetFocusedTextBox()
 	if focused then return end
@@ -402,6 +416,33 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		end
 	end
 end)
+table.insert(mainConns, tabKeyConn)
+
+_G.__ModularMain_Cleanup = function()
+	for _, conn in ipairs(mainConns) do
+		pcall(function() conn:Disconnect() end)
+	end
+	table.clear(mainConns)
+
+	for _, thr in ipairs(mainThreads) do
+		pcall(task.cancel, thr)
+	end
+	table.clear(mainThreads)
+
+	if charDescendantAddedConn then
+		charDescendantAddedConn:Disconnect()
+		charDescendantAddedConn = nil
+	end
+	if charDescendantRemovingConn then
+		charDescendantRemovingConn:Disconnect()
+		charDescendantRemovingConn = nil
+	end
+	if _G.__ModularSuite_TopBarEnforcer then
+		pcall(task.cancel, _G.__ModularSuite_TopBarEnforcer)
+		_G.__ModularSuite_TopBarEnforcer = nil
+	end
+	table.clear(cachedCharacterParts)
+end
 
 local sharedEnv = {
 	cachedCharacterParts = cachedCharacterParts,

@@ -20,18 +20,12 @@ local smartPurchaseEnabled = true
 local purchaseDelay = 0.3
 local autoRebirthEnabled = false
 local rebirthEssenceTarget = 50
-local conveyorBoostEnabled = false
-local conveyorMultiplier = 3
-local dropVacuumEnabled = false
 
 -- Runtime references & connections
 local purchaseThread: thread? = nil
 local rebirthThread: thread? = nil
-local conveyorHeartbeatConn: RBXScriptConnection? = nil
-local vacuumHeartbeatConn: RBXScriptConnection? = nil
 local cachedTycoon: Model? = nil
 local cachedPlotName: string? = nil
-local originalConveyorSpeeds: {[BasePart]: Vector3} = {}
 
 -- Metrics
 TBODSquared.Metrics = {
@@ -303,71 +297,6 @@ local function startRebirthLoop()
 end
 
 -- Conveyor Speed Boosting
-local function applyConveyorBoost()
-	local tyc = TBODSquared.getMyTycoon()
-	if not tyc then return end
-
-	local items = tyc:FindFirstChild("Items")
-	if not items then return end
-
-	for _, d in ipairs(items:GetDescendants()) do
-		if d:IsA("BasePart") and string.find(string.lower(d.Name), "conveyor") and not string.find(string.lower(d.Name), "wall") and not string.find(string.lower(d.Name), "cover") then
-			if not originalConveyorSpeeds[d] then
-				local cur = d.AssemblyLinearVelocity
-				if cur.Magnitude > 0.1 then
-					originalConveyorSpeeds[d] = cur
-				else
-					originalConveyorSpeeds[d] = Vector3.new(0, 0, -10)
-				end
-			end
-			local baseVel = originalConveyorSpeeds[d]
-			d.AssemblyLinearVelocity = baseVel.Unit * (10 * conveyorMultiplier)
-		end
-	end
-end
-
-local function restoreConveyorSpeeds()
-	for part, orig in pairs(originalConveyorSpeeds) do
-		if part and part.Parent then
-			pcall(function()
-				part.AssemblyLinearVelocity = orig
-			end)
-		end
-	end
-	table.clear(originalConveyorSpeeds)
-end
-
--- Drop Vacuum: Accelerates drops in Workspace.Drops towards the collector
-local function startDropVacuum()
-	if vacuumHeartbeatConn then return end
-	vacuumHeartbeatConn = RunService.Heartbeat:Connect(function()
-		if not dropVacuumEnabled then return end
-		local tyc = TBODSquared.getMyTycoon()
-		if not tyc then return end
-
-		local items = tyc:FindFirstChild("Items")
-		local collector = items and items:FindFirstChild("Collector")
-		local collectorPart = collector and collector:FindFirstChild("collectorPart") :: BasePart?
-		if not collectorPart then return end
-
-		local dropsFolder = Workspace:FindFirstChild("Drops")
-		if not dropsFolder then return end
-
-		local targetPos = collectorPart.Position + Vector3.new(0, 0.5, 0)
-
-		for _, drop in ipairs(dropsFolder:GetChildren()) do
-			local part = drop:IsA("BasePart") and drop or drop:FindFirstChildWhichIsA("BasePart", true)
-			if part and part:IsA("BasePart") then
-				local dist = (part.Position - targetPos).Magnitude
-				if dist < 80 then
-					local dir = (targetPos - part.Position).Unit
-					part.AssemblyLinearVelocity = dir * 35
-				end
-			end
-		end
-	end)
-end
-
 -- Module Interface
 function TBODSquared.setAutoPurchase(enabled: boolean)
 	autoPurchaseEnabled = enabled
@@ -401,42 +330,6 @@ function TBODSquared.setRebirthEssenceTarget(target: number)
 	rebirthEssenceTarget = math.max(1, target)
 end
 
-function TBODSquared.setConveyorBoost(enabled: boolean)
-	conveyorBoostEnabled = enabled
-	if enabled then
-		if not conveyorHeartbeatConn then
-			conveyorHeartbeatConn = RunService.Heartbeat:Connect(function()
-				applyConveyorBoost()
-			end)
-		end
-	else
-		if conveyorHeartbeatConn then
-			conveyorHeartbeatConn:Disconnect()
-			conveyorHeartbeatConn = nil
-		end
-		restoreConveyorSpeeds()
-	end
-end
-
-function TBODSquared.setConveyorMultiplier(mult: number)
-	conveyorMultiplier = math.clamp(mult, 1, 15)
-	if conveyorBoostEnabled then
-		applyConveyorBoost()
-	end
-end
-
-function TBODSquared.setDropVacuum(enabled: boolean)
-	dropVacuumEnabled = enabled
-	if enabled then
-		startDropVacuum()
-	else
-		if vacuumHeartbeatConn then
-			vacuumHeartbeatConn:Disconnect()
-			vacuumHeartbeatConn = nil
-		end
-	end
-end
-
 function TBODSquared.manualRebirth(): boolean
 	return executeRebirth()
 end
@@ -444,8 +337,14 @@ end
 function TBODSquared.stop()
 	TBODSquared.setAutoPurchase(false)
 	TBODSquared.setAutoRebirth(false)
-	TBODSquared.setConveyorBoost(false)
-	TBODSquared.setDropVacuum(false)
+	if purchaseThread then
+		task.cancel(purchaseThread)
+		purchaseThread = nil
+	end
+	if rebirthThread then
+		task.cancel(rebirthThread)
+		rebirthThread = nil
+	end
 	cachedTycoon = nil
 end
 

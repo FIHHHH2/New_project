@@ -81,7 +81,13 @@ local IPC_FILES = {
 	"music_state.json"
 }
 
+local currentMusicInstance: any = nil
+
 function MusicTracker.new()
+	local activeConnections: {RBXScriptConnection} = {}
+	local pollerThread: thread? = nil
+	local isDestroyed = false
+
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ModularMusicTrackerGui"
 	screenGui.ResetOnSpawn = false
@@ -983,7 +989,7 @@ function MusicTracker.new()
 	end)
 
 	-- ── Continuous 60+ FPS Highly Reactive Spring-Damper Visualizer Physics ────
-	RunService.RenderStepped:Connect(function(dt: number)
+	table.insert(activeConnections, RunService.RenderStepped:Connect(function(dt: number)
 		if not widget.Visible or not screenGui.Enabled then return end
 
 		local safeDt = math.clamp(dt or 0.016, 0.001, 0.05)
@@ -1025,13 +1031,13 @@ function MusicTracker.new()
 				bar.Size = UDim2.new(0, 6, 0, currentHeights[i])
 			end
 		end
-	end)
+	end))
 
 	local lastSoundScanClock = 0
 	local cachedLoudestSound: Sound? = nil
 
 	-- ── Heartbeat Synchronizer (Only Provider Audio Drives Visualizer) ────
-	RunService.Heartbeat:Connect(function()
+	table.insert(activeConnections, RunService.Heartbeat:Connect(function()
 		if not widget.Visible or not screenGui.Enabled then return end
 
 		-- When no external provider bridge is connected, keep visualizer flat and silent
@@ -1063,10 +1069,10 @@ function MusicTracker.new()
 		else
 			activeGradient.Offset = Vector2.new(-2.0, 0)
 		end
-	end)
+	end))
 
 	-- ── Multi-Source Bridge Poller (Direct HTTP Port 8888 Priority) ───
-	task.spawn(function()
+	pollerThread = task.spawn(function()
 		-- Clean any stale IPC state files
 		pcall(function()
 			local delf = delfile or (getgenv and getgenv().delfile)
@@ -1081,7 +1087,7 @@ function MusicTracker.new()
 		local bridgeIndex = 1
 		local failCount = 0
 
-		while true do
+		while not isDestroyed do
 			local pollWait = if hasExternalBridge then 0.35 else 0.8
 			task.wait(pollWait)
 
@@ -1318,9 +1324,25 @@ function MusicTracker.new()
 		end
 	end
 
-	closeBtn.MouseButton1Click:Connect(function()
+	table.insert(activeConnections, closeBtn.MouseButton1Click:Connect(function()
 		closeWidget()
-	end)
+	end))
+
+	local function destroyWidget()
+		isDestroyed = true
+		for _, conn in ipairs(activeConnections) do
+			pcall(function() conn:Disconnect() end)
+		end
+		table.clear(activeConnections)
+		if pollerThread then
+			pcall(task.cancel, pollerThread)
+			pollerThread = nil
+		end
+		pcall(function() screenGui:Destroy() end)
+		if currentMusicInstance == widgetObj then
+			currentMusicInstance = nil
+		end
+	end
 
 	local widgetObj: any = nil
 	widgetObj = {
@@ -1331,9 +1353,19 @@ function MusicTracker.new()
 		Open = openWidget,
 		Close = closeWidget,
 		SetVisible = setWidgetVisible,
-		Toggle = toggleWidget
+		Toggle = toggleWidget,
+		Destroy = destroyWidget,
+		Cleanup = destroyWidget,
 	}
+	currentMusicInstance = widgetObj
 	return widgetObj
+end
+
+function MusicTracker.Destroy()
+	if currentMusicInstance and currentMusicInstance.Destroy then
+		pcall(function() currentMusicInstance.Destroy() end)
+		currentMusicInstance = nil
+	end
 end
 
 return MusicTracker

@@ -13,6 +13,7 @@ def sync():
     targets = [
         "UI/Animations.luau",
         "UI/UI.luau",
+        "UI/Notification.luau",
         "Core/CoreUI.luau",
         "Core/FeatureManager.luau",
         "Core/MainUI.luau",
@@ -22,8 +23,18 @@ def sync():
         "UI/ChatWidget.luau",
         "UI/LeaderstatsWidget.luau",
         "UI/MusicTracker.luau",
+        "Modules/Visuals.luau",
+        "Modules/Combat.luau",
+        "Modules/Movement.luau",
+        "Modules/PlayerUtilities.luau",
         "Modules/DisasterSurvival.luau",
         "Modules/TBODSquared.luau",
+        "Modules/MurderMystery2.luau",
+        "Modules/LuckyBlocks.luau",
+        "Modules/RestaurantTycoon.luau",
+        "Modules/SeekerVsHider.luau",
+        "Modules/IceTycoon.luau",
+        "Modules/RunNHide.luau",
     ]
 
     # Ensure all target modules have a block in Loader.luau

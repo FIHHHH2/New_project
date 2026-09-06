@@ -56,6 +56,8 @@ function PlayerList.new(): PlayerListWidget
 		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	end
 
+	local activeConnections: {RBXScriptConnection} = {}
+
 	-- ── Main Widget Frame ─────────────────────────────────────────────
 	local widget = Instance.new("Frame")
 	widget.Name = "PlayerListWidget"
@@ -982,11 +984,13 @@ function PlayerList.new(): PlayerListWidget
 		end
 	end
 
+	local currentListInstance: any = nil
+
 	-- Connect Player Added / Removed
-	Players.PlayerAdded:Connect(function(p)
+	table.insert(activeConnections, Players.PlayerAdded:Connect(function(p)
 		createPlayerRow(p, 0)
-	end)
-	Players.PlayerRemoving:Connect(deletePlayerRow)
+	end))
+	table.insert(activeConnections, Players.PlayerRemoving:Connect(deletePlayerRow))
 
 	-- Populate existing players with domino wave
 	task.spawn(function()
@@ -994,6 +998,23 @@ function PlayerList.new(): PlayerListWidget
 			createPlayerRow(p, (i - 1) * 0.035)
 		end
 	end)
+
+	local function destroyWidget()
+		for _, conn in ipairs(activeConnections) do
+			pcall(function() conn:Disconnect() end)
+		end
+		table.clear(activeConnections)
+		for _, conns in pairs(playerConnections) do
+			for _, c in ipairs(conns) do
+				pcall(function() c:Disconnect() end)
+			end
+		end
+		table.clear(playerConnections)
+		pcall(function() screenGui:Destroy() end)
+		if currentListInstance == widgetObj then
+			currentListInstance = nil
+		end
+	end
 
 	widgetObj = {
 		Frame = widget,
@@ -1007,11 +1028,27 @@ function PlayerList.new(): PlayerListWidget
 		Close = closeWidget,
 		Toggle = toggleWidget,
 		SetVisible = setWidgetVisible,
+		Destroy = destroyWidget,
+		Cleanup = destroyWidget,
 		OnClose = nil,
 		OnOpen = nil,
 		OnMinimize = nil,
 	}
+	currentListInstance = widgetObj
 	return widgetObj
+end
+
+function PlayerList.Destroy()
+	pcall(function()
+		local CoreGui = game:GetService("CoreGui")
+		local g = CoreGui:FindFirstChild("ModularPlayerListGui")
+		if g then g:Destroy() end
+		local pgui = Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui")
+		if pgui then
+			local pg = pgui:FindFirstChild("ModularPlayerListGui")
+			if pg then pg:Destroy() end
+		end
+	end)
 end
 
 return PlayerList

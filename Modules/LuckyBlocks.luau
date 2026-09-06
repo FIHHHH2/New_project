@@ -261,4 +261,17 @@ function LuckyBlocks.getLocations(): {string}
 	return list
 end
 
+function LuckyBlocks.cleanup()
+	LuckyBlocks.setAutoClaim(false)
+	LuckyBlocks.setAutoOpen(false)
+	LuckyBlocks.setFastSword(false)
+	LuckyBlocks.setAntiVoid(false)
+	if antiVoidConn then
+		pcall(function() antiVoidConn:Disconnect() end)
+		antiVoidConn = nil
+	end
+end
+
+LuckyBlocks.Destroy = LuckyBlocks.cleanup
+
 return LuckyBlocks

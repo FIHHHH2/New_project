@@ -924,8 +924,25 @@ function LeaderstatsWidget.new()
 		if typeof(vis) ~= "boolean" then vis = true end
 		if vis then openWidget() else closeWidget() end
 	end
+	self.Destroy = function()
+		pcall(function() screenGui:Destroy() end)
+	end
+	self.Cleanup = self.Destroy
 
 	return self
+end
+
+function LeaderstatsWidget.Destroy()
+	pcall(function()
+		local CoreGui = game:GetService("CoreGui")
+		local g = CoreGui:FindFirstChild("ModularLeaderstatsGui")
+		if g then g:Destroy() end
+		local pgui = Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui")
+		if pgui then
+			local pg = pgui:FindFirstChild("ModularLeaderstatsGui")
+			if pg then pg:Destroy() end
+		end
+	end)
 end
 
 return LeaderstatsWidget

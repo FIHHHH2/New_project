@@ -1619,7 +1619,7 @@ Modules["UI/Notification.luau"] = function()
     		notifGui.ResetOnSpawn = false
     		notifGui.DisplayOrder = 9999
     		notifGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
+		
     		pcall(function()
     			notifGui.Parent = CoreGui
     		end)
@@ -1642,7 +1642,7 @@ Modules["UI/Notification.luau"] = function()
     function Notification.show(title: string, message: string, duration: number?)
     	local gui = getNotificationGui()
     	local displayTime = duration or 3.8
-
+	
     	local card = Instance.new("Frame")
     	card.Name = "NotificationCard"
     	card.Size = UDim2.new(0, 260, 0, 74)
@@ -1653,7 +1653,7 @@ Modules["UI/Notification.luau"] = function()
     	card.ClipsDescendants = false
     	card.Parent = gui
     	UI.registerThemeElement(card, "Background")
-
+	
     	local bgGradient = Instance.new("UIGradient")
     	bgGradient.Rotation = 90
     	bgGradient.Color = ColorSequence.new({
@@ -1676,7 +1676,7 @@ Modules["UI/Notification.luau"] = function()
     	local cardScale = Instance.new("UIScale")
     	cardScale.Scale = 0.92
     	cardScale.Parent = card
-
+	
     	-- Inset Topbar
     	local topbar = Instance.new("Frame")
     	topbar.Name = "TopBar"
@@ -1702,7 +1702,7 @@ Modules["UI/Notification.luau"] = function()
     	topStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     	topStroke.Parent = topbar
     	UI.registerThemeElement(topStroke, "Border")
-
+	
     	local topTitle = Instance.new("TextLabel")
     	topTitle.Size = UDim2.new(1, -44, 1, 0)
     	topTitle.Position = UDim2.new(0, 6, 0, 0)
@@ -1714,7 +1714,7 @@ Modules["UI/Notification.luau"] = function()
     	topTitle.TextXAlignment = Enum.TextXAlignment.Left
     	topTitle.Parent = topbar
     	UI.registerThemeElement(topTitle, "TextPrimary")
-
+	
     	-- topbar icons: [-] and [□]
     	local minIcon = Instance.new("TextLabel")
     	minIcon.Size = UDim2.new(0, 14, 1, 0)
@@ -1726,7 +1726,7 @@ Modules["UI/Notification.luau"] = function()
     	minIcon.TextSize = 11
     	minIcon.Parent = topbar
     	UI.registerThemeElement(minIcon, "TextPrimary")
-
+	
     	local sqIcon = Instance.new("TextLabel")
     	sqIcon.Size = UDim2.new(0, 14, 1, 0)
     	sqIcon.Position = UDim2.new(1, -16, 0, 0)
@@ -1737,7 +1737,7 @@ Modules["UI/Notification.luau"] = function()
     	sqIcon.TextSize = 11
     	sqIcon.Parent = topbar
     	UI.registerThemeElement(sqIcon, "TextPrimary")
-
+	
     	-- message body
     	local bodyLabel = Instance.new("TextLabel")
     	bodyLabel.Name = "Message"
@@ -1751,10 +1751,10 @@ Modules["UI/Notification.luau"] = function()
     	bodyLabel.TextXAlignment = Enum.TextXAlignment.Center
     	bodyLabel.Parent = card
     	UI.registerThemeElement(bodyLabel, "TextPrimary")
-
+	
     	table.insert(activeCards, 1, card)
     	repositionCards()
-
+	
     	-- Slide in from right with snappy deceleration (0.94 -> 1.0)
     	card.Position = UDim2.new(1, 40, 1, -20 - 80)
     	TweenService:Create(cardScale, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -1763,7 +1763,7 @@ Modules["UI/Notification.luau"] = function()
     	TweenService:Create(card, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
     		Position = UDim2.new(1, -280, 1, -20 - 80)
     	}):Play()
-
+	
     	task.delay(displayTime, function()
     		if card and card.Parent then
     			local idx = table.find(activeCards, card)
@@ -1771,7 +1771,7 @@ Modules["UI/Notification.luau"] = function()
     				table.remove(activeCards, idx)
     			end
     			repositionCards()
-
+			
     			TweenService:Create(cardScale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
     				Scale = 0.94
     			}):Play()
@@ -1836,6 +1836,8 @@ Modules["UI/Notification.luau"] = function()
     	Notification.show("New Notification!", string.format("%s: %s", featureName, stateText))
     end
 
+    Notification.Destroy = Notification.cleanup
+
     return Notification
 end
 
@@ -1898,6 +1900,8 @@ Modules["UI/PlayerList.luau"] = function()
     	if not screenGui.Parent then
     		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
     	end
+
+    	local activeConnections: {RBXScriptConnection} = {}
 
     	-- ── Main Widget Frame ─────────────────────────────────────────────
     	local widget = Instance.new("Frame")
@@ -2825,11 +2829,13 @@ Modules["UI/PlayerList.luau"] = function()
     		end
     	end
 
+    	local currentListInstance: any = nil
+
     	-- Connect Player Added / Removed
-    	Players.PlayerAdded:Connect(function(p)
+    	table.insert(activeConnections, Players.PlayerAdded:Connect(function(p)
     		createPlayerRow(p, 0)
-    	end)
-    	Players.PlayerRemoving:Connect(deletePlayerRow)
+    	end))
+    	table.insert(activeConnections, Players.PlayerRemoving:Connect(deletePlayerRow))
 
     	-- Populate existing players with domino wave
     	task.spawn(function()
@@ -2837,6 +2843,23 @@ Modules["UI/PlayerList.luau"] = function()
     			createPlayerRow(p, (i - 1) * 0.035)
     		end
     	end)
+
+    	local function destroyWidget()
+    		for _, conn in ipairs(activeConnections) do
+    			pcall(function() conn:Disconnect() end)
+    		end
+    		table.clear(activeConnections)
+    		for _, conns in pairs(playerConnections) do
+    			for _, c in ipairs(conns) do
+    				pcall(function() c:Disconnect() end)
+    			end
+    		end
+    		table.clear(playerConnections)
+    		pcall(function() screenGui:Destroy() end)
+    		if currentListInstance == widgetObj then
+    			currentListInstance = nil
+    		end
+    	end
 
     	widgetObj = {
     		Frame = widget,
@@ -2850,11 +2873,27 @@ Modules["UI/PlayerList.luau"] = function()
     		Close = closeWidget,
     		Toggle = toggleWidget,
     		SetVisible = setWidgetVisible,
+    		Destroy = destroyWidget,
+    		Cleanup = destroyWidget,
     		OnClose = nil,
     		OnOpen = nil,
     		OnMinimize = nil,
     	}
+    	currentListInstance = widgetObj
     	return widgetObj
+    end
+
+    function PlayerList.Destroy()
+    	pcall(function()
+    		local CoreGui = game:GetService("CoreGui")
+    		local g = CoreGui:FindFirstChild("ModularPlayerListGui")
+    		if g then g:Destroy() end
+    		local pgui = Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui")
+    		if pgui then
+    			local pg = pgui:FindFirstChild("ModularPlayerListGui")
+    			if pg then pg:Destroy() end
+    		end
+    	end)
     end
 
     return PlayerList
@@ -2916,6 +2955,8 @@ Modules["UI/ChatWidget.luau"] = function()
     	if not screenGui.Parent then
     		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
     	end
+
+    	local chatServiceConns: {RBXScriptConnection} = {}
 
     	-- Disable default Roblox CoreGuis cleanly while keeping Chat tree active for message tracking
     	local function disableRobloxCoreGuis()
@@ -4527,7 +4568,7 @@ Modules["UI/ChatWidget.luau"] = function()
     	end)
 
     	-- Slash key opens & focuses chat input with smooth animation
-    	UserInputService.InputBegan:Connect(function(input, _gameProcessed)
+    	table.insert(chatServiceConns, UserInputService.InputBegan:Connect(function(input, _gameProcessed)
     		if not isWidgetEnabled then return end
     		if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Slash then
     			local focused = UserInputService:GetFocusedTextBox()
@@ -4551,12 +4592,12 @@ Modules["UI/ChatWidget.luau"] = function()
     				end)
     			end
     		end
-    	end)
+    	end))
 
     	-- ── Single Incoming Message Hook ─────────────────────────────────
     	if not useLegacyChat then
     		pcall(function()
-    			TextChatService.MessageReceived:Connect(function(msg)
+    			table.insert(chatServiceConns, TextChatService.MessageReceived:Connect(function(msg)
     				if not msg.TextSource then
     					if msg.Text and msg.Text ~= "" then
     						addMessage("System", msg.Text, msg.MessageId)
@@ -4569,7 +4610,7 @@ Modules["UI/ChatWidget.luau"] = function()
     				local player = Players:GetPlayerByUserId(msg.TextSource.UserId)
     				local name = if player then (player.DisplayName ~= "" and player.DisplayName or player.Name) else (msg.PrefixText ~= "" and msg.PrefixText:gsub(":$","") or "Server")
     				addMessage(name, msg.Text, msg.MessageId)
-    			end)
+    			end))
     		end)
 
     		pcall(function()
@@ -4577,7 +4618,7 @@ Modules["UI/ChatWidget.luau"] = function()
     			if tc then
     				local function hookChannel(ch: Instance)
     					if ch:IsA("TextChannel") then
-    						ch.MessageReceived:Connect(function(msg)
+    						table.insert(chatServiceConns, ch.MessageReceived:Connect(function(msg)
     							if not msg.TextSource then
     								if msg.Text and msg.Text ~= "" then
     									addMessage("System", msg.Text, msg.MessageId)
@@ -4588,13 +4629,13 @@ Modules["UI/ChatWidget.luau"] = function()
     							local player = Players:GetPlayerByUserId(msg.TextSource.UserId)
     							local name = if player then (player.DisplayName ~= "" and player.DisplayName or player.Name) else "Server"
     							addMessage(name, msg.Text, msg.MessageId)
-    						end)
+    						end))
     					end
     				end
     				for _, ch in ipairs(tc:GetChildren()) do
     					hookChannel(ch)
     				end
-    				tc.ChildAdded:Connect(hookChannel)
+    				table.insert(chatServiceConns, tc.ChildAdded:Connect(hookChannel))
     			end
     		end)
     	else
@@ -4602,11 +4643,11 @@ Modules["UI/ChatWidget.luau"] = function()
     			local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
     			local onMsg = chatEvents and chatEvents:FindFirstChild("OnMessageDoneFiltering")
     			if onMsg and onMsg:IsA("RemoteEvent") then
-    				onMsg.OnClientEvent:Connect(function(data)
+    				table.insert(chatServiceConns, onMsg.OnClientEvent:Connect(function(data)
     					if data and data.FromSpeaker and data.Message then
     						addMessage(tostring(data.FromSpeaker), tostring(data.Message))
     					end
-    				end)
+    				end))
     			end
     		end)
     	end
@@ -4628,6 +4669,14 @@ Modules["UI/ChatWidget.luau"] = function()
 
     	addMessage("System", "Chat connected.")
 
+    	local function destroyWidget()
+    		for _, c in ipairs(chatServiceConns) do
+    			pcall(function() c:Disconnect() end)
+    		end
+    		table.clear(chatServiceConns)
+    		pcall(function() screenGui:Destroy() end)
+    	end
+
     	return {
     		Frame = widget,
     		Container = container,
@@ -4645,7 +4694,22 @@ Modules["UI/ChatWidget.luau"] = function()
     		Close = closeWidget,
     		Toggle = toggleWidget,
     		SetVisible = setWidgetVisible,
+    		Destroy = destroyWidget,
+    		Cleanup = destroyWidget,
     	}
+    end
+
+    function ChatWidget.Destroy()
+    	pcall(function()
+    		local CoreGui = game:GetService("CoreGui")
+    		local g = CoreGui:FindFirstChild("ModularChatGui")
+    		if g then g:Destroy() end
+    		local pgui = Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui")
+    		if pgui then
+    			local pg = pgui:FindFirstChild("ModularChatGui")
+    			if pg then pg:Destroy() end
+    		end
+    	end)
     end
 
     return ChatWidget
@@ -4736,7 +4800,13 @@ Modules["UI/MusicTracker.luau"] = function()
     	"music_state.json"
     }
 
+    local currentMusicInstance: any = nil
+
     function MusicTracker.new()
+    	local activeConnections: {RBXScriptConnection} = {}
+    	local pollerThread: thread? = nil
+    	local isDestroyed = false
+
     	local screenGui = Instance.new("ScreenGui")
     	screenGui.Name = "ModularMusicTrackerGui"
     	screenGui.ResetOnSpawn = false
@@ -5638,7 +5708,7 @@ Modules["UI/MusicTracker.luau"] = function()
     	end)
 
     	-- ── Continuous 60+ FPS Highly Reactive Spring-Damper Visualizer Physics ────
-    	RunService.RenderStepped:Connect(function(dt: number)
+    	table.insert(activeConnections, RunService.RenderStepped:Connect(function(dt: number)
     		if not widget.Visible or not screenGui.Enabled then return end
 
     		local safeDt = math.clamp(dt or 0.016, 0.001, 0.05)
@@ -5680,13 +5750,13 @@ Modules["UI/MusicTracker.luau"] = function()
     				bar.Size = UDim2.new(0, 6, 0, currentHeights[i])
     			end
     		end
-    	end)
+    	end))
 
     	local lastSoundScanClock = 0
     	local cachedLoudestSound: Sound? = nil
 
     	-- ── Heartbeat Synchronizer (Only Provider Audio Drives Visualizer) ────
-    	RunService.Heartbeat:Connect(function()
+    	table.insert(activeConnections, RunService.Heartbeat:Connect(function()
     		if not widget.Visible or not screenGui.Enabled then return end
 
     		-- When no external provider bridge is connected, keep visualizer flat and silent
@@ -5718,10 +5788,10 @@ Modules["UI/MusicTracker.luau"] = function()
     		else
     			activeGradient.Offset = Vector2.new(-2.0, 0)
     		end
-    	end)
+    	end))
 
     	-- ── Multi-Source Bridge Poller (Direct HTTP Port 8888 Priority) ───
-    	task.spawn(function()
+    	pollerThread = task.spawn(function()
     		-- Clean any stale IPC state files
     		pcall(function()
     			local delf = delfile or (getgenv and getgenv().delfile)
@@ -5736,7 +5806,7 @@ Modules["UI/MusicTracker.luau"] = function()
     		local bridgeIndex = 1
     		local failCount = 0
 
-    		while true do
+    		while not isDestroyed do
     			local pollWait = if hasExternalBridge then 0.35 else 0.8
     			task.wait(pollWait)
 
@@ -5973,9 +6043,25 @@ Modules["UI/MusicTracker.luau"] = function()
     		end
     	end
 
-    	closeBtn.MouseButton1Click:Connect(function()
+    	table.insert(activeConnections, closeBtn.MouseButton1Click:Connect(function()
     		closeWidget()
-    	end)
+    	end))
+
+    	local function destroyWidget()
+    		isDestroyed = true
+    		for _, conn in ipairs(activeConnections) do
+    			pcall(function() conn:Disconnect() end)
+    		end
+    		table.clear(activeConnections)
+    		if pollerThread then
+    			pcall(task.cancel, pollerThread)
+    			pollerThread = nil
+    		end
+    		pcall(function() screenGui:Destroy() end)
+    		if currentMusicInstance == widgetObj then
+    			currentMusicInstance = nil
+    		end
+    	end
 
     	local widgetObj: any = nil
     	widgetObj = {
@@ -5986,9 +6072,19 @@ Modules["UI/MusicTracker.luau"] = function()
     		Open = openWidget,
     		Close = closeWidget,
     		SetVisible = setWidgetVisible,
-    		Toggle = toggleWidget
+    		Toggle = toggleWidget,
+    		Destroy = destroyWidget,
+    		Cleanup = destroyWidget,
     	}
+    	currentMusicInstance = widgetObj
     	return widgetObj
+    end
+
+    function MusicTracker.Destroy()
+    	if currentMusicInstance and currentMusicInstance.Destroy then
+    		pcall(function() currentMusicInstance.Destroy() end)
+    		currentMusicInstance = nil
+    	end
     end
 
     return MusicTracker
@@ -8946,8 +9042,25 @@ Modules["UI/LeaderstatsWidget.luau"] = function()
     		if typeof(vis) ~= "boolean" then vis = true end
     		if vis then openWidget() else closeWidget() end
     	end
+    	self.Destroy = function()
+    		pcall(function() screenGui:Destroy() end)
+    	end
+    	self.Cleanup = self.Destroy
 
     	return self
+    end
+
+    function LeaderstatsWidget.Destroy()
+    	pcall(function()
+    		local CoreGui = game:GetService("CoreGui")
+    		local g = CoreGui:FindFirstChild("ModularLeaderstatsGui")
+    		if g then g:Destroy() end
+    		local pgui = Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui")
+    		if pgui then
+    			local pg = pgui:FindFirstChild("ModularLeaderstatsGui")
+    			if pg then pg:Destroy() end
+    		end
+    	end)
     end
 
     return LeaderstatsWidget
@@ -9382,7 +9495,14 @@ Modules["UI/HealthWidget.luau"] = function()
     				pcall(function() conn:Disconnect() end)
     			end
     			table.clear(activeConns)
-    			screenGui:Destroy()
+    			pcall(function() screenGui:Destroy() end)
+    		end,
+    		Destroy = function()
+    			for _, conn in ipairs(activeConns) do
+    				pcall(function() conn:Disconnect() end)
+    			end
+    			table.clear(activeConns)
+    			pcall(function() screenGui:Destroy() end)
     		end
     	}
 
@@ -9392,6 +9512,17 @@ Modules["UI/HealthWidget.luau"] = function()
 
     	widgetInstance = widgetObj
     	return widgetObj
+    end
+
+    function HealthWidget.Destroy()
+    	if widgetInstance and widgetInstance.Cleanup then
+    		pcall(widgetInstance.Cleanup)
+    		widgetInstance = nil
+    	end
+    	if _G.__ModularHealth_Cleanup then
+    		pcall(_G.__ModularHealth_Cleanup)
+    		_G.__ModularHealth_Cleanup = nil
+    	end
     end
 
     return HealthWidget
@@ -9957,7 +10088,6 @@ Modules["Core/FeatureManager.luau"] = function()
     	["Coin Farm Speed"] = "mm2",
     	["Threat Radar Threshold (studs)"] = "mm2",
     	["Rebirth Essence Threshold"] = "tbod",
-    	["TBOD Conveyor Boost"] = "tbod",
     	["Auto Purchase Delay (s)"] = "tbod"
     }
 
@@ -14075,19 +14205,17 @@ Modules["Core/MainUI.luau"] = function()
     				end
     			end)
 
-    			-- Right Column: Conveyor & Physical Modifiers
-    			local modifierSection = window:AddSection(tbodRightCol, "Conveyor & Physics Modifiers")
+    			-- Right Column: Tycoon Teleports & Diagnostics
+    			local statusSection = window:AddSection(tbodRightCol, "Tycoon Status & Cache")
 
-    			window:AddToggle(modifierSection, "tbod_conveyor_boost", "Conveyor Speed Boost", false, nil, function(val)
-    				TBODSquared.setConveyorBoost(val)
-    			end)
-
-    			window:AddSlider(modifierSection, "TBOD Conveyor Boost", 1, 10, 3, function(val)
-    				TBODSquared.setConveyorMultiplier(val)
-    			end)
-
-    			window:AddToggle(modifierSection, "tbod_drop_vacuum", "Drop Collector Vacuum / Pull", false, nil, function(val)
-    				TBODSquared.setDropVacuum(val)
+    			window:AddButton(statusSection, "Refresh Tycoon Cache", function()
+    				TBODSquared.clearCache()
+    				local tyc = TBODSquared.getMyTycoon()
+    				if tyc then
+    					window:Notify("TBOD^2", "Tycoon detected: " .. tyc.Name, 2)
+    				else
+    					window:Notify("TBOD^2", "No owned Tycoon detected", 2)
+    				end
     			end)
 
     			-- Teleport Section
@@ -14124,12 +14252,13 @@ Modules["Core/MainUI.luau"] = function()
     	local function setupVisualsTab(visualsTab)
     		-- ============================================================
     		-- 4. VISUALS TAB CONTENT (HORIZONTAL MINI SUB-TABS)
-    		--    [ 2D Overlays & ESP ] [ 3D Chams & Skeletons ] [ ESP Customizer ] [ Widgets ]
+    		--    [ 2D Overlays & ESP ] [ 3D Chams & Skeletons ] [ ESP Customizer ] [ Performance & Effects ] [ Widgets ]
     		-- ============================================================
-    		local visSubTabs = window:CreateSubTabs(visualsTab, { "2D Overlays & ESP", "3D Chams & Skeletons", "ESP Customizer", "Widgets" })
+    		local visSubTabs = window:CreateSubTabs(visualsTab, { "2D Overlays & ESP", "3D Chams & Skeletons", "ESP Customizer", "Performance & Effects", "Widgets" })
     		local esp2dSubTab = visSubTabs["2D Overlays & ESP"]
     		local chamsSubTab = visSubTabs["3D Chams & Skeletons"]
     		local customSubTab = visSubTabs["ESP Customizer"]
+    		local perfSubTab = visSubTabs["Performance & Effects"]
     		local widgetsSubTab = visSubTabs["Widgets"]
 
     		-- ── VISUALS SUB-TAB 1: 2D OVERLAYS & ESP ──
@@ -14259,7 +14388,24 @@ Modules["Core/MainUI.luau"] = function()
     			window:Notify("Palette", "Ruby Palette applied", 2)
     		end)
 
-    		-- ── VISUALS SUB-TAB 4: WIDGETS (DEDICATED HUD & OVERLAY CONFIGURATION) ──
+    		-- ── VISUALS SUB-TAB 4: PERFORMANCE & EFFECTS ──
+    		local pLeftCol, pRightCol = window:CreateColumns(perfSubTab)
+
+    		local effectSection = window:AddSection(pLeftCol, "Particle & Effect Silencer")
+
+    		window:AddToggle(effectSection, "auto_disable_visual_effects", "Auto Disable Visual Effects / Particles", false, nil, function(enabled)
+    			Visuals.setAutoDisableVisualEffects(enabled)
+    			window:Notify("Performance", if enabled then "Visual effects & particles suppressed" else "Visual effects & particles restored", 2)
+    		end)
+
+    		local worldSection = window:AddSection(pRightCol, "World Optimization")
+
+    		window:AddButton(worldSection, "Purge Blackout / Screen Overlays", function()
+    			sharedEnv.purgeBlackoutScreens()
+    			window:Notify("Performance", "Purged screen blackout overlays", 2)
+    		end)
+
+    		-- ── VISUALS SUB-TAB 5: WIDGETS (DEDICATED HUD & OVERLAY CONFIGURATION) ──
     		local wLeftCol, wRightCol = window:CreateColumns(widgetsSubTab)
 
     		-- Left Column: Master Controls & Core Peripheral HUDs
@@ -15233,21 +15379,55 @@ Modules["Core/MainUI.luau"] = function()
 
     	-- Register global cleanup function for hot-reload and multi-execution safety
     	_G.__ModularSuite_Cleanup = function()
-    		pcall(function() Visuals.removeAllVisuals() end)
-    		pcall(function() Combat.resetHitboxes() end)
-    		pcall(function() MurderMystery2.Destroy() end)
+    		if _G.__ModularMain_Cleanup then
+    			pcall(_G.__ModularMain_Cleanup)
+    			_G.__ModularMain_Cleanup = nil
+    		end
+    		pcall(function() Visuals.cleanup() end)
+    		pcall(function() Combat.cleanup() end)
+    		pcall(function()
+    			local Movement = require("Modules/Movement.luau")
+    			if Movement and Movement.cleanup then Movement.cleanup() end
+    		end)
     		pcall(function() TBODSquared.stop() end)
+    		pcall(function() MurderMystery2.Destroy() end)
+    		pcall(function() DisasterSurvival.cleanup() end)
+    		pcall(function() RunNHide.cleanup() end)
+    		pcall(function() SeekerVsHider.cleanup() end)
+    		pcall(function() IceTycoon.cleanup() end)
+    		pcall(function() LuckyBlocks.cleanup() end)
+    		pcall(function() RestaurantTycoon.cleanup() end)
     		pcall(function() window:Destroy() end)
     		pcall(function() Notification:Destroy() end)
-    		pcall(function() PlayerList:Destroy() end)
-    		pcall(function() ChatWidget:Destroy() end)
+    		pcall(function() if playerListWidget and playerListWidget.Destroy then playerListWidget:Destroy() end end)
+    		pcall(function()
+    			local PL = require("UI/PlayerList.luau")
+    			if PL and PL.Destroy then PL:Destroy() end
+    		end)
+    		pcall(function() if chatWidgetInstance and chatWidgetInstance.Destroy then chatWidgetInstance:Destroy() end end)
+    		pcall(function()
+    			local CW = require("UI/ChatWidget.luau")
+    			if CW and CW.Destroy then CW:Destroy() end
+    		end)
+    		pcall(function() if musicTrackerWidget and musicTrackerWidget.Destroy then musicTrackerWidget:Destroy() end end)
     		pcall(function() MusicTracker:Destroy() end)
-    		pcall(function() Hotbar.Destroy() end)
+    		pcall(function() if hotbarWidget and hotbarWidget.Destroy then hotbarWidget:Destroy() end end)
+    		pcall(function()
+    			local HB = require("UI/Hotbar.luau")
+    			if HB and HB.Destroy then HB.Destroy() end
+    		end)
     		if _G.__ModularHotbar_Cleanup then pcall(_G.__ModularHotbar_Cleanup) end
-    		pcall(function() LeaderstatsWidget:Destroy() end)
-    		pcall(function() HealthWidget:Destroy() end)
+    		pcall(function() if leaderstatsWidget and leaderstatsWidget.Destroy then leaderstatsWidget:Destroy() end end)
+    		pcall(function()
+    			local LW = require("UI/LeaderstatsWidget.luau")
+    			if LW and LW.Destroy then LW:Destroy() end
+    		end)
+    		pcall(function() if healthWidget and healthWidget.Destroy then healthWidget:Destroy() end end)
+    		pcall(function()
+    			local HW = require("UI/HealthWidget.luau")
+    			if HW and HW.Destroy then HW:Destroy() end
+    		end)
     	end
-
     end
 end
 
@@ -15313,64 +15493,97 @@ Modules["Modules/Movement.luau"] = function()
     if LocalPlayer.Character then
     	updateCachedParts(LocalPlayer.Character)
     end
-    LocalPlayer.CharacterAdded:Connect(updateCachedParts)
+    local charAddedConn: RBXScriptConnection? = nil
+    charAddedConn = LocalPlayer.CharacterAdded:Connect(updateCachedParts)
+
+    local noclipConn: RBXScriptConnection? = nil
+    local infJumpConn: RBXScriptConnection? = nil
+
+    function Movement.setNoclip(enabled: boolean)
+    	if noclipConn then
+    		noclipConn:Disconnect()
+    		noclipConn = nil
+    	end
+    	if enabled then
+    		noclipConn = RunService.Stepped:Connect(function()
+    			for _, part in ipairs(cachedCharacterParts) do
+    				part.CanCollide = false
+    			end
+    		end)
+    	else
+    		if LocalPlayer.Character then
+    			local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    			if hum then
+    				hum:ChangeState(Enum.HumanoidStateType.Running)
+    			end
+    			for _, part in ipairs(cachedCharacterParts) do
+    				if part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Torso" or part.Name == "CollisionPart" or part.Name == "Head" then
+    					part.CanCollide = true
+    				end
+    			end
+    		end
+    	end
+    end
+
+    function Movement.setInfiniteJump(enabled: boolean)
+    	if infJumpConn then
+    		infJumpConn:Disconnect()
+    		infJumpConn = nil
+    	end
+    	if enabled then
+    		infJumpConn = UserInputService.JumpRequest:Connect(function()
+    			if LocalPlayer.Character then
+    				local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    				if hum then
+    					hum:ChangeState(Enum.HumanoidStateType.Jumping)
+    				end
+    			end
+    		end)
+    	end
+    end
+
+    function Movement.cleanup()
+    	Movement.setNoclip(false)
+    	Movement.setInfiniteJump(false)
+    	if charAddedConn then
+    		charAddedConn:Disconnect()
+    		charAddedConn = nil
+    	end
+    	if charDescendantAddedConn then
+    		charDescendantAddedConn:Disconnect()
+    		charDescendantAddedConn = nil
+    	end
+    	if charDescendantRemovingConn then
+    		charDescendantRemovingConn:Disconnect()
+    		charDescendantRemovingConn = nil
+    	end
+    	table.clear(cachedCharacterParts)
+    end
+
+    Movement.Destroy = Movement.cleanup
 
     function Movement.init(window: any)
     	local moveTab = window:CreateTab("Movement")
     	local leftCol, rightCol = window:CreateColumns(moveTab)
-
+	
     	-- Flight & Collision
     	local flightSection = window:AddSection(leftCol, "Flight & Collision")
-
-    	local noclipConn: RBXScriptConnection? = nil
+	
     	window:AddToggle(flightSection, "noclip_toggle", "Noclip", false, nil, function(enabled)
-    		if enabled then
-    			noclipConn = RunService.Stepped:Connect(function()
-    				for _, part in ipairs(cachedCharacterParts) do
-    					part.CanCollide = false
-    				end
-    			end)
-    		elseif noclipConn then
-    			noclipConn:Disconnect()
-    			noclipConn = nil
-    			if LocalPlayer.Character then
-    				local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    				if hum then
-    					hum:ChangeState(Enum.HumanoidStateType.Running)
-    				end
-    				for _, part in ipairs(cachedCharacterParts) do
-    					if part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Torso" or part.Name == "CollisionPart" or part.Name == "Head" then
-    						part.CanCollide = true
-    					end
-    				end
-    			end
-    		end
+    		Movement.setNoclip(enabled)
     	end)
-
-    	local infJumpConn: RBXScriptConnection? = nil
+	
     	window:AddToggle(flightSection, "inf_jump", "Infinite Jump", false, nil, function(enabled)
-    		if enabled then
-    			infJumpConn = UserInputService.JumpRequest:Connect(function()
-    				if LocalPlayer.Character then
-    					local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    					if hum then
-    						hum:ChangeState(Enum.HumanoidStateType.Jumping)
-    					end
-    				end
-    			end)
-    		elseif infJumpConn then
-    			infJumpConn:Disconnect()
-    			infJumpConn = nil
-    		end
+    		Movement.setInfiniteJump(enabled)
     	end)
-
+	
     	-- Physics & Gravity
     	local physicsSection = window:AddSection(rightCol, "World Physics")
-
+	
     	window:AddSlider(physicsSection, "Custom Gravity", 0, 196, 196, function(value)
     		Workspace.Gravity = value
     	end)
-
+	
     	window:AddSlider(physicsSection, "Hip Height Offset", 0, 20, 0, function(value)
     		if LocalPlayer.Character then
     			local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -15379,7 +15592,7 @@ Modules["Modules/Movement.luau"] = function()
     			end
     		end
     	end)
-
+	
     	window:SelectTab(moveTab)
     	return moveTab
     end
@@ -15445,19 +15658,19 @@ Modules["Modules/Visuals.luau"] = function()
     	Box2D = false,
     	BoxOutlines = false,
     	BoxColor = Color3.fromRGB(55, 175, 245),
-
+	
     	HealthBar = false,
-
+	
     	Tracers = false,
     	TracerOrigin = "Bottom" :: "Bottom" | "Center" | "Mouse",
     	TracerColor = Color3.fromRGB(255, 255, 255),
-
+	
     	Distance = false,
     	DistanceColor = Color3.fromRGB(240, 240, 240),
-
+	
     	Skeleton = false,
     	SkeletonColor = Color3.fromRGB(255, 200, 50),
-
+	
     	-- 3D Chams / Highlights Settings
     	Chams = false,
     	ChamsTransparency = 0.5,
@@ -15489,7 +15702,7 @@ Modules["Modules/Visuals.luau"] = function()
     			return obj
     		end
     	end
-
+	
     	if hasDrawing then
     		local success, obj = pcall(function()
     			return Drawing.new(drawingType)
@@ -15507,7 +15720,7 @@ Modules["Modules/Visuals.luau"] = function()
     function Visuals.releaseDrawing(drawingTypeOrObj: any, maybeObj: any?)
     	local drawingType: string?
     	local obj: any?
-
+	
     	if typeof(drawingTypeOrObj) == "string" then
     		drawingType = drawingTypeOrObj
     		obj = maybeObj
@@ -15517,13 +15730,13 @@ Modules["Modules/Visuals.luau"] = function()
     			drawingType = maybeObj
     		end
     	end
-
+	
     	if not obj then return end
-
+	
     	pcall(function()
     		obj.Visible = false
     	end)
-
+	
     	if drawingType and DrawingPool[drawingType] then
     		table.insert(DrawingPool[drawingType], obj)
     	else
@@ -15591,14 +15804,14 @@ Modules["Modules/Visuals.luau"] = function()
     		pv.Parts = nil
     		return
     	end
-
+	
     	local humanoid = character:FindFirstChildOfClass("Humanoid")
     	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") :: BasePart?
     	local head = character:FindFirstChild("Head") :: BasePart?
     	local torso = character:FindFirstChild("Torso") :: BasePart?
     	local upperTorso = character:FindFirstChild("UpperTorso") :: BasePart?
     	local lowerTorso = character:FindFirstChild("LowerTorso") :: BasePart?
-
+	
     	local boneMap: {[string]: BasePart?} = {}
     	for _, pair in ipairs(BONE_PAIRS) do
     		local p1Name = pair[1]
@@ -15610,7 +15823,7 @@ Modules["Modules/Visuals.luau"] = function()
     			boneMap[p2Name] = character:FindFirstChild(p2Name) :: BasePart?
     		end
     	end
-
+	
     	-- Fallback resolution for R6 character rigs
     	if not boneMap["UpperTorso"] and torso then
     		boneMap["UpperTorso"] = torso
@@ -15628,7 +15841,7 @@ Modules["Modules/Visuals.luau"] = function()
     	if not boneMap["RightUpperLeg"] then
     		boneMap["RightUpperLeg"] = character:FindFirstChild("Right Leg") :: BasePart?
     	end
-
+	
     	pv.Parts = {
     		Character = character,
     		Humanoid = humanoid,
@@ -15669,7 +15882,7 @@ Modules["Modules/Visuals.luau"] = function()
     		CharRemovingConn = nil,
     		ChildAddedConn = nil,
     	}
-
+	
     	if hasDrawing then
     		-- Box Outline (Secondary black square for high contrast, Thickness = 3.5)
     		local boxOutline = Visuals.acquireDrawing("Square")
@@ -15696,7 +15909,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.Box = box
     		end
-
+		
     		-- Health Bar BG
     		local hbBg = Visuals.acquireDrawing("Square")
     		if hbBg then
@@ -15709,7 +15922,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.HealthBarBg = hbBg
     		end
-
+		
     		-- Health Bar Fill
     		local hbFill = Visuals.acquireDrawing("Square")
     		if hbFill then
@@ -15722,7 +15935,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.HealthBarFill = hbFill
     		end
-
+		
     		-- Tracer line
     		local tracer = Visuals.acquireDrawing("Line")
     		if tracer then
@@ -15734,7 +15947,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.Tracer = tracer
     		end
-
+		
     		-- Distance tag (3D stud distance text positioned below bounding box)
     		local distTag = Visuals.acquireDrawing("Text")
     		if distTag then
@@ -15765,7 +15978,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.NameTag = nameTag
     		end
-
+		
     		-- Skeleton bones (14 bone segments)
     		for i = 1, #BONE_PAIRS do
     			local bone = Visuals.acquireDrawing("Line")
@@ -15780,12 +15993,12 @@ Modules["Modules/Visuals.luau"] = function()
     			end
     		end
     	end
-
+	
     	-- Cache character parts and listen for character lifecycle
     	if player.Character then
     		cachePlayerParts(pv, player.Character)
     	end
-
+	
     	pv.CharAddedConn = player.CharacterAdded:Connect(function(char)
     		cachePlayerParts(pv, char)
     		if pv.ChildAddedConn then
@@ -15798,7 +16011,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end
     		end)
     	end)
-
+	
     	pv.CharRemovingConn = player.CharacterRemoving:Connect(function()
     		pv.Parts = nil
     		pv.LastDistance = nil
@@ -15808,7 +16021,7 @@ Modules["Modules/Visuals.luau"] = function()
     		end
     		hideAll(pv)
     	end)
-
+	
     	return pv
     end
 
@@ -15825,12 +16038,12 @@ Modules["Modules/Visuals.luau"] = function()
     		pv.ChildAddedConn:Disconnect()
     		pv.ChildAddedConn = nil
     	end
-
+	
     	if pv.Highlight then
     		pcall(function() pv.Highlight:Destroy() end)
     		pv.Highlight = nil
     	end
-
+	
     	if pv.BoxOutline then
     		Visuals.releaseDrawing("Square", pv.BoxOutline)
     		pv.BoxOutline = nil
@@ -15881,29 +16094,29 @@ Modules["Modules/Visuals.luau"] = function()
     		hideAll(pv)
     		return
     	end
-
+	
     	-- Verify and update cached character parts if needed
     	local parts = pv.Parts
     	if not parts or parts.Character ~= character or not parts.RootPart or not parts.Humanoid then
     		cachePlayerParts(pv, character)
     		parts = pv.Parts
     	end
-
+	
     	if not parts or not parts.Humanoid or not parts.RootPart or parts.Humanoid.Health <= 0 then
     		hideAll(pv)
     		return
     	end
-
+	
     	local humanoid = parts.Humanoid
     	local rootPart = parts.RootPart
-
+	
     	-- 3D Chams / Highlight
     	if Visuals.Chams then
     		local fillColor = Visuals.ChamsFillColor or Visuals.ChamsColor or Color3.fromRGB(180, 70, 255)
     		local outlineColor = Visuals.ChamsOutlineColor or Color3.fromRGB(255, 255, 255)
     		local fillTransparency = Visuals.ChamsTransparency or 0.5
     		local outlineTransparency = Visuals.ChamsOutlineTransparency or 0.2
-
+		
     		if not pv.Highlight or pv.Highlight.Parent ~= character then
     			if pv.Highlight then
     				pcall(function() pv.Highlight:Destroy() end)
@@ -15933,7 +16146,7 @@ Modules["Modules/Visuals.luau"] = function()
     	elseif pv.Highlight then
     		pv.Highlight.Enabled = false
     	end
-
+	
     	-- 2D Calculations
     	local rootPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
     	if not onScreen or not hasDrawing then
@@ -15947,19 +16160,19 @@ Modules["Modules/Visuals.luau"] = function()
     		for _, bone in ipairs(pv.Bones) do bone.Visible = false end
     		return
     	end
-
+	
     	-- Bounding Box size estimation
     	local head = parts.Head
     	local headPos = if head then Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0)) else Vector3.new(rootPos.X, rootPos.Y - 30, 0)
     	local legPos = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
-
+	
     	local boxHeight = math.abs(legPos.Y - headPos.Y)
     	local boxWidth = boxHeight * 0.65
     	local boxX = rootPos.X - (boxWidth * 0.5)
     	local boxY = headPos.Y
     	local boxSize = Vector2.new(boxWidth, boxHeight)
     	local boxPosition = Vector2.new(boxX, boxY)
-
+	
     	-- Render Player Name Tag (Above Head / Box for both 2D ESP & 3D Chams)
     	local shouldShowNames = Visuals.Names and (Visuals.Box2D or Visuals.Chams)
     	if shouldShowNames and pv.NameTag then
@@ -15998,18 +16211,18 @@ Modules["Modules/Visuals.luau"] = function()
     		if pv.Box then pv.Box.Visible = false end
     		if pv.BoxOutline then pv.BoxOutline.Visible = false end
     	end
-
+	
     	-- Render Health Bar next to 2D Box
     	if Visuals.HealthBar and pv.HealthBarBg and pv.HealthBarFill then
     		local barWidth = 3
     		local barX = boxX - 6
     		local healthRatio = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
     		local fillHeight = boxHeight * healthRatio
-
+		
     		pv.HealthBarBg.Size = Vector2.new(barWidth + 2, boxHeight + 2)
     		pv.HealthBarBg.Position = Vector2.new(barX - 1, boxY - 1)
     		pv.HealthBarBg.Visible = true
-
+		
     		pv.HealthBarFill.Size = Vector2.new(barWidth, fillHeight)
     		pv.HealthBarFill.Position = Vector2.new(barX, boxY + (boxHeight - fillHeight))
     		pv.HealthBarFill.Color = Color3.fromHSV(healthRatio * 0.33, 0.9, 0.9)
@@ -16018,12 +16231,12 @@ Modules["Modules/Visuals.luau"] = function()
     		if pv.HealthBarBg then pv.HealthBarBg.Visible = false end
     		if pv.HealthBarFill then pv.HealthBarFill.Visible = false end
     	end
-
+	
     	-- Render Tracer with Origin Selector ("Bottom", "Center", "Mouse")
     	if Visuals.Tracers and pv.Tracer then
     		local tracerOrigin = Visuals.TracerOrigin or "Bottom"
     		local fromPos: Vector2
-
+		
     		if tracerOrigin == "Center" then
     			fromPos = screenCenter
     		elseif tracerOrigin == "Mouse" then
@@ -16031,7 +16244,7 @@ Modules["Modules/Visuals.luau"] = function()
     		else -- "Bottom" or default fallback
     			fromPos = screenBottom
     		end
-
+		
     		pv.Tracer.From = fromPos
     		pv.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
     		pv.Tracer.Color = Visuals.TracerColor
@@ -16039,25 +16252,25 @@ Modules["Modules/Visuals.luau"] = function()
     	elseif pv.Tracer then
     		pv.Tracer.Visible = false
     	end
-
+	
     	-- Render Distance Tag (3D stud distance calculation with delta threshold cache)
     	if Visuals.Distance and pv.DistanceTag then
     		local myPos = if myRootPart then myRootPart.Position else Camera.CFrame.Position
     		local targetPos = rootPart.Position
     		local dist = math.floor((targetPos - myPos).Magnitude)
-
+		
     		if not pv.LastDistance or math.abs(dist - pv.LastDistance) >= 1 then
     			pv.LastDistance = dist
     			pv.DistanceTag.Text = tostring(dist) .. "m"
     		end
-
+		
     		pv.DistanceTag.Position = Vector2.new(boxX + (boxWidth * 0.5), boxY + boxHeight + 2)
     		pv.DistanceTag.Color = Visuals.DistanceColor or Color3.fromRGB(240, 240, 240)
     		pv.DistanceTag.Visible = true
     	elseif pv.DistanceTag then
     		pv.DistanceTag.Visible = false
     	end
-
+	
     	-- Render Skeleton ESP
     	if Visuals.Skeleton and #pv.Bones > 0 and parts then
     		local boneMap = parts.BoneMap
@@ -16102,7 +16315,7 @@ Modules["Modules/Visuals.luau"] = function()
     		return
     	end
     	wasAnyVisualEnabled = true
-
+	
     	-- Cache viewport dimensions and origin vectors once per frame
     	local viewportSize = Camera.ViewportSize
     	local screenCenter = Vector2.new(viewportSize.X * 0.5, viewportSize.Y * 0.5)
@@ -16111,10 +16324,10 @@ Modules["Modules/Visuals.luau"] = function()
     	if Visuals.Tracers and Visuals.TracerOrigin == "Mouse" then
     		mousePos = UserInputService:GetMouseLocation()
     	end
-
+	
     	local localChar = LocalPlayer.Character
     	local myRootPart: BasePart? = if localChar then (localChar:FindFirstChild("HumanoidRootPart") or localChar:FindFirstChild("Torso") or localChar:FindFirstChild("UpperTorso")) :: BasePart? else nil
-
+	
     	for _, player in ipairs(Players:GetPlayers()) do
     		if player ~= LocalPlayer then
     			local pv = playerVisuals[player]
@@ -16176,13 +16389,91 @@ Modules["Modules/Visuals.luau"] = function()
     -- Automatic purge on script execution
     Visuals.removeAllVisuals()
 
+    -- ── Auto Disable Visual Effects / Particles Optimizer ─────────────────
+    Visuals.AutoDisableVisualEffects = false
+    local disabledEffectsCache: { [Instance]: boolean } = {}
+    local effectsDescendantAddedConn: RBXScriptConnection? = nil
+
+    local EFFECT_CLASSES = {
+    	"ParticleEmitter",
+    	"Beam",
+    	"Trail",
+    	"Smoke",
+    	"Fire",
+    	"Sparkles",
+    	"Explosion",
+    	"BloomEffect",
+    	"BlurEffect",
+    	"ColorCorrectionEffect",
+    	"SunRaysEffect",
+    	"DepthOfFieldEffect"
+    }
+
+    local function isEffectInstance(inst: Instance): boolean
+    	for _, className in ipairs(EFFECT_CLASSES) do
+    		if inst:IsA(className) then
+    			return true
+    		end
+    	end
+    	return false
+    end
+
+    function Visuals.setAutoDisableVisualEffects(enabled: boolean)
+    	Visuals.AutoDisableVisualEffects = enabled
+
+    	if effectsDescendantAddedConn then
+    		pcall(function() effectsDescendantAddedConn:Disconnect() end)
+    		effectsDescendantAddedConn = nil
+    	end
+
+    	if enabled then
+    		local roots = { Workspace, Lighting }
+    		for _, root in ipairs(roots) do
+    			for _, desc in ipairs(root:GetDescendants()) do
+    				if isEffectInstance(desc) then
+    					pcall(function()
+    						local anyDesc = desc :: any
+    						if anyDesc.Enabled == true then
+    							disabledEffectsCache[desc] = true
+    							anyDesc.Enabled = false
+    						end
+    					end)
+    				end
+    			end
+    		end
+
+    		effectsDescendantAddedConn = Workspace.DescendantAdded:Connect(function(desc)
+    			if Visuals.AutoDisableVisualEffects and isEffectInstance(desc) then
+    				pcall(function()
+    					local anyDesc = desc :: any
+    					if anyDesc.Enabled == true then
+    						disabledEffectsCache[desc] = true
+    						anyDesc.Enabled = false
+    					end
+    				end)
+    			end
+    		end)
+    	else
+    		for inst, wasEnabled in pairs(disabledEffectsCache) do
+    			if inst and inst.Parent and wasEnabled then
+    				pcall(function()
+    					(inst :: any).Enabled = true
+    				end)
+    			end
+    		end
+    		table.clear(disabledEffectsCache)
+    	end
+    end
+
     function Visuals.cleanup()
+    	Visuals.setAutoDisableVisualEffects(false)
+
     	-- 1. Clean and release all player visuals
     	for player, pv in pairs(playerVisuals) do
     		cleanPlayerVisual(pv)
     	end
     	playerVisuals = {}
-
+	
     	-- 2. Drain and permanently remove all pooled Drawing instances
     	for typeName, pool in pairs(DrawingPool) do
     		for _, obj in ipairs(pool) do
@@ -16192,7 +16483,7 @@ Modules["Modules/Visuals.luau"] = function()
     		end
     		DrawingPool[typeName] = {}
     	end
-
+	
     	-- 3. Disconnect all module-level connections
     	for _, conn in ipairs(moduleConnections) do
     		pcall(function()
@@ -16534,7 +16825,8 @@ Modules["Modules/Combat.luau"] = function()
     end
 
     -- ── 60 FPS Continuous Target Solver ──────────────────────────────────
-    RunService.Heartbeat:Connect(function()
+    local targetSolverConn: RBXScriptConnection? = nil
+    targetSolverConn = RunService.Heartbeat:Connect(function()
     	if not Combat.SilentAim and not Combat.AimTracking then
     		cachedTargetPlayer = nil
     		cachedTargetPart = nil
@@ -16755,9 +17047,11 @@ Modules["Modules/Combat.luau"] = function()
     	setupPlayerCleanup(player)
     end
 
-    Players.PlayerAdded:Connect(setupPlayerCleanup)
+    local playerAddedConn: RBXScriptConnection? = nil
+    playerAddedConn = Players.PlayerAdded:Connect(setupPlayerCleanup)
 
-    Players.PlayerRemoving:Connect(function(player: Player)
+    local playerRemovingConn: RBXScriptConnection? = nil
+    playerRemovingConn = Players.PlayerRemoving:Connect(function(player: Player)
     	if player.Character then
     		local hrp = player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
     		if hrp then
@@ -16815,7 +17109,8 @@ Modules["Modules/Combat.luau"] = function()
     end
 
     local lastHitboxUpdate = 0
-    RunService.Heartbeat:Connect(function()
+    local hitboxConn: RBXScriptConnection? = nil
+    hitboxConn = RunService.Heartbeat:Connect(function()
     	if Combat.ExpandHitboxes then
     		local now = tick()
     		if now - lastHitboxUpdate >= 0.1 then
@@ -16836,6 +17131,34 @@ Modules["Modules/Combat.luau"] = function()
     	end
     	table.clear(originalProperties)
     	table.clear(originalHitboxSizes)
+    end
+
+    function Combat.cleanup()
+    	Combat.SilentAim = false
+    	Combat.AimTracking = false
+    	Combat.ExpandHitboxes = false
+    	Combat.TriggerBot = false
+
+    	if targetSolverConn then
+    		pcall(function() targetSolverConn:Disconnect() end)
+    		targetSolverConn = nil
+    	end
+    	if hitboxConn then
+    		pcall(function() hitboxConn:Disconnect() end)
+    		hitboxConn = nil
+    	end
+    	if playerAddedConn then
+    		pcall(function() playerAddedConn:Disconnect() end)
+    		playerAddedConn = nil
+    	end
+    	if playerRemovingConn then
+    		pcall(function() playerRemovingConn:Disconnect() end)
+    		playerRemovingConn = nil
+    	end
+
+    	Combat.resetHitboxes()
+    	cachedTargetPlayer = nil
+    	cachedTargetPart = nil
     end
 
     return Combat
@@ -20370,6 +20693,19 @@ Modules["Modules/LuckyBlocks.luau"] = function()
     	return list
     end
 
+    function LuckyBlocks.cleanup()
+    	LuckyBlocks.setAutoClaim(false)
+    	LuckyBlocks.setAutoOpen(false)
+    	LuckyBlocks.setFastSword(false)
+    	LuckyBlocks.setAntiVoid(false)
+    	if antiVoidConn then
+    		pcall(function() antiVoidConn:Disconnect() end)
+    		antiVoidConn = nil
+    	end
+    end
+
+    LuckyBlocks.Destroy = LuckyBlocks.cleanup
+
     return LuckyBlocks
 end
 
@@ -20867,6 +21203,21 @@ Modules["Modules/RestaurantTycoon.luau"] = function()
     	}
     end
 
+    function RestaurantTycoon.cleanup()
+    	RestaurantTycoon.setAutoCollectCash(false)
+    	RestaurantTycoon.setAutoClearDishes(false)
+    	RestaurantTycoon.setAutoTakeOrders(false)
+    	RestaurantTycoon.setAutoSeatCustomers(false)
+    	RestaurantTycoon.setAutoCollectTips(false)
+    	RestaurantTycoon.setInstantCooking(false)
+    	if cookingConn then
+    		pcall(function() cookingConn:Disconnect() end)
+    		cookingConn = nil
+    	end
+    end
+
+    RestaurantTycoon.Destroy = RestaurantTycoon.cleanup
+
     return RestaurantTycoon
 end
 
@@ -20915,7 +21266,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	WallCheck = false,
     	TeamCheck = false,
     	Prediction = 0.035,
-
+	
     	-- Weapon Configs
     	NoRecoil = true,
     	NoSpread = true,
@@ -21334,7 +21685,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     			local mat = obj.Material
     			local name = obj.Name:lower()
     			local isGlass = (mat == Enum.Material.Glass or mat == Enum.Material.Foil or mat == Enum.Material.Ice or mat == Enum.Material.ForceField or name:find("glass") or name:find("window") or name:find("pane"))
-
+			
     			if isGlass and not (cam and obj:IsDescendantOf(cam)) and not (myChar and obj:IsDescendantOf(myChar)) then
     				if bg then
     					pcall(function()
@@ -21438,16 +21789,21 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	SeekerVsHider.applyWeaponConfigs()
     end)
 
+    -- Store connections for clean reload
+    local svhCharAddedConn: RBXScriptConnection? = nil
+    local svhChildAddedConn: RBXScriptConnection? = nil
+
     -- Hook character/backpack added to re-apply weapon configs on weapon equip (Zero per-frame loop)
     if LocalPlayer.Character then
-    	LocalPlayer.Character.ChildAdded:Connect(function()
+    	svhChildAddedConn = LocalPlayer.Character.ChildAdded:Connect(function()
     		task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
     	end)
     end
 
-    LocalPlayer.CharacterAdded:Connect(function(char)
+    svhCharAddedConn = LocalPlayer.CharacterAdded:Connect(function(char)
     	task.delay(0.5, SeekerVsHider.applyWeaponConfigs)
-    	char.ChildAdded:Connect(function()
+    	if svhChildAddedConn then svhChildAddedConn:Disconnect() end
+    	svhChildAddedConn = char.ChildAdded:Connect(function()
     		task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
     	end)
     end)
@@ -21470,6 +21826,27 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     		end
     	end
     end)
+
+    function SeekerVsHider.cleanup()
+    	if weaponConfigConn then
+    		weaponConfigConn:Disconnect()
+    		weaponConfigConn = nil
+    	end
+    	if svhCharAddedConn then
+    		svhCharAddedConn:Disconnect()
+    		svhCharAddedConn = nil
+    	end
+    	if svhChildAddedConn then
+    		svhChildAddedConn:Disconnect()
+    		svhChildAddedConn = nil
+    	end
+    	if SeekerVsHider.VoidSafetyPlat then
+    		pcall(function() SeekerVsHider.VoidSafetyPlat:Destroy() end)
+    		SeekerVsHider.VoidSafetyPlat = nil
+    	end
+    end
+
+    SeekerVsHider.Destroy = SeekerVsHider.cleanup
 
     return SeekerVsHider
 end
@@ -22741,18 +23118,12 @@ Modules["Modules/TBODSquared.luau"] = function()
     local purchaseDelay = 0.3
     local autoRebirthEnabled = false
     local rebirthEssenceTarget = 50
-    local conveyorBoostEnabled = false
-    local conveyorMultiplier = 3
-    local dropVacuumEnabled = false
 
     -- Runtime references & connections
     local purchaseThread: thread? = nil
     local rebirthThread: thread? = nil
-    local conveyorHeartbeatConn: RBXScriptConnection? = nil
-    local vacuumHeartbeatConn: RBXScriptConnection? = nil
     local cachedTycoon: Model? = nil
     local cachedPlotName: string? = nil
-    local originalConveyorSpeeds: {[BasePart]: Vector3} = {}
 
     -- Metrics
     TBODSquared.Metrics = {
@@ -23024,71 +23395,6 @@ Modules["Modules/TBODSquared.luau"] = function()
     end
 
     -- Conveyor Speed Boosting
-    local function applyConveyorBoost()
-    	local tyc = TBODSquared.getMyTycoon()
-    	if not tyc then return end
-
-    	local items = tyc:FindFirstChild("Items")
-    	if not items then return end
-
-    	for _, d in ipairs(items:GetDescendants()) do
-    		if d:IsA("BasePart") and string.find(string.lower(d.Name), "conveyor") and not string.find(string.lower(d.Name), "wall") and not string.find(string.lower(d.Name), "cover") then
-    			if not originalConveyorSpeeds[d] then
-    				local cur = d.AssemblyLinearVelocity
-    				if cur.Magnitude > 0.1 then
-    					originalConveyorSpeeds[d] = cur
-    				else
-    					originalConveyorSpeeds[d] = Vector3.new(0, 0, -10)
-    				end
-    			end
-    			local baseVel = originalConveyorSpeeds[d]
-    			d.AssemblyLinearVelocity = baseVel.Unit * (10 * conveyorMultiplier)
-    		end
-    	end
-    end
-
-    local function restoreConveyorSpeeds()
-    	for part, orig in pairs(originalConveyorSpeeds) do
-    		if part and part.Parent then
-    			pcall(function()
-    				part.AssemblyLinearVelocity = orig
-    			end)
-    		end
-    	end
-    	table.clear(originalConveyorSpeeds)
-    end
-
-    -- Drop Vacuum: Accelerates drops in Workspace.Drops towards the collector
-    local function startDropVacuum()
-    	if vacuumHeartbeatConn then return end
-    	vacuumHeartbeatConn = RunService.Heartbeat:Connect(function()
-    		if not dropVacuumEnabled then return end
-    		local tyc = TBODSquared.getMyTycoon()
-    		if not tyc then return end
-
-    		local items = tyc:FindFirstChild("Items")
-    		local collector = items and items:FindFirstChild("Collector")
-    		local collectorPart = collector and collector:FindFirstChild("collectorPart") :: BasePart?
-    		if not collectorPart then return end
-
-    		local dropsFolder = Workspace:FindFirstChild("Drops")
-    		if not dropsFolder then return end
-
-    		local targetPos = collectorPart.Position + Vector3.new(0, 0.5, 0)
-
-    		for _, drop in ipairs(dropsFolder:GetChildren()) do
-    			local part = drop:IsA("BasePart") and drop or drop:FindFirstChildWhichIsA("BasePart", true)
-    			if part and part:IsA("BasePart") then
-    				local dist = (part.Position - targetPos).Magnitude
-    				if dist < 80 then
-    					local dir = (targetPos - part.Position).Unit
-    					part.AssemblyLinearVelocity = dir * 35
-    				end
-    			end
-    		end
-    	end)
-    end
-
     -- Module Interface
     function TBODSquared.setAutoPurchase(enabled: boolean)
     	autoPurchaseEnabled = enabled
@@ -23122,42 +23428,6 @@ Modules["Modules/TBODSquared.luau"] = function()
     	rebirthEssenceTarget = math.max(1, target)
     end
 
-    function TBODSquared.setConveyorBoost(enabled: boolean)
-    	conveyorBoostEnabled = enabled
-    	if enabled then
-    		if not conveyorHeartbeatConn then
-    			conveyorHeartbeatConn = RunService.Heartbeat:Connect(function()
-    				applyConveyorBoost()
-    			end)
-    		end
-    	else
-    		if conveyorHeartbeatConn then
-    			conveyorHeartbeatConn:Disconnect()
-    			conveyorHeartbeatConn = nil
-    		end
-    		restoreConveyorSpeeds()
-    	end
-    end
-
-    function TBODSquared.setConveyorMultiplier(mult: number)
-    	conveyorMultiplier = math.clamp(mult, 1, 15)
-    	if conveyorBoostEnabled then
-    		applyConveyorBoost()
-    	end
-    end
-
-    function TBODSquared.setDropVacuum(enabled: boolean)
-    	dropVacuumEnabled = enabled
-    	if enabled then
-    		startDropVacuum()
-    	else
-    		if vacuumHeartbeatConn then
-    			vacuumHeartbeatConn:Disconnect()
-    			vacuumHeartbeatConn = nil
-    		end
-    	end
-    end
-
     function TBODSquared.manualRebirth(): boolean
     	return executeRebirth()
     end
@@ -23165,8 +23435,14 @@ Modules["Modules/TBODSquared.luau"] = function()
     function TBODSquared.stop()
     	TBODSquared.setAutoPurchase(false)
     	TBODSquared.setAutoRebirth(false)
-    	TBODSquared.setConveyorBoost(false)
-    	TBODSquared.setDropVacuum(false)
+    	if purchaseThread then
+    		task.cancel(purchaseThread)
+    		purchaseThread = nil
+    	end
+    	if rebirthThread then
+    		task.cancel(rebirthThread)
+    		rebirthThread = nil
+    	end
     	cachedTycoon = nil
     end
 
@@ -23229,6 +23505,15 @@ pcall(function()
 	end
 end)
 
+-- Clean up previous execution lifecycle if active
+if _G.__ModularMain_Cleanup then
+	pcall(_G.__ModularMain_Cleanup)
+	_G.__ModularMain_Cleanup = nil
+end
+
+local mainConns: {RBXScriptConnection} = {}
+local mainThreads: {thread} = {}
+
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character
 local humanoid: Humanoid? = if character then character:FindFirstChildOfClass("Humanoid") else nil
@@ -23276,11 +23561,12 @@ if character then
 	updateCachedCharacterParts(character)
 end
 
-localPlayer.CharacterAdded:Connect(function(char)
+local charMainConn = localPlayer.CharacterAdded:Connect(function(char)
 	character = char
 	humanoid = char:WaitForChild("Humanoid", 5) :: Humanoid?
 	updateCachedCharacterParts(char)
 end)
+table.insert(mainConns, charMainConn)
 
 -- Disable overlapping default CoreGui elements and native Roblox TopBarApp
 local coreGuiOverlays = {
@@ -23461,7 +23747,7 @@ end
 task.spawn(disableCoreGuis)
 task.spawn(purgeBlackoutScreens)
 
-task.spawn(function()
+local pguiWatcherThread = task.spawn(function()
 	local pgui = localPlayer:WaitForChild("PlayerGui", 10)
 	if pgui then
 		for _, child in ipairs(pgui:GetChildren()) do
@@ -23470,7 +23756,7 @@ task.spawn(function()
 			end
 		end
 
-		pgui.ChildAdded:Connect(function(child)
+		local childConn = pgui.ChildAdded:Connect(function(child)
 			if isBlackoutObject(child) or child.Name:lower():find("elevator") or child.Name:lower():find("transition") then
 				task.defer(function() pcall(function() child:Destroy() end) end)
 			elseif child:IsA("ScreenGui") then
@@ -23488,10 +23774,12 @@ task.spawn(function()
 				end)
 			end
 		end)
+		table.insert(mainConns, childConn)
 	end
 end)
+table.insert(mainThreads, pguiWatcherThread)
 
-task.spawn(function()
+local blackoutLoopThread = task.spawn(function()
 	while true do
 		task.wait(0.35)
 		local pgui = localPlayer:FindFirstChildOfClass("PlayerGui")
@@ -23511,8 +23799,9 @@ task.spawn(function()
 		end
 	end
 end)
+table.insert(mainThreads, blackoutLoopThread)
 
-localPlayer.CharacterAdded:Connect(function(char)
+local charGuiConn = localPlayer.CharacterAdded:Connect(function(char)
 	task.spawn(function()
 		if isRobloxCoreHidden then
 			disableCoreGuis()
@@ -23524,6 +23813,7 @@ localPlayer.CharacterAdded:Connect(function(char)
 		hidePlayerGameGuis(isGameGuisHidden)
 	end)
 end)
+table.insert(mainConns, charGuiConn)
 
 
 -- Clean up previous enforcer if it exists
@@ -23567,7 +23857,7 @@ end
 
 _G.__ModularSuite_Window = window
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
+local tabKeyConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	local focused = UserInputService:GetFocusedTextBox()
 	if focused then return end
@@ -23580,6 +23870,33 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		end
 	end
 end)
+table.insert(mainConns, tabKeyConn)
+
+_G.__ModularMain_Cleanup = function()
+	for _, conn in ipairs(mainConns) do
+		pcall(function() conn:Disconnect() end)
+	end
+	table.clear(mainConns)
+
+	for _, thr in ipairs(mainThreads) do
+		pcall(task.cancel, thr)
+	end
+	table.clear(mainThreads)
+
+	if charDescendantAddedConn then
+		charDescendantAddedConn:Disconnect()
+		charDescendantAddedConn = nil
+	end
+	if charDescendantRemovingConn then
+		charDescendantRemovingConn:Disconnect()
+		charDescendantRemovingConn = nil
+	end
+	if _G.__ModularSuite_TopBarEnforcer then
+		pcall(task.cancel, _G.__ModularSuite_TopBarEnforcer)
+		_G.__ModularSuite_TopBarEnforcer = nil
+	end
+	table.clear(cachedCharacterParts)
+end
 
 local sharedEnv = {
 	cachedCharacterParts = cachedCharacterParts,

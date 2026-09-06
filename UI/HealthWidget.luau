@@ -425,7 +425,14 @@ function HealthWidget.new(): HealthWidgetInstance
 				pcall(function() conn:Disconnect() end)
 			end
 			table.clear(activeConns)
-			screenGui:Destroy()
+			pcall(function() screenGui:Destroy() end)
+		end,
+		Destroy = function()
+			for _, conn in ipairs(activeConns) do
+				pcall(function() conn:Disconnect() end)
+			end
+			table.clear(activeConns)
+			pcall(function() screenGui:Destroy() end)
 		end
 	}
 
@@ -435,6 +442,17 @@ function HealthWidget.new(): HealthWidgetInstance
 
 	widgetInstance = widgetObj
 	return widgetObj
+end
+
+function HealthWidget.Destroy()
+	if widgetInstance and widgetInstance.Cleanup then
+		pcall(widgetInstance.Cleanup)
+		widgetInstance = nil
+	end
+	if _G.__ModularHealth_Cleanup then
+		pcall(_G.__ModularHealth_Cleanup)
+		_G.__ModularHealth_Cleanup = nil
+	end
 end
 
 return HealthWidget

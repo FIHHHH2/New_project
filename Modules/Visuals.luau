@@ -785,7 +785,85 @@ end
 -- Automatic purge on script execution
 Visuals.removeAllVisuals()
 
+-- ── Auto Disable Visual Effects / Particles Optimizer ─────────────────
+Visuals.AutoDisableVisualEffects = false
+local disabledEffectsCache: { [Instance]: boolean } = {}
+local effectsDescendantAddedConn: RBXScriptConnection? = nil
+
+local EFFECT_CLASSES = {
+	"ParticleEmitter",
+	"Beam",
+	"Trail",
+	"Smoke",
+	"Fire",
+	"Sparkles",
+	"Explosion",
+	"BloomEffect",
+	"BlurEffect",
+	"ColorCorrectionEffect",
+	"SunRaysEffect",
+	"DepthOfFieldEffect"
+}
+
+local function isEffectInstance(inst: Instance): boolean
+	for _, className in ipairs(EFFECT_CLASSES) do
+		if inst:IsA(className) then
+			return true
+		end
+	end
+	return false
+end
+
+function Visuals.setAutoDisableVisualEffects(enabled: boolean)
+	Visuals.AutoDisableVisualEffects = enabled
+
+	if effectsDescendantAddedConn then
+		pcall(function() effectsDescendantAddedConn:Disconnect() end)
+		effectsDescendantAddedConn = nil
+	end
+
+	if enabled then
+		local roots = { Workspace, Lighting }
+		for _, root in ipairs(roots) do
+			for _, desc in ipairs(root:GetDescendants()) do
+				if isEffectInstance(desc) then
+					pcall(function()
+						local anyDesc = desc :: any
+						if anyDesc.Enabled == true then
+							disabledEffectsCache[desc] = true
+							anyDesc.Enabled = false
+						end
+					end)
+				end
+			end
+		end
+
+		effectsDescendantAddedConn = Workspace.DescendantAdded:Connect(function(desc)
+			if Visuals.AutoDisableVisualEffects and isEffectInstance(desc) then
+				pcall(function()
+					local anyDesc = desc :: any
+					if anyDesc.Enabled == true then
+						disabledEffectsCache[desc] = true
+						anyDesc.Enabled = false
+					end
+				end)
+			end
+		end)
+	else
+		for inst, wasEnabled in pairs(disabledEffectsCache) do
+			if inst and inst.Parent and wasEnabled then
+				pcall(function()
+					(inst :: any).Enabled = true
+				end)
+			end
+		end
+		table.clear(disabledEffectsCache)
+	end
+end
+
 function Visuals.cleanup()
+	Visuals.setAutoDisableVisualEffects(false)
+
 	-- 1. Clean and release all player visuals
 	for player, pv in pairs(playerVisuals) do
 		cleanPlayerVisual(pv)

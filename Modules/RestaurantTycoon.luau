@@ -490,4 +490,19 @@ function RestaurantTycoon.getTeleportLocations(): {string}
 	}
 end
 
+function RestaurantTycoon.cleanup()
+	RestaurantTycoon.setAutoCollectCash(false)
+	RestaurantTycoon.setAutoClearDishes(false)
+	RestaurantTycoon.setAutoTakeOrders(false)
+	RestaurantTycoon.setAutoSeatCustomers(false)
+	RestaurantTycoon.setAutoCollectTips(false)
+	RestaurantTycoon.setInstantCooking(false)
+	if cookingConn then
+		pcall(function() cookingConn:Disconnect() end)
+		cookingConn = nil
+	end
+end
+
+RestaurantTycoon.Destroy = RestaurantTycoon.cleanup
+
 return RestaurantTycoon

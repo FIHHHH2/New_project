@@ -241,4 +241,6 @@ function Notification.notifyFeature(featureName: string, state: boolean)
 	Notification.show("New Notification!", string.format("%s: %s", featureName, stateText))
 end
 
+Notification.Destroy = Notification.cleanup
+
 return Notification

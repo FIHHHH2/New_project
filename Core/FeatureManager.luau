@@ -512,7 +512,6 @@ local GAME_SLIDERS_MAP: {[string]: string} = {
 	["Coin Farm Speed"] = "mm2",
 	["Threat Radar Threshold (studs)"] = "mm2",
 	["Rebirth Essence Threshold"] = "tbod",
-	["TBOD Conveyor Boost"] = "tbod",
 	["Auto Purchase Delay (s)"] = "tbod"
 }
 

@@ -324,7 +324,8 @@ function Combat.getClosestTarget(ignoreWalls: boolean?): (Player?, BasePart?)
 end
 
 -- ── 60 FPS Continuous Target Solver ──────────────────────────────────
-RunService.Heartbeat:Connect(function()
+local targetSolverConn: RBXScriptConnection? = nil
+targetSolverConn = RunService.Heartbeat:Connect(function()
 	if not Combat.SilentAim and not Combat.AimTracking then
 		cachedTargetPlayer = nil
 		cachedTargetPart = nil
@@ -545,9 +546,11 @@ for _, player in ipairs(Players:GetPlayers()) do
 	setupPlayerCleanup(player)
 end
 
-Players.PlayerAdded:Connect(setupPlayerCleanup)
+local playerAddedConn: RBXScriptConnection? = nil
+playerAddedConn = Players.PlayerAdded:Connect(setupPlayerCleanup)
 
-Players.PlayerRemoving:Connect(function(player: Player)
+local playerRemovingConn: RBXScriptConnection? = nil
+playerRemovingConn = Players.PlayerRemoving:Connect(function(player: Player)
 	if player.Character then
 		local hrp = player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if hrp then
@@ -605,7 +608,8 @@ local function updateHitboxes()
 end
 
 local lastHitboxUpdate = 0
-RunService.Heartbeat:Connect(function()
+local hitboxConn: RBXScriptConnection? = nil
+hitboxConn = RunService.Heartbeat:Connect(function()
 	if Combat.ExpandHitboxes then
 		local now = tick()
 		if now - lastHitboxUpdate >= 0.1 then
@@ -626,6 +630,34 @@ function Combat.resetHitboxes()
 	end
 	table.clear(originalProperties)
 	table.clear(originalHitboxSizes)
+end
+
+function Combat.cleanup()
+	Combat.SilentAim = false
+	Combat.AimTracking = false
+	Combat.ExpandHitboxes = false
+	Combat.TriggerBot = false
+
+	if targetSolverConn then
+		pcall(function() targetSolverConn:Disconnect() end)
+		targetSolverConn = nil
+	end
+	if hitboxConn then
+		pcall(function() hitboxConn:Disconnect() end)
+		hitboxConn = nil
+	end
+	if playerAddedConn then
+		pcall(function() playerAddedConn:Disconnect() end)
+		playerAddedConn = nil
+	end
+	if playerRemovingConn then
+		pcall(function() playerRemovingConn:Disconnect() end)
+		playerRemovingConn = nil
+	end
+
+	Combat.resetHitboxes()
+	cachedTargetPlayer = nil
+	cachedTargetPart = nil
 end
 
 return Combat

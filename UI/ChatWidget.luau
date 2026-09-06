@@ -53,6 +53,8 @@ function ChatWidget.new(): ChatWidgetInstance
 		screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	end
 
+	local chatServiceConns: {RBXScriptConnection} = {}
+
 	-- Disable default Roblox CoreGuis cleanly while keeping Chat tree active for message tracking
 	local function disableRobloxCoreGuis()
 		pcall(function()
@@ -1663,7 +1665,7 @@ function ChatWidget.new(): ChatWidgetInstance
 	end)
 
 	-- Slash key opens & focuses chat input with smooth animation
-	UserInputService.InputBegan:Connect(function(input, _gameProcessed)
+	table.insert(chatServiceConns, UserInputService.InputBegan:Connect(function(input, _gameProcessed)
 		if not isWidgetEnabled then return end
 		if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Slash then
 			local focused = UserInputService:GetFocusedTextBox()
@@ -1687,12 +1689,12 @@ function ChatWidget.new(): ChatWidgetInstance
 				end)
 			end
 		end
-	end)
+	end))
 
 	-- ── Single Incoming Message Hook ─────────────────────────────────
 	if not useLegacyChat then
 		pcall(function()
-			TextChatService.MessageReceived:Connect(function(msg)
+			table.insert(chatServiceConns, TextChatService.MessageReceived:Connect(function(msg)
 				if not msg.TextSource then
 					if msg.Text and msg.Text ~= "" then
 						addMessage("System", msg.Text, msg.MessageId)
@@ -1705,7 +1707,7 @@ function ChatWidget.new(): ChatWidgetInstance
 				local player = Players:GetPlayerByUserId(msg.TextSource.UserId)
 				local name = if player then (player.DisplayName ~= "" and player.DisplayName or player.Name) else (msg.PrefixText ~= "" and msg.PrefixText:gsub(":$","") or "Server")
 				addMessage(name, msg.Text, msg.MessageId)
-			end)
+			end))
 		end)
 
 		pcall(function()
@@ -1713,7 +1715,7 @@ function ChatWidget.new(): ChatWidgetInstance
 			if tc then
 				local function hookChannel(ch: Instance)
 					if ch:IsA("TextChannel") then
-						ch.MessageReceived:Connect(function(msg)
+						table.insert(chatServiceConns, ch.MessageReceived:Connect(function(msg)
 							if not msg.TextSource then
 								if msg.Text and msg.Text ~= "" then
 									addMessage("System", msg.Text, msg.MessageId)
@@ -1724,13 +1726,13 @@ function ChatWidget.new(): ChatWidgetInstance
 							local player = Players:GetPlayerByUserId(msg.TextSource.UserId)
 							local name = if player then (player.DisplayName ~= "" and player.DisplayName or player.Name) else "Server"
 							addMessage(name, msg.Text, msg.MessageId)
-						end)
+						end))
 					end
 				end
 				for _, ch in ipairs(tc:GetChildren()) do
 					hookChannel(ch)
 				end
-				tc.ChildAdded:Connect(hookChannel)
+				table.insert(chatServiceConns, tc.ChildAdded:Connect(hookChannel))
 			end
 		end)
 	else
@@ -1738,11 +1740,11 @@ function ChatWidget.new(): ChatWidgetInstance
 			local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
 			local onMsg = chatEvents and chatEvents:FindFirstChild("OnMessageDoneFiltering")
 			if onMsg and onMsg:IsA("RemoteEvent") then
-				onMsg.OnClientEvent:Connect(function(data)
+				table.insert(chatServiceConns, onMsg.OnClientEvent:Connect(function(data)
 					if data and data.FromSpeaker and data.Message then
 						addMessage(tostring(data.FromSpeaker), tostring(data.Message))
 					end
-				end)
+				end))
 			end
 		end)
 	end
@@ -1764,6 +1766,14 @@ function ChatWidget.new(): ChatWidgetInstance
 
 	addMessage("System", "Chat connected.")
 
+	local function destroyWidget()
+		for _, c in ipairs(chatServiceConns) do
+			pcall(function() c:Disconnect() end)
+		end
+		table.clear(chatServiceConns)
+		pcall(function() screenGui:Destroy() end)
+	end
+
 	return {
 		Frame = widget,
 		Container = container,
@@ -1781,7 +1791,22 @@ function ChatWidget.new(): ChatWidgetInstance
 		Close = closeWidget,
 		Toggle = toggleWidget,
 		SetVisible = setWidgetVisible,
+		Destroy = destroyWidget,
+		Cleanup = destroyWidget,
 	}
+end
+
+function ChatWidget.Destroy()
+	pcall(function()
+		local CoreGui = game:GetService("CoreGui")
+		local g = CoreGui:FindFirstChild("ModularChatGui")
+		if g then g:Destroy() end
+		local pgui = Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui")
+		if pgui then
+			local pg = pgui:FindFirstChild("ModularChatGui")
+			if pg then pg:Destroy() end
+		end
+	end)
 end
 
 return ChatWidget

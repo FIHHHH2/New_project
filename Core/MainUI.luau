@@ -2181,19 +2181,17 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 				end
 			end)
 
-			-- Right Column: Conveyor & Physical Modifiers
-			local modifierSection = window:AddSection(tbodRightCol, "Conveyor & Physics Modifiers")
+			-- Right Column: Tycoon Teleports & Diagnostics
+			local statusSection = window:AddSection(tbodRightCol, "Tycoon Status & Cache")
 
-			window:AddToggle(modifierSection, "tbod_conveyor_boost", "Conveyor Speed Boost", false, nil, function(val)
-				TBODSquared.setConveyorBoost(val)
-			end)
-
-			window:AddSlider(modifierSection, "TBOD Conveyor Boost", 1, 10, 3, function(val)
-				TBODSquared.setConveyorMultiplier(val)
-			end)
-
-			window:AddToggle(modifierSection, "tbod_drop_vacuum", "Drop Collector Vacuum / Pull", false, nil, function(val)
-				TBODSquared.setDropVacuum(val)
+			window:AddButton(statusSection, "Refresh Tycoon Cache", function()
+				TBODSquared.clearCache()
+				local tyc = TBODSquared.getMyTycoon()
+				if tyc then
+					window:Notify("TBOD^2", "Tycoon detected: " .. tyc.Name, 2)
+				else
+					window:Notify("TBOD^2", "No owned Tycoon detected", 2)
+				end
 			end)
 
 			-- Teleport Section
@@ -2230,12 +2228,13 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 	local function setupVisualsTab(visualsTab)
 		-- ============================================================
 		-- 4. VISUALS TAB CONTENT (HORIZONTAL MINI SUB-TABS)
-		--    [ 2D Overlays & ESP ] [ 3D Chams & Skeletons ] [ ESP Customizer ] [ Widgets ]
+		--    [ 2D Overlays & ESP ] [ 3D Chams & Skeletons ] [ ESP Customizer ] [ Performance & Effects ] [ Widgets ]
 		-- ============================================================
-		local visSubTabs = window:CreateSubTabs(visualsTab, { "2D Overlays & ESP", "3D Chams & Skeletons", "ESP Customizer", "Widgets" })
+		local visSubTabs = window:CreateSubTabs(visualsTab, { "2D Overlays & ESP", "3D Chams & Skeletons", "ESP Customizer", "Performance & Effects", "Widgets" })
 		local esp2dSubTab = visSubTabs["2D Overlays & ESP"]
 		local chamsSubTab = visSubTabs["3D Chams & Skeletons"]
 		local customSubTab = visSubTabs["ESP Customizer"]
+		local perfSubTab = visSubTabs["Performance & Effects"]
 		local widgetsSubTab = visSubTabs["Widgets"]
 
 		-- ── VISUALS SUB-TAB 1: 2D OVERLAYS & ESP ──
@@ -2365,7 +2364,24 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			window:Notify("Palette", "Ruby Palette applied", 2)
 		end)
 
-		-- ── VISUALS SUB-TAB 4: WIDGETS (DEDICATED HUD & OVERLAY CONFIGURATION) ──
+		-- ── VISUALS SUB-TAB 4: PERFORMANCE & EFFECTS ──
+		local pLeftCol, pRightCol = window:CreateColumns(perfSubTab)
+
+		local effectSection = window:AddSection(pLeftCol, "Particle & Effect Silencer")
+
+		window:AddToggle(effectSection, "auto_disable_visual_effects", "Auto Disable Visual Effects / Particles", false, nil, function(enabled)
+			Visuals.setAutoDisableVisualEffects(enabled)
+			window:Notify("Performance", if enabled then "Visual effects & particles suppressed" else "Visual effects & particles restored", 2)
+		end)
+
+		local worldSection = window:AddSection(pRightCol, "World Optimization")
+
+		window:AddButton(worldSection, "Purge Blackout / Screen Overlays", function()
+			sharedEnv.purgeBlackoutScreens()
+			window:Notify("Performance", "Purged screen blackout overlays", 2)
+		end)
+
+		-- ── VISUALS SUB-TAB 5: WIDGETS (DEDICATED HUD & OVERLAY CONFIGURATION) ──
 		local wLeftCol, wRightCol = window:CreateColumns(widgetsSubTab)
 
 		-- Left Column: Master Controls & Core Peripheral HUDs
@@ -3339,19 +3355,53 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 
 	-- Register global cleanup function for hot-reload and multi-execution safety
 	_G.__ModularSuite_Cleanup = function()
-		pcall(function() Visuals.removeAllVisuals() end)
-		pcall(function() Combat.resetHitboxes() end)
-		pcall(function() MurderMystery2.Destroy() end)
+		if _G.__ModularMain_Cleanup then
+			pcall(_G.__ModularMain_Cleanup)
+			_G.__ModularMain_Cleanup = nil
+		end
+		pcall(function() Visuals.cleanup() end)
+		pcall(function() Combat.cleanup() end)
+		pcall(function()
+			local Movement = require("Modules/Movement.luau")
+			if Movement and Movement.cleanup then Movement.cleanup() end
+		end)
 		pcall(function() TBODSquared.stop() end)
+		pcall(function() MurderMystery2.Destroy() end)
+		pcall(function() DisasterSurvival.cleanup() end)
+		pcall(function() RunNHide.cleanup() end)
+		pcall(function() SeekerVsHider.cleanup() end)
+		pcall(function() IceTycoon.cleanup() end)
+		pcall(function() LuckyBlocks.cleanup() end)
+		pcall(function() RestaurantTycoon.cleanup() end)
 		pcall(function() window:Destroy() end)
 		pcall(function() Notification:Destroy() end)
-		pcall(function() PlayerList:Destroy() end)
-		pcall(function() ChatWidget:Destroy() end)
+		pcall(function() if playerListWidget and playerListWidget.Destroy then playerListWidget:Destroy() end end)
+		pcall(function()
+			local PL = require("UI/PlayerList.luau")
+			if PL and PL.Destroy then PL:Destroy() end
+		end)
+		pcall(function() if chatWidgetInstance and chatWidgetInstance.Destroy then chatWidgetInstance:Destroy() end end)
+		pcall(function()
+			local CW = require("UI/ChatWidget.luau")
+			if CW and CW.Destroy then CW:Destroy() end
+		end)
+		pcall(function() if musicTrackerWidget and musicTrackerWidget.Destroy then musicTrackerWidget:Destroy() end end)
 		pcall(function() MusicTracker:Destroy() end)
-		pcall(function() Hotbar.Destroy() end)
+		pcall(function() if hotbarWidget and hotbarWidget.Destroy then hotbarWidget:Destroy() end end)
+		pcall(function()
+			local HB = require("UI/Hotbar.luau")
+			if HB and HB.Destroy then HB.Destroy() end
+		end)
 		if _G.__ModularHotbar_Cleanup then pcall(_G.__ModularHotbar_Cleanup) end
-		pcall(function() LeaderstatsWidget:Destroy() end)
-		pcall(function() HealthWidget:Destroy() end)
+		pcall(function() if leaderstatsWidget and leaderstatsWidget.Destroy then leaderstatsWidget:Destroy() end end)
+		pcall(function()
+			local LW = require("UI/LeaderstatsWidget.luau")
+			if LW and LW.Destroy then LW:Destroy() end
+		end)
+		pcall(function() if healthWidget and healthWidget.Destroy then healthWidget:Destroy() end end)
+		pcall(function()
+			local HW = require("UI/HealthWidget.luau")
+			if HW and HW.Destroy then HW:Destroy() end
+		end)
 	end
-
 end

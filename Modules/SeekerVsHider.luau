@@ -564,16 +564,21 @@ task.spawn(function()
 	SeekerVsHider.applyWeaponConfigs()
 end)
 
+-- Store connections for clean reload
+local svhCharAddedConn: RBXScriptConnection? = nil
+local svhChildAddedConn: RBXScriptConnection? = nil
+
 -- Hook character/backpack added to re-apply weapon configs on weapon equip (Zero per-frame loop)
 if LocalPlayer.Character then
-	LocalPlayer.Character.ChildAdded:Connect(function()
+	svhChildAddedConn = LocalPlayer.Character.ChildAdded:Connect(function()
 		task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
 	end)
 end
 
-LocalPlayer.CharacterAdded:Connect(function(char)
+svhCharAddedConn = LocalPlayer.CharacterAdded:Connect(function(char)
 	task.delay(0.5, SeekerVsHider.applyWeaponConfigs)
-	char.ChildAdded:Connect(function()
+	if svhChildAddedConn then svhChildAddedConn:Disconnect() end
+	svhChildAddedConn = char.ChildAdded:Connect(function()
 		task.delay(0.15, SeekerVsHider.applyWeaponConfigs)
 	end)
 end)
@@ -596,5 +601,26 @@ weaponConfigConn = RunService.Heartbeat:Connect(function()
 		end
 	end
 end)
+
+function SeekerVsHider.cleanup()
+	if weaponConfigConn then
+		weaponConfigConn:Disconnect()
+		weaponConfigConn = nil
+	end
+	if svhCharAddedConn then
+		svhCharAddedConn:Disconnect()
+		svhCharAddedConn = nil
+	end
+	if svhChildAddedConn then
+		svhChildAddedConn:Disconnect()
+		svhChildAddedConn = nil
+	end
+	if SeekerVsHider.VoidSafetyPlat then
+		pcall(function() SeekerVsHider.VoidSafetyPlat:Destroy() end)
+		SeekerVsHider.VoidSafetyPlat = nil
+	end
+end
+
+SeekerVsHider.Destroy = SeekerVsHider.cleanup
 
 return SeekerVsHider

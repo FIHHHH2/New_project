@@ -1,7 +1,7 @@
 {
-  "version": "1.4.9",
+  "version": "1.5.0",
   "name": "Project Fih MusicBridge",
-  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.4.9",
+  "release_url": "https://github.com/FIHHHH2/New_project/releases/tag/v1.5.0",
   "download_url": "https://github.com/FIHHHH2/New_project/raw/main/dist/MusicBridge.exe",
-  "changelog": "Strict synchronized lyrics matching with duration validation, timestamp fallback indicators, and stationary bounding box with smooth text translation."
+  "changelog": "Unified single-loop WinRT media pipeline, instant virtual media key fallback for skipping/toggling, 64-bit raw input sink fix, and multi-tier online album cover art search."
 }

@@ -34,7 +34,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 APP_NAME = "ModularMusicBridge"
-VERSION = "1.4.9"
+VERSION = "1.5.0"
 REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PORT = 8888
 VERSION_URL = "https://raw.githubusercontent.com/FIHHHH2/New_project/main/version.json"
@@ -270,29 +270,55 @@ def set_startup(enable: bool):
         pass
 
 # ── Online Album Cover Art Fetcher (iTunes / Deezer / Web) ─────────
+GENERIC_ARTISTS = {
+    "google chrome", "chrome", "microsoft edge", "msedge", "edge",
+    "firefox", "brave", "opera", "opera gx", "vivaldi", "unknown artist",
+    "unknown", "youtube", "soundcloud", "spotify", "music", "apple music"
+}
+
 def download_cover_image_bytes(title: str, artist: str) -> bytes:
     global cover_version_counter
-    clean_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*|prod\..*', '', title, flags=re.IGNORECASE).strip()
-    cache_key = f"{clean_title}_{artist}".lower()
+    clean_title = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*|prod\..*|- remastered.*|- official.*', '', title, flags=re.IGNORECASE).strip()
+    clean_artist = re.sub(r'\(.*?\)|\[.*?\]|ft\..*|feat\..*|prod\..*', '', artist, flags=re.IGNORECASE).strip()
+
+    # If artist is generic or empty, attempt parsing "Artist - Title" format
+    if not clean_artist or clean_artist.lower() in GENERIC_ARTISTS:
+        if " - " in clean_title:
+            parts = clean_title.split(" - ", 1)
+            clean_artist = parts[0].strip()
+            clean_title = parts[1].strip()
+        elif " — " in clean_title:
+            parts = clean_title.split(" — ", 1)
+            clean_artist = parts[0].strip()
+            clean_title = parts[1].strip()
+
+    cache_key = f"{clean_title}_{clean_artist}".lower().strip()
     if cache_key in cover_cache:
         return cover_cache[cache_key]
 
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
+    # Search candidates: both combined and title-only
+    search_queries = []
+    if clean_title and clean_artist and clean_artist.lower() not in GENERIC_ARTISTS:
+        search_queries.append(f"{clean_title} {clean_artist}".strip())
+    if clean_title:
+        search_queries.append(clean_title)
+
     # 1. Try iTunes Search API
-    for q_str in [f"{clean_title} {artist}".strip(), clean_title]:
+    for q_str in search_queries:
         try:
             q = urllib.parse.quote(q_str)
             url = f"https://itunes.apple.com/search?term={q}&entity=song&limit=1"
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=3.5) as resp:
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
                 data = json.loads(resp.read().decode("utf-8-sig"))
                 if data.get("resultCount", 0) > 0:
                     art_url = data["results"][0].get("artworkUrl100", "")
                     if art_url:
                         high_res = art_url.replace("100x100bb", "600x600bb")
                         img_req = urllib.request.Request(high_res, headers=headers)
-                        with urllib.request.urlopen(img_req, timeout=4.0) as img_resp:
+                        with urllib.request.urlopen(img_req, timeout=3.5) as img_resp:
                             img_bytes = img_resp.read()
                             if len(img_bytes) > 200:
                                 cover_cache[cache_key] = img_bytes
@@ -303,26 +329,27 @@ def download_cover_image_bytes(title: str, artist: str) -> bytes:
             pass
 
     # 2. Try Deezer Search API (Fallback)
-    try:
-        q = urllib.parse.quote(f"{clean_title} {artist}".strip())
-        url = f"https://api.deezer.com/search?q={q}&limit=1"
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3.5) as resp:
-            data = json.loads(resp.read().decode("utf-8-sig"))
-            if data.get("data") and len(data["data"]) > 0:
-                album = data["data"][0].get("album", {})
-                art_url = album.get("cover_xl") or album.get("cover_big") or album.get("cover_medium")
-                if art_url:
-                    img_req = urllib.request.Request(art_url, headers=headers)
-                    with urllib.request.urlopen(img_req, timeout=4.0) as img_resp:
-                        img_bytes = img_resp.read()
-                        if len(img_bytes) > 200:
-                            cover_cache[cache_key] = img_bytes
-                            cover_version_counter += 1
-                            current_media["theme"] = extract_palette(img_bytes)
-                            return img_bytes
-    except Exception:
-        pass
+    for q_str in search_queries:
+        try:
+            q = urllib.parse.quote(q_str)
+            url = f"https://api.deezer.com/search?q={q}&limit=1"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                data = json.loads(resp.read().decode("utf-8-sig"))
+                if data.get("data") and len(data["data"]) > 0:
+                    album = data["data"][0].get("album", {})
+                    art_url = album.get("cover_xl") or album.get("cover_big") or album.get("cover_medium")
+                    if art_url:
+                        img_req = urllib.request.Request(art_url, headers=headers)
+                        with urllib.request.urlopen(img_req, timeout=3.5) as img_resp:
+                            img_bytes = img_resp.read()
+                            if len(img_bytes) > 200:
+                                cover_cache[cache_key] = img_bytes
+                                cover_version_counter += 1
+                                current_media["theme"] = extract_palette(img_bytes)
+                                return img_bytes
+        except Exception:
+            pass
 
     return b""
 
@@ -549,20 +576,42 @@ def get_current_lyric_line(title: str, artist: str, position: float, duration: f
 last_song_query = ""
 last_track_id = ""
 clock_base_pos = 0.0
-clock_sync_time = 0.0
-last_timeline_pos = -1.0
+_cached_session_mgr = None
+_shared_media_loop = None
+_media_cmd_lock = threading.Lock()
+_last_media_cmd_time = 0.0
+DEBOUNCE_INTERVAL = 0.20
 
-PREFERRED_SOURCE_IDS = ["spotify", "spicetify", "spotifyab", "itunes", "music"]
+async def get_session_manager():
+    global _cached_session_mgr
+    if _cached_session_mgr is not None:
+        return _cached_session_mgr
+    try:
+        from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionManager as SessionManager
+        mgr = await asyncio.wait_for(SessionManager.request_async(), timeout=2.0)
+        _cached_session_mgr = mgr
+        return mgr
+    except Exception:
+        _cached_session_mgr = None
+        return None
 
 def pick_best_session(manager):
     """Prioritizes actively playing media (Spotify > any browser/app) over paused apps."""
+    if not manager:
+        return None
     try:
         sessions = manager.get_sessions()
-        if not sessions:
-            return manager.get_current_session()
-        all_sessions = list(sessions)
+        all_sessions = list(sessions) if sessions else []
     except Exception:
-        return manager.get_current_session()
+        global _cached_session_mgr
+        _cached_session_mgr = None
+        return None
+
+    if not all_sessions:
+        try:
+            return manager.get_current_session()
+        except Exception:
+            return None
 
     # 1. Any preferred source that is actively playing (playback_status == 4)
     for s in all_sessions:
@@ -576,7 +625,7 @@ def pick_best_session(manager):
         except Exception:
             pass
 
-    # 2. ANY session that is actively playing (YouTube, SoundCloud in Chrome, Edge, Firefox, Brave, etc.)
+    # 2. ANY session that is actively playing
     for s in all_sessions:
         try:
             pb = s.get_playback_info()
@@ -585,11 +634,10 @@ def pick_best_session(manager):
         except Exception:
             pass
 
-    # 3. System current session if designated by Windows SMTC
+    # 3. System current session
     try:
         cur = manager.get_current_session()
-        if cur:
-            return cur
+        if cur: return cur
     except Exception:
         pass
 
@@ -598,275 +646,249 @@ def pick_best_session(manager):
         try:
             src = (s.source_app_user_model_id or "").lower()
             for pref in PREFERRED_SOURCE_IDS:
-                if pref in src:
-                    return s
+                if pref in src: return s
         except Exception:
             pass
 
-    # 5. Fall back to first available session
     return all_sessions[0] if all_sessions else None
 
 async def fetch_windows_media():
     global current_cover_bytes, last_song_query, cover_version_counter
     global last_track_id, clock_base_pos, clock_sync_time, last_timeline_pos
     try:
-        from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionManager as SessionManager
         from winrt.windows.storage.streams import DataReader
-        manager = await SessionManager.request_async()
+        manager = await get_session_manager()
         if not manager:
             return
 
         session = pick_best_session(manager)
+        if not session:
+            return
 
-        if session:
-            playback = session.get_playback_info()
-            timeline = session.get_timeline_properties()
-            media_props = await session.try_get_media_properties_async()
+        playback = session.get_playback_info()
+        timeline = session.get_timeline_properties()
+        media_props = await asyncio.wait_for(session.try_get_media_properties_async(), timeout=1.5)
 
-            if media_props:
-                t = media_props.title or "Unknown Track"
-                a = media_props.artist or "Unknown Artist"
-                is_playing = (int(playback.playback_status) == 4) if playback and playback.playback_status is not None else True
+        if media_props:
+            t = (media_props.title or "").strip()
+            a = (media_props.artist or "").strip()
+            if not t: t = "Unknown Track"
+            if not a: a = "Unknown Artist"
 
-                current_media["title"] = t
-                current_media["artist"] = a
-                current_media["isPlaying"] = is_playing
+            is_playing = (int(playback.playback_status) == 4) if playback and playback.playback_status is not None else True
 
-                track_id = f"{t}_{a}".lower()
-                now = time.time()
+            current_media["title"] = t
+            current_media["artist"] = a
+            current_media["isPlaying"] = is_playing
 
-                tl_pos = 0.0
-                tl_dur = 0.0
-                has_timeline_pos = False
+            track_id = f"{t}_{a}".lower()
+            now = time.time()
 
-                if timeline:
-                    if timeline.position is not None:
-                        tl_pos = timeline.position.total_seconds()
-                        has_timeline_pos = True
-                    if timeline.end_time is not None:
-                        tl_dur = timeline.end_time.total_seconds()
+            tl_pos = 0.0
+            tl_dur = 0.0
+            has_timeline_pos = False
 
-                if track_id != last_track_id:
-                    last_track_id = track_id
+            if timeline:
+                if timeline.position is not None:
+                    tl_pos = timeline.position.total_seconds()
+                    has_timeline_pos = True
+                if timeline.end_time is not None:
+                    tl_dur = timeline.end_time.total_seconds()
+
+            if track_id != last_track_id:
+                last_track_id = track_id
+                clock_base_pos = tl_pos
+                clock_sync_time = now
+                last_timeline_pos = tl_pos
+                current_media["lyrics"] = "Loading lyrics..."
+                current_media["has_synced_lyrics"] = False
+                current_media["lyric_status"] = "loading"
+                current_media["synced_lyrics"] = []
+                current_media["current_word"] = ""
+            else:
+                if has_timeline_pos and abs(tl_pos - last_timeline_pos) > 1.2:
                     clock_base_pos = tl_pos
                     clock_sync_time = now
                     last_timeline_pos = tl_pos
-                    # Immediate lyrics reset to prevent any stale lyrics leak
-                    current_media["lyrics"] = "Loading lyrics..."
-                    current_media["has_synced_lyrics"] = False
-                    current_media["lyric_status"] = "loading"
-                    current_media["synced_lyrics"] = []
-                    current_media["current_word"] = ""
-                else:
-                    if has_timeline_pos and abs(tl_pos - last_timeline_pos) > 1.2:
-                        clock_base_pos = tl_pos
-                        clock_sync_time = now
-                        last_timeline_pos = tl_pos
 
-                # Safe elapsed calculation across naive and aware timestamps
-                lut_elapsed = None
-                if is_playing and timeline and timeline.last_updated_time:
-                    lut = timeline.last_updated_time
-                    try:
-                        if hasattr(lut, "tzinfo") and lut.tzinfo is not None:
-                            lut_elapsed = (datetime.datetime.now(datetime.timezone.utc) - lut).total_seconds()
-                        elif hasattr(lut, "timestamp"):
-                            lut_elapsed = now - lut.timestamp()
-                        else:
-                            lut_elapsed = (datetime.datetime.now() - lut).total_seconds()
-                        if not (0 <= lut_elapsed < 7200):
-                            lut_elapsed = None
-                    except Exception:
-                        lut_elapsed = None
-
-                if is_playing:
-                    if lut_elapsed is not None:
-                        calc_pos = tl_pos + lut_elapsed
+            lut_elapsed = None
+            if is_playing and timeline and timeline.last_updated_time:
+                lut = timeline.last_updated_time
+                try:
+                    if hasattr(lut, "tzinfo") and lut.tzinfo is not None:
+                        lut_elapsed = (datetime.datetime.now(datetime.timezone.utc) - lut).total_seconds()
+                    elif hasattr(lut, "timestamp"):
+                        lut_elapsed = now - lut.timestamp()
                     else:
-                        calc_pos = clock_base_pos + (now - clock_sync_time)
-                else:
-                    calc_pos = clock_base_pos
-                    clock_sync_time = now
+                        lut_elapsed = (datetime.datetime.now() - lut).total_seconds()
+                    if not (0 <= lut_elapsed < 7200): lut_elapsed = None
+                except Exception:
+                    lut_elapsed = None
 
-                if tl_dur > 0:
-                    calc_pos = max(0.0, min(calc_pos, tl_dur))
-                else:
-                    calc_pos = max(0.0, calc_pos)
+            if is_playing:
+                calc_pos = tl_pos + lut_elapsed if lut_elapsed is not None else clock_base_pos + (now - clock_sync_time)
+            else:
+                calc_pos = clock_base_pos
+                clock_sync_time = now
 
-                current_media["position"] = round(calc_pos, 2)
-                current_media["duration"] = round(tl_dur, 2)
+            calc_pos = max(0.0, min(calc_pos, tl_dur)) if tl_dur > 0 else max(0.0, calc_pos)
 
-                song_query = f"{t}_{a}".lower()
-                if song_query != last_song_query:
-                    last_song_query = song_query
-                    got_native_cover = False
-                    if media_props.thumbnail:
-                        try:
-                            stream = await media_props.thumbnail.open_read_async()
+            current_media["position"] = round(calc_pos, 2)
+            current_media["duration"] = round(tl_dur, 2)
+
+            song_query = f"{t}_{a}".lower()
+            if song_query != last_song_query:
+                last_song_query = song_query
+                got_cover = False
+
+                if song_query in cover_cache and len(cover_cache[song_query]) > 50:
+                    current_cover_bytes = cover_cache[song_query]
+                    cover_version_counter += 1
+                    current_media["coverVersion"] = cover_version_counter
+                    current_media["hasCover"] = True
+                    current_media["theme"] = extract_palette(current_cover_bytes)
+                    got_cover = True
+
+                if not got_cover and media_props.thumbnail:
+                    try:
+                        stream = await asyncio.wait_for(media_props.thumbnail.open_read_async(), timeout=1.5)
+                        if stream and stream.size > 0:
                             reader = DataReader(stream.get_input_stream_at(0))
-                            await reader.load_async(stream.size)
+                            await asyncio.wait_for(reader.load_async(stream.size), timeout=1.5)
                             buf = bytearray(stream.size)
                             reader.read_bytes(buf)
                             if len(buf) > 100:
                                 current_cover_bytes = bytes(buf)
+                                cover_cache[song_query] = current_cover_bytes
                                 cover_version_counter += 1
                                 current_media["coverVersion"] = cover_version_counter
                                 current_media["hasCover"] = True
                                 current_media["theme"] = extract_palette(current_cover_bytes)
-                                got_native_cover = True
-                        except Exception:
-                            pass
+                                got_cover = True
+                    except Exception:
+                        pass
 
-                    if not got_native_cover:
-                        def download_bg():
-                            global current_cover_bytes, cover_version_counter
-                            img = download_cover_image_bytes(t, a)
-                            if img and len(img) > 50:
+                if not got_cover:
+                    def download_bg(target_q, track_t, track_a):
+                        global current_cover_bytes, cover_version_counter
+                        img = download_cover_image_bytes(track_t, track_a)
+                        if img and len(img) > 50:
+                            cover_cache[target_q] = img
+                            if last_song_query == target_q:
                                 current_cover_bytes = img
                                 cover_version_counter += 1
                                 current_media["coverVersion"] = cover_version_counter
                                 current_media["hasCover"] = True
                                 current_media["theme"] = extract_palette(img)
-                        threading.Thread(target=download_bg, daemon=True).start()
+                    threading.Thread(target=download_bg, args=(song_query, t, a), daemon=True).start()
 
-                current_media["hasCover"] = len(current_cover_bytes) > 0
-                current_media["coverVersion"] = cover_version_counter
+            current_media["hasCover"] = len(current_cover_bytes) > 50
+            current_media["coverVersion"] = cover_version_counter
 
-                lyric_status = get_current_lyric_status(t, a, calc_pos, tl_dur)
-                current_media["lyrics"] = lyric_status.get("text", "No lyrics available")
-                current_media["has_synced_lyrics"] = lyric_status.get("has_synced", False)
-                current_media["lyric_status"] = lyric_status.get("status", "none")
-                current_media["synced_lyrics"] = lyric_status.get("lines", [])
-                current_media["current_word"] = ""
+            lyric_status = get_current_lyric_status(t, a, calc_pos, tl_dur)
+            current_media["lyrics"] = lyric_status.get("text", "No lyrics available")
+            current_media["has_synced_lyrics"] = lyric_status.get("has_synced", False)
+            current_media["lyric_status"] = lyric_status.get("status", "none")
+            current_media["synced_lyrics"] = lyric_status.get("lines", [])
+            current_media["current_word"] = ""
     except Exception:
         pass
 
 async def send_media_control(cmd: str) -> bool:
     try:
-        import winrt.windows.foundation.collections
-        from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionManager as SessionManager
-        manager = await SessionManager.request_async()
-        if not manager:
-            return False
+        manager = await get_session_manager()
+        if not manager: return False
         session = pick_best_session(manager)
         if not session:
-            session = manager.get_current_session()
+            try: session = manager.get_current_session()
+            except Exception: session = None
+
         if session:
             if cmd == "toggle":
-                result = await session.try_toggle_play_pause_async()
+                result = await asyncio.wait_for(session.try_toggle_play_pause_async(), timeout=0.8)
                 if not result:
                     pb = session.get_playback_info()
                     if pb and int(pb.playback_status) == 4:
-                        result = await session.try_pause_async()
+                        result = await asyncio.wait_for(session.try_pause_async(), timeout=0.8)
                     else:
-                        result = await session.try_play_async()
+                        result = await asyncio.wait_for(session.try_play_async(), timeout=0.8)
                 print(f"[MediaControl] WinRT toggle -> {result}")
                 return bool(result)
             elif cmd == "pause":
-                result = await session.try_pause_async()
+                result = await asyncio.wait_for(session.try_pause_async(), timeout=0.8)
                 if not result:
-                    result = await session.try_toggle_play_pause_async()
+                    result = await asyncio.wait_for(session.try_toggle_play_pause_async(), timeout=0.8)
                 print(f"[MediaControl] WinRT pause -> {result}")
                 return bool(result)
             elif cmd == "play":
-                result = await session.try_play_async()
+                result = await asyncio.wait_for(session.try_play_async(), timeout=0.8)
                 if not result:
-                    result = await session.try_toggle_play_pause_async()
+                    result = await asyncio.wait_for(session.try_toggle_play_pause_async(), timeout=0.8)
                 print(f"[MediaControl] WinRT play -> {result}")
                 return bool(result)
             elif cmd == "skip":
-                result = await session.try_skip_next_async()
+                result = await asyncio.wait_for(session.try_skip_next_async(), timeout=0.8)
                 print(f"[MediaControl] WinRT skip -> {result}")
                 return bool(result)
             elif cmd == "prev":
-                result = await session.try_skip_previous_async()
+                result = await asyncio.wait_for(session.try_skip_previous_async(), timeout=0.8)
                 print(f"[MediaControl] WinRT prev -> {result}")
                 return bool(result)
     except Exception as e:
         print(f"[MediaControl] WinRT error: {e}")
     return False
 
-# Persistent dedicated event loop for media control commands (avoids asyncio.run conflicts)
-_media_ctrl_loop: asyncio.AbstractEventLoop | None = None
-_media_ctrl_loop_lock = threading.Lock()
-_last_media_cmd_time = 0.0
-_media_cmd_lock = threading.Lock()
-DEBOUNCE_INTERVAL = 0.25
-
-def _get_or_create_media_ctrl_loop() -> asyncio.AbstractEventLoop:
-    global _media_ctrl_loop
-    with _media_ctrl_loop_lock:
-        if _media_ctrl_loop is None or _media_ctrl_loop.is_closed():
-            loop = asyncio.new_event_loop()
-            _media_ctrl_loop = loop
-            t = threading.Thread(target=loop.run_forever, daemon=True, name="MediaCtrlLoop")
-            t.start()
-        return _media_ctrl_loop
-
 def send_virtual_media_key(vk: int):
-    """Sends clean media key event by temporarily releasing modifiers to avoid player shortcut interference."""
+    """Sends clean hardware-level extended media key event with automatic modifier release."""
     user32 = ctypes.windll.user32
+    KEYEVENTF_EXTENDEDKEY = 0x0001
     KEYEVENTF_KEYUP = 0x0002
 
     ctrl_down = bool(user32.GetAsyncKeyState(0x11) & 0x8000)
     alt_down = bool(user32.GetAsyncKeyState(0x12) & 0x8000)
     shift_down = bool(user32.GetAsyncKeyState(0x10) & 0x8000)
 
-    # Release any held modifiers
     if ctrl_down: user32.keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0)
     if alt_down: user32.keybd_event(0x12, 0, KEYEVENTF_KEYUP, 0)
     if shift_down: user32.keybd_event(0x10, 0, KEYEVENTF_KEYUP, 0)
 
-    time.sleep(0.015)
-    user32.keybd_event(vk, 0, 0, 0)
-    time.sleep(0.035)
-    user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
+    time.sleep(0.010)
+    user32.keybd_event(vk, 0, KEYEVENTF_EXTENDEDKEY, 0)
+    time.sleep(0.030)
+    user32.keybd_event(vk, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0)
 
-    # Restore held modifiers
-    if ctrl_down and (user32.GetAsyncKeyState(0x11) & 0x8000):
-        user32.keybd_event(0x11, 0, 0, 0)
-    if alt_down and (user32.GetAsyncKeyState(0x12) & 0x8000):
-        user32.keybd_event(0x12, 0, 0, 0)
-    if shift_down and (user32.GetAsyncKeyState(0x10) & 0x8000):
-        user32.keybd_event(0x10, 0, 0, 0)
+    if ctrl_down and (user32.GetAsyncKeyState(0x11) & 0x8000): user32.keybd_event(0x11, 0, 0, 0)
+    if alt_down and (user32.GetAsyncKeyState(0x12) & 0x8000): user32.keybd_event(0x12, 0, 0, 0)
+    if shift_down and (user32.GetAsyncKeyState(0x10) & 0x8000): user32.keybd_event(0x10, 0, 0, 0)
 
 def trigger_media_command(cmd: str) -> bool:
-    """Executes media command via WinRT session manager or virtual media key fallback with debounce."""
+    """Executes media command via WinRT session manager with instant virtual media key fallback."""
     global _last_media_cmd_time
     with _media_cmd_lock:
         now = time.time()
-        if (now - _last_media_cmd_time) < DEBOUNCE_INTERVAL:
-            return True
+        if (now - _last_media_cmd_time) < DEBOUNCE_INTERVAL: return True
         _last_media_cmd_time = now
 
-    success = False
-    try:
-        loop = _get_or_create_media_ctrl_loop()
-        future = asyncio.run_coroutine_threadsafe(send_media_control(cmd), loop)
-        success = future.result(timeout=1.5)
-    except Exception as e:
-        print(f"[MediaControl] WinRT dispatch error: {e}")
+    vk_map = {
+        "skip": 0xB0, "prev": 0xB1, "toggle": 0xB3, "pause": 0xB3, "play": 0xB3
+    }
+    vk = vk_map.get(cmd)
 
-    if not success:
-        VK_MEDIA_NEXT_TRACK = 0xB0
-        VK_MEDIA_PREV_TRACK = 0xB1
-        VK_MEDIA_PLAY_PAUSE = 0xB3
-        vk_map = {
-            "skip": VK_MEDIA_NEXT_TRACK,
-            "prev": VK_MEDIA_PREV_TRACK,
-            "toggle": VK_MEDIA_PLAY_PAUSE,
-            "pause": VK_MEDIA_PLAY_PAUSE,
-            "play": VK_MEDIA_PLAY_PAUSE
-        }
-        vk = vk_map.get(cmd)
-        if vk:
-            try:
-                send_virtual_media_key(vk)
-                print(f"[MediaControl] Dispatched virtual media key 0x{vk:02X} for: {cmd}")
-                success = True
-            except Exception as ke:
-                print(f"[MediaControl] Keybd fallback error: {ke}")
-    return success
+    dispatched = False
+    if _shared_media_loop and not _shared_media_loop.is_closed():
+        try:
+            future = asyncio.run_coroutine_threadsafe(send_media_control(cmd), _shared_media_loop)
+            if future.result(timeout=0.40): dispatched = True
+        except Exception: pass
+
+    if not dispatched and vk:
+        try:
+            send_virtual_media_key(vk)
+            print(f"[MediaControl] Dispatched virtual media key 0x{vk:02X} for: {cmd}")
+            dispatched = True
+        except Exception as ke:
+            print(f"[MediaControl] Keybd fallback error: {ke}")
+    return dispatched
 
 # ── Configurable Global Hotkeys & Persistence ──────────────────────
 VK_NAMES = {
@@ -1157,20 +1179,34 @@ def setup_global_hotkeys():
         ]
 
     cls_name = "MusicBridgeRawInputSink"
-    wc = WNDCLASSW()
-    wc.lpfnWndProc = proc_holder
-    wc.hInstance = kernel32.GetModuleHandleW(None)
-    wc.lpszClassName = cls_name
-    user32.RegisterClassW(ctypes.byref(wc))
+    try:
+        user32.CreateWindowExW.argtypes = [
+            wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+            ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+            wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID
+        ]
+        user32.CreateWindowExW.restype = wintypes.HWND
+        user32.RegisterClassW.argtypes = [ctypes.c_void_p]
+        user32.RegisterClassW.restype = wintypes.ATOM
+        user32.RegisterRawInputDevices.argtypes = [ctypes.c_void_p, wintypes.UINT, wintypes.UINT]
+        user32.RegisterRawInputDevices.restype = wintypes.BOOL
 
-    sink_hwnd = user32.CreateWindowExW(0, cls_name, "Sink", 0, 0, 0, 0, 0, None, None, wc.hInstance, None)
+        wc = WNDCLASSW()
+        wc.lpfnWndProc = proc_holder
+        wc.hInstance = kernel32.GetModuleHandleW(None)
+        wc.lpszClassName = cls_name
+        user32.RegisterClassW(ctypes.byref(wc))
 
-    rid = RAWINPUTDEVICE()
-    rid.usUsagePage = 0x01
-    rid.usUsage = 0x02
-    rid.dwFlags = RIDEV_INPUTSINK
-    rid.hwndTarget = sink_hwnd
-    user32.RegisterRawInputDevices(ctypes.byref(rid), 1, ctypes.sizeof(rid))
+        sink_hwnd = user32.CreateWindowExW(0, cls_name, "Sink", 0, 0, 0, 0, 0, None, None, wc.hInstance, None)
+
+        rid = RAWINPUTDEVICE()
+        rid.usUsagePage = 0x01
+        rid.usUsage = 0x02
+        rid.dwFlags = RIDEV_INPUTSINK
+        rid.hwndTarget = sink_hwnd
+        user32.RegisterRawInputDevices(ctypes.byref(rid), 1, ctypes.sizeof(rid))
+    except Exception as e:
+        print(f"[RawInput] Mouse sink registration fallback: {e}")
 
     msg = wintypes.MSG()
     user32.PeekMessageW(ctypes.byref(msg), 0, 0, 0, 0)
@@ -1229,19 +1265,19 @@ class BridgeHandler(BaseHTTPRequestHandler):
             }).encode("utf-8")
             self._send_response_data("application/json", data)
         elif path.startswith("/toggle"):
-            trigger_media_command("toggle")
+            threading.Thread(target=lambda: trigger_media_command("toggle"), daemon=True).start()
             self._send_response_data("application/json", b'{"status":"toggled"}')
         elif path.startswith("/pause"):
-            trigger_media_command("pause")
+            threading.Thread(target=lambda: trigger_media_command("pause"), daemon=True).start()
             self._send_response_data("application/json", b'{"status":"paused"}')
         elif path.startswith("/play"):
-            trigger_media_command("play")
+            threading.Thread(target=lambda: trigger_media_command("play"), daemon=True).start()
             self._send_response_data("application/json", b'{"status":"playing"}')
         elif path.startswith("/skip"):
-            trigger_media_command("skip")
+            threading.Thread(target=lambda: trigger_media_command("skip"), daemon=True).start()
             self._send_response_data("application/json", b'{"status":"skipped"}')
         elif path.startswith("/prev"):
-            trigger_media_command("prev")
+            threading.Thread(target=lambda: trigger_media_command("prev"), daemon=True).start()
             self._send_response_data("application/json", b'{"status":"previous"}')
         elif path.startswith("/config"):
             data = json.dumps(bridge_config).encode("utf-8")
@@ -1274,14 +1310,28 @@ def run_http_server():
     server.serve_forever()
 
 def run_media_loop():
-    while True:
-        try:
-            asyncio.run(fetch_windows_media())
-        except Exception:
-            pass
-        time.sleep(0.2)
+    global _shared_media_loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    _shared_media_loop = loop
+
+    async def media_worker():
+        while True:
+            try:
+                await asyncio.wait_for(fetch_windows_media(), timeout=2.0)
+            except Exception:
+                pass
+            await asyncio.sleep(0.25)
+
+    loop.create_task(media_worker())
+    loop.run_forever()
 
 def run_audio_loop():
+    try:
+        import ctypes
+        ctypes.windll.ole32.CoInitializeEx(None, 0x0)
+    except Exception:
+        pass
     while True:
         try:
             update_audio_spectrum()

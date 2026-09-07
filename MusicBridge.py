@@ -243,16 +243,16 @@ def extract_palette(img_bytes: bytes):
         ar, ag, ab = colorsys.hsv_to_rgb(h, accent_s, accent_v)
         accent_rgb = [int(ar * 255), int(ag * 255), int(ab * 255)]
 
-        bg_s = max(0.35, min(0.60, s * 0.60))
-        bgr, bgg, bgb = colorsys.hsv_to_rgb(h, bg_s, 0.12)
+        bg_s = max(0.50, min(0.85, s * 0.85))
+        bgr, bgg, bgb = colorsys.hsv_to_rgb(h, bg_s, 0.16)
         bg_rgb = [int(bgr * 255), int(bgg * 255), int(bgb * 255)]
 
-        ctr_s = max(0.30, min(0.55, s * 0.55))
-        ctr, ctg, ctb = colorsys.hsv_to_rgb(h, ctr_s, 0.20)
+        ctr_s = max(0.45, min(0.80, s * 0.80))
+        ctr, ctg, ctb = colorsys.hsv_to_rgb(h, ctr_s, 0.25)
         container_rgb = [int(ctr * 255), int(ctg * 255), int(ctb * 255)]
 
-        bdr_s = max(0.55, min(0.85, s * 1.10))
-        bdr_v = max(0.70, min(0.95, v * 1.15))
+        bdr_s = max(0.60, min(0.95, s * 1.15))
+        bdr_v = max(0.75, min(1.0, v * 1.20))
         bdr, bdg, bdb = colorsys.hsv_to_rgb(h, bdr_s, bdr_v)
         border_rgb = [int(bdr * 255), int(bdg * 255), int(bdb * 255)]
 

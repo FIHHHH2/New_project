@@ -613,7 +613,7 @@ Modules["UI/UI.luau"] = function()
     	TranslucentDark = {
     		Name = "Translucent Dark",
     		Background = Color3.fromRGB(12, 13, 18),
-    		BackgroundTransparency = 0.35,
+    		BackgroundTransparency = 0.75,
     		Border = Color3.fromRGB(255, 255, 255),
     		BorderDim = Color3.fromRGB(80, 85, 110),
     		Accent = Color3.fromRGB(85, 190, 255),
@@ -622,14 +622,14 @@ Modules["UI/UI.luau"] = function()
     		TextPrimary = Color3.fromRGB(255, 255, 255),
     		TextSecondary = Color3.fromRGB(185, 190, 210),
     		Container = Color3.fromRGB(22, 25, 36),
-    		ContainerTransparency = 0.40,
+    		ContainerTransparency = 0.78,
     		ContainerDark = Color3.fromRGB(14, 16, 24),
-    		ContainerDarkTransparency = 0.50
+    		ContainerDarkTransparency = 0.82
     	},
     	TranslucentLight = {
     		Name = "Translucent Light",
     		Background = Color3.fromRGB(245, 248, 255),
-    		BackgroundTransparency = 0.35,
+    		BackgroundTransparency = 0.75,
     		Border = Color3.fromRGB(120, 140, 170),
     		BorderDim = Color3.fromRGB(180, 190, 210),
     		Accent = Color3.fromRGB(0, 130, 255),
@@ -638,9 +638,9 @@ Modules["UI/UI.luau"] = function()
     		TextPrimary = Color3.fromRGB(14, 18, 26),
     		TextSecondary = Color3.fromRGB(75, 85, 105),
     		Container = Color3.fromRGB(255, 255, 255),
-    		ContainerTransparency = 0.45,
+    		ContainerTransparency = 0.78,
     		ContainerDark = Color3.fromRGB(225, 232, 245),
-    		ContainerDarkTransparency = 0.50
+    		ContainerDarkTransparency = 0.82
     	},
     	Midnight = {
     		Name = "Midnight",
@@ -709,7 +709,7 @@ Modules["UI/UI.luau"] = function()
     	Adaptive = {
     		Name = "Adaptive",
     		Background = Color3.fromRGB(16, 16, 22),
-    		BackgroundTransparency = 0.08,
+    		BackgroundTransparency = 0.75,
     		Border = Color3.fromRGB(120, 120, 150),
     		BorderDim = Color3.fromRGB(60, 60, 80),
     		Accent = Color3.fromRGB(55, 175, 245),
@@ -718,9 +718,9 @@ Modules["UI/UI.luau"] = function()
     		TextPrimary = Color3.fromRGB(250, 250, 255),
     		TextSecondary = Color3.fromRGB(185, 185, 205),
     		Container = Color3.fromRGB(26, 26, 36),
-    		ContainerTransparency = 0.12,
+    		ContainerTransparency = 0.78,
     		ContainerDark = Color3.fromRGB(16, 16, 22),
-    		ContainerDarkTransparency = 0.15
+    		ContainerDarkTransparency = 0.82
     	}
     }
 
@@ -851,11 +851,11 @@ Modules["UI/UI.luau"] = function()
     		math.floor(accentCol.B * 255 * 0.7)
     	)
     	ad.Background = bgCol
-    	ad.BackgroundTransparency = 0.08
+    	ad.BackgroundTransparency = 0.75
     	ad.Container = containerCol
-    	ad.ContainerTransparency = 0.12
+    	ad.ContainerTransparency = 0.78
     	ad.ContainerDark = bgCol
-    	ad.ContainerDarkTransparency = 0.15
+    	ad.ContainerDarkTransparency = 0.82
     	ad.Border = borderCol or Color3.fromRGB(
     		math.min(255, math.floor(accentCol.R * 255 * 0.85 + 30)),
     		math.min(255, math.floor(accentCol.G * 255 * 0.85 + 30)),

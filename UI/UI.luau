@@ -12,83 +12,147 @@ UI.__index = UI
 UI.Themes = {
 	Dark = {
 		Name = "Dark",
-		Background = Color3.fromRGB(13, 13, 15),
-		BackgroundTransparency = 0.85,
-		Border = Color3.fromRGB(250, 250, 255), -- Crisp white outlines for dark mode
-		BorderDim = Color3.fromRGB(120, 120, 135),
-		Accent = Color3.fromRGB(55, 175, 245), -- Light blue-ish selection accent
-		AccentDark = Color3.fromRGB(30, 120, 200),
+		Background = Color3.fromRGB(15, 16, 20),
+		BackgroundTransparency = 0.0,
+		Border = Color3.fromRGB(48, 52, 65),
+		BorderDim = Color3.fromRGB(32, 35, 45),
+		Accent = Color3.fromRGB(60, 160, 255),
+		AccentDark = Color3.fromRGB(30, 110, 200),
 		AccentText = Color3.fromRGB(255, 255, 255),
-		TextPrimary = Color3.fromRGB(245, 245, 245),
-		TextSecondary = Color3.fromRGB(170, 170, 185),
-		Container = Color3.fromRGB(22, 22, 28),
-		ContainerTransparency = 0.85,
-		ContainerDark = Color3.fromRGB(15, 15, 20),
-		ContainerDarkTransparency = 0.88
+		TextPrimary = Color3.fromRGB(245, 247, 252),
+		TextSecondary = Color3.fromRGB(155, 160, 178),
+		Container = Color3.fromRGB(24, 26, 34),
+		ContainerTransparency = 0.0,
+		ContainerDark = Color3.fromRGB(18, 20, 26),
+		ContainerDarkTransparency = 0.0
 	},
 	Light = {
 		Name = "Light",
-		Background = Color3.fromRGB(244, 245, 248),
-		BackgroundTransparency = 0.85,
-		Border = Color3.fromRGB(20, 22, 28), -- True dark crisp borders for light mode
-		BorderDim = Color3.fromRGB(150, 155, 168),
-		Accent = Color3.fromRGB(20, 125, 225), -- High-contrast vibrant azure blue
-		AccentDark = Color3.fromRGB(14, 95, 180),
+		Background = Color3.fromRGB(242, 244, 248),
+		BackgroundTransparency = 0.0,
+		Border = Color3.fromRGB(210, 215, 226),
+		BorderDim = Color3.fromRGB(225, 230, 238),
+		Accent = Color3.fromRGB(10, 120, 240),
+		AccentDark = Color3.fromRGB(5, 90, 190),
 		AccentText = Color3.fromRGB(255, 255, 255),
-		TextPrimary = Color3.fromRGB(15, 17, 24), -- Deep near-black for maximum readability
-		TextSecondary = Color3.fromRGB(65, 70, 82), -- Balanced readable secondary text
+		TextPrimary = Color3.fromRGB(18, 22, 30),
+		TextSecondary = Color3.fromRGB(95, 102, 118),
 		Container = Color3.fromRGB(255, 255, 255),
-		ContainerTransparency = 0.85,
-		ContainerDark = Color3.fromRGB(228, 231, 238),
-		ContainerDarkTransparency = 0.88
+		ContainerTransparency = 0.0,
+		ContainerDark = Color3.fromRGB(230, 234, 242),
+		ContainerDarkTransparency = 0.0
 	},
 	TranslucentDark = {
 		Name = "Translucent Dark",
-		Background = Color3.fromRGB(12, 12, 16),
-		BackgroundTransparency = 0.85,
-		Border = Color3.fromRGB(250, 250, 255), -- White outlines
-		BorderDim = Color3.fromRGB(90, 90, 110),
-		Accent = Color3.fromRGB(55, 175, 245), -- Light blue accent
-		AccentDark = Color3.fromRGB(30, 120, 200),
+		Background = Color3.fromRGB(12, 13, 18),
+		BackgroundTransparency = 0.35,
+		Border = Color3.fromRGB(255, 255, 255),
+		BorderDim = Color3.fromRGB(80, 85, 110),
+		Accent = Color3.fromRGB(85, 190, 255),
+		AccentDark = Color3.fromRGB(40, 140, 220),
 		AccentText = Color3.fromRGB(255, 255, 255),
 		TextPrimary = Color3.fromRGB(255, 255, 255),
-		TextSecondary = Color3.fromRGB(180, 180, 195),
-		Container = Color3.fromRGB(24, 24, 32),
-		ContainerTransparency = 0.85,
-		ContainerDark = Color3.fromRGB(14, 14, 20),
-		ContainerDarkTransparency = 0.88
+		TextSecondary = Color3.fromRGB(185, 190, 210),
+		Container = Color3.fromRGB(22, 25, 36),
+		ContainerTransparency = 0.40,
+		ContainerDark = Color3.fromRGB(14, 16, 24),
+		ContainerDarkTransparency = 0.50
 	},
 	TranslucentLight = {
 		Name = "Translucent Light",
-		Background = Color3.fromRGB(242, 244, 250),
-		BackgroundTransparency = 0.85,
-		Border = Color3.fromRGB(20, 22, 28), -- Black outlines
-		BorderDim = Color3.fromRGB(145, 150, 165),
-		Accent = Color3.fromRGB(20, 125, 225), -- High-contrast vibrant azure blue
-		AccentDark = Color3.fromRGB(14, 95, 180),
+		Background = Color3.fromRGB(245, 248, 255),
+		BackgroundTransparency = 0.35,
+		Border = Color3.fromRGB(120, 140, 170),
+		BorderDim = Color3.fromRGB(180, 190, 210),
+		Accent = Color3.fromRGB(0, 130, 255),
+		AccentDark = Color3.fromRGB(0, 100, 210),
 		AccentText = Color3.fromRGB(255, 255, 255),
-		TextPrimary = Color3.fromRGB(12, 14, 20),
-		TextSecondary = Color3.fromRGB(60, 65, 78),
+		TextPrimary = Color3.fromRGB(14, 18, 26),
+		TextSecondary = Color3.fromRGB(75, 85, 105),
 		Container = Color3.fromRGB(255, 255, 255),
-		ContainerTransparency = 0.85,
-		ContainerDark = Color3.fromRGB(224, 228, 238),
-		ContainerDarkTransparency = 0.88
+		ContainerTransparency = 0.45,
+		ContainerDark = Color3.fromRGB(225, 232, 245),
+		ContainerDarkTransparency = 0.50
+	},
+	Midnight = {
+		Name = "Midnight",
+		Background = Color3.fromRGB(6, 6, 8),
+		BackgroundTransparency = 0.0,
+		Border = Color3.fromRGB(55, 35, 80),
+		BorderDim = Color3.fromRGB(38, 22, 55),
+		Accent = Color3.fromRGB(185, 85, 255),
+		AccentDark = Color3.fromRGB(135, 50, 205),
+		AccentText = Color3.fromRGB(255, 255, 255),
+		TextPrimary = Color3.fromRGB(248, 245, 255),
+		TextSecondary = Color3.fromRGB(165, 155, 190),
+		Container = Color3.fromRGB(16, 14, 22),
+		ContainerTransparency = 0.0,
+		ContainerDark = Color3.fromRGB(10, 8, 14),
+		ContainerDarkTransparency = 0.0
+	},
+	Emerald = {
+		Name = "Emerald",
+		Background = Color3.fromRGB(8, 14, 11),
+		BackgroundTransparency = 0.0,
+		Border = Color3.fromRGB(28, 60, 42),
+		BorderDim = Color3.fromRGB(20, 42, 30),
+		Accent = Color3.fromRGB(46, 213, 115),
+		AccentDark = Color3.fromRGB(28, 160, 80),
+		AccentText = Color3.fromRGB(255, 255, 255),
+		TextPrimary = Color3.fromRGB(242, 252, 245),
+		TextSecondary = Color3.fromRGB(145, 175, 155),
+		Container = Color3.fromRGB(14, 24, 18),
+		ContainerTransparency = 0.0,
+		ContainerDark = Color3.fromRGB(10, 18, 13),
+		ContainerDarkTransparency = 0.0
+	},
+	Crimson = {
+		Name = "Crimson",
+		Background = Color3.fromRGB(15, 10, 12),
+		BackgroundTransparency = 0.0,
+		Border = Color3.fromRGB(68, 28, 36),
+		BorderDim = Color3.fromRGB(46, 18, 25),
+		Accent = Color3.fromRGB(255, 65, 85),
+		AccentDark = Color3.fromRGB(195, 35, 55),
+		AccentText = Color3.fromRGB(255, 255, 255),
+		TextPrimary = Color3.fromRGB(255, 245, 247),
+		TextSecondary = Color3.fromRGB(185, 155, 162),
+		Container = Color3.fromRGB(24, 16, 20),
+		ContainerTransparency = 0.0,
+		ContainerDark = Color3.fromRGB(18, 11, 14),
+		ContainerDarkTransparency = 0.0
+	},
+	Amber = {
+		Name = "Amber",
+		Background = Color3.fromRGB(15, 12, 9),
+		BackgroundTransparency = 0.0,
+		Border = Color3.fromRGB(70, 48, 25),
+		BorderDim = Color3.fromRGB(48, 32, 16),
+		Accent = Color3.fromRGB(255, 165, 35),
+		AccentDark = Color3.fromRGB(205, 120, 15),
+		AccentText = Color3.fromRGB(255, 255, 255),
+		TextPrimary = Color3.fromRGB(255, 250, 242),
+		TextSecondary = Color3.fromRGB(185, 168, 150),
+		Container = Color3.fromRGB(26, 20, 15),
+		ContainerTransparency = 0.0,
+		ContainerDark = Color3.fromRGB(18, 14, 10),
+		ContainerDarkTransparency = 0.0
 	},
 	Adaptive = {
 		Name = "Adaptive",
 		Background = Color3.fromRGB(16, 16, 22),
-		BackgroundTransparency = 0.85,
-		Border = Color3.fromRGB(240, 240, 250),
-		BorderDim = Color3.fromRGB(90, 90, 110),
+		BackgroundTransparency = 0.08,
+		Border = Color3.fromRGB(120, 120, 150),
+		BorderDim = Color3.fromRGB(60, 60, 80),
 		Accent = Color3.fromRGB(55, 175, 245),
 		AccentDark = Color3.fromRGB(30, 120, 200),
 		AccentText = Color3.fromRGB(255, 255, 255),
 		TextPrimary = Color3.fromRGB(250, 250, 255),
-		TextSecondary = Color3.fromRGB(175, 175, 190),
-		Container = Color3.fromRGB(24, 24, 32),
-		ContainerTransparency = 0.85,
-		ContainerDark = Color3.fromRGB(14, 14, 20),
-		ContainerDarkTransparency = 0.88
+		TextSecondary = Color3.fromRGB(185, 185, 205),
+		Container = Color3.fromRGB(26, 26, 36),
+		ContainerTransparency = 0.12,
+		ContainerDark = Color3.fromRGB(16, 16, 22),
+		ContainerDarkTransparency = 0.15
 	}
 }
 
@@ -198,8 +262,14 @@ end
 local lastAdaptiveAccent: Color3? = nil
 local lastAdaptiveBg: Color3? = nil
 
+local function colorsClose(c1: Color3?, c2: Color3?): boolean
+	if c1 == c2 then return true end
+	if not c1 or not c2 then return false end
+	return math.abs(c1.R - c2.R) < 0.003 and math.abs(c1.G - c2.G) < 0.003 and math.abs(c1.B - c2.B) < 0.003
+end
+
 function UI.applyAdaptiveTheme(accentCol: Color3, bgCol: Color3, containerCol: Color3, borderCol: Color3?)
-	if lastAdaptiveAccent == accentCol and lastAdaptiveBg == bgCol then
+	if colorsClose(lastAdaptiveAccent, accentCol) and colorsClose(lastAdaptiveBg, bgCol) then
 		return
 	end
 	lastAdaptiveAccent = accentCol
@@ -207,14 +277,27 @@ function UI.applyAdaptiveTheme(accentCol: Color3, bgCol: Color3, containerCol: C
 
 	local ad = UI.Themes.Adaptive
 	ad.Accent = accentCol
-	ad.AccentDark = Color3.fromRGB(math.floor(accentCol.R * 255 * 0.7), math.floor(accentCol.G * 255 * 0.7), math.floor(accentCol.B * 255 * 0.7))
+	ad.AccentDark = Color3.fromRGB(
+		math.floor(accentCol.R * 255 * 0.7),
+		math.floor(accentCol.G * 255 * 0.7),
+		math.floor(accentCol.B * 255 * 0.7)
+	)
 	ad.Background = bgCol
-	ad.BackgroundTransparency = 0.85
+	ad.BackgroundTransparency = 0.08
 	ad.Container = containerCol
-	ad.ContainerTransparency = 0.85
+	ad.ContainerTransparency = 0.12
 	ad.ContainerDark = bgCol
-	ad.ContainerDarkTransparency = 0.88
-	ad.Border = borderCol or Color3.fromRGB(240, 240, 250)
+	ad.ContainerDarkTransparency = 0.15
+	ad.Border = borderCol or Color3.fromRGB(
+		math.min(255, math.floor(accentCol.R * 255 * 0.85 + 30)),
+		math.min(255, math.floor(accentCol.G * 255 * 0.85 + 30)),
+		math.min(255, math.floor(accentCol.B * 255 * 0.85 + 30))
+	)
+	ad.BorderDim = Color3.fromRGB(
+		math.floor(accentCol.R * 255 * 0.45),
+		math.floor(accentCol.G * 255 * 0.45),
+		math.floor(accentCol.B * 255 * 0.45)
+	)
 
 	if UI.CurrentTheme.Name == "Adaptive" then
 		UI.setTheme("Adaptive")

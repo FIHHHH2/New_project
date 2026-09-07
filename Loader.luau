@@ -230,7 +230,7 @@ Modules["UI/Animations.luau"] = function()
     	local dur = if config and config.duration ~= nil then config.duration else 0.15
     	local style = if config and config.easingStyle ~= nil then config.easingStyle else Enum.EasingStyle.Quad
     	local dir = if config and config.easingDirection ~= nil then config.easingDirection else Enum.EasingDirection.Out
-
+	
     	local tweenInfo = TweenInfo.new(dur, style, dir)
     	local tween = TweenService:Create(instance, tweenInfo, properties)
     	tween:Play()
@@ -580,83 +580,147 @@ Modules["UI/UI.luau"] = function()
     UI.Themes = {
     	Dark = {
     		Name = "Dark",
-    		Background = Color3.fromRGB(13, 13, 15),
-    		BackgroundTransparency = 0.85,
-    		Border = Color3.fromRGB(250, 250, 255), -- Crisp white outlines for dark mode
-    		BorderDim = Color3.fromRGB(120, 120, 135),
-    		Accent = Color3.fromRGB(55, 175, 245), -- Light blue-ish selection accent
-    		AccentDark = Color3.fromRGB(30, 120, 200),
+    		Background = Color3.fromRGB(15, 16, 20),
+    		BackgroundTransparency = 0.0,
+    		Border = Color3.fromRGB(48, 52, 65),
+    		BorderDim = Color3.fromRGB(32, 35, 45),
+    		Accent = Color3.fromRGB(60, 160, 255),
+    		AccentDark = Color3.fromRGB(30, 110, 200),
     		AccentText = Color3.fromRGB(255, 255, 255),
-    		TextPrimary = Color3.fromRGB(245, 245, 245),
-    		TextSecondary = Color3.fromRGB(170, 170, 185),
-    		Container = Color3.fromRGB(22, 22, 28),
-    		ContainerTransparency = 0.85,
-    		ContainerDark = Color3.fromRGB(15, 15, 20),
-    		ContainerDarkTransparency = 0.88
+    		TextPrimary = Color3.fromRGB(245, 247, 252),
+    		TextSecondary = Color3.fromRGB(155, 160, 178),
+    		Container = Color3.fromRGB(24, 26, 34),
+    		ContainerTransparency = 0.0,
+    		ContainerDark = Color3.fromRGB(18, 20, 26),
+    		ContainerDarkTransparency = 0.0
     	},
     	Light = {
     		Name = "Light",
-    		Background = Color3.fromRGB(244, 245, 248),
-    		BackgroundTransparency = 0.85,
-    		Border = Color3.fromRGB(20, 22, 28), -- True dark crisp borders for light mode
-    		BorderDim = Color3.fromRGB(150, 155, 168),
-    		Accent = Color3.fromRGB(20, 125, 225), -- High-contrast vibrant azure blue
-    		AccentDark = Color3.fromRGB(14, 95, 180),
+    		Background = Color3.fromRGB(242, 244, 248),
+    		BackgroundTransparency = 0.0,
+    		Border = Color3.fromRGB(210, 215, 226),
+    		BorderDim = Color3.fromRGB(225, 230, 238),
+    		Accent = Color3.fromRGB(10, 120, 240),
+    		AccentDark = Color3.fromRGB(5, 90, 190),
     		AccentText = Color3.fromRGB(255, 255, 255),
-    		TextPrimary = Color3.fromRGB(15, 17, 24), -- Deep near-black for maximum readability
-    		TextSecondary = Color3.fromRGB(65, 70, 82), -- Balanced readable secondary text
+    		TextPrimary = Color3.fromRGB(18, 22, 30),
+    		TextSecondary = Color3.fromRGB(95, 102, 118),
     		Container = Color3.fromRGB(255, 255, 255),
-    		ContainerTransparency = 0.85,
-    		ContainerDark = Color3.fromRGB(228, 231, 238),
-    		ContainerDarkTransparency = 0.88
+    		ContainerTransparency = 0.0,
+    		ContainerDark = Color3.fromRGB(230, 234, 242),
+    		ContainerDarkTransparency = 0.0
     	},
     	TranslucentDark = {
     		Name = "Translucent Dark",
-    		Background = Color3.fromRGB(12, 12, 16),
-    		BackgroundTransparency = 0.85,
-    		Border = Color3.fromRGB(250, 250, 255), -- White outlines
-    		BorderDim = Color3.fromRGB(90, 90, 110),
-    		Accent = Color3.fromRGB(55, 175, 245), -- Light blue accent
-    		AccentDark = Color3.fromRGB(30, 120, 200),
+    		Background = Color3.fromRGB(12, 13, 18),
+    		BackgroundTransparency = 0.35,
+    		Border = Color3.fromRGB(255, 255, 255),
+    		BorderDim = Color3.fromRGB(80, 85, 110),
+    		Accent = Color3.fromRGB(85, 190, 255),
+    		AccentDark = Color3.fromRGB(40, 140, 220),
     		AccentText = Color3.fromRGB(255, 255, 255),
     		TextPrimary = Color3.fromRGB(255, 255, 255),
-    		TextSecondary = Color3.fromRGB(180, 180, 195),
-    		Container = Color3.fromRGB(24, 24, 32),
-    		ContainerTransparency = 0.85,
-    		ContainerDark = Color3.fromRGB(14, 14, 20),
-    		ContainerDarkTransparency = 0.88
+    		TextSecondary = Color3.fromRGB(185, 190, 210),
+    		Container = Color3.fromRGB(22, 25, 36),
+    		ContainerTransparency = 0.40,
+    		ContainerDark = Color3.fromRGB(14, 16, 24),
+    		ContainerDarkTransparency = 0.50
     	},
     	TranslucentLight = {
     		Name = "Translucent Light",
-    		Background = Color3.fromRGB(242, 244, 250),
-    		BackgroundTransparency = 0.85,
-    		Border = Color3.fromRGB(20, 22, 28), -- Black outlines
-    		BorderDim = Color3.fromRGB(145, 150, 165),
-    		Accent = Color3.fromRGB(20, 125, 225), -- High-contrast vibrant azure blue
-    		AccentDark = Color3.fromRGB(14, 95, 180),
+    		Background = Color3.fromRGB(245, 248, 255),
+    		BackgroundTransparency = 0.35,
+    		Border = Color3.fromRGB(120, 140, 170),
+    		BorderDim = Color3.fromRGB(180, 190, 210),
+    		Accent = Color3.fromRGB(0, 130, 255),
+    		AccentDark = Color3.fromRGB(0, 100, 210),
     		AccentText = Color3.fromRGB(255, 255, 255),
-    		TextPrimary = Color3.fromRGB(12, 14, 20),
-    		TextSecondary = Color3.fromRGB(60, 65, 78),
+    		TextPrimary = Color3.fromRGB(14, 18, 26),
+    		TextSecondary = Color3.fromRGB(75, 85, 105),
     		Container = Color3.fromRGB(255, 255, 255),
-    		ContainerTransparency = 0.85,
-    		ContainerDark = Color3.fromRGB(224, 228, 238),
-    		ContainerDarkTransparency = 0.88
+    		ContainerTransparency = 0.45,
+    		ContainerDark = Color3.fromRGB(225, 232, 245),
+    		ContainerDarkTransparency = 0.50
+    	},
+    	Midnight = {
+    		Name = "Midnight",
+    		Background = Color3.fromRGB(6, 6, 8),
+    		BackgroundTransparency = 0.0,
+    		Border = Color3.fromRGB(55, 35, 80),
+    		BorderDim = Color3.fromRGB(38, 22, 55),
+    		Accent = Color3.fromRGB(185, 85, 255),
+    		AccentDark = Color3.fromRGB(135, 50, 205),
+    		AccentText = Color3.fromRGB(255, 255, 255),
+    		TextPrimary = Color3.fromRGB(248, 245, 255),
+    		TextSecondary = Color3.fromRGB(165, 155, 190),
+    		Container = Color3.fromRGB(16, 14, 22),
+    		ContainerTransparency = 0.0,
+    		ContainerDark = Color3.fromRGB(10, 8, 14),
+    		ContainerDarkTransparency = 0.0
+    	},
+    	Emerald = {
+    		Name = "Emerald",
+    		Background = Color3.fromRGB(8, 14, 11),
+    		BackgroundTransparency = 0.0,
+    		Border = Color3.fromRGB(28, 60, 42),
+    		BorderDim = Color3.fromRGB(20, 42, 30),
+    		Accent = Color3.fromRGB(46, 213, 115),
+    		AccentDark = Color3.fromRGB(28, 160, 80),
+    		AccentText = Color3.fromRGB(255, 255, 255),
+    		TextPrimary = Color3.fromRGB(242, 252, 245),
+    		TextSecondary = Color3.fromRGB(145, 175, 155),
+    		Container = Color3.fromRGB(14, 24, 18),
+    		ContainerTransparency = 0.0,
+    		ContainerDark = Color3.fromRGB(10, 18, 13),
+    		ContainerDarkTransparency = 0.0
+    	},
+    	Crimson = {
+    		Name = "Crimson",
+    		Background = Color3.fromRGB(15, 10, 12),
+    		BackgroundTransparency = 0.0,
+    		Border = Color3.fromRGB(68, 28, 36),
+    		BorderDim = Color3.fromRGB(46, 18, 25),
+    		Accent = Color3.fromRGB(255, 65, 85),
+    		AccentDark = Color3.fromRGB(195, 35, 55),
+    		AccentText = Color3.fromRGB(255, 255, 255),
+    		TextPrimary = Color3.fromRGB(255, 245, 247),
+    		TextSecondary = Color3.fromRGB(185, 155, 162),
+    		Container = Color3.fromRGB(24, 16, 20),
+    		ContainerTransparency = 0.0,
+    		ContainerDark = Color3.fromRGB(18, 11, 14),
+    		ContainerDarkTransparency = 0.0
+    	},
+    	Amber = {
+    		Name = "Amber",
+    		Background = Color3.fromRGB(15, 12, 9),
+    		BackgroundTransparency = 0.0,
+    		Border = Color3.fromRGB(70, 48, 25),
+    		BorderDim = Color3.fromRGB(48, 32, 16),
+    		Accent = Color3.fromRGB(255, 165, 35),
+    		AccentDark = Color3.fromRGB(205, 120, 15),
+    		AccentText = Color3.fromRGB(255, 255, 255),
+    		TextPrimary = Color3.fromRGB(255, 250, 242),
+    		TextSecondary = Color3.fromRGB(185, 168, 150),
+    		Container = Color3.fromRGB(26, 20, 15),
+    		ContainerTransparency = 0.0,
+    		ContainerDark = Color3.fromRGB(18, 14, 10),
+    		ContainerDarkTransparency = 0.0
     	},
     	Adaptive = {
     		Name = "Adaptive",
     		Background = Color3.fromRGB(16, 16, 22),
-    		BackgroundTransparency = 0.85,
-    		Border = Color3.fromRGB(240, 240, 250),
-    		BorderDim = Color3.fromRGB(90, 90, 110),
+    		BackgroundTransparency = 0.08,
+    		Border = Color3.fromRGB(120, 120, 150),
+    		BorderDim = Color3.fromRGB(60, 60, 80),
     		Accent = Color3.fromRGB(55, 175, 245),
     		AccentDark = Color3.fromRGB(30, 120, 200),
     		AccentText = Color3.fromRGB(255, 255, 255),
     		TextPrimary = Color3.fromRGB(250, 250, 255),
-    		TextSecondary = Color3.fromRGB(175, 175, 190),
-    		Container = Color3.fromRGB(24, 24, 32),
-    		ContainerTransparency = 0.85,
-    		ContainerDark = Color3.fromRGB(14, 14, 20),
-    		ContainerDarkTransparency = 0.88
+    		TextSecondary = Color3.fromRGB(185, 185, 205),
+    		Container = Color3.fromRGB(26, 26, 36),
+    		ContainerTransparency = 0.12,
+    		ContainerDark = Color3.fromRGB(16, 16, 22),
+    		ContainerDarkTransparency = 0.15
     	}
     }
 
@@ -766,8 +830,14 @@ Modules["UI/UI.luau"] = function()
     local lastAdaptiveAccent: Color3? = nil
     local lastAdaptiveBg: Color3? = nil
 
+    local function colorsClose(c1: Color3?, c2: Color3?): boolean
+    	if c1 == c2 then return true end
+    	if not c1 or not c2 then return false end
+    	return math.abs(c1.R - c2.R) < 0.003 and math.abs(c1.G - c2.G) < 0.003 and math.abs(c1.B - c2.B) < 0.003
+    end
+
     function UI.applyAdaptiveTheme(accentCol: Color3, bgCol: Color3, containerCol: Color3, borderCol: Color3?)
-    	if lastAdaptiveAccent == accentCol and lastAdaptiveBg == bgCol then
+    	if colorsClose(lastAdaptiveAccent, accentCol) and colorsClose(lastAdaptiveBg, bgCol) then
     		return
     	end
     	lastAdaptiveAccent = accentCol
@@ -775,14 +845,27 @@ Modules["UI/UI.luau"] = function()
 
     	local ad = UI.Themes.Adaptive
     	ad.Accent = accentCol
-    	ad.AccentDark = Color3.fromRGB(math.floor(accentCol.R * 255 * 0.7), math.floor(accentCol.G * 255 * 0.7), math.floor(accentCol.B * 255 * 0.7))
+    	ad.AccentDark = Color3.fromRGB(
+    		math.floor(accentCol.R * 255 * 0.7),
+    		math.floor(accentCol.G * 255 * 0.7),
+    		math.floor(accentCol.B * 255 * 0.7)
+    	)
     	ad.Background = bgCol
-    	ad.BackgroundTransparency = 0.85
+    	ad.BackgroundTransparency = 0.08
     	ad.Container = containerCol
-    	ad.ContainerTransparency = 0.85
+    	ad.ContainerTransparency = 0.12
     	ad.ContainerDark = bgCol
-    	ad.ContainerDarkTransparency = 0.88
-    	ad.Border = borderCol or Color3.fromRGB(240, 240, 250)
+    	ad.ContainerDarkTransparency = 0.15
+    	ad.Border = borderCol or Color3.fromRGB(
+    		math.min(255, math.floor(accentCol.R * 255 * 0.85 + 30)),
+    		math.min(255, math.floor(accentCol.G * 255 * 0.85 + 30)),
+    		math.min(255, math.floor(accentCol.B * 255 * 0.85 + 30))
+    	)
+    	ad.BorderDim = Color3.fromRGB(
+    		math.floor(accentCol.R * 255 * 0.45),
+    		math.floor(accentCol.G * 255 * 0.45),
+    		math.floor(accentCol.B * 255 * 0.45)
+    	)
 
     	if UI.CurrentTheme.Name == "Adaptive" then
     		UI.setTheme("Adaptive")
@@ -800,9 +883,9 @@ Modules["UI/UI.luau"] = function()
     	UI.CurrentTheme = targetTheme
     	UI.Theme = targetTheme
     	UI.saveTheme(themeName)
-
+	
     	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-
+	
     	for inst, propMap in pairs(UI.RegisteredElements) do
     		if inst and inst.Parent then
     			for pt in pairs(propMap) do
@@ -1760,7 +1843,7 @@ Modules["UI/Notification.luau"] = function()
     		notifGui.ResetOnSpawn = false
     		notifGui.DisplayOrder = 9999
     		notifGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
+		
     		pcall(function()
     			notifGui.Parent = CoreGui
     		end)
@@ -1783,7 +1866,7 @@ Modules["UI/Notification.luau"] = function()
     function Notification.show(title: string, message: string, duration: number?)
     	local gui = getNotificationGui()
     	local displayTime = duration or 3.8
-
+	
     	local card = Instance.new("Frame")
     	card.Name = "NotificationCard"
     	card.Size = UDim2.new(0, 260, 0, 74)
@@ -1794,7 +1877,7 @@ Modules["UI/Notification.luau"] = function()
     	card.ClipsDescendants = false
     	card.Parent = gui
     	UI.registerThemeElement(card, "Background")
-
+	
     	local bgGradient = Instance.new("UIGradient")
     	bgGradient.Rotation = 90
     	bgGradient.Color = ColorSequence.new({
@@ -1817,7 +1900,7 @@ Modules["UI/Notification.luau"] = function()
     	local cardScale = Instance.new("UIScale")
     	cardScale.Scale = 0.92
     	cardScale.Parent = card
-
+	
     	-- Inset Topbar
     	local topbar = Instance.new("Frame")
     	topbar.Name = "TopBar"
@@ -1843,7 +1926,7 @@ Modules["UI/Notification.luau"] = function()
     	topStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     	topStroke.Parent = topbar
     	UI.registerThemeElement(topStroke, "Border")
-
+	
     	local topTitle = Instance.new("TextLabel")
     	topTitle.Size = UDim2.new(1, -44, 1, 0)
     	topTitle.Position = UDim2.new(0, 6, 0, 0)
@@ -1855,7 +1938,7 @@ Modules["UI/Notification.luau"] = function()
     	topTitle.TextXAlignment = Enum.TextXAlignment.Left
     	topTitle.Parent = topbar
     	UI.registerThemeElement(topTitle, "TextPrimary")
-
+	
     	-- topbar icons: [-] and [□]
     	local minIcon = Instance.new("TextLabel")
     	minIcon.Size = UDim2.new(0, 14, 1, 0)
@@ -1867,7 +1950,7 @@ Modules["UI/Notification.luau"] = function()
     	minIcon.TextSize = 11
     	minIcon.Parent = topbar
     	UI.registerThemeElement(minIcon, "TextPrimary")
-
+	
     	local sqIcon = Instance.new("TextLabel")
     	sqIcon.Size = UDim2.new(0, 14, 1, 0)
     	sqIcon.Position = UDim2.new(1, -16, 0, 0)
@@ -1878,7 +1961,7 @@ Modules["UI/Notification.luau"] = function()
     	sqIcon.TextSize = 11
     	sqIcon.Parent = topbar
     	UI.registerThemeElement(sqIcon, "TextPrimary")
-
+	
     	-- message body
     	local bodyLabel = Instance.new("TextLabel")
     	bodyLabel.Name = "Message"
@@ -1892,10 +1975,10 @@ Modules["UI/Notification.luau"] = function()
     	bodyLabel.TextXAlignment = Enum.TextXAlignment.Center
     	bodyLabel.Parent = card
     	UI.registerThemeElement(bodyLabel, "TextPrimary")
-
+	
     	table.insert(activeCards, 1, card)
     	repositionCards()
-
+	
     	-- Slide in from right with snappy deceleration (0.94 -> 1.0)
     	card.Position = UDim2.new(1, 40, 1, -20 - 80)
     	TweenService:Create(cardScale, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -1904,7 +1987,7 @@ Modules["UI/Notification.luau"] = function()
     	TweenService:Create(card, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
     		Position = UDim2.new(1, -280, 1, -20 - 80)
     	}):Play()
-
+	
     	task.delay(displayTime, function()
     		if card and card.Parent then
     			local idx = table.find(activeCards, card)
@@ -1912,7 +1995,7 @@ Modules["UI/Notification.luau"] = function()
     				table.remove(activeCards, idx)
     			end
     			repositionCards()
-
+			
     			TweenService:Create(cardScale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
     				Scale = 0.94
     			}):Play()
@@ -1986,11 +2069,17 @@ Modules["UI/PlayerList.luau"] = function()
     local require = requireModule
     --!strict
     --[=[
-        ✦ Squared Retro Player List Widget with Auto-Positioned Context Menu ✦
+        ✦ Squared Retro Player List (Tab HUD) with Live Leaderstats Columns & Auto-Positioned Context Menu ✦
         Features:
-        - Interactive player rows with hover FX and click-to-open context menu
+        - Dedicated live leaderstats columns aligned dynamically in the Tab list
+        - Dynamic column detection (leaderstats, Data, Stats, Currencies, PlayerData, Attributes)
+        - Auto-scaling widget width based on active leaderstat column count (260px up to 520px)
+        - Live-updating column cells with zero-lag .Changed and attribute listeners
+        - Dynamic leaderboard ranking & sorting by primary leaderstat (highest value first)
+        - Interactive player rows with hover FX, domino entry animations, and click-to-open context menu
         - Smart auto-positioning popup (anchors dynamically to the left or right of clicked row, clamped to viewport)
         - Full Roblox player actions: Profile view, Add/Unfriend, Block, Report/Inspect, Teleport, Fling, Spectate, Copy ID
+        - Extended leaderstats inspector in context menu with click-to-copy
         - Domino sliding animations and auto-scaling list height
     ]=]
 
@@ -2014,21 +2103,46 @@ Modules["UI/PlayerList.luau"] = function()
     	UiScale: UIScale,
     	IsMinimized: boolean,
     	Visible: boolean,
+    	IsEnabled: boolean?,
     	IsOpen: () -> boolean,
     	Open: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
     	Close: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
     	Toggle: (selfOrOnComplete: any, maybeOnComplete: any) -> (),
     	SetVisible: (selfOrVal: any, maybeVal: any) -> (),
+    	Destroy: () -> (),
+    	Cleanup: () -> (),
     	OnClose: (() -> ())?,
     	OnOpen: (() -> ())?,
     	OnMinimize: ((isMin: boolean) -> ())?
     }
 
-    local ROW_H = 38
-    local ROW_GAP = 4
+    local ROW_H = 36
+    local ROW_GAP = 3
     local HEADER_H = 28
+    local STAT_HEADER_H = 20
+    local BASE_W = 260
+    local STAT_COL_W = 60
+    local MAX_STAT_COLS = 4
     local POPUP_W = 260
     local POPUP_H = 345
+
+    local function formatStatVal(val: any): string
+    	if typeof(val) == "number" then
+    		local absVal = math.abs(val)
+    		if absVal >= 1_000_000_000_000 then
+    			return string.format("%.1fT", val / 1_000_000_000_000)
+    		elseif absVal >= 1_000_000_000 then
+    			return string.format("%.1fB", val / 1_000_000_000)
+    		elseif absVal >= 1_000_000 then
+    			return string.format("%.1fM", val / 1_000_000)
+    		elseif absVal >= 1_000 then
+    			return string.format("%.1fK", val / 1_000)
+    		else
+    			return tostring(val)
+    		end
+    	end
+    	return tostring(val or "-")
+    end
 
     function PlayerList.new(): PlayerListWidget
     	local screenGui = Instance.new("ScreenGui")
@@ -2043,12 +2157,17 @@ Modules["UI/PlayerList.luau"] = function()
     	end
 
     	local activeConnections: {RBXScriptConnection} = {}
+    	local playerConnections: {[Player]: {RBXScriptConnection}} = {}
+    	local activeStatColumns: {string} = {}
+    	local rowRefreshCallbacks: {[Player]: () -> ()} = {}
+    	local rowObjects: {[Player]: TextButton} = {}
 
     	-- ── Main Widget Frame ─────────────────────────────────────────────
+    	local currentWidth = BASE_W
     	local widget = Instance.new("Frame")
     	widget.Name = "PlayerListWidget"
-    	widget.Size = UDim2.new(0, 260, 0, HEADER_H + 40)
-    	widget.Position = UDim2.new(1, -270, 0, 10)
+    	widget.Size = UDim2.new(0, BASE_W, 0, HEADER_H + 40)
+    	widget.Position = UDim2.new(1, -(BASE_W + 10), 0, 10)
     	widget.BackgroundColor3 = UI.Theme.Background
     	widget.BackgroundTransparency = UI.Theme.BackgroundTransparency
     	widget.BorderSizePixel = 0
@@ -2162,6 +2281,46 @@ Modules["UI/PlayerList.luau"] = function()
     	closeStroke.Parent = closeBtn
     	UI.registerThemeElement(closeStroke, "Border")
 
+    	-- ── Column Headers Bar (for Leaderstats) ───────────────────────────
+    	local statHeaderBar = Instance.new("Frame")
+    	statHeaderBar.Name = "StatHeaderBar"
+    	statHeaderBar.Size = UDim2.new(1, -12, 0, STAT_HEADER_H)
+    	statHeaderBar.Position = UDim2.new(0, 6, 0, HEADER_H + 8)
+    	statHeaderBar.BackgroundColor3 = UI.Theme.ContainerDark
+    	statHeaderBar.BackgroundTransparency = 0.5
+    	statHeaderBar.BorderSizePixel = 0
+    	statHeaderBar.Visible = false
+    	statHeaderBar.Parent = widget
+    	UI.registerThemeElement(statHeaderBar, "ContainerDark")
+
+    	local statHeaderStroke = Instance.new("UIStroke")
+    	statHeaderStroke.Color = UI.Theme.BorderDim
+    	statHeaderStroke.Thickness = 1
+    	statHeaderStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    	statHeaderStroke.Parent = statHeaderBar
+    	UI.registerThemeElement(statHeaderStroke, "BorderDim")
+
+    	local playerHeaderLabel = Instance.new("TextLabel")
+    	playerHeaderLabel.Name = "PlayerHeaderLabel"
+    	playerHeaderLabel.Size = UDim2.new(1, 0, 1, 0)
+    	playerHeaderLabel.Position = UDim2.new(0, 8, 0, 0)
+    	playerHeaderLabel.BackgroundTransparency = 1
+    	playerHeaderLabel.Text = "PLAYER"
+    	playerHeaderLabel.TextColor3 = UI.Theme.TextSecondary
+    	playerHeaderLabel.Font = UI.Fonts.Header
+    	playerHeaderLabel.TextSize = 9
+    	playerHeaderLabel.TextXAlignment = Enum.TextXAlignment.Left
+    	playerHeaderLabel.Parent = statHeaderBar
+    	UI.registerThemeElement(playerHeaderLabel, "TextSecondary")
+
+    	local colLabelsContainer = Instance.new("Frame")
+    	colLabelsContainer.Name = "ColLabelsContainer"
+    	colLabelsContainer.Size = UDim2.new(0, 0, 1, 0)
+    	colLabelsContainer.Position = UDim2.new(1, 0, 0, 0)
+    	colLabelsContainer.AnchorPoint = Vector2.new(1, 0)
+    	colLabelsContainer.BackgroundTransparency = 1
+    	colLabelsContainer.Parent = statHeaderBar
+
     	-- ── Scrolling Player Container ────────────────────────────────────
     	local container = Instance.new("ScrollingFrame")
     	container.Name = "PlayerListContainer"
@@ -2177,10 +2336,10 @@ Modules["UI/PlayerList.luau"] = function()
     	container.Parent = widget
 
     	local listPad = Instance.new("UIPadding")
-    	listPad.PaddingLeft = UDim.new(0, 4)
-    	listPad.PaddingRight = UDim.new(0, 4)
-    	listPad.PaddingTop = UDim.new(0, 4)
-    	listPad.PaddingBottom = UDim.new(0, 4)
+    	listPad.PaddingLeft = UDim.new(0, 2)
+    	listPad.PaddingRight = UDim.new(0, 2)
+    	listPad.PaddingTop = UDim.new(0, 2)
+    	listPad.PaddingBottom = UDim.new(0, 2)
     	listPad.Parent = container
 
     	local listLayout = Instance.new("UIListLayout")
@@ -2188,31 +2347,41 @@ Modules["UI/PlayerList.luau"] = function()
     	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     	listLayout.Parent = container
 
-    	-- ── Smooth Height Scaling to Player Count ─────────────────────────
+    	-- ── Smooth Height & Width Scaling ─────────────────────────────────
     	local minimized = false
 
-    	local function updateWidgetHeight()
+    	local function updateWidgetLayout()
     		if minimized then return end
+    		local hasCols = #activeStatColumns > 0
+    		statHeaderBar.Visible = hasCols
+
+    		local headerOffset = HEADER_H + (if hasCols then STAT_HEADER_H + 4 else 0)
+    		container.Position = UDim2.new(0, 6, 0, headerOffset + 8)
+    		container.Size = UDim2.new(1, -12, 1, -(headerOffset + 12))
+
     		local count = #Players:GetPlayers()
-    		local fullNeededHeight = HEADER_H + count * (ROW_H + ROW_GAP) + 8
+    		local fullNeededHeight = headerOffset + count * (ROW_H + ROW_GAP) + 16
     		local vpH = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y or 720
     		local posY = math.max(0, widget.AbsolutePosition.Y)
     		local maxAvailableH = math.max(HEADER_H + 40, vpH - posY - 16)
     		local targetH = math.min(fullNeededHeight, maxAvailableH)
 
+    		local targetW = math.clamp(BASE_W + (#activeStatColumns * STAT_COL_W), BASE_W, 520)
+    		currentWidth = targetW
+
     		TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-    			Size = UDim2.new(0, widget.AbsoluteSize.X, 0, targetH)
+    			Size = UDim2.new(0, targetW, 0, targetH)
     		}):Play()
     	end
 
-    	-- ── Standard Roblox Topbar Drag (Screen Clamped) ──────────────────
-    			UI.makeDraggable(topbar, widget)
+    	-- ── Standard Topbar Drag ──────────────────────────────────────────
+    	UI.makeDraggable(topbar, widget)
 
     	if workspace.CurrentCamera then
-    		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateWidgetHeight)
+    		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateWidgetLayout)
     	end
 
-    	-- ── Button Hover & Click FX ─────────────────────────────────────
+    	-- ── Button Hover & Click FX ───────────────────────────────────────
     	local function attachBtnFX(btn: TextButton, isClose: boolean?)
     		local stroke = btn:FindFirstChildWhichIsA("UIStroke")
     		btn.MouseEnter:Connect(function()
@@ -2240,8 +2409,6 @@ Modules["UI/PlayerList.luau"] = function()
     	local isTransitioning = false
     	local isPopupOpen = false
     	local isWidgetEnabled = true
-
-    	-- Forward declare closeContextMenu
     	local closeContextMenu: () -> ()
 
     	local widgetObj: any = nil
@@ -2301,12 +2468,13 @@ Modules["UI/PlayerList.luau"] = function()
     		if closeContextMenu then closeContextMenu() end
     		if minimized then
     			container.Visible = false
+    			statHeaderBar.Visible = false
     			TweenService:Create(widget, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
     				Size = UDim2.new(0, widget.AbsoluteSize.X, 0, HEADER_H)
     			}):Play()
     		else
     			container.Visible = true
-    			updateWidgetHeight()
+    			updateWidgetLayout()
     		end
     		if widgetObj and widgetObj.OnMinimize then
     			pcall(function() widgetObj.OnMinimize(minimized) end)
@@ -2318,7 +2486,7 @@ Modules["UI/PlayerList.luau"] = function()
     	end)
 
     	-- ── Floating Player Extended Profile & Leaderstats Popup ─────────
-    	popupFrame = Instance.new("Frame")
+    	local popupFrame = Instance.new("Frame")
     	popupFrame.Name = "PlayerContextMenu"
     	popupFrame.Size = UDim2.new(0, POPUP_W, 0, POPUP_H)
     	popupFrame.BackgroundColor3 = UI.Theme.Background
@@ -2430,7 +2598,7 @@ Modules["UI/PlayerList.luau"] = function()
     	statsHeader.Size = UDim2.new(1, -12, 0, 16)
     	statsHeader.Position = UDim2.new(0, 6, 0, 54)
     	statsHeader.BackgroundTransparency = 1
-    	statsHeader.Text = "LIVE LEADERSTATS"
+    	statsHeader.Text = "LIVE LEADERSTATS & VALUES"
     	statsHeader.TextColor3 = UI.Theme.TextSecondary
     	statsHeader.Font = UI.Fonts.Header
     	statsHeader.TextSize = 9
@@ -2535,7 +2703,6 @@ Modules["UI/PlayerList.luau"] = function()
     		return btn
     	end
 
-    	-- 1. Friend / Unfriend
     	local friendBtn = makeActionBtn("Add Friend", 1, function()
     		if currentTargetPlayer and currentTargetPlayer ~= Players.LocalPlayer then
     			pcall(function()
@@ -2544,7 +2711,6 @@ Modules["UI/PlayerList.luau"] = function()
     		end
     	end)
 
-    	-- 2. Teleport To Player
     	local tpBtn = makeActionBtn("Teleport", 2, function()
     		if currentTargetPlayer and currentTargetPlayer.Character then
     			local myChar = Players.LocalPlayer.Character
@@ -2557,7 +2723,6 @@ Modules["UI/PlayerList.luau"] = function()
     		end
     	end)
 
-    	-- 3. Spectate / Spy
     	local spyBtn = makeActionBtn("Spectate", 3, function()
     		local cam = workspace.CurrentCamera
     		if not cam then return end
@@ -2570,7 +2735,6 @@ Modules["UI/PlayerList.luau"] = function()
     		end
     	end)
 
-    	-- 4. Copy Username & User ID
     	local copyBtn = makeActionBtn("Copy ID", 4, function()
     		if currentTargetPlayer then
     			local clip = string.format("%s (@%s) [ID:%d]", currentTargetPlayer.DisplayName, currentTargetPlayer.Name, currentTargetPlayer.UserId)
@@ -2581,7 +2745,6 @@ Modules["UI/PlayerList.luau"] = function()
     		end
     	end)
 
-    	-- 5. Inspect Profile / Report
     	local inspectBtn = makeActionBtn("Inspect", 5, function()
     		if currentTargetPlayer then
     			pcall(function()
@@ -2590,7 +2753,6 @@ Modules["UI/PlayerList.luau"] = function()
     		end
     	end)
 
-    	-- 6. Fling Player (Target High-Torque Burst)
     	local flingBtn = makeActionBtn("Fling", 6, function()
     		if currentTargetPlayer and currentTargetPlayer.Character then
     			local myChar = Players.LocalPlayer.Character
@@ -2621,7 +2783,6 @@ Modules["UI/PlayerList.luau"] = function()
     		Animations.popOut(popupFrame, popupScale)
     	end
 
-    	-- Dismiss when clicking anywhere on screen outside popup
     	UserInputService.InputBegan:Connect(function(input)
     		if not isPopupOpen then return end
     		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -2644,7 +2805,6 @@ Modules["UI/PlayerList.luau"] = function()
     		pNameLabel.Text = player.DisplayName
     		pSubLabel.Text = string.format("@%s | ID: %d | %dd", player.Name, player.UserId, player.AccountAge or 0)
 
-    		-- Clear previous stat rows & connections
     		clearStatConns()
     		for _, child in ipairs(statsContainer:GetChildren()) do
     			if child:IsA("GuiObject") and child ~= statsList then
@@ -2652,29 +2812,44 @@ Modules["UI/PlayerList.luau"] = function()
     			end
     		end
 
-    		-- Gather all live leaderstats / currencies
-    		local statItems: {Instance} = {}
+    		local statItems: {{Name: string, Value: any, Object: Instance?}} = {}
+    		local seenNames: {[string]: boolean} = {}
+
+    		local function addStat(name: string, val: any, obj: Instance?)
+    			if seenNames[name] then return end
+    			seenNames[name] = true
+    			table.insert(statItems, { Name = name, Value = val, Object = obj })
+    		end
+
     		local statFolders = {
     			player:FindFirstChild("leaderstats"),
     			player:FindFirstChild("Data"),
     			player:FindFirstChild("Stats"),
     			player:FindFirstChild("Currencies"),
+    			player:FindFirstChild("Values"),
+    			player:FindFirstChild("PlayerData"),
     			player:FindFirstChild("hiddenstats")
     		}
     		for _, folder in ipairs(statFolders) do
     			if folder then
     				for _, c in ipairs(folder:GetChildren()) do
     					if c:IsA("ValueBase") then
-    						table.insert(statItems, c)
+    						addStat(c.Name, (c :: any).Value, c)
     					end
     				end
     			end
     		end
 
+    		for attrName, attrVal in pairs(player:GetAttributes()) do
+    			if type(attrVal) == "number" or type(attrVal) == "string" or type(attrVal) == "boolean" then
+    				addStat(attrName, attrVal, nil)
+    			end
+    		end
+
     		if #statItems > 0 then
-    			for _, valObj in ipairs(statItems) do
+    			for _, item in ipairs(statItems) do
     				local sRow = Instance.new("Frame")
-    				sRow.Name = "StatRow_" .. valObj.Name
+    				sRow.Name = "StatRow_" .. item.Name
     				sRow.Size = UDim2.new(1, -4, 0, 20)
     				sRow.BackgroundColor3 = UI.Theme.Container
     				sRow.BackgroundTransparency = 0.55
@@ -2685,7 +2860,7 @@ Modules["UI/PlayerList.luau"] = function()
     				nameLbl.Size = UDim2.new(0.55, -4, 1, 0)
     				nameLbl.Position = UDim2.new(0, 4, 0, 0)
     				nameLbl.BackgroundTransparency = 1
-    				nameLbl.Text = valObj.Name
+    				nameLbl.Text = item.Name
     				nameLbl.TextColor3 = UI.Theme.TextPrimary
     				nameLbl.Font = UI.Fonts.Header
     				nameLbl.TextSize = 10
@@ -2698,7 +2873,7 @@ Modules["UI/PlayerList.luau"] = function()
     				valLbl.Size = UDim2.new(0.45, -4, 1, 0)
     				valLbl.Position = UDim2.new(0.55, 0, 0, 0)
     				valLbl.BackgroundTransparency = 1
-    				valLbl.Text = tostring((valObj :: any).Value)
+    				valLbl.Text = formatStatVal(item.Value)
     				valLbl.TextColor3 = UI.Theme.Accent
     				valLbl.Font = UI.Fonts.Mono
     				valLbl.TextSize = 10
@@ -2707,10 +2882,12 @@ Modules["UI/PlayerList.luau"] = function()
     				valLbl.Parent = sRow
     				UI.registerThemeElement(valLbl, "Accent")
 
-    				local conn = (valObj :: any).Changed:Connect(function(newVal)
-    					valLbl.Text = tostring(newVal)
-    				end)
-    				table.insert(activeStatConns, conn)
+    				if item.Object and item.Object:IsA("ValueBase") then
+    					local conn = (item.Object :: any).Changed:Connect(function(newVal)
+    						valLbl.Text = formatStatVal(newVal)
+    					end)
+    					table.insert(activeStatConns, conn)
+    				end
     			end
     		else
     			local emptyLbl = Instance.new("TextLabel")
@@ -2725,13 +2902,11 @@ Modules["UI/PlayerList.luau"] = function()
     			UI.registerThemeElement(emptyLbl, "TextSecondary")
     		end
 
-    		-- Update Friend Button text based on status
     		pcall(function()
     			local isFriend = Players.LocalPlayer:IsFriendsWith(player.UserId)
     			friendBtn.Text = if isFriend then "Unfriend" else "Add Friend"
     		end)
 
-    		-- Dynamic Smart Positioning (8px viewport margin & flip detection)
     		local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
     		local wPos = widget.AbsolutePosition
     		local wSize = widget.AbsoluteSize
@@ -2759,6 +2934,154 @@ Modules["UI/PlayerList.luau"] = function()
     		Animations.popIn(popupFrame, popupScale)
     	end
 
+    	-- ── Universal Leaderstat Reader for Player ─────────────────────────
+    	local function getPlayerStatValue(player: Player, statName: string): (any, Instance?)
+    		local statFolders = {
+    			player:FindFirstChild("leaderstats"),
+    			player:FindFirstChild("Data"),
+    			player:FindFirstChild("Stats"),
+    			player:FindFirstChild("Currencies"),
+    			player:FindFirstChild("Values"),
+    			player:FindFirstChild("PlayerData")
+    		}
+    		for _, f in ipairs(statFolders) do
+    			if f then
+    				local c = f:FindFirstChild(statName)
+    				if c and c:IsA("ValueBase") then
+    					return (c :: any).Value, c
+    				end
+    			end
+    		end
+
+    		local attr = player:GetAttribute(statName)
+    		if attr ~= nil then
+    			return attr, nil
+    		end
+
+    		-- Also check case-insensitive match in leaderstats
+    		local ls = player:FindFirstChild("leaderstats")
+    		if ls then
+    			local lowerTarget = statName:lower()
+    			for _, c in ipairs(ls:GetChildren()) do
+    				if c:IsA("ValueBase") and c.Name:lower() == lowerTarget then
+    					return (c :: any).Value, c
+    				end
+    			end
+    		end
+
+    		return nil, nil
+    	end
+
+    	-- ── Rebuild Column Header Row ─────────────────────────────────────
+    	local function renderColumnHeaders()
+    		for _, child in ipairs(colLabelsContainer:GetChildren()) do
+    			if child:IsA("GuiObject") then
+    				child:Destroy()
+    			end
+    		end
+
+    		local numCols = #activeStatColumns
+    		colLabelsContainer.Size = UDim2.new(0, numCols * STAT_COL_W, 1, 0)
+    		playerHeaderLabel.Size = UDim2.new(1, -(numCols * STAT_COL_W + 8), 1, 0)
+
+    		for i, colName in ipairs(activeStatColumns) do
+    			local lbl = Instance.new("TextLabel")
+    			lbl.Name = "ColHeader_" .. colName
+    			lbl.Size = UDim2.new(0, STAT_COL_W, 1, 0)
+    			lbl.Position = UDim2.new(0, (i - 1) * STAT_COL_W, 0, 0)
+    			lbl.BackgroundTransparency = 1
+    			lbl.Text = colName
+    			lbl.TextColor3 = UI.Theme.Accent
+    			lbl.Font = UI.Fonts.Header
+    			lbl.TextSize = 9
+    			lbl.TextXAlignment = Enum.TextXAlignment.Center
+    			lbl.TextTruncate = Enum.TextTruncate.AtEnd
+    			lbl.Parent = colLabelsContainer
+    			UI.registerThemeElement(lbl, "Accent")
+    		end
+
+    		updateWidgetLayout()
+    	end
+
+    	-- ── Global Leaderstats Columns Discovery ──────────────────────────
+    	local function discoverServerLeaderstats()
+    		local newFound = false
+    		local function inspectFolder(folder: Instance)
+    			for _, c in ipairs(folder:GetChildren()) do
+    				if c:IsA("ValueBase") and #activeStatColumns < MAX_STAT_COLS then
+    					if not table.find(activeStatColumns, c.Name) then
+    						table.insert(activeStatColumns, c.Name)
+    						newFound = true
+    					end
+    				end
+    			end
+    		end
+
+    		-- Prioritize LocalPlayer's leaderstats order
+    		local lp = Players.LocalPlayer
+    		if lp then
+    			local lpLs = lp:FindFirstChild("leaderstats")
+    			if lpLs then inspectFolder(lpLs) end
+    		end
+
+    		-- Check other players if more slots available
+    		for _, p in ipairs(Players:GetPlayers()) do
+    			if #activeStatColumns >= MAX_STAT_COLS then break end
+    			local ls = p:FindFirstChild("leaderstats")
+    			if ls then inspectFolder(ls) end
+    		end
+
+    		-- Fallback to Data/Stats/Currencies folders
+    		if #activeStatColumns == 0 then
+    			for _, p in ipairs(Players:GetPlayers()) do
+    				if #activeStatColumns >= MAX_STAT_COLS then break end
+    				for _, fName in ipairs({"Data", "Stats", "Currencies", "Values", "PlayerData"}) do
+    					local f = p:FindFirstChild(fName)
+    					if f then inspectFolder(f) end
+    				end
+    			end
+    		end
+
+    		if newFound then
+    			renderColumnHeaders()
+    			for _, cb in pairs(rowRefreshCallbacks) do
+    				pcall(cb)
+    			end
+    		end
+    	end
+
+    	-- ── Sort Players by Primary Leaderstat ─────────────────────────────
+    	local function updateSorting()
+    		local primaryStat = activeStatColumns[1]
+    		local scores: {[Player]: number} = {}
+
+    		for _, p in ipairs(Players:GetPlayers()) do
+    			if primaryStat then
+    				local val = getPlayerStatValue(p, primaryStat)
+    				scores[p] = tonumber(val) or 0
+    			else
+    				scores[p] = 0
+    			end
+    		end
+
+    		local sorted = Players:GetPlayers()
+    		table.sort(sorted, function(a, b)
+    			local sA = scores[a] or 0
+    			local sB = scores[b] or 0
+    			if sA ~= sB then
+    				return sA > sB
+    			end
+    			return a.Name:lower() < b.Name:lower()
+    		end)
+
+    		for rank, p in ipairs(sorted) do
+    			local row = rowObjects[p]
+    			if row and row.Parent then
+    				row.LayoutOrder = rank
+    			end
+    		end
+    	end
+
     	-- ── Incremental Domino-Animated Player Rows (Clickable) ───────────
     	local function createPlayerRow(player: Player, delaySec: number?)
     		local rowId = "PLR_" .. tostring(player.UserId)
@@ -2768,7 +3091,7 @@ Modules["UI/PlayerList.luau"] = function()
     		rowBtn.Name = rowId
     		rowBtn.Size = UDim2.new(1, 0, 0, ROW_H)
     		rowBtn.Position = UDim2.new(0, 24, 0, 0)
-    		rowBtn.BackgroundColor3 = UI.Theme.Container
+    		rowBtn.BackgroundColor3 = if player == Players.LocalPlayer then UI.Theme.ContainerDark else UI.Theme.Container
     		rowBtn.BackgroundTransparency = UI.Theme.ContainerTransparency
     		rowBtn.BorderSizePixel = 0
     		rowBtn.Text = ""
@@ -2776,9 +3099,10 @@ Modules["UI/PlayerList.luau"] = function()
     		rowBtn.ClipsDescendants = true
     		rowBtn.Parent = container
     		UI.registerThemeElement(rowBtn, "Container")
+    		rowObjects[player] = rowBtn
 
     		local rowStroke = Instance.new("UIStroke")
-    		rowStroke.Color = UI.Theme.Border
+    		rowStroke.Color = if player == Players.LocalPlayer then UI.Theme.Accent else UI.Theme.Border
     		rowStroke.Thickness = 1
     		rowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     		rowStroke.Parent = rowBtn
@@ -2786,7 +3110,7 @@ Modules["UI/PlayerList.luau"] = function()
 
     		-- Avatar Headshot
     		local avatarBox = Instance.new("Frame")
-    		avatarBox.Size = UDim2.new(0, 30, 0, 30)
+    		avatarBox.Size = UDim2.new(0, 28, 0, 28)
     		avatarBox.Position = UDim2.new(0, 4, 0, 4)
     		avatarBox.BackgroundColor3 = UI.Theme.ContainerDark
     		avatarBox.BackgroundTransparency = UI.Theme.ContainerDarkTransparency
@@ -2814,107 +3138,173 @@ Modules["UI/PlayerList.luau"] = function()
     			end
     		end)
 
+    		-- Identity Container (Name + Username/Team)
+    		local infoContainer = Instance.new("Frame")
+    		infoContainer.Name = "InfoContainer"
+    		infoContainer.Position = UDim2.new(0, 36, 0, 2)
+    		infoContainer.Size = UDim2.new(1, -(36 + (#activeStatColumns * STAT_COL_W) + 4), 1, -4)
+    		infoContainer.BackgroundTransparency = 1
+    		infoContainer.Parent = rowBtn
+
     		-- Name Label
     		local nameLabel = Instance.new("TextLabel")
-    		nameLabel.Size = UDim2.new(1, -42, 0, 16)
-    		nameLabel.Position = UDim2.new(0, 38, 0, 3)
+    		nameLabel.Size = UDim2.new(1, 0, 0, 16)
+    		nameLabel.Position = UDim2.new(0, 0, 0, 0)
     		nameLabel.BackgroundTransparency = 1
-    		nameLabel.Text = string.format("%s (@%s)", player.DisplayName, player.Name)
+    		nameLabel.Text = player.DisplayName .. (if player == Players.LocalPlayer then " (You)" else "")
     		nameLabel.TextColor3 = UI.Theme.TextPrimary
     		nameLabel.Font = UI.Fonts.Header
     		nameLabel.TextSize = 10
     		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    		nameLabel.Parent = rowBtn
+    		nameLabel.Parent = infoContainer
     		UI.registerThemeElement(nameLabel, "TextPrimary")
 
-    		-- Details Label (Live Leaderstats & Info)
+    		-- Subtitle Label (@Username or Team)
     		local subLabel = Instance.new("TextLabel")
-    		subLabel.Size = UDim2.new(1, -42, 0, 14)
-    		subLabel.Position = UDim2.new(0, 38, 0, 19)
+    		subLabel.Size = UDim2.new(1, 0, 0, 13)
+    		subLabel.Position = UDim2.new(0, 0, 0, 16)
     		subLabel.BackgroundTransparency = 1
     		subLabel.TextColor3 = UI.Theme.TextSecondary
     		subLabel.Font = UI.Fonts.Mono
     		subLabel.TextSize = 9
     		subLabel.TextXAlignment = Enum.TextXAlignment.Left
     		subLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    		subLabel.Parent = rowBtn
+    		subLabel.Parent = infoContainer
     		UI.registerThemeElement(subLabel, "TextSecondary")
 
-    		local function formatStatVal(val: any): string
-    			if typeof(val) == "number" then
-    				if math.abs(val) >= 1_000_000_000 then
-    					return string.format("%.1fB", val / 1_000_000_000)
-    				elseif math.abs(val) >= 1_000_000 then
-    					return string.format("%.1fM", val / 1_000_000)
-    				elseif math.abs(val) >= 1_000 then
-    					return string.format("%.1fK", val / 1_000)
-    				else
-    					return tostring(val)
-    				end
-    			end
-    			return tostring(val)
-    		end
+    		-- Stats Cells Container
+    		local statsRowFrame = Instance.new("Frame")
+    		statsRowFrame.Name = "StatsRowFrame"
+    		statsRowFrame.Size = UDim2.new(0, #activeStatColumns * STAT_COL_W, 1, 0)
+    		statsRowFrame.Position = UDim2.new(1, -4, 0, 0)
+    		statsRowFrame.AnchorPoint = Vector2.new(1, 0)
+    		statsRowFrame.BackgroundTransparency = 1
+    		statsRowFrame.Parent = rowBtn
 
-    		local function getPlayerStatsSummary(plr: Player): string
-    			local ls = plr:FindFirstChild("leaderstats") or plr:FindFirstChild("Data") or plr:FindFirstChild("Stats")
-    			if not ls then return "" end
-    			local items = {}
-    			for _, c in ipairs(ls:GetChildren()) do
-    				if c:IsA("ValueBase") then
-    					table.insert(items, string.format("%s: %s", c.Name, formatStatVal((c :: any).Value)))
-    					if #items >= 3 then break end
-    				end
-    			end
-    			return table.concat(items, " • ")
-    		end
+    		local statLabels: {[string]: TextLabel} = {}
 
-    		local function refreshStats()
+    		local function refreshRowStats()
     			if not rowBtn or not rowBtn.Parent then return end
-    			local teamStr = if player.Team then string.format("[%s] ", player.Team.Name) else ""
-    			local statsStr = getPlayerStatsSummary(player)
-    			if statsStr ~= "" then
-    				subLabel.Text = string.format("%s%s", teamStr, statsStr)
-    				subLabel.TextColor3 = UI.Theme.AccentText
+
+    			-- Update Info container width to accommodate columns
+    			local numCols = #activeStatColumns
+    			statsRowFrame.Size = UDim2.new(0, numCols * STAT_COL_W, 1, 0)
+    			infoContainer.Size = UDim2.new(1, -(36 + (numCols * STAT_COL_W) + 4), 1, -4)
+
+    			-- SubLabel text (Team or username)
+    			if player.Team then
+    				subLabel.Text = string.format("[%s] @%s", player.Team.Name, player.Name)
+    				subLabel.TextColor3 = player.TeamColor.Color
     			else
-    				subLabel.Text = string.format("%sID:%d | %dd", teamStr, player.UserId, player.AccountAge)
+    				subLabel.Text = "@" .. player.Name
     				subLabel.TextColor3 = UI.Theme.TextSecondary
     			end
-    		end
 
-    		refreshStats()
-
-    		local statConns: {RBXScriptConnection} = {}
-    		local function watchStatsFolder(folder: Instance)
-    			for _, c in ipairs(folder:GetChildren()) do
-    				if c:IsA("ValueBase") then
-    					table.insert(statConns, (c :: any).Changed:Connect(refreshStats))
+    			-- Clear missing columns and create new ones
+    			for colName, lbl in pairs(statLabels) do
+    				if not table.find(activeStatColumns, colName) then
+    					lbl:Destroy()
+    					statLabels[colName] = nil
     				end
     			end
-    			table.insert(statConns, folder.ChildAdded:Connect(function(c)
-    				if c:IsA("ValueBase") then
-    					table.insert(statConns, (c :: any).Changed:Connect(refreshStats))
-    					refreshStats()
+
+    			for i, colName in ipairs(activeStatColumns) do
+    				local sVal, _ = getPlayerStatValue(player, colName)
+    				local lbl = statLabels[colName]
+    				if not lbl then
+    					lbl = Instance.new("TextLabel")
+    					lbl.Name = "StatVal_" .. colName
+    					lbl.Size = UDim2.new(0, STAT_COL_W, 1, 0)
+    					lbl.Position = UDim2.new(0, (i - 1) * STAT_COL_W, 0, 0)
+    					lbl.BackgroundTransparency = 1
+    					lbl.Font = UI.Fonts.Mono
+    					lbl.TextSize = 10
+    					lbl.TextXAlignment = Enum.TextXAlignment.Center
+    					lbl.TextTruncate = Enum.TextTruncate.AtEnd
+    					lbl.Parent = statsRowFrame
+    					statLabels[colName] = lbl
+    				else
+    					lbl.Position = UDim2.new(0, (i - 1) * STAT_COL_W, 0, 0)
     				end
-    			end))
-    			table.insert(statConns, folder.ChildRemoved:Connect(refreshStats))
+
+    				if sVal ~= nil then
+    					lbl.Text = formatStatVal(sVal)
+    					lbl.TextColor3 = UI.Theme.Accent
+    				else
+    					lbl.Text = "-"
+    					lbl.TextColor3 = UI.Theme.TextSecondary
+    				end
+    			end
+
+    			updateSorting()
     		end
 
-    		local existingLs = player:FindFirstChild("leaderstats") or player:FindFirstChild("Data") or player:FindFirstChild("Stats")
-    		if existingLs then watchStatsFolder(existingLs) end
+    		rowRefreshCallbacks[player] = refreshRowStats
 
-    		table.insert(statConns, player.ChildAdded:Connect(function(child)
-    			if child.Name == "leaderstats" or child.Name == "Data" or child.Name == "Stats" then
-    				watchStatsFolder(child)
-    				refreshStats()
+    		-- Dynamic live listeners for this player's stats
+    		local pConns: {RBXScriptConnection} = {}
+    		playerConnections[player] = pConns
+
+    		local function hookStatItem(item: Instance)
+    			if item:IsA("ValueBase") then
+    				if not table.find(activeStatColumns, item.Name) and #activeStatColumns < MAX_STAT_COLS then
+    					table.insert(activeStatColumns, item.Name)
+    					renderColumnHeaders()
+    					for _, cb in pairs(rowRefreshCallbacks) do
+    						pcall(cb)
+    					end
+    				end
+
+    				table.insert(pConns, item.Changed:Connect(function()
+    					refreshRowStats()
+    				end))
+    			end
+    		end
+
+    		local function hookFolder(folder: Instance)
+    			for _, child in ipairs(folder:GetChildren()) do
+    				hookStatItem(child)
+    			end
+    			table.insert(pConns, folder.ChildAdded:Connect(function(c)
+    				hookStatItem(c)
+    				refreshRowStats()
+    			end))
+    			table.insert(pConns, folder.ChildRemoved:Connect(function()
+    				refreshRowStats()
+    			end))
+    		end
+
+    		for _, fName in ipairs({"leaderstats", "Data", "Stats", "Currencies", "Values", "PlayerData"}) do
+    			local f = player:FindFirstChild(fName)
+    			if f then hookFolder(f) end
+    		end
+
+    		table.insert(pConns, player.ChildAdded:Connect(function(child)
+    			for _, fName in ipairs({"leaderstats", "Data", "Stats", "Currencies", "Values", "PlayerData"}) do
+    				if child.Name == fName then
+    					hookFolder(child)
+    					refreshRowStats()
+    					break
+    				end
     			end
     		end))
 
-    		rowBtn.Destroying:Connect(function()
-    			for _, conn in ipairs(statConns) do
-    				pcall(function() conn:Disconnect() end)
+    		table.insert(pConns, player.AttributeChanged:Connect(function(attr)
+    			if not table.find(activeStatColumns, attr) and #activeStatColumns < MAX_STAT_COLS then
+    				table.insert(activeStatColumns, attr)
+    				renderColumnHeaders()
+    				for _, cb in pairs(rowRefreshCallbacks) do
+    					pcall(cb)
+    				end
+    			else
+    				refreshRowStats()
     			end
-    		end)
+    		end))
+
+    		table.insert(pConns, player:GetPropertyChangedSignal("Team"):Connect(refreshRowStats))
+
+    		refreshRowStats()
 
     		-- Row Hover FX
     		rowBtn.MouseEnter:Connect(function()
@@ -2922,8 +3312,10 @@ Modules["UI/PlayerList.luau"] = function()
     			TweenService:Create(rowBtn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.ContainerDark }):Play()
     		end)
     		rowBtn.MouseLeave:Connect(function()
-    			TweenService:Create(rowStroke, TweenInfo.new(0.12), { Color = UI.Theme.Border, Thickness = 1 }):Play()
-    			TweenService:Create(rowBtn, TweenInfo.new(0.12), { BackgroundColor3 = UI.Theme.Container }):Play()
+    			local defBorder = if player == Players.LocalPlayer then UI.Theme.Accent else UI.Theme.Border
+    			local defBg = if player == Players.LocalPlayer then UI.Theme.ContainerDark else UI.Theme.Container
+    			TweenService:Create(rowStroke, TweenInfo.new(0.12), { Color = defBorder, Thickness = 1 }):Play()
+    			TweenService:Create(rowBtn, TweenInfo.new(0.12), { BackgroundColor3 = defBg }):Play()
     		end)
 
     		-- Row Click Opens Context Menu
@@ -2931,7 +3323,7 @@ Modules["UI/PlayerList.luau"] = function()
     			openContextMenuForPlayer(player, rowBtn.AbsolutePosition)
     		end)
 
-    		-- Slide-in from right to left (Domino effect)
+    		-- Domino Slide-in
     		local function playSlide()
     			if rowBtn and rowBtn.Parent then
     				TweenService:Create(rowBtn, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
@@ -2947,10 +3339,20 @@ Modules["UI/PlayerList.luau"] = function()
     		end
 
     		titleLabel.Text = string.format("Players (%d)", #Players:GetPlayers())
-    		updateWidgetHeight()
+    		updateWidgetLayout()
     	end
 
     	local function deletePlayerRow(player: Player)
+    		rowRefreshCallbacks[player] = nil
+    		rowObjects[player] = nil
+
+    		if playerConnections[player] then
+    			for _, conn in ipairs(playerConnections[player]) do
+    				pcall(function() conn:Disconnect() end)
+    			end
+    			playerConnections[player] = nil
+    		end
+
     		local rowId = "PLR_" .. tostring(player.UserId)
     		local row = container:FindFirstChild(rowId)
     		if row and row:IsA("TextButton") then
@@ -2962,7 +3364,7 @@ Modules["UI/PlayerList.luau"] = function()
     			tween.Completed:Connect(function()
     				row:Destroy()
     				titleLabel.Text = string.format("Players (%d)", #Players:GetPlayers())
-    				updateWidgetHeight()
+    				updateWidgetLayout()
     			end)
     		end
     		if currentTargetPlayer == player and isPopupOpen then
@@ -2970,13 +3372,24 @@ Modules["UI/PlayerList.luau"] = function()
     		end
     	end
 
-    	local currentListInstance: any = nil
-
     	-- Connect Player Added / Removed
     	table.insert(activeConnections, Players.PlayerAdded:Connect(function(p)
+    		discoverServerLeaderstats()
     		createPlayerRow(p, 0)
     	end))
     	table.insert(activeConnections, Players.PlayerRemoving:Connect(deletePlayerRow))
+
+    	-- Discover leaderstats across present players
+    	discoverServerLeaderstats()
+
+    	-- Periodic safety scan for late-replicating leaderstats
+    	task.spawn(function()
+    		while true do
+    			task.wait(2.5)
+    			if not screenGui.Parent then break end
+    			discoverServerLeaderstats()
+    		end
+    	end)
 
     	-- Populate existing players with domino wave
     	task.spawn(function()
@@ -2990,16 +3403,17 @@ Modules["UI/PlayerList.luau"] = function()
     			pcall(function() conn:Disconnect() end)
     		end
     		table.clear(activeConnections)
+
     		for _, conns in pairs(playerConnections) do
     			for _, c in ipairs(conns) do
     				pcall(function() c:Disconnect() end)
     			end
     		end
     		table.clear(playerConnections)
+    		table.clear(rowRefreshCallbacks)
+    		table.clear(rowObjects)
+
     		pcall(function() screenGui:Destroy() end)
-    		if currentListInstance == widgetObj then
-    			currentListInstance = nil
-    		end
     	end
 
     	widgetObj = {
@@ -3020,7 +3434,7 @@ Modules["UI/PlayerList.luau"] = function()
     		OnOpen = nil,
     		OnMinimize = nil,
     	}
-    	currentListInstance = widgetObj
+
     	return widgetObj
     end
 
@@ -4024,7 +4438,7 @@ Modules["UI/ChatWidget.luau"] = function()
     				popAvatar.Image = thumb
     			end
     		end)
-
+		
     		local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
     		local x = math.clamp(clickPos.X, 8, math.max(8, vp.X - 198))
     		local y = math.clamp(clickPos.Y, 8, math.max(8, vp.Y - 248))
@@ -5977,6 +6391,22 @@ Modules["UI/MusicTracker.luau"] = function()
     						local data = HttpService:JSONDecode(rawData)
     						local title = data.title or data.name or data.track
     						local artist = data.artist or data.author or "Unknown"
+
+    						-- Dynamic adaptive cover theme ingestion from bridge
+    						if data.theme and typeof(data.theme) == "table" then
+    							local th = data.theme
+    							local acc = th.accent
+    							local bg = th.bg
+    							local ctr = th.container
+    							local bdr = th.border
+    							if acc and bg and ctr and #acc >= 3 and #bg >= 3 and #ctr >= 3 then
+    								local accentCol = Color3.fromRGB(acc[1], acc[2], acc[3])
+    								local bgCol = Color3.fromRGB(bg[1], bg[2], bg[3])
+    								local containerCol = Color3.fromRGB(ctr[1], ctr[2], ctr[3])
+    								local borderCol = if bdr and #bdr >= 3 then Color3.fromRGB(bdr[1], bdr[2], bdr[3]) else nil
+    								UI.applyAdaptiveTheme(accentCol, bgCol, containerCol, borderCol)
+    							end
+    						end
 
     						if data and title and title ~= "" then
     							if data.spectrum and typeof(data.spectrum) == "table" then
@@ -9987,7 +10417,7 @@ Modules["Core/FeatureManager.luau"] = function()
     local function deleteConfigFile(name: string): boolean
     	ensureFolders()
     	local cleanName = name:gsub("^FihSuiteConfigs", ""):gsub("%.json$", "")
-
+	
     	configsIndex[cleanName] = nil
     	configsIndex[name] = nil
     	deletedConfigsSet[cleanName] = true
@@ -10052,9 +10482,9 @@ Modules["Core/FeatureManager.luau"] = function()
     			return
     		end
     	end
-
+	
     	if gameProcessed then return end
-
+	
     	if input.UserInputType == Enum.UserInputType.Keyboard then
     		local matching = keybindMap[input.KeyCode]
     		if matching then
@@ -10092,14 +10522,14 @@ Modules["Core/FeatureManager.luau"] = function()
     	}
     	registeredFeatures[id] = record
     	rebuildKeybindMap()
-
+	
     	task.spawn(function()
     		local success, err = pcall(callback, defaultState)
     		if not success then
     			warn(string.format("[FeatureManager] error initializing feature %s: %s", id, tostring(err)))
     		end
     	end)
-
+	
     	return record
     end
 
@@ -10152,7 +10582,7 @@ Modules["Core/FeatureManager.luau"] = function()
     	local feat = registeredFeatures[id]
     	if not feat then return end
     	if feat.state == state and not force then return end
-
+	
     	feat.state = state
     	if feat.onStateChanged then feat.onStateChanged(state) end
     	if feat.stateListeners then
@@ -10524,7 +10954,7 @@ Modules["Core/CoreUI.luau"] = function()
 
     function CoreUI.new(titleText: string)
     	local self = setmetatable({}, CoreUI)
-
+	
     	pcall(function()
     		local containers = {
     			(type(gethui) == "function" and gethui()),
@@ -10548,12 +10978,12 @@ Modules["Core/CoreUI.luau"] = function()
     	screenGui.ResetOnSpawn = false
     	screenGui.IgnoreGuiInset = true
     	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
+	
     	safeParentGui(screenGui)
-
+	
     	local mainFrame, topbar, sidebar, contentContainer, activeTagLabel, settingsBtn, configsBtn, uiScale, controller, themesBtn, statusLabel = UI.createWindow(titleText)
     	mainFrame.Parent = screenGui
-
+	
     	self.ScreenGui = screenGui
     	self.MainFrame = mainFrame
     	self.Sidebar = sidebar
@@ -10575,7 +11005,7 @@ Modules["Core/CoreUI.luau"] = function()
     	self.ActiveToggles = {}
     	self.SliderFills = {}
     	self.SubTabGroups = {}
-
+	
     	-- Wire toggle click handlers for Settings and Themes
     	if self.SettingsBtn then
     		self.SettingsBtn.MouseButton1Click:Connect(function()
@@ -10617,7 +11047,7 @@ Modules["Core/CoreUI.luau"] = function()
     	UI.onThemeChanged(function(targetTheme)
     		self:UpdateTheme(targetTheme)
     	end)
-
+	
     	return self
     end
 
@@ -10725,7 +11155,7 @@ Modules["Core/CoreUI.luau"] = function()
     			}):Play()
     		end
     	end)
-
+	
     	-- Active tab gradient overlay
     	local tabGrad = Instance.new("UIGradient")
     	tabGrad.Name = "ActiveGradient"
@@ -10736,14 +11166,14 @@ Modules["Core/CoreUI.luau"] = function()
     	})
     	tabGrad.Enabled = false
     	tabGrad.Parent = tabButton
-
+	
     	local tabStroke = Instance.new("UIStroke")
     	tabStroke.Color = UI.Theme.Border
     	tabStroke.Thickness = 1.0
     	tabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     	tabStroke.Parent = tabButton
     	UI.registerThemeElement(tabStroke, "Border")
-
+	
     	local tabContent = Instance.new("ScrollingFrame")
     	tabContent.Name = name .. "Page"
     	tabContent.Size = UDim2.new(1, 0, 1, 0)
@@ -10764,12 +11194,12 @@ Modules["Core/CoreUI.luau"] = function()
     	pad.PaddingTop = UDim.new(0, 2)
     	pad.PaddingBottom = UDim.new(0, 12)
     	pad.Parent = tabContent
-
+	
     	local layout = Instance.new("UIListLayout")
     	layout.Padding = UDim.new(0, 10)
     	layout.SortOrder = Enum.SortOrder.LayoutOrder
     	layout.Parent = tabContent
-
+	
     	local tabObj = {
     		Name = name,
     		Button = tabButton,
@@ -10780,7 +11210,7 @@ Modules["Core/CoreUI.luau"] = function()
     		IsVisible = not (isHiddenFromSidebar or false),
     		OnVisibilityChanged = nil
     	}
-
+	
     	tabButton.MouseEnter:Connect(function()
     		if self.ActiveTab ~= tabObj then
     			if tabStroke then TweenService:Create(tabStroke, TweenInfo.new(0.12), { Thickness = 1.5 }):Play() end
@@ -10809,14 +11239,14 @@ Modules["Core/CoreUI.luau"] = function()
     			handleRightClick()
     		end
     	end)
-
+	
     	table.insert(self.Tabs, tabObj)
     	self:_UpdateTabSizing()
-
+	
     	if not isHiddenFromSidebar and #self.Tabs == 1 then
     		self:SelectTab(tabObj)
     	end
-
+	
     	return tabObj
     end
 
@@ -10976,7 +11406,7 @@ Modules["Core/CoreUI.luau"] = function()
     		tabObj.Button.TextColor3 = UI.Theme.AccentText
     		tabObj.Stroke.Color = UI.Theme.Border
     		tabObj.Stroke.Thickness = 1.2
-
+		
     		Animations.pulseIndicator(tabObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
 
     		local grad = tabObj.Button:FindFirstChild("ActiveGradient") :: UIGradient?
@@ -11234,10 +11664,10 @@ Modules["Core/CoreUI.luau"] = function()
     				BackgroundTransparency = 0,
     				TextColor3 = UI.Theme.AccentText
     			}):Play()
-
+			
     			-- Active sub-tab indicator pulse
     			Animations.pulseIndicator(targetObj.Stroke, UI.Theme.Accent, UI.Theme.Border, 2.0, 1.5)
-
+			
     			if targetObj.Gradient then targetObj.Gradient.Enabled = true end
     		end
 
@@ -11526,7 +11956,7 @@ Modules["Core/CoreUI.luau"] = function()
     -- 3-Segment Toggle Row: [ X ] Option Name [ Bind ]
     function CoreUI:AddToggle(section: Frame, featureId: string, name: string, defaultState: boolean, defaultKeybind: Enum.KeyCode?, callback: (boolean) -> ())
     	local feature = FeatureManager.register(featureId, name, defaultState, defaultKeybind, callback)
-
+	
     	local row = Instance.new("Frame")
     	row.Name = featureId .. "Row"
     	row.Size = UDim2.new(1, -4, 0, 24)
@@ -12986,17 +13416,46 @@ Modules["Core/MainUI.luau"] = function()
     					local bestStatVal = 0
     					local bestStatFmt = "0"
 
-    					local ls = p:FindFirstChild("leaderstats")
-    					if ls then
-    						for _, val in ipairs(ls:GetChildren()) do
-    							if val:IsA("ValueBase") then
-    								local num = tonumber((val :: any).Value) or 0
-    								if num >= bestStatVal then
-    									bestStatVal = num
-    									bestStatName = val.Name
-    									bestStatFmt = tostring((val :: any).Value)
+    					local statFolders = {
+    						p:FindFirstChild("leaderstats"),
+    						p:FindFirstChild("Data"),
+    						p:FindFirstChild("Stats"),
+    						p:FindFirstChild("Currencies"),
+    						p:FindFirstChild("Values"),
+    						p:FindFirstChild("PlayerData")
+    					}
+
+    					for _, folder in ipairs(statFolders) do
+    						if folder then
+    							for _, val in ipairs(folder:GetChildren()) do
+    								if val:IsA("ValueBase") then
+    									local num = tonumber((val :: any).Value)
+    									if num then
+    										if bestStatName == "None" or num >= bestStatVal then
+    											bestStatVal = num
+    											bestStatName = val.Name
+    											bestStatFmt = tostring((val :: any).Value)
+    										end
+    									elseif bestStatName == "None" then
+    										bestStatName = val.Name
+    										bestStatFmt = tostring((val :: any).Value)
+    									end
     								end
     							end
+    						end
+    					end
+
+    					for attrName, attrVal in pairs(p:GetAttributes()) do
+    						local num = tonumber(attrVal)
+    						if num then
+    							if bestStatName == "None" or num >= bestStatVal then
+    								bestStatVal = num
+    								bestStatName = attrName
+    								bestStatFmt = tostring(attrVal)
+    							end
+    						elseif bestStatName == "None" and (type(attrVal) == "string" or type(attrVal) == "boolean") then
+    							bestStatName = attrName
+    							bestStatFmt = tostring(attrVal)
     						end
     					end
 
@@ -15010,8 +15469,18 @@ Modules["Core/MainUI.luau"] = function()
     			window:Notify("Theme", "Saved Adaptive Mode", 2)
     		end)
 
-    		-- Right Column: Light & Glass Themes
-    		local lightThemeSection = window:AddSection(thmRightCol, "Light & Glass Themes")
+    		window:AddButton(darkThemeSection, "Midnight (Amethyst OLED)", function()
+    			window:SetTheme("Midnight")
+    			window:Notify("Theme", "Saved Midnight Theme", 2)
+    		end)
+
+    		window:AddButton(darkThemeSection, "Emerald (Cyber Green)", function()
+    			window:SetTheme("Emerald")
+    			window:Notify("Theme", "Saved Emerald Theme", 2)
+    		end)
+
+    		-- Right Column: Light, Glass & Accent Themes
+    		local lightThemeSection = window:AddSection(thmRightCol, "Light, Glass & Accent Themes")
 
     		window:AddButton(lightThemeSection, "Light Mode", function()
     			window:SetTheme("Light")
@@ -15021,6 +15490,16 @@ Modules["Core/MainUI.luau"] = function()
     		window:AddButton(lightThemeSection, "Translucent Light (Glass)", function()
     			window:SetTheme("TranslucentLight")
     			window:Notify("Theme", "Saved Glass Light Mode", 2)
+    		end)
+
+    		window:AddButton(lightThemeSection, "Crimson (Ruby Red)", function()
+    			window:SetTheme("Crimson")
+    			window:Notify("Theme", "Saved Crimson Theme", 2)
+    		end)
+
+    		window:AddButton(lightThemeSection, "Amber (Warm Flame)", function()
+    			window:SetTheme("Amber")
+    			window:Notify("Theme", "Saved Amber Theme", 2)
     		end)
 
     		-- ?????? SETTINGS SUB-TAB 3: PERFORMANCE & RENDERING ??????????????????????????????????????????
@@ -15802,25 +16281,25 @@ Modules["Modules/Movement.luau"] = function()
     function Movement.init(window: any)
     	local moveTab = window:CreateTab("Movement")
     	local leftCol, rightCol = window:CreateColumns(moveTab)
-
+	
     	-- Flight & Collision
     	local flightSection = window:AddSection(leftCol, "Flight & Collision")
-
+	
     	window:AddToggle(flightSection, "noclip_toggle", "Noclip", false, nil, function(enabled)
     		Movement.setNoclip(enabled)
     	end)
-
+	
     	window:AddToggle(flightSection, "inf_jump", "Infinite Jump", false, nil, function(enabled)
     		Movement.setInfiniteJump(enabled)
     	end)
-
+	
     	-- Physics & Gravity
     	local physicsSection = window:AddSection(rightCol, "World Physics")
-
+	
     	window:AddSlider(physicsSection, "Custom Gravity", 0, 196, 196, function(value)
     		Workspace.Gravity = value
     	end)
-
+	
     	window:AddSlider(physicsSection, "Hip Height Offset", 0, 20, 0, function(value)
     		if LocalPlayer.Character then
     			local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -15829,7 +16308,7 @@ Modules["Modules/Movement.luau"] = function()
     			end
     		end
     	end)
-
+	
     	window:SelectTab(moveTab)
     	return moveTab
     end
@@ -15895,19 +16374,19 @@ Modules["Modules/Visuals.luau"] = function()
     	Box2D = false,
     	BoxOutlines = false,
     	BoxColor = Color3.fromRGB(55, 175, 245),
-
+	
     	HealthBar = false,
-
+	
     	Tracers = false,
     	TracerOrigin = "Bottom" :: "Bottom" | "Center" | "Mouse",
     	TracerColor = Color3.fromRGB(255, 255, 255),
-
+	
     	Distance = false,
     	DistanceColor = Color3.fromRGB(240, 240, 240),
-
+	
     	Skeleton = false,
     	SkeletonColor = Color3.fromRGB(255, 200, 50),
-
+	
     	-- 3D Chams / Highlights Settings
     	Chams = false,
     	ChamsTransparency = 0.5,
@@ -15939,7 +16418,7 @@ Modules["Modules/Visuals.luau"] = function()
     			return obj
     		end
     	end
-
+	
     	if hasDrawing then
     		local success, obj = pcall(function()
     			return Drawing.new(drawingType)
@@ -15957,7 +16436,7 @@ Modules["Modules/Visuals.luau"] = function()
     function Visuals.releaseDrawing(drawingTypeOrObj: any, maybeObj: any?)
     	local drawingType: string?
     	local obj: any?
-
+	
     	if typeof(drawingTypeOrObj) == "string" then
     		drawingType = drawingTypeOrObj
     		obj = maybeObj
@@ -15967,13 +16446,13 @@ Modules["Modules/Visuals.luau"] = function()
     			drawingType = maybeObj
     		end
     	end
-
+	
     	if not obj then return end
-
+	
     	pcall(function()
     		obj.Visible = false
     	end)
-
+	
     	if drawingType and DrawingPool[drawingType] then
     		table.insert(DrawingPool[drawingType], obj)
     	else
@@ -16041,14 +16520,14 @@ Modules["Modules/Visuals.luau"] = function()
     		pv.Parts = nil
     		return
     	end
-
+	
     	local humanoid = character:FindFirstChildOfClass("Humanoid")
     	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") :: BasePart?
     	local head = character:FindFirstChild("Head") :: BasePart?
     	local torso = character:FindFirstChild("Torso") :: BasePart?
     	local upperTorso = character:FindFirstChild("UpperTorso") :: BasePart?
     	local lowerTorso = character:FindFirstChild("LowerTorso") :: BasePart?
-
+	
     	local boneMap: {[string]: BasePart?} = {}
     	for _, pair in ipairs(BONE_PAIRS) do
     		local p1Name = pair[1]
@@ -16060,7 +16539,7 @@ Modules["Modules/Visuals.luau"] = function()
     			boneMap[p2Name] = character:FindFirstChild(p2Name) :: BasePart?
     		end
     	end
-
+	
     	-- Fallback resolution for R6 character rigs
     	if not boneMap["UpperTorso"] and torso then
     		boneMap["UpperTorso"] = torso
@@ -16078,7 +16557,7 @@ Modules["Modules/Visuals.luau"] = function()
     	if not boneMap["RightUpperLeg"] then
     		boneMap["RightUpperLeg"] = character:FindFirstChild("Right Leg") :: BasePart?
     	end
-
+	
     	pv.Parts = {
     		Character = character,
     		Humanoid = humanoid,
@@ -16119,7 +16598,7 @@ Modules["Modules/Visuals.luau"] = function()
     		CharRemovingConn = nil,
     		ChildAddedConn = nil,
     	}
-
+	
     	if hasDrawing then
     		-- Box Outline (Secondary black square for high contrast, Thickness = 3.5)
     		local boxOutline = Visuals.acquireDrawing("Square")
@@ -16146,7 +16625,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.Box = box
     		end
-
+		
     		-- Health Bar BG
     		local hbBg = Visuals.acquireDrawing("Square")
     		if hbBg then
@@ -16159,7 +16638,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.HealthBarBg = hbBg
     		end
-
+		
     		-- Health Bar Fill
     		local hbFill = Visuals.acquireDrawing("Square")
     		if hbFill then
@@ -16172,7 +16651,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.HealthBarFill = hbFill
     		end
-
+		
     		-- Tracer line
     		local tracer = Visuals.acquireDrawing("Line")
     		if tracer then
@@ -16184,7 +16663,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.Tracer = tracer
     		end
-
+		
     		-- Distance tag (3D stud distance text positioned below bounding box)
     		local distTag = Visuals.acquireDrawing("Text")
     		if distTag then
@@ -16215,7 +16694,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end)
     			pv.NameTag = nameTag
     		end
-
+		
     		-- Skeleton bones (14 bone segments)
     		for i = 1, #BONE_PAIRS do
     			local bone = Visuals.acquireDrawing("Line")
@@ -16230,12 +16709,12 @@ Modules["Modules/Visuals.luau"] = function()
     			end
     		end
     	end
-
+	
     	-- Cache character parts and listen for character lifecycle
     	if player.Character then
     		cachePlayerParts(pv, player.Character)
     	end
-
+	
     	pv.CharAddedConn = player.CharacterAdded:Connect(function(char)
     		cachePlayerParts(pv, char)
     		if pv.ChildAddedConn then
@@ -16248,7 +16727,7 @@ Modules["Modules/Visuals.luau"] = function()
     			end
     		end)
     	end)
-
+	
     	pv.CharRemovingConn = player.CharacterRemoving:Connect(function()
     		pv.Parts = nil
     		pv.LastDistance = nil
@@ -16258,7 +16737,7 @@ Modules["Modules/Visuals.luau"] = function()
     		end
     		hideAll(pv)
     	end)
-
+	
     	return pv
     end
 
@@ -16275,12 +16754,12 @@ Modules["Modules/Visuals.luau"] = function()
     		pv.ChildAddedConn:Disconnect()
     		pv.ChildAddedConn = nil
     	end
-
+	
     	if pv.Highlight then
     		pcall(function() pv.Highlight:Destroy() end)
     		pv.Highlight = nil
     	end
-
+	
     	if pv.BoxOutline then
     		Visuals.releaseDrawing("Square", pv.BoxOutline)
     		pv.BoxOutline = nil
@@ -16331,29 +16810,29 @@ Modules["Modules/Visuals.luau"] = function()
     		hideAll(pv)
     		return
     	end
-
+	
     	-- Verify and update cached character parts if needed
     	local parts = pv.Parts
     	if not parts or parts.Character ~= character or not parts.RootPart or not parts.Humanoid then
     		cachePlayerParts(pv, character)
     		parts = pv.Parts
     	end
-
+	
     	if not parts or not parts.Humanoid or not parts.RootPart or parts.Humanoid.Health <= 0 then
     		hideAll(pv)
     		return
     	end
-
+	
     	local humanoid = parts.Humanoid
     	local rootPart = parts.RootPart
-
+	
     	-- 3D Chams / Highlight
     	if Visuals.Chams then
     		local fillColor = Visuals.ChamsFillColor or Visuals.ChamsColor or Color3.fromRGB(180, 70, 255)
     		local outlineColor = Visuals.ChamsOutlineColor or Color3.fromRGB(255, 255, 255)
     		local fillTransparency = Visuals.ChamsTransparency or 0.5
     		local outlineTransparency = Visuals.ChamsOutlineTransparency or 0.2
-
+		
     		if not pv.Highlight or pv.Highlight.Parent ~= character then
     			if pv.Highlight then
     				pcall(function() pv.Highlight:Destroy() end)
@@ -16383,7 +16862,7 @@ Modules["Modules/Visuals.luau"] = function()
     	elseif pv.Highlight then
     		pv.Highlight.Enabled = false
     	end
-
+	
     	-- 2D Calculations
     	local rootPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
     	if not onScreen or not hasDrawing then
@@ -16397,19 +16876,19 @@ Modules["Modules/Visuals.luau"] = function()
     		for _, bone in ipairs(pv.Bones) do bone.Visible = false end
     		return
     	end
-
+	
     	-- Bounding Box size estimation
     	local head = parts.Head
     	local headPos = if head then Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0)) else Vector3.new(rootPos.X, rootPos.Y - 30, 0)
     	local legPos = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
-
+	
     	local boxHeight = math.abs(legPos.Y - headPos.Y)
     	local boxWidth = boxHeight * 0.65
     	local boxX = rootPos.X - (boxWidth * 0.5)
     	local boxY = headPos.Y
     	local boxSize = Vector2.new(boxWidth, boxHeight)
     	local boxPosition = Vector2.new(boxX, boxY)
-
+	
     	-- Render Player Name Tag (Above Head / Box for both 2D ESP & 3D Chams)
     	local shouldShowNames = Visuals.Names and (Visuals.Box2D or Visuals.Chams)
     	if shouldShowNames and pv.NameTag then
@@ -16448,18 +16927,18 @@ Modules["Modules/Visuals.luau"] = function()
     		if pv.Box then pv.Box.Visible = false end
     		if pv.BoxOutline then pv.BoxOutline.Visible = false end
     	end
-
+	
     	-- Render Health Bar next to 2D Box
     	if Visuals.HealthBar and pv.HealthBarBg and pv.HealthBarFill then
     		local barWidth = 3
     		local barX = boxX - 6
     		local healthRatio = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
     		local fillHeight = boxHeight * healthRatio
-
+		
     		pv.HealthBarBg.Size = Vector2.new(barWidth + 2, boxHeight + 2)
     		pv.HealthBarBg.Position = Vector2.new(barX - 1, boxY - 1)
     		pv.HealthBarBg.Visible = true
-
+		
     		pv.HealthBarFill.Size = Vector2.new(barWidth, fillHeight)
     		pv.HealthBarFill.Position = Vector2.new(barX, boxY + (boxHeight - fillHeight))
     		pv.HealthBarFill.Color = Color3.fromHSV(healthRatio * 0.33, 0.9, 0.9)
@@ -16468,12 +16947,12 @@ Modules["Modules/Visuals.luau"] = function()
     		if pv.HealthBarBg then pv.HealthBarBg.Visible = false end
     		if pv.HealthBarFill then pv.HealthBarFill.Visible = false end
     	end
-
+	
     	-- Render Tracer with Origin Selector ("Bottom", "Center", "Mouse")
     	if Visuals.Tracers and pv.Tracer then
     		local tracerOrigin = Visuals.TracerOrigin or "Bottom"
     		local fromPos: Vector2
-
+		
     		if tracerOrigin == "Center" then
     			fromPos = screenCenter
     		elseif tracerOrigin == "Mouse" then
@@ -16481,7 +16960,7 @@ Modules["Modules/Visuals.luau"] = function()
     		else -- "Bottom" or default fallback
     			fromPos = screenBottom
     		end
-
+		
     		pv.Tracer.From = fromPos
     		pv.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
     		pv.Tracer.Color = Visuals.TracerColor
@@ -16489,25 +16968,25 @@ Modules["Modules/Visuals.luau"] = function()
     	elseif pv.Tracer then
     		pv.Tracer.Visible = false
     	end
-
+	
     	-- Render Distance Tag (3D stud distance calculation with delta threshold cache)
     	if Visuals.Distance and pv.DistanceTag then
     		local myPos = if myRootPart then myRootPart.Position else Camera.CFrame.Position
     		local targetPos = rootPart.Position
     		local dist = math.floor((targetPos - myPos).Magnitude)
-
+		
     		if not pv.LastDistance or math.abs(dist - pv.LastDistance) >= 1 then
     			pv.LastDistance = dist
     			pv.DistanceTag.Text = tostring(dist) .. "m"
     		end
-
+		
     		pv.DistanceTag.Position = Vector2.new(boxX + (boxWidth * 0.5), boxY + boxHeight + 2)
     		pv.DistanceTag.Color = Visuals.DistanceColor or Color3.fromRGB(240, 240, 240)
     		pv.DistanceTag.Visible = true
     	elseif pv.DistanceTag then
     		pv.DistanceTag.Visible = false
     	end
-
+	
     	-- Render Skeleton ESP
     	if Visuals.Skeleton and #pv.Bones > 0 and parts then
     		local boneMap = parts.BoneMap
@@ -16552,7 +17031,7 @@ Modules["Modules/Visuals.luau"] = function()
     		return
     	end
     	wasAnyVisualEnabled = true
-
+	
     	-- Cache viewport dimensions and origin vectors once per frame
     	local viewportSize = Camera.ViewportSize
     	local screenCenter = Vector2.new(viewportSize.X * 0.5, viewportSize.Y * 0.5)
@@ -16561,10 +17040,10 @@ Modules["Modules/Visuals.luau"] = function()
     	if Visuals.Tracers and Visuals.TracerOrigin == "Mouse" then
     		mousePos = UserInputService:GetMouseLocation()
     	end
-
+	
     	local localChar = LocalPlayer.Character
     	local myRootPart: BasePart? = if localChar then (localChar:FindFirstChild("HumanoidRootPart") or localChar:FindFirstChild("Torso") or localChar:FindFirstChild("UpperTorso")) :: BasePart? else nil
-
+	
     	for _, player in ipairs(Players:GetPlayers()) do
     		if player ~= LocalPlayer then
     			local pv = playerVisuals[player]
@@ -16710,7 +17189,7 @@ Modules["Modules/Visuals.luau"] = function()
     		cleanPlayerVisual(pv)
     	end
     	playerVisuals = {}
-
+	
     	-- 2. Drain and permanently remove all pooled Drawing instances
     	for typeName, pool in pairs(DrawingPool) do
     		for _, obj in ipairs(pool) do
@@ -16720,7 +17199,7 @@ Modules["Modules/Visuals.luau"] = function()
     		end
     		DrawingPool[typeName] = {}
     	end
-
+	
     	-- 3. Disconnect all module-level connections
     	for _, conn in ipairs(moduleConnections) do
     		pcall(function()
@@ -21519,7 +21998,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     	WallCheck = false,
     	TeamCheck = false,
     	Prediction = 0.035,
-
+	
     	-- Weapon Configs
     	NoRecoil = true,
     	NoSpread = true,
@@ -21938,7 +22417,7 @@ Modules["Modules/SeekerVsHider.luau"] = function()
     			local mat = obj.Material
     			local name = obj.Name:lower()
     			local isGlass = (mat == Enum.Material.Glass or mat == Enum.Material.Foil or mat == Enum.Material.Ice or mat == Enum.Material.ForceField or name:find("glass") or name:find("window") or name:find("pane"))
-
+			
     			if isGlass and not (cam and obj:IsDescendantOf(cam)) and not (myChar and obj:IsDescendantOf(myChar)) then
     				if bg then
     					pcall(function()
@@ -24205,7 +24684,7 @@ Modules["Modules/TBODSquared.luau"] = function()
     	if tyc then
     		table.insert(containers, tyc)
     	end
-
+	
     	local plots = Workspace:FindFirstChild("Plots")
     	if plots and cachedPlotName then
     		local myPlot = plots:FindFirstChild(cachedPlotName)

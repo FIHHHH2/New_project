@@ -793,17 +793,46 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 					local bestStatVal = 0
 					local bestStatFmt = "0"
 
-					local ls = p:FindFirstChild("leaderstats")
-					if ls then
-						for _, val in ipairs(ls:GetChildren()) do
-							if val:IsA("ValueBase") then
-								local num = tonumber((val :: any).Value) or 0
-								if num >= bestStatVal then
-									bestStatVal = num
-									bestStatName = val.Name
-									bestStatFmt = tostring((val :: any).Value)
+					local statFolders = {
+						p:FindFirstChild("leaderstats"),
+						p:FindFirstChild("Data"),
+						p:FindFirstChild("Stats"),
+						p:FindFirstChild("Currencies"),
+						p:FindFirstChild("Values"),
+						p:FindFirstChild("PlayerData")
+					}
+
+					for _, folder in ipairs(statFolders) do
+						if folder then
+							for _, val in ipairs(folder:GetChildren()) do
+								if val:IsA("ValueBase") then
+									local num = tonumber((val :: any).Value)
+									if num then
+										if bestStatName == "None" or num >= bestStatVal then
+											bestStatVal = num
+											bestStatName = val.Name
+											bestStatFmt = tostring((val :: any).Value)
+										end
+									elseif bestStatName == "None" then
+										bestStatName = val.Name
+										bestStatFmt = tostring((val :: any).Value)
+									end
 								end
 							end
+						end
+					end
+
+					for attrName, attrVal in pairs(p:GetAttributes()) do
+						local num = tonumber(attrVal)
+						if num then
+							if bestStatName == "None" or num >= bestStatVal then
+								bestStatVal = num
+								bestStatName = attrName
+								bestStatFmt = tostring(attrVal)
+							end
+						elseif bestStatName == "None" and (type(attrVal) == "string" or type(attrVal) == "boolean") then
+							bestStatName = attrName
+							bestStatFmt = tostring(attrVal)
 						end
 					end
 
@@ -2817,8 +2846,18 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 			window:Notify("Theme", "Saved Adaptive Mode", 2)
 		end)
 
-		-- Right Column: Light & Glass Themes
-		local lightThemeSection = window:AddSection(thmRightCol, "Light & Glass Themes")
+		window:AddButton(darkThemeSection, "Midnight (Amethyst OLED)", function()
+			window:SetTheme("Midnight")
+			window:Notify("Theme", "Saved Midnight Theme", 2)
+		end)
+
+		window:AddButton(darkThemeSection, "Emerald (Cyber Green)", function()
+			window:SetTheme("Emerald")
+			window:Notify("Theme", "Saved Emerald Theme", 2)
+		end)
+
+		-- Right Column: Light, Glass & Accent Themes
+		local lightThemeSection = window:AddSection(thmRightCol, "Light, Glass & Accent Themes")
 
 		window:AddButton(lightThemeSection, "Light Mode", function()
 			window:SetTheme("Light")
@@ -2828,6 +2867,16 @@ return function(_requireFn, window, playerListWidget, chatWidgetInstance, musicT
 		window:AddButton(lightThemeSection, "Translucent Light (Glass)", function()
 			window:SetTheme("TranslucentLight")
 			window:Notify("Theme", "Saved Glass Light Mode", 2)
+		end)
+
+		window:AddButton(lightThemeSection, "Crimson (Ruby Red)", function()
+			window:SetTheme("Crimson")
+			window:Notify("Theme", "Saved Crimson Theme", 2)
+		end)
+
+		window:AddButton(lightThemeSection, "Amber (Warm Flame)", function()
+			window:SetTheme("Amber")
+			window:Notify("Theme", "Saved Amber Theme", 2)
 		end)
 
 		-- ?????? SETTINGS SUB-TAB 3: PERFORMANCE & RENDERING ??????????????????????????????????????????

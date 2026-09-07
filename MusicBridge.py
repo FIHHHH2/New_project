@@ -188,48 +188,72 @@ def update_audio_spectrum():
 
     current_media["spectrum"] = new_spectrum
 
-# ── Rich Vibrant Palette Extractor (HSV Dynamic Range) ─────────────
+# ── Rich Vibrant Palette Extractor (Dominant Hue & Dynamic HSV Range) ──
 def extract_palette(img_bytes: bytes):
     if not img_bytes or len(img_bytes) < 100:
         return {
             "accent": [55, 175, 245],
-            "bg": [18, 18, 22],
-            "container": [26, 26, 32],
-            "border": [50, 50, 60]
+            "bg": [18, 18, 24],
+            "container": [28, 28, 38],
+            "border": [70, 75, 95]
         }
     try:
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-        small = img.resize((40, 40))
+        small = img.resize((48, 48))
         pixels = list(small.get_flattened_data()) if hasattr(small, "get_flattened_data") else list(small.getdata())
 
-        best_accent = None
-        best_score = -1.0
+        buckets = {}
+        total_valid = 0
 
         for r, g, b in pixels:
             h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
-            if s > 0.15 and 0.18 < v < 0.98:
-                score = (s ** 1.4) * (v ** 0.85)
-                if score > best_score:
-                    best_score = score
-                    best_accent = (h, s, v)
+            # Skip extreme near-black or extreme washed-out white
+            if v < 0.08 or (s < 0.08 and v > 0.92):
+                continue
+            h_bin = int(h * 24) % 24
+            if h_bin not in buckets:
+                buckets[h_bin] = {"count": 0, "h_sum": 0.0, "s_sum": 0.0, "v_sum": 0.0}
+            buckets[h_bin]["count"] += 1
+            buckets[h_bin]["h_sum"] += h
+            buckets[h_bin]["s_sum"] += s
+            buckets[h_bin]["v_sum"] += v
+            total_valid += 1
 
-        if not best_accent:
+        best_bin = None
+        best_score = -1.0
+
+        for b_idx, b_info in buckets.items():
+            cnt = b_info["count"]
+            avg_h = b_info["h_sum"] / cnt
+            avg_s = b_info["s_sum"] / cnt
+            avg_v = b_info["v_sum"] / cnt
+            # Prioritize both prevalence and saturation/vibrancy
+            score = (cnt ** 0.65) * (avg_s ** 1.3) * (avg_v ** 0.8)
+            if score > best_score:
+                best_score = score
+                best_bin = (avg_h, avg_s, avg_v)
+
+        if not best_bin:
             h, s, v = 0.58, 0.75, 0.90
         else:
-            h, s, v = best_accent
+            h, s, v = best_bin
 
-        accent_s = max(0.75, min(1.0, s * 1.30))
-        accent_v = max(0.85, min(1.0, v * 1.25))
+        accent_s = max(0.80, min(1.0, s * 1.35))
+        accent_v = max(0.88, min(1.0, v * 1.30))
         ar, ag, ab = colorsys.hsv_to_rgb(h, accent_s, accent_v)
         accent_rgb = [int(ar * 255), int(ag * 255), int(ab * 255)]
 
-        bgr, bgg, bgb = colorsys.hsv_to_rgb(h, 0.40, 0.08)
-        bg_rgb = [max(12, int(bgr * 255)), max(12, int(bgg * 255)), max(16, int(bgb * 255))]
+        bg_s = max(0.35, min(0.60, s * 0.60))
+        bgr, bgg, bgb = colorsys.hsv_to_rgb(h, bg_s, 0.12)
+        bg_rgb = [int(bgr * 255), int(bgg * 255), int(bgb * 255)]
 
-        ctr, ctg, ctb = colorsys.hsv_to_rgb(h, 0.35, 0.15)
+        ctr_s = max(0.30, min(0.55, s * 0.55))
+        ctr, ctg, ctb = colorsys.hsv_to_rgb(h, ctr_s, 0.20)
         container_rgb = [int(ctr * 255), int(ctg * 255), int(ctb * 255)]
 
-        bdr, bdg, bdb = colorsys.hsv_to_rgb(h, 0.55, 0.50)
+        bdr_s = max(0.55, min(0.85, s * 1.10))
+        bdr_v = max(0.70, min(0.95, v * 1.15))
+        bdr, bdg, bdb = colorsys.hsv_to_rgb(h, bdr_s, bdr_v)
         border_rgb = [int(bdr * 255), int(bdg * 255), int(bdb * 255)]
 
         return {
@@ -240,6 +264,7 @@ def extract_palette(img_bytes: bytes):
         }
     except Exception:
         return current_media["theme"]
+
 
 def is_startup_enabled() -> bool:
     try:

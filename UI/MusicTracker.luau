@@ -1118,6 +1118,22 @@ function MusicTracker.new()
 						local title = data.title or data.name or data.track
 						local artist = data.artist or data.author or "Unknown"
 
+						-- Dynamic adaptive cover theme ingestion from bridge
+						if data.theme and typeof(data.theme) == "table" then
+							local th = data.theme
+							local acc = th.accent
+							local bg = th.bg
+							local ctr = th.container
+							local bdr = th.border
+							if acc and bg and ctr and #acc >= 3 and #bg >= 3 and #ctr >= 3 then
+								local accentCol = Color3.fromRGB(acc[1], acc[2], acc[3])
+								local bgCol = Color3.fromRGB(bg[1], bg[2], bg[3])
+								local containerCol = Color3.fromRGB(ctr[1], ctr[2], ctr[3])
+								local borderCol = if bdr and #bdr >= 3 then Color3.fromRGB(bdr[1], bdr[2], bdr[3]) else nil
+								UI.applyAdaptiveTheme(accentCol, bgCol, containerCol, borderCol)
+							end
+						end
+
 						if data and title and title ~= "" then
 							if data.spectrum and typeof(data.spectrum) == "table" then
 								currentSpectrum = data.spectrum

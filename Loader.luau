@@ -17235,7 +17235,7 @@ Modules["Modules/Combat.luau"] = function()
     local LocalPlayer = Players.LocalPlayer
     local Camera = Workspace.CurrentCamera or Workspace:WaitForChild("Camera") :: Camera
 
-    Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    local camChangedConn: RBXScriptConnection = Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     	Camera = Workspace.CurrentCamera or Camera
     end)
 
@@ -17855,6 +17855,9 @@ Modules["Modules/Combat.luau"] = function()
     	Combat.ExpandHitboxes = false
     	Combat.TriggerBot = false
 
+    	-- Unbind per-frame RenderStep aim tracker
+    	pcall(function() RunService:UnbindFromRenderStep("FihCombatAimTrack") end)
+
     	if targetSolverConn then
     		pcall(function() targetSolverConn:Disconnect() end)
     		targetSolverConn = nil
@@ -17871,6 +17874,8 @@ Modules["Modules/Combat.luau"] = function()
     		pcall(function() playerRemovingConn:Disconnect() end)
     		playerRemovingConn = nil
     	end
+    	-- Disconnect module-scope camera listener
+    	pcall(function() camChangedConn:Disconnect() end)
 
     	Combat.resetHitboxes()
     	cachedTargetPlayer = nil
